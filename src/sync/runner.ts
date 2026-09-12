@@ -28,9 +28,10 @@ export interface RunnerSettings {
 	createMissingNotes: boolean;
 
 	pauseBetweenDays: number;
+	stopAfterEmptyDays: number;
 }
 
-export const BASES_FILE = "Garmin Health.base";
+const BASES_FILE = "Garmin Health.base";
 
 /**
  * Turns settings into a sync run and reports it.
@@ -85,6 +86,7 @@ export class SyncRunner {
 				groups: settings.groups,
 				units,
 				pauseBetweenDays: settings.pauseBetweenDays,
+				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
 				onProgress: (done, total, date) => {
 					progress.setMessage(`Garmin sync: ${done}/${total} (${date})`);

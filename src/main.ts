@@ -1,4 +1,5 @@
-import { Notice, Plugin } from "obsidian";
+import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
@@ -31,7 +32,18 @@ export default class GarminPlugin extends Plugin {
 			);
 		}
 
-		this.addRibbonIcon("activity", "Sync Garmin data", () => void this.sync.syncRecent());
+		this.registerView(
+			GARMIN_DASHBOARD_VIEW,
+			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),
+		);
+
+		this.addRibbonIcon("activity", "Open Garmin dashboard", () => void this.openDashboard());
+
+		this.addCommand({
+			id: "open-dashboard",
+			name: "Open dashboard",
+			callback: () => void this.openDashboard(),
+		});
 
 		this.addCommand({
 			id: "sync-recent",
@@ -76,6 +88,18 @@ export default class GarminPlugin extends Plugin {
 				window.setTimeout(() => void this.sync.syncRecent(), STARTUP_SYNC_DELAY_MS),
 			);
 		}
+	}
+
+	/** Reuses an open dashboard rather than stacking duplicates. */
+	async openDashboard(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(GARMIN_DASHBOARD_VIEW);
+		if (existing.length > 0) {
+			await this.app.workspace.revealLeaf(existing[0]!);
+			return;
+		}
+		const leaf = this.app.workspace.getLeaf("tab");
+		await leaf.setViewState({ type: GARMIN_DASHBOARD_VIEW, active: true });
+		await this.app.workspace.revealLeaf(leaf);
 	}
 
 	/** The domain is baked into every URL, so changing it needs a fresh client. */

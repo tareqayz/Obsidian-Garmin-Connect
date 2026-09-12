@@ -1,18 +1,18 @@
-import { App, Modal, Notice, Setting } from "obsidian";
+import { App, Modal, Notice } from "obsidian";
+import { mount, unmount } from "svelte";
 import {
 	GarminBlockedError,
 	GarminMfaRequiredError,
 	GarminRateLimitError,
 } from "../garmin/errors";
 import type GarminPlugin from "../main";
+import LoginForm from "./svelte/LoginForm.svelte";
 
-/** Sign-in. The password lives in this modal and nowhere else. */
+/** Sign-in. The password lives in the component and nowhere else. */
 export class LoginModal extends Modal {
 	private plugin: GarminPlugin;
 	private onDone?: () => void;
-	private password = "";
-	private statusEl!: HTMLElement;
-	private submitEl!: HTMLButtonElement;
+	private form: ReturnType<typeof LoginForm> | undefined;
 
 	constructor(app: App, plugin: GarminPlugin, onDone?: () => void) {
 		super(app);
@@ -21,73 +21,42 @@ export class LoginModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl } = this;
-		const settings = this.plugin.data.settings;
-		contentEl.addClass("gcp-modal");
-		contentEl.createEl("h2", { text: "Sign in to Garmin Connect" });
-
-		new Setting(contentEl).setName("Email").addText((t) =>
-			t
-				.setPlaceholder("you@example.com")
-				.setValue(settings.email)
-				.onChange(async (v) => {
-					settings.email = v.trim();
-					await this.plugin.data.saveSettings();
-				}),
-		);
-
-		new Setting(contentEl)
-			.setName("Password")
-			.setDesc("Used for this sign-in only. Only a refresh token is saved.")
-			.addText((t) => {
-				t.inputEl.type = "password";
-				t.onChange((v) => (this.password = v));
-				t.inputEl.onkeydown = (e) => {
-					if (e.key === "Enter") void this.submit();
-				};
-			});
-
-		this.statusEl = contentEl.createDiv({ cls: "gcp-status" });
-
-		const actions = contentEl.createDiv({ cls: "gcp-actions" });
-		this.submitEl = actions.createEl("button", { text: "Sign in", cls: "mod-cta" });
-		this.submitEl.onclick = () => void this.submit();
-		actions.createEl("button", { text: "Cancel" }).onclick = () => this.close();
+		this.form = mount(LoginForm, {
+			target: this.contentEl,
+			props: {
+				initialEmail: this.plugin.data.settings.email,
+				onEmailChange: (email: string) => {
+					this.plugin.data.settings.email = email;
+					void this.plugin.data.saveSettings();
+				},
+				onSubmit: async (email: string, password: string) => {
+					try {
+						await this.plugin.garmin.login(email, password);
+						new Notice("Signed in to Garmin Connect.");
+						this.onDone?.();
+						this.close();
+						return null;
+					} catch (err) {
+						return explain(err);
+					}
+				},
+				onCancel: () => this.close(),
+			},
+		});
 	}
 
 	onClose(): void {
-		this.password = "";
+		if (this.form) {
+			unmount(this.form);
+			this.form = undefined;
+		}
 		this.contentEl.empty();
-	}
-
-	private async submit(): Promise<void> {
-		const email = this.plugin.data.settings.email;
-		if (!email || !this.password) {
-			this.statusEl.setText("Enter an email and password.");
-			return;
-		}
-
-		this.submitEl.disabled = true;
-		this.statusEl.setText("Signing in…");
-		try {
-			await this.plugin.garmin.login(email, this.password);
-			new Notice("Signed in to Garmin Connect.");
-			this.onDone?.();
-			this.close();
-		} catch (err) {
-			this.statusEl.setText(explain(err));
-		} finally {
-			this.submitEl.disabled = false;
-		}
 	}
 }
 
 function explain(err: unknown): string {
 	if (err instanceof GarminMfaRequiredError) {
-		return (
-			"This account uses multi-factor authentication, which is not supported yet. " +
-			"See TODO.md."
-		);
+		return "This account uses multi-factor authentication, which is not supported yet. See TODO.md.";
 	}
 	if (err instanceof GarminRateLimitError) {
 		return "Garmin is rate limiting this network. Wait 15–30 minutes before trying again.";

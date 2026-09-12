@@ -62,12 +62,12 @@ describe("basesView", () => {
 		assert.ok(!imperial.views?.[0]?.order?.includes("note.distance_km"));
 	});
 
-	it("applies the prefix to metric columns but never to date", () => {
+	it("applies the prefix to every column, date included", () => {
 		const base = parse(
 			basesView({ folder: "Garmin", prefix: "g_", groups: ["heart"], units: "metric" }),
 		);
 		assert.deepEqual(base.views?.[0]?.order, [
-			"note.date",
+			"note.g_date",
 			"note.g_resting_hr",
 			"note.g_min_hr",
 			"note.g_max_hr",

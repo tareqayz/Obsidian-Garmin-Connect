@@ -234,6 +234,42 @@ function mapWorkout(activity: Activity, units: MapOptions["units"]): Record<stri
 	return row;
 }
 
+/** Human labels for the canonical keys. Shared by the Bases view and the dashboard. */
+export const METRIC_LABELS: Record<string, string> = {
+	date: "Date",
+	steps: "Steps",
+	steps_goal: "Step goal",
+	distance_km: "Distance (km)",
+	distance_mi: "Distance (mi)",
+	calories: "Calories",
+	calories_active: "Active calories",
+	floors: "Floors",
+	intensity_minutes: "Intensity min",
+	intensity_moderate: "Moderate min",
+	intensity_vigorous: "Vigorous min",
+	resting_hr: "Resting HR",
+	min_hr: "Min HR",
+	max_hr: "Max HR",
+	sleep_hours: "Sleep (h)",
+	sleep_score: "Sleep score",
+	sleep_deep_hours: "Deep (h)",
+	sleep_light_hours: "Light (h)",
+	sleep_rem_hours: "REM (h)",
+	sleep_awake_hours: "Awake (h)",
+	sleep_start: "Sleep start",
+	sleep_end: "Sleep end",
+	stress_avg: "Stress",
+	body_battery_high: "Body battery high",
+	body_battery_low: "Body battery low",
+	hrv_avg: "HRV",
+	hrv_high: "HRV high",
+	hrv_weekly_avg: "HRV weekly",
+	hrv_status: "HRV status",
+	training_readiness: "Readiness",
+	training_readiness_level: "Readiness level",
+	workouts: "Workouts",
+};
+
 /**
  * Namespacing is the target's job, not the mapper's: a daily note needs the
  * prefix to stay out of the user's own properties, while a note in a dedicated

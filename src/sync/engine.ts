@@ -42,6 +42,15 @@ export interface SyncOptions {
 	units: "metric" | "imperial";
 	/** Courtesy pause between days, in ms. */
 	pauseBetweenDays?: number;
+	/**
+	 * Give up after this many consecutive days with nothing in them.
+	 *
+	 * The sync walks newest to oldest, so a backfill that reaches past the start
+	 * of your Garmin history hits an unbroken run of empty days. Without this it
+	 * would keep asking — four requests a day, all the way to the start date —
+	 * and almost certainly trip Garmin's rate limit on the way. 0 disables it.
+	 */
+	stopAfterEmptyDays?: number;
 	log?: Log;
 	onProgress?: (done: number, total: number, date: string) => void;
 	/** Checked between days so a long backfill can be interrupted. */
@@ -191,7 +200,10 @@ export async function syncRange(
 		}
 	}
 
+	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
+	let emptyRun = 0;
 	let done = 0;
+
 	for (const date of due) {
 		if (opts.shouldStop?.()) {
 			report.stoppedEarly = "cancelled";
@@ -212,7 +224,9 @@ export async function syncRange(
 		if (count === 0) {
 			log.detail(date, "no data");
 			report.skipped += 1;
+			emptyRun += 1;
 		} else {
+			emptyRun = 0;
 			try {
 				const outcome = await target.write(date, properties);
 				result.status = outcome === "missing" ? "no-note" : outcome;
@@ -229,6 +243,15 @@ export async function syncRange(
 		}
 
 		report.days.push(result);
+
+		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
+			report.stoppedEarly =
+				`nothing found for ${emptyRun} days running, back to ${date} — ` +
+				"the account looks to have no data older than that";
+			log.warn(report.stoppedEarly);
+			break;
+		}
+
 		// Incremented on its own line: `onProgress?.(++done)` would skip the
 		// increment entirely whenever no progress callback is supplied, and the
 		// pause-between-days check below reads `done`.

@@ -13,7 +13,18 @@
 		"noUnusedLocals": true,
 		"allowSyntheticDefaultImports": true,
 		"useUnknownInCatchVariables": true,
-		"lib": ["DOM", "DOM.Iterable", "ES2020"]
+		"lib": [
+			"DOM",
+			"DOM.Iterable",
+			"ES2020"
+		],
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true
 	},
-	"include": ["src/**/*.ts"]
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"scripts/**/*.ts",
+		"tests/**/*.ts"
+	]
 }

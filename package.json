@@ -7,18 +7,24 @@
 	"private": true,
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && npm run test && node esbuild.config.mjs production && node scripts/check-mobile-safe.mjs",
+		"build": "tsc -noEmit -skipLibCheck && npm run svelte-check && npm run test && node esbuild.config.mjs production && node scripts/check-mobile-safe.mjs",
 		"check": "node scripts/check-mobile-safe.mjs",
 		"probe:node": "esbuild scripts/node-probe.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.node-probe.mjs --log-level=warning && node scripts/.node-probe.mjs",
-		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test tests/.build"
+		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test tests/.build",
+		"preview:dashboard": "node scripts/preview.mjs",
+		"svelte-check": "svelte-check --tsconfig tsconfig.json"
 	},
 	"license": "MIT",
 	"devDependencies": {
 		"@types/js-yaml": "^4.0.9",
 		"@types/node": "^22.0.0",
 		"esbuild": "^0.25.5",
+		"esbuild-svelte": "^0.9.5",
 		"js-yaml": "^5.4.1",
 		"obsidian": "^1.10.0",
+		"svelte": "^5.57.0",
+		"svelte-check": "^4.7.6",
+		"svelte-preprocess": "^6.0.5",
 		"tslib": "^2.8.1",
 		"typescript": "^5.8.3"
 	}

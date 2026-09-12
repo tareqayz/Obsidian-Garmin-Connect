@@ -33,12 +33,13 @@ export class DataFolderTarget implements NoteTarget {
 
 	async write(date: string, properties: Properties): Promise<WriteOutcome> {
 		const file = await this.open(date);
-		// `date` stays unprefixed: it is the row key every view sorts and
-		// filters on, not one of the metrics.
-		return writeFrontmatter(this.app, file, {
-			date,
-			...applyPrefix(properties, this.options.prefix),
-		});
+		// The row key every view sorts on. Prefixed like everything else so it
+		// cannot collide with a `date` property of the user's own.
+		return writeFrontmatter(
+			this.app,
+			file,
+			applyPrefix({ date, ...properties }, this.options.prefix),
+		);
 	}
 
 	path(date: string): string {

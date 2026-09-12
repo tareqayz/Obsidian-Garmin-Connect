@@ -1,53 +1,44 @@
 .gcp-modal { max-width: 46rem; }
 
-.gcp-caution {
-	border-left: 3px solid var(--text-warning);
-	background: var(--background-secondary);
-	padding: 0.6em 0.8em;
-	margin-bottom: 1em;
-	font-size: var(--font-ui-small);
-	line-height: 1.45;
+/* ==================================================================
+   Garmin dashboard
+   Series colours are the validated palette (blue slot 1 + its ordinal
+   ramp), checked against Obsidian's default surfaces in both modes.
+   Chrome follows Obsidian's own variables so it matches the user's
+   theme, with literal fallbacks so the same CSS renders outside the app.
+
+   Only the tokens live here. Every rule that styles a specific piece of
+   the dashboard now sits in the Svelte component that owns it.
+   ================================================================== */
+
+.gcd-root {
+	--gcd-series: #2a78d6;
+	--gcd-stage-1: #1c5cab;
+	--gcd-stage-2: #2a78d6;
+	--gcd-stage-3: #5598e7;
+	--gcd-stage-4: #86b6ef;
+	--gcd-grid: #e1e0d9;
+	--gcd-axis: #c3c2b7;
+	--gcd-good: #0ca30c;
+	--gcd-bad: #d03b3b;
+
+	--gcd-surface: var(--background-primary, #ffffff);
+	--gcd-raised: var(--background-secondary, #f6f6f4);
+	--gcd-text: var(--text-normal, #0b0b0b);
+	--gcd-muted: var(--text-muted, #898781);
+	--gcd-border: var(--background-modifier-border, rgba(11, 11, 11, 0.1));
 }
 
-.gcp-actions {
-	display: flex;
-	gap: 0.5em;
-	flex-wrap: wrap;
-	margin: 0.75em 0;
-}
-
-.gcp-footer { margin-top: 0.5em; }
-
-.gcp-log {
-	background: var(--background-primary-alt);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
-	padding: 0.75em;
-	max-height: 22rem;
-	overflow: auto;
-	font-family: var(--font-monospace);
-	font-size: 0.78em;
-	line-height: 1.5;
-	white-space: pre;
-	tab-size: 2;
-}
-
-.gcp-mfa {
-	display: flex;
-	gap: 0.5em;
-	align-items: center;
-	flex-wrap: wrap;
-	background: var(--background-secondary);
-	padding: 0.6em 0.8em;
-	border-radius: var(--radius-s);
-	margin-bottom: 0.5em;
-}
-
-.gcp-mfa input { flex: 1 1 8rem; min-width: 6rem; }
-
-.gcp-status {
-	font-size: var(--font-ui-small);
-	color: var(--text-muted);
-	min-height: 1.4em;
-	margin: 0.5em 0;
+.theme-dark .gcd-root {
+	--gcd-series: #3987e5;
+	--gcd-stage-1: #256abf;
+	--gcd-stage-2: #3987e5;
+	--gcd-stage-3: #6da7ec;
+	--gcd-stage-4: #9ec5f4;
+	--gcd-grid: #2c2c2a;
+	--gcd-axis: #383835;
+	--gcd-surface: var(--background-primary, #1e1e1e);
+	--gcd-raised: var(--background-secondary, #262626);
+	--gcd-text: var(--text-normal, #dadada);
+	--gcd-border: var(--background-modifier-border, rgba(255, 255, 255, 0.1));
 }

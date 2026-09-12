@@ -15,6 +15,12 @@
   defensively, but those shapes were inferred from the endpoint paths, not seen.
   If a property never appears, that is the first place to look.
 - Polish the UI; retire the diagnostics modal or hide it behind a debug setting.
+- Dashboard: the workouts group has no chart yet — only the table view shows it.
+- The "stop after empty days" guard cannot tell a genuine gap (a month without
+  the watch) from the end of your history. It names the date it stopped at so you
+  can re-run a narrower range, but detecting the account's real start date — if
+  Garmin exposes one — would be better.
+- Dashboard: consider a distance/calories chart; both are synced but unplotted.
 - Consider applying the daily-note template when creating a missing note.
   Currently creation makes an empty file, because expanding only some of a
   template's placeholders would be worse than expanding none.

@@ -20,9 +20,9 @@ const ctx: AuthContext = {
 	domain: "garmin.com",
 };
 
-log.section("Step 0 — node/fetch baseline");
+log.step("Step 0 — node/fetch baseline");
 const reachable = await probeSsoReachability(ctx);
 log.line();
-log.kv("cookie jar", ctx.jar.size ? ctx.jar.names().join(", ") : "(empty)");
+log.detail("cookie jar", ctx.jar.size ? ctx.jar.names().join(", ") : "(empty)");
 console.log(log.render());
 process.exit(reachable ? 0 : 1);

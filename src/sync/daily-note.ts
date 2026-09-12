@@ -60,7 +60,7 @@ export function resolveDailyNoteOptions(app: App, overrides: Partial<DailyNoteOp
 }
 
 /** `"2026-09-12"` rendered with the vault's daily-note format (moment tokens). */
-export function dailyNoteName(date: string, format: string): string {
+function dailyNoteName(date: string, format: string): string {
 	return formatWith(date, "YYYY-MM-DD").format(format);
 }
 
@@ -96,7 +96,13 @@ export class DailyNoteTarget implements NoteTarget {
 			this.byName = null;
 		}
 
-		return writeFrontmatter(this.app, file, applyPrefix(properties, this.options.prefix));
+		// `date` rides along so the dashboard can read a day back out of a note
+		// whose filename format it does not have to parse.
+		return writeFrontmatter(
+			this.app,
+			file,
+			applyPrefix({ date, ...properties }, this.options.prefix),
+		);
 	}
 
 	private find(date: string): TFile | null {

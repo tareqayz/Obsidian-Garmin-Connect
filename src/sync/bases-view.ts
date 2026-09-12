@@ -1,4 +1,4 @@
-import { ALL_GROUPS, keysFor, type MetricGroup } from "./metrics";
+import { ALL_GROUPS, METRIC_LABELS, keysFor, type MetricGroup } from "./metrics";
 
 /**
  * Generates an Obsidian Bases view over the data folder.
@@ -12,40 +12,6 @@ import { ALL_GROUPS, keysFor, type MetricGroup } from "./metrics";
  * view's `order` lists columns as `note.<property>`.
  */
 
-const LABELS: Record<string, string> = {
-	date: "Date",
-	steps: "Steps",
-	steps_goal: "Step goal",
-	distance_km: "Distance (km)",
-	distance_mi: "Distance (mi)",
-	calories: "Calories",
-	calories_active: "Active calories",
-	floors: "Floors",
-	intensity_minutes: "Intensity min",
-	intensity_moderate: "Moderate min",
-	intensity_vigorous: "Vigorous min",
-	resting_hr: "Resting HR",
-	min_hr: "Min HR",
-	max_hr: "Max HR",
-	sleep_hours: "Sleep (h)",
-	sleep_score: "Sleep score",
-	sleep_deep_hours: "Deep (h)",
-	sleep_light_hours: "Light (h)",
-	sleep_rem_hours: "REM (h)",
-	sleep_awake_hours: "Awake (h)",
-	sleep_start: "Sleep start",
-	sleep_end: "Sleep end",
-	stress_avg: "Stress",
-	body_battery_high: "Body battery high",
-	body_battery_low: "Body battery low",
-	hrv_avg: "HRV",
-	hrv_high: "HRV high",
-	hrv_weekly_avg: "HRV weekly",
-	hrv_status: "HRV status",
-	training_readiness: "Readiness",
-	training_readiness_level: "Readiness level",
-	workouts: "Workouts",
-};
 
 export interface BasesViewOptions {
 	folder: string;
@@ -63,10 +29,9 @@ export function basesView(opts: BasesViewOptions): string {
 		(key) => !key.startsWith("distance_") || key === wanted,
 	);
 
-	// `date` is the row key and is always written unprefixed.
-	const rows = ["date", ...columns.map((key) => `${opts.prefix}${key}`)];
+	const rows = ["date", ...columns].map((key) => `${opts.prefix}${key}`);
 	const labelFor = (key: string, i: number) =>
-		i === 0 ? LABELS.date : (LABELS[columns[i - 1]!] ?? columns[i - 1]!);
+		i === 0 ? METRIC_LABELS.date : (METRIC_LABELS[columns[i - 1]!] ?? columns[i - 1]!);
 
 	const lines: string[] = [];
 	lines.push("filters:");

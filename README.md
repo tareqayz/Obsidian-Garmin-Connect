@@ -3,8 +3,9 @@
 Syncs Garmin Connect health data into your daily notes as frontmatter properties
 — **on mobile as well as the desktop**, which is the part nobody had solved.
 
-**Status: phase 2.** Authentication, session persistence, the typed API core and
-the sync engine are done and tested (134 tests). MFA is not supported yet, and
+**Status: phase 2 + dashboard.** Authentication, session persistence, the typed
+API core, the sync engine and the dashboard are done and tested (177 tests).
+The UI is Svelte 5. MFA is not supported yet, and
 the UI is functional rather than polished.
 
 ## Where the data goes
@@ -59,6 +60,56 @@ it from current settings when you want that.
 | **Daily notes** | Properties go into the daily note you already keep, prefixed `garmin_` so they cannot collide. Only writes to notes that already exist unless you turn on *Create missing notes*. |
 | **Both** | Writes to each. A day counts as written if either took it. |
 
+## The dashboard
+
+**Open dashboard** (ribbon, or the command palette) opens a pane of charts drawn
+from whatever has been synced — stat tiles with week-over-week deltas and
+sparklines, a steps column chart against your goal, sleep by stage, and small
+multiples for resting HR, HRV, Body Battery and training readiness. A range row
+(30 days / 90 days / 1 year) scopes everything below it, and a **Table** toggle
+swaps the whole view for the same numbers as text.
+
+The same row carries **Sync** (the last few days) and **Backfill…** (any range
+you pick), with a status line underneath saying what the vault currently holds —
+"Data through 12 Sep · 386 days stored" — so the dashboard is where you both read
+the data and fetch it.
+
+The UI is **Svelte 5**, set up the way [Obsidian's guide][svelte-guide]
+prescribes: `esbuild-svelte` in the build, components mounted with `mount()` and
+torn down with `unmount()`. The charts are hand-drawn SVG — no chart library, no
+CDN, because an Obsidian plugin cannot load external scripts and a bundled chart
+library would be dead weight on a phone. What Svelte buys here is that a chart is
+now markup instead of DOM-construction code, and that `bind:clientWidth` replaces
+a ResizeObserver plus a measure-then-draw second pass: each chart simply sizes
+itself to the card it lands in.
+
+[svelte-guide]: https://docs.obsidian.md/Plugins/Getting+started/Use+Svelte+in+your+plugin
+
+A few choices worth knowing, since they are easy to get wrong:
+
+- **Sleep stages take an ordinal ramp of one hue, not four colours.** Deep →
+  light → REM → awake is an *ordered* scale, so four categorical hues would be
+  encoding order as identity. The four blue steps were checked with the palette
+  validator against Obsidian's light and dark surfaces.
+- **No dual-axis charts anywhere.** Two measures of different scale get two
+  charts. Resting HR, HRV, Body Battery and readiness are small multiples with
+  one axis each.
+- **Colour never carries meaning alone.** The sleep chart has a legend; delta
+  chips lead with an arrow; every chart has the table view as its twin.
+- **Deltas know which way is good.** A falling resting heart rate is green and a
+  rising one is red — the opposite of steps. Deltas compare the last seven days
+  against the seven before, because a single day of Garmin data swings too much
+  to be a trend.
+- **Themes.** Chrome follows Obsidian's own CSS variables, so the dashboard
+  matches your theme; only the series colours are fixed, and both light and dark
+  steps were validated against the surfaces they render on.
+- **Settings keep native controls.** The settings panel is a Svelte component,
+  but every row is built with Obsidian's own `Setting` API through a small
+  action. Hand-rolling toggles and sliders would mean re-implementing Obsidian's
+  look and its mobile behaviour and getting both subtly wrong. Svelte decides
+  which rows exist — so switching storage mode now shows and hides sections
+  instead of rebuilding the whole pane and losing your scroll position.
+
 ### What gets collected
 
 Seven metric groups, each switchable: **activity** (steps, distance, calories,
@@ -73,7 +124,7 @@ fetches it, and drops its columns from a rebuilt table view.
 
 ```bash
 npm install
-npm run build      # typecheck → 134 tests → bundle → mobile-safety check
+npm run build      # typecheck → 177 tests → bundle → mobile-safety check
 ```
 
 Reload community plugins in Obsidian, enable **Garmin Connect**, then:
@@ -93,6 +144,7 @@ separate sessions.
 | Sync recent days | The last *N* days (default 3) |
 | Sync today | Just today |
 | Sync a date range… | Backfill, with a request estimate before you commit |
+| Open dashboard | The charts pane |
 | Rebuild the Garmin table view | Regenerates the Bases view from current settings |
 | Sign in to Garmin Connect | |
 | Run connectivity probe | Diagnostics — see below |
@@ -124,6 +176,16 @@ yesterday. Three days is the default.
 whole range immediately, because every later request would fail the same way. A
 single endpoint failing for a single day is just a warning: the rest of that day
 still gets written.
+
+**It stops when it runs off the end of your history.** Backfills are unbounded —
+you can ask for 2010 — but a range that reaches past the start of your Garmin
+data would otherwise keep asking, four requests a day, until Garmin rate-limits
+it. Since the sync walks newest to oldest, that empty region is always the tail,
+so after 45 consecutive days with nothing in them (configurable; 0 disables) it
+gives up and says so: *"nothing found for 45 days running, back to 2024-11-28 —
+the account looks to have no data older than that"*. Nothing bogus is ever
+written for those days; a day with no usable numbers is skipped, not stored as
+zeroes.
 
 **Request budget.** Roughly *groups needed* × *days with notes*, plus one paged
 call for the activity list across the whole range — not one per day. The sync
@@ -209,6 +271,19 @@ src/sync/
   data-folder.ts         NoteTarget: one note per day
   frontmatter.ts         shared dirty-checked write
   runner.ts              settings → a run, and reporting
+src/dashboard/
+  series.ts              rows → series, stats, formatting  — pure
+  scales.ts              chart geometry, ticks, paths      — pure
+  metrics.ts             what is shown and how it behaves  — pure
+  collect.ts             reads days back out of the vault
+  view.ts                the Obsidian ItemView, mounts Svelte
+src/ui/svelte/
+  Dashboard.svelte       root: filters, tiles, cards, table
+  Chart.svelte           shared frame: scale, axes, hit bands, tooltip
+  ColumnChart / LineChart / BandChart / StackedChart
+  StatTile / Sparkline / Legend / Card / FilterBar / DataTable
+  LoginForm / SyncRangeForm / ProbePanel / SettingsPanel
+  obsidian-setting.ts    action that drops a native Setting row into markup
 src/obsidian-http.ts     requestUrl adapter   — the only Obsidian import in the auth path
 src/fetch-http.ts        fetch adapter        — Node harness and tests
 src/testing/             fixture transport
@@ -288,8 +363,9 @@ endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 ## Tests
 
 ```bash
-npm test            # 134 tests, no network, no Obsidian
-npm run build       # typecheck → tests → bundle → mobile-safety check
+npm test            # 177 tests, no network, no Obsidian
+npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
+npm run preview:dashboard  # build the browser preview of the dashboard
 npm run probe:node  # runs the real auth module under Node, step 0 only
 ```
 
@@ -299,6 +375,12 @@ refresh, then success" and "first DI client ID rejected, second accepted" are
 expressed. Nothing of ours is mocked — the fixtures sit at the transport seam,
 and the sync engine's doubles sit at the note-target seam, so what is under test
 is the real code.
+
+The chart components import nothing from Obsidian, which is what lets
+`npm run preview:dashboard` mount the real `Dashboard.svelte` in a plain browser
+with synthetic data. Open `scripts/.preview/index.html` to see it, or
+append `#dark` for the dark theme. That is how the layout gets checked without
+launching Obsidian.
 
 `npm run build` fails if a node or electron require leaks into the bundle. That
 is the bug class that loads fine on the desktop and throws on the phone, where it

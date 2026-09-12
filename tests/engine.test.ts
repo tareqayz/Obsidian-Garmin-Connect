@@ -31,7 +31,7 @@ class FakeSource implements SyncSource {
 		if (err) throw err;
 	}
 
-	async dailySummary(date: string) {
+	async dailySummary(date: string): Promise<{ calendarDate: string; totalSteps: number | null }> {
 		this.guard("dailySummary", date);
 		return { calendarDate: date, totalSteps: this.steps };
 	}
@@ -387,5 +387,71 @@ describe("syncRange — a target that creates its own notes", () => {
 		const report = await syncRange(source, target, options());
 		assert.deepEqual(written.sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
 		assert.equal(report.skipped, 0);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Running off the end of the account's history                       */
+/* ------------------------------------------------------------------ */
+
+describe("syncRange — stopAfterEmptyDays", () => {
+	/** A source with data only from `startsOn` onwards. */
+	class SparseSource extends FakeSource {
+		constructor(private startsOn: string) {
+			super();
+		}
+		override async dailySummary(date: string) {
+			const summary = await super.dailySummary(date);
+			// Garmin answers for a date before your history, just with nothing in it.
+			return date >= this.startsOn ? summary : { calendarDate: date, totalSteps: null };
+		}
+	}
+
+	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+
+	it("gives up once it has walked past the start of your history", async () => {
+		const source = new SparseSource("2026-09-08");
+		const report = await syncRange(
+			source,
+			always,
+			options({ from: "2026-08-01", to: "2026-09-12", stopAfterEmptyDays: 3 }),
+		);
+
+		assert.match(report.stoppedEarly ?? "", /no data older/);
+		// 5 days of data, then 3 empties, then stop — not all 43 days.
+		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 8);
+	});
+
+	it("names the date it gave up at, so a real gap can be told apart", async () => {
+		const report = await syncRange(
+			new SparseSource("2026-09-11"),
+			always,
+			options({ from: "2026-08-01", to: "2026-09-12", stopAfterEmptyDays: 2 }),
+		);
+		assert.match(report.stoppedEarly ?? "", /back to 2026-09-09/);
+	});
+
+	it("keeps going through a gap shorter than the limit", async () => {
+		const source = new FakeSource();
+		// One hollow day in the middle must not end the run.
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) =>
+			date === "2026-09-11" ? { calendarDate: date, totalSteps: null } : original(date);
+
+		const report = await syncRange(source, always, options({ stopAfterEmptyDays: 2 }));
+		assert.equal(report.stoppedEarly, undefined);
+		assert.equal(report.written, 2);
+		assert.equal(report.skipped, 1);
+	});
+
+	it("walks the whole range when the guard is off", async () => {
+		const source = new SparseSource("2026-09-12");
+		const report = await syncRange(
+			source,
+			always,
+			options({ from: "2026-09-01", to: "2026-09-12", stopAfterEmptyDays: 0 }),
+		);
+		assert.equal(report.stoppedEarly, undefined);
+		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 12);
 	});
 });

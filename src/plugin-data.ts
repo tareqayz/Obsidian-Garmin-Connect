@@ -89,6 +89,7 @@ export class PluginData implements TokenStore {
 			createMissingNotes: bool(source.createMissingNotes, d.createMissingNotes),
 			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
 			pauseBetweenDays: int(source.pauseBetweenDays, d.pauseBetweenDays, 0, 5000),
+			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
