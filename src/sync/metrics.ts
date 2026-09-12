@@ -58,8 +58,6 @@ export interface DayData {
 export interface MapOptions {
 	groups: readonly MetricGroup[];
 	units: "metric" | "imperial";
-	/** Prepended to every key. Keeps our properties out of the user's namespace. */
-	prefix: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -134,7 +132,7 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		// Absent stays absent: a day Garmin has no data for should not gain a
 		// row of empty properties.
 		if (value === undefined) return;
-		out[`${opts.prefix}${key}`] = value;
+		out[key] = value;
 	};
 
 	const summary = data.summary ?? undefined;
@@ -234,6 +232,58 @@ function mapWorkout(activity: Activity, units: MapOptions["units"]): Record<stri
 	if (hr !== undefined) row.avg_hr = Math.round(hr);
 
 	return row;
+}
+
+/**
+ * Namespacing is the target's job, not the mapper's: a daily note needs the
+ * prefix to stay out of the user's own properties, while a note in a dedicated
+ * folder reads better without one.
+ */
+export function applyPrefix(properties: Properties, prefix: string): Properties {
+	if (!prefix) return properties;
+	const out: Properties = {};
+	for (const [key, value] of Object.entries(properties)) out[`${prefix}${key}`] = value;
+	return out;
+}
+
+/**
+ * Every canonical key a set of groups can produce, in display order.
+ *
+ * Both distance keys are listed even though only one is ever written — the
+ * caller filters to whichever unit is in play.
+ */
+export function keysFor(groups: readonly MetricGroup[]): string[] {
+	const byGroup: Record<MetricGroup, string[]> = {
+		activity: [
+			"steps",
+			"steps_goal",
+			"distance_km",
+			"distance_mi",
+			"calories",
+			"calories_active",
+			"floors",
+			"intensity_minutes",
+			"intensity_moderate",
+			"intensity_vigorous",
+		],
+		heart: ["resting_hr", "min_hr", "max_hr"],
+		sleep: [
+			"sleep_hours",
+			"sleep_score",
+			"sleep_deep_hours",
+			"sleep_light_hours",
+			"sleep_rem_hours",
+			"sleep_awake_hours",
+			"sleep_start",
+			"sleep_end",
+		],
+		stress: ["stress_avg", "body_battery_high", "body_battery_low"],
+		hrv: ["hrv_avg", "hrv_high", "hrv_weekly_avg", "hrv_status"],
+		readiness: ["training_readiness", "training_readiness_level"],
+		workouts: ["workouts"],
+	};
+	const wanted = new Set(groups);
+	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => byGroup[g]);
 }
 
 /** Groups activities by the local calendar day they started on. */

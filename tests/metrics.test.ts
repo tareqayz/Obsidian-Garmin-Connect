@@ -2,8 +2,10 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
 	ALL_GROUPS,
+	applyPrefix,
 	bucketWorkoutsByDate,
 	endpointsFor,
+	keysFor,
 	localDateOf,
 	mapDay,
 	toLocalDateTime,
@@ -14,7 +16,6 @@ import {
 const opts = (over: Partial<MapOptions> = {}): MapOptions => ({
 	groups: ALL_GROUPS,
 	units: "metric",
-	prefix: "garmin_",
 	...over,
 });
 
@@ -25,33 +26,33 @@ describe("mapDay — absent data", () => {
 
 	it("omits keys rather than writing nulls", () => {
 		const props = mapDay({ summary: { totalSteps: 8000, totalKilocalories: null } }, opts());
-		assert.equal(props.garmin_steps, 8000);
-		assert.ok(!("garmin_calories" in props));
+		assert.equal(props.steps, 8000);
+		assert.ok(!("calories" in props));
 	});
 });
 
 describe("mapDay — Garmin's sentinels", () => {
 	it("drops averageStressLevel: -1 instead of writing it as a score", () => {
 		const props = mapDay({ summary: { averageStressLevel: -1 } }, opts());
-		assert.ok(!("garmin_stress_avg" in props));
+		assert.ok(!("stress_avg" in props));
 	});
 
 	it("keeps a genuine zero", () => {
 		const props = mapDay({ summary: { totalSteps: 0 } }, opts());
-		assert.equal(props.garmin_steps, 0);
+		assert.equal(props.steps, 0);
 	});
 
 	it("drops a negative resting heart rate", () => {
 		const props = mapDay({ summary: { restingHeartRate: -1 } }, opts());
-		assert.ok(!("garmin_resting_hr" in props));
+		assert.ok(!("resting_hr" in props));
 	});
 });
 
 describe("mapDay — units", () => {
 	it("converts metres to kilometres", () => {
 		const props = mapDay({ summary: { totalDistanceMeters: 8234 } }, opts());
-		assert.equal(props.garmin_distance_km, 8.23);
-		assert.ok(!("garmin_distance_mi" in props));
+		assert.equal(props.distance_km, 8.23);
+		assert.ok(!("distance_mi" in props));
 	});
 
 	it("converts metres to miles, under a different key", () => {
@@ -59,8 +60,8 @@ describe("mapDay — units", () => {
 			{ summary: { totalDistanceMeters: 8234 } },
 			opts({ units: "imperial" }),
 		);
-		assert.equal(props.garmin_distance_mi, 5.12);
-		assert.ok(!("garmin_distance_km" in props));
+		assert.equal(props.distance_mi, 5.12);
+		assert.ok(!("distance_km" in props));
 	});
 });
 
@@ -70,14 +71,14 @@ describe("mapDay — intensity minutes", () => {
 			{ summary: { moderateIntensityMinutes: 30, vigorousIntensityMinutes: 10 } },
 			opts(),
 		);
-		assert.equal(props.garmin_intensity_moderate, 30);
-		assert.equal(props.garmin_intensity_vigorous, 10);
-		assert.equal(props.garmin_intensity_minutes, 50);
+		assert.equal(props.intensity_moderate, 30);
+		assert.equal(props.intensity_vigorous, 10);
+		assert.equal(props.intensity_minutes, 50);
 	});
 
 	it("does not invent a total when neither figure is present", () => {
 		const props = mapDay({ summary: { totalSteps: 1 } }, opts());
-		assert.ok(!("garmin_intensity_minutes" in props));
+		assert.ok(!("intensity_minutes" in props));
 	});
 });
 
@@ -94,10 +95,10 @@ describe("mapDay — sleep", () => {
 			},
 		};
 		const props = mapDay(data, opts());
-		assert.equal(props.garmin_sleep_hours, 7.5);
-		assert.equal(props.garmin_sleep_deep_hours, 1.5);
-		assert.equal(props.garmin_sleep_rem_hours, 1.25);
-		assert.equal(props.garmin_sleep_score, 82);
+		assert.equal(props.sleep_hours, 7.5);
+		assert.equal(props.sleep_deep_hours, 1.5);
+		assert.equal(props.sleep_rem_hours, 1.25);
+		assert.equal(props.sleep_score, 82);
 	});
 
 	it("survives a sleep payload with no DTO", () => {
@@ -111,13 +112,9 @@ describe("mapDay — groups", () => {
 			summary: { totalSteps: 100, restingHeartRate: 50, averageStressLevel: 30 },
 		};
 		const props = mapDay(data, opts({ groups: ["heart"] }));
-		assert.deepEqual(Object.keys(props), ["garmin_resting_hr"]);
+		assert.deepEqual(Object.keys(props), ["resting_hr"]);
 	});
 
-	it("honours an empty prefix", () => {
-		const props = mapDay({ summary: { totalSteps: 100 } }, opts({ prefix: "" }));
-		assert.equal(props.steps, 100);
-	});
 });
 
 describe("mapDay — workouts", () => {
@@ -138,7 +135,7 @@ describe("mapDay — workouts", () => {
 			},
 			opts(),
 		);
-		assert.deepEqual(props.garmin_workouts, [
+		assert.deepEqual(props.workouts, [
 			{
 				name: "Morning Run",
 				type: "running",
@@ -152,7 +149,7 @@ describe("mapDay — workouts", () => {
 	});
 
 	it("writes no key when there were no workouts", () => {
-		assert.ok(!("garmin_workouts" in mapDay({ workouts: [] }, opts())));
+		assert.ok(!("workouts" in mapDay({ workouts: [] }, opts())));
 	});
 });
 
@@ -204,5 +201,52 @@ describe("endpointsFor", () => {
 			readiness: false,
 			workouts: false,
 		});
+	});
+});
+
+describe("applyPrefix", () => {
+	it("namespaces every key", () => {
+		assert.deepEqual(applyPrefix({ steps: 1, resting_hr: 2 }, "garmin_"), {
+			garmin_steps: 1,
+			garmin_resting_hr: 2,
+		});
+	});
+
+	it("returns the same object untouched when there is no prefix", () => {
+		const props = { steps: 1 };
+		assert.equal(applyPrefix(props, ""), props);
+	});
+});
+
+describe("keysFor", () => {
+	it("lists keys grouped and in a stable order", () => {
+		assert.deepEqual(keysFor(["heart"]), ["resting_hr", "min_hr", "max_hr"]);
+	});
+
+	it("orders groups consistently regardless of how they are passed in", () => {
+		assert.deepEqual(keysFor(["heart", "activity"]), keysFor(["activity", "heart"]));
+	});
+
+	it("covers every key mapDay can produce for a group", () => {
+		// Guards against a new metric being mapped but never reaching the table.
+		const produced = Object.keys(
+			mapDay(
+				{
+					summary: {
+						totalSteps: 1,
+						dailyStepGoal: 1,
+						totalDistanceMeters: 1,
+						totalKilocalories: 1,
+						activeKilocalories: 1,
+						floorsAscended: 1,
+						moderateIntensityMinutes: 1,
+						vigorousIntensityMinutes: 1,
+					},
+				},
+				opts({ groups: ["activity"] }),
+			),
+		);
+		const known = new Set(keysFor(["activity"]));
+		for (const key of produced) assert.ok(known.has(key), `keysFor is missing "${key}"`);
 	});
 });

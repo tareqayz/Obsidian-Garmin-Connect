@@ -18,3 +18,4 @@
 - Consider applying the daily-note template when creating a missing note.
   Currently creation makes an empty file, because expanding only some of a
   template's placeholders would be worse than expanding none.
+- CI/CD pipeline : run automated tests on Garmin API and auth, ensuring nothing has changed - if something has, flag it and see if you can run an agent for an immediate to PR.

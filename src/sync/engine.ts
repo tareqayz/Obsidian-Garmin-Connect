@@ -26,7 +26,10 @@ export type WriteOutcome = "written" | "unchanged" | "missing";
 
 /** Where a day's properties end up. Obsidian lives behind this. */
 export interface NoteTarget {
-	/** Local lookup only — a missing note must cost zero requests. */
+	/**
+	 * Can this day be written at all? Local lookup only — answering "no" must
+	 * cost zero requests. A target that creates its own notes always says yes.
+	 */
 	exists(date: string): boolean;
 	write(date: string, properties: Properties): Promise<WriteOutcome>;
 }
@@ -37,9 +40,6 @@ export interface SyncOptions {
 	to: string;
 	groups: readonly MetricGroup[];
 	units: "metric" | "imperial";
-	prefix: string;
-	/** Leave days without a daily note alone instead of creating one. */
-	requireExistingNote: boolean;
 	/** Courtesy pause between days, in ms. */
 	pauseBetweenDays?: number;
 	log?: Log;
@@ -71,6 +71,38 @@ export interface SyncReport {
 	/** Set when the sync gave up before finishing the range. */
 	stoppedEarly?: string;
 	requests: number;
+}
+
+/**
+ * Writes the same day to several places.
+ *
+ * A day counts as written if anywhere took it; unchanged only when every target
+ * agreed there was nothing to do.
+ */
+export class MultiTarget implements NoteTarget {
+	private targets: NoteTarget[];
+
+	constructor(targets: NoteTarget[]) {
+		this.targets = targets;
+	}
+
+	exists(date: string): boolean {
+		return this.targets.some((t) => t.exists(date));
+	}
+
+	async write(date: string, properties: Properties): Promise<WriteOutcome> {
+		const outcomes: WriteOutcome[] = [];
+		for (const target of this.targets) {
+			if (!target.exists(date)) {
+				outcomes.push("missing");
+				continue;
+			}
+			outcomes.push(await target.write(date, properties));
+		}
+		if (outcomes.includes("written")) return "written";
+		if (outcomes.includes("unchanged")) return "unchanged";
+		return "missing";
+	}
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,9 +164,9 @@ export async function syncRange(
 
 	log.step(`Syncing ${dates.length} day(s): ${opts.from} → ${opts.to}`);
 
-	// Days with no note are skipped before any request, so decide that first and
-	// only fetch activities if some day actually needs them.
-	const due = opts.requireExistingNote ? dates.filter((d) => target.exists(d)) : [...dates];
+	// Days with nowhere to go are skipped before any request, so decide that
+	// first and only fetch activities if some day actually needs them.
+	const due = dates.filter((d) => target.exists(d));
 	for (const date of dates) {
 		if (!due.includes(date)) {
 			report.days.push({ date, status: "no-note" });
@@ -142,7 +174,7 @@ export async function syncRange(
 		}
 	}
 	if (due.length === 0) {
-		log.warn("no daily notes exist for this range — nothing fetched");
+		log.warn("nothing in this range can be written to — nothing fetched");
 		return finish(report, log);
 	}
 
@@ -171,11 +203,7 @@ export async function syncRange(
 		if (fetched.fatal) return stop(report, fetched.fatal, log);
 
 		const data: DayData = { ...fetched.data, workouts: workoutsByDate.get(date) ?? [] };
-		const properties = mapDay(data, {
-			groups: opts.groups,
-			units: opts.units,
-			prefix: opts.prefix,
-		});
+		const properties = mapDay(data, { groups: opts.groups, units: opts.units });
 		const count = Object.keys(properties).length;
 
 		const result: DayResult = { date, status: "no-data", properties: count };

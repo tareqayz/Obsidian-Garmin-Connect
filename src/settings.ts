@@ -1,5 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { GarminDomain } from "./garmin/constants";
+import type { StorageMode } from "./sync/runner";
 import { DAILY_NOTE_DEFAULTS, coreDailyNoteOptions } from "./sync/daily-note";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import type GarminPlugin from "./main";
@@ -12,10 +13,17 @@ export interface GarminSettings {
 	syncDays: number;
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
+
+	storageMode: StorageMode;
+	dataFolder: string;
+	dataFolderPrefix: string;
+	createBasesView: boolean;
+
 	prefix: string;
 	dailyNoteFolder: string;
 	dailyNoteFormat: string;
 	createMissingNotes: boolean;
+
 	syncOnStartup: boolean;
 	pauseBetweenDays: number;
 
@@ -32,6 +40,16 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	syncDays: 3,
 	groups: [...ALL_GROUPS],
 	units: "auto",
+
+	// A folder of our own is the default: it can never damage a note you wrote,
+	// every day in a range is writable so backfill works, and the data stays as
+	// properties a Bases view or Dataview query can read.
+	storageMode: "dataFolder",
+	dataFolder: "Garmin",
+	// Nothing to collide with in a dedicated folder, so the columns read cleanly.
+	dataFolderPrefix: "",
+	createBasesView: true,
+
 	prefix: "garmin_",
 	dailyNoteFolder: "",
 	dailyNoteFormat: "",
@@ -159,18 +177,72 @@ export class GarminSettingTab extends PluginSettingTab {
 					),
 			);
 
+		/* -- Storage --------------------------------------------------- */
+		new Setting(containerEl).setName("Storage").setHeading();
+
 		new Setting(containerEl)
-			.setName("Property prefix")
+			.setName("Where to put the data")
 			.setDesc(
-				`Prepended to every property, so "steps" becomes "${s.prefix || ""}steps". ` +
-					"Clear it at your own risk — an unprefixed key can collide with your own.",
+				"A data folder keeps one note per day in a folder of its own, which never " +
+					"touches notes you wrote and lets you backfill days that have no note yet. " +
+					"Daily notes put the properties in the note you already keep for that day.",
 			)
-			.addText((t) =>
-				t
-					.setPlaceholder("garmin_")
-					.setValue(s.prefix)
-					.onChange((v) => void this.persist(() => (s.prefix = v))),
+			.addDropdown((d) =>
+				d
+					.addOption("dataFolder", "Data folder (one note per day)")
+					.addOption("dailyNotes", "Daily notes")
+					.addOption("both", "Both")
+					.setValue(s.storageMode)
+					.onChange(async (v) => {
+						await this.persist(() => (s.storageMode = v as StorageMode));
+						this.display();
+					}),
 			);
+
+		if (s.storageMode !== "dailyNotes") {
+			new Setting(containerEl)
+				.setName("Data folder")
+				.addText((t) =>
+					t
+						.setPlaceholder("Garmin")
+						.setValue(s.dataFolder)
+						.onChange((v) =>
+							void this.persist(() => (s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder)),
+						),
+				);
+
+			new Setting(containerEl)
+				.setName("Property prefix in the data folder")
+				.setDesc("Blank by default — nothing in a folder of its own to collide with.")
+				.addText((t) =>
+					t
+						.setPlaceholder("(none)")
+						.setValue(s.dataFolderPrefix)
+						.onChange((v) => void this.persist(() => (s.dataFolderPrefix = v))),
+				);
+
+			new Setting(containerEl)
+				.setName("Table view")
+				.setDesc(
+					"Creates a Bases view over the data folder on the first sync that writes " +
+						"something, so you get a sortable, filterable table. It is never " +
+						"overwritten once it exists.",
+				)
+				.addToggle((t) =>
+					t
+						.setValue(s.createBasesView)
+						.onChange((v) => void this.persist(() => (s.createBasesView = v))),
+				)
+				.addButton((b) =>
+					b
+						.setButtonText("Rebuild now")
+						.setTooltip("Replaces the view with one matching your current settings")
+						.onClick(async () => {
+							const path = await this.plugin.sync.rewriteBasesView();
+							new Notice(`Rebuilt ${path}`);
+						}),
+				);
+		}
 
 		/* -- Metrics --------------------------------------------------- */
 		new Setting(containerEl)
@@ -191,7 +263,21 @@ export class GarminSettingTab extends PluginSettingTab {
 		}
 
 		/* -- Daily notes ----------------------------------------------- */
+		if (s.storageMode !== "dataFolder") {
 		new Setting(containerEl).setName("Daily notes").setHeading();
+
+		new Setting(containerEl)
+			.setName("Property prefix in daily notes")
+			.setDesc(
+				`Prepended to every property, so "steps" becomes "${s.prefix || ""}steps". ` +
+					"Clear it at your own risk — an unprefixed key can collide with your own.",
+			)
+			.addText((t) =>
+				t
+					.setPlaceholder("garmin_")
+					.setValue(s.prefix)
+					.onChange((v) => void this.persist(() => (s.prefix = v))),
+			);
 
 		const core = coreDailyNoteOptions(this.app);
 		new Setting(containerEl)
@@ -233,6 +319,7 @@ export class GarminSettingTab extends PluginSettingTab {
 					.setValue(s.createMissingNotes)
 					.onChange((v) => void this.persist(() => (s.createMissingNotes = v))),
 			);
+		}
 
 		/* -- Diagnostics ----------------------------------------------- */
 		new Setting(containerEl).setName("Diagnostics").setHeading();

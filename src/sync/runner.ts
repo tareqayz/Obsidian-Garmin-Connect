@@ -1,25 +1,39 @@
-import { Notice, type App } from "obsidian";
+import { Notice, TFile, normalizePath, type App } from "obsidian";
 import type { GarminApi } from "../garmin/endpoints";
 import { toIsoDate } from "../garmin/endpoints";
 import { GarminAuthError, GarminBlockedError, GarminRateLimitError } from "../garmin/errors";
 import type { Log } from "../log";
+import { basesView } from "./bases-view";
 import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
-import { lastNDays, syncRange, type SyncReport } from "./engine";
+import { DataFolderTarget } from "./data-folder";
+import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
+import { ensureFolder, trimSlashes } from "./frontmatter";
 import type { MetricGroup } from "./metrics";
+
+export type StorageMode = "dataFolder" | "dailyNotes" | "both";
 
 export interface RunnerSettings {
 	syncDays: number;
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
+
+	storageMode: StorageMode;
+	dataFolder: string;
+	dataFolderPrefix: string;
+	createBasesView: boolean;
+
 	prefix: string;
 	dailyNoteFolder: string;
 	dailyNoteFormat: string;
 	createMissingNotes: boolean;
+
 	pauseBetweenDays: number;
 }
 
+export const BASES_FILE = "Garmin Health.base";
+
 /**
- * Turns settings into a sync run and reports it to the user.
+ * Turns settings into a sync run and reports it.
  *
  * The engine itself knows nothing about Obsidian; this is where the two meet.
  */
@@ -61,26 +75,15 @@ export class SyncRunner {
 		}
 
 		const settings = this.settings();
-		const target = new DailyNoteTarget(
-			this.app,
-			resolveDailyNoteOptions(this.app, {
-				folder: settings.dailyNoteFolder,
-				format: settings.dailyNoteFormat,
-				createIfMissing: settings.createMissingNotes,
-			}),
-		);
-
 		const progress = new Notice("Garmin sync: starting…", 0);
 		this.running = true;
 		try {
 			const units = await this.resolveUnits(settings.units);
-			const report = await syncRange(this.api, target, {
+			const report = await syncRange(this.api, this.buildTarget(settings), {
 				from,
 				to,
 				groups: settings.groups,
 				units,
-				prefix: settings.prefix,
-				requireExistingNote: !settings.createMissingNotes,
 				pauseBetweenDays: settings.pauseBetweenDays,
 				log,
 				onProgress: (done, total, date) => {
@@ -88,6 +91,10 @@ export class SyncRunner {
 				},
 			});
 			progress.hide();
+
+			// Only worth creating once there is something for it to show.
+			if (report.written > 0) await this.ensureBasesView(settings, units);
+
 			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
 			return report;
 		} catch (err) {
@@ -98,6 +105,92 @@ export class SyncRunner {
 			this.running = false;
 		}
 	}
+
+	private buildTarget(settings: RunnerSettings): NoteTarget {
+		const dataFolder = () =>
+			new DataFolderTarget(this.app, {
+				folder: settings.dataFolder,
+				prefix: settings.dataFolderPrefix,
+			});
+		const dailyNotes = () =>
+			new DailyNoteTarget(
+				this.app,
+				resolveDailyNoteOptions(this.app, {
+					folder: settings.dailyNoteFolder,
+					format: settings.dailyNoteFormat,
+					createIfMissing: settings.createMissingNotes,
+					prefix: settings.prefix,
+				}),
+			);
+
+		switch (settings.storageMode) {
+			case "dailyNotes":
+				return dailyNotes();
+			case "both":
+				return new MultiTarget([dataFolder(), dailyNotes()]);
+			default:
+				return dataFolder();
+		}
+	}
+
+	/* ---------------------------------------------------------------- */
+	/*  Bases view                                                       */
+	/* ---------------------------------------------------------------- */
+
+	basesPath(settings = this.settings()): string {
+		const folder = trimSlashes(settings.dataFolder);
+		return normalizePath(folder ? `${folder}/${BASES_FILE}` : BASES_FILE);
+	}
+
+	/**
+	 * Creates the table view if it is not there. Never overwrites: once you have
+	 * adjusted columns or filters, a sync must not undo that.
+	 */
+	async ensureBasesView(
+		settings = this.settings(),
+		units?: "metric" | "imperial",
+	): Promise<"created" | "exists" | "skipped"> {
+		if (settings.storageMode === "dailyNotes" || !settings.createBasesView) return "skipped";
+		const path = this.basesPath(settings);
+		if (this.app.vault.getAbstractFileByPath(path)) return "exists";
+
+		const folder = trimSlashes(settings.dataFolder);
+		if (folder) await ensureFolder(this.app, folder);
+		await this.app.vault.create(
+			path,
+			basesView({
+				folder: folder || "/",
+				prefix: settings.dataFolderPrefix,
+				groups: settings.groups,
+				units: units ?? (await this.resolveUnits(settings.units)),
+			}),
+		);
+		return "created";
+	}
+
+	/** Rebuilds the view from current settings, replacing what is there. */
+	async rewriteBasesView(): Promise<string> {
+		const settings = this.settings();
+		const path = this.basesPath(settings);
+		const units = await this.resolveUnits(settings.units);
+		const content = basesView({
+			folder: trimSlashes(settings.dataFolder) || "/",
+			prefix: settings.dataFolderPrefix,
+			groups: settings.groups,
+			units,
+		});
+
+		const existing = this.app.vault.getAbstractFileByPath(path);
+		if (existing instanceof TFile) await this.app.vault.modify(existing, content);
+		else {
+			const folder = trimSlashes(settings.dataFolder);
+			if (folder) await ensureFolder(this.app, folder);
+			await this.app.vault.create(path, content);
+		}
+		return path;
+	}
+
+	/* ---------------------------------------------------------------- */
 
 	/** Ask Garmin which unit system the account uses, once per session. */
 	private async resolveUnits(setting: RunnerSettings["units"]): Promise<"metric" | "imperial"> {

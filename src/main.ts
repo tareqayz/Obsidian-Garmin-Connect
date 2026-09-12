@@ -49,6 +49,14 @@ export default class GarminPlugin extends Plugin {
 			callback: () => new SyncRangeModal(this.app, this).open(),
 		});
 		this.addCommand({
+			id: "rebuild-table-view",
+			name: "Rebuild the Garmin table view",
+			callback: async () => {
+				const path = await this.sync.rewriteBasesView();
+				new Notice(`Rebuilt ${path}`);
+			},
+		});
+		this.addCommand({
 			id: "sign-in",
 			name: "Sign in to Garmin Connect",
 			callback: () => this.openLogin(),

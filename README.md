@@ -4,23 +4,27 @@ Syncs Garmin Connect health data into your daily notes as frontmatter properties
 — **on mobile as well as the desktop**, which is the part nobody had solved.
 
 **Status: phase 2.** Authentication, session persistence, the typed API core and
-the sync engine are done and tested (114 tests). MFA is not supported yet, and
+the sync engine are done and tested (134 tests). MFA is not supported yet, and
 the UI is functional rather than polished.
 
-## What lands in a note
+## Where the data goes
+
+By default, **one note per day in a folder of its own**, with the metrics as
+frontmatter properties:
 
 ```yaml
+# Garmin/2026-09-12.md
 ---
-garmin_steps: 8432
-garmin_distance_km: 6.21
-garmin_calories: 2610
-garmin_resting_hr: 48
-garmin_sleep_hours: 7.5
-garmin_sleep_score: 82
-garmin_body_battery_high: 88
-garmin_hrv_avg: 42
-garmin_training_readiness: 71
-garmin_workouts:
+date: 2026-09-12
+steps: 8432
+distance_km: 6.21
+resting_hr: 48
+sleep_hours: 7.5
+sleep_score: 82
+body_battery_high: 88
+hrv_avg: 42
+training_readiness: 71
+workouts:
   - name: Morning Run
     type: running
     start: 2026-09-12T07:31
@@ -29,14 +33,39 @@ garmin_workouts:
 ---
 ```
 
-Seven metric groups, each switchable in settings: **activity** (steps, distance,
-calories, floors, intensity minutes), **heart** (resting/min/max), **sleep**
-(duration, stages, score, start and end), **stress and Body Battery**, **HRV**,
-**training readiness**, and **workouts**. Turning a group off also stops the
-request that fetches it.
+On the first sync that writes something, an Obsidian **Bases view** is generated
+next to it (`Garmin/Garmin Health.base`) so the folder reads as a sortable,
+filterable table:
 
-Every property is prefixed (`garmin_` by default) so it cannot collide with
-properties you own.
+| Date | Steps | Resting HR | Sleep (h) | Readiness |
+| --- | --- | --- | --- | --- |
+| 2026-09-12 | 8432 | 48 | 7.5 | 71 |
+| 2026-09-11 | 6110 | 51 | 6.8 | 64 |
+
+That is the table without the markdown table. A markdown table would be inert
+text — Dataview and Bases both query *properties*, not table rows — so this way
+you get the same view and can still ask "resting HR on days I ran more than
+10 km". The view is created once and never overwritten, so any columns or
+filters you change by hand survive. *Rebuild the Garmin table view* regenerates
+it from current settings when you want that.
+
+### Or daily notes, or both
+
+**Settings → Storage** switches between:
+
+| Mode | Behaviour |
+| --- | --- |
+| **Data folder** (default) | One note per day in `Garmin/`. Never touches notes you wrote. Every day is writable, so backfill works with nothing existing first. Properties unprefixed — nothing to collide with. |
+| **Daily notes** | Properties go into the daily note you already keep, prefixed `garmin_` so they cannot collide. Only writes to notes that already exist unless you turn on *Create missing notes*. |
+| **Both** | Writes to each. A day counts as written if either took it. |
+
+### What gets collected
+
+Seven metric groups, each switchable: **activity** (steps, distance, calories,
+floors, intensity minutes), **heart** (resting/min/max), **sleep** (duration,
+stages, score, start and end), **stress and Body Battery**, **HRV**, **training
+readiness**, and **workouts**. Turning a group off also stops the request that
+fetches it, and drops its columns from a rebuilt table view.
 
 ---
 
@@ -44,7 +73,7 @@ properties you own.
 
 ```bash
 npm install
-npm run build      # typecheck → 114 tests → bundle → mobile-safety check
+npm run build      # typecheck → 134 tests → bundle → mobile-safety check
 ```
 
 Reload community plugins in Obsidian, enable **Garmin Connect**, then:
@@ -64,6 +93,7 @@ separate sessions.
 | Sync recent days | The last *N* days (default 3) |
 | Sync today | Just today |
 | Sync a date range… | Backfill, with a request estimate before you commit |
+| Rebuild the Garmin table view | Regenerates the Bases view from current settings |
 | Sign in to Garmin Connect | |
 | Run connectivity probe | Diagnostics — see below |
 
@@ -71,14 +101,15 @@ separate sessions.
 
 ## How syncing behaves
 
-**It only writes to notes you already have.** *Create missing notes* is off by
-default: writing into notes you keep is safe, inventing notes in your daily-note
-folder is not. While it is off, a day with no note is skipped *before any request
-is made*, so a sparse range costs almost nothing.
+**A day with nowhere to go costs nothing.** The target decides whether a day is
+writable, and it decides *before any request is made*. In daily-notes mode with
+*Create missing notes* off, a day without a note is skipped for free — so a
+sparse range barely touches the network. The data folder always says yes, which
+is why backfill works there.
 
-**It finds your notes the way Obsidian does.** Folder and date format come from
-the core Daily Notes plugin, with overrides in settings if you need them. A note
-you have moved is still found by name.
+**In daily-notes mode it finds your notes the way Obsidian does.** Folder and
+date format come from the core Daily Notes plugin, with overrides in settings.
+A note you have moved is still found by name.
 
 **Re-syncing is free.** Before writing, the incoming properties are compared
 against what is already in the frontmatter; if nothing would change, the file is
@@ -170,10 +201,13 @@ src/garmin/
   client.ts              authenticated transport: refresh, 401 retry
   endpoints.ts           typed API wrappers (extends client)
 src/sync/
-  metrics.ts             Garmin payloads → properties    — pure
-  diff.ts                the dirty check                 — pure
-  engine.ts              orchestration over a date range — pure
-  daily-note.ts          Obsidian NoteTarget
+  metrics.ts             Garmin payloads → properties     — pure
+  diff.ts                the dirty check                  — pure
+  bases-view.ts          generates the Bases table view   — pure
+  engine.ts              orchestration, MultiTarget       — pure
+  daily-note.ts          NoteTarget: your daily notes
+  data-folder.ts         NoteTarget: one note per day
+  frontmatter.ts         shared dirty-checked write
   runner.ts              settings → a run, and reporting
 src/obsidian-http.ts     requestUrl adapter   — the only Obsidian import in the auth path
 src/fetch-http.ts        fetch adapter        — Node harness and tests
@@ -185,7 +219,8 @@ Two seams carry the whole design. **HTTP is injected**, so the Garmin logic runs
 unchanged under `requestUrl` on a phone, under `fetch` in Node, or against
 recorded fixtures in a test. **The note target is injected**, so the sync engine
 — dates, budgets, back-off, partial failures — is pure and testable with no
-Obsidian at all.
+Obsidian at all. Adding the data-folder mode needed no engine change: it is one
+more `NoteTarget`.
 
 The reason "build `node-garminconnect` first, consume it from the plugin" fails
 is not that libraries are wrong — it is that a Node library bakes in Node
@@ -253,7 +288,7 @@ endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 ## Tests
 
 ```bash
-npm test            # 114 tests, no network, no Obsidian
+npm test            # 134 tests, no network, no Obsidian
 npm run build       # typecheck → tests → bundle → mobile-safety check
 npm run probe:node  # runs the real auth module under Node, step 0 only
 ```

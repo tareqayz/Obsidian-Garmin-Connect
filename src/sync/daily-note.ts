@@ -1,7 +1,7 @@
 import { App, TFile, normalizePath, moment } from "obsidian";
 import type { NoteTarget, WriteOutcome } from "./engine";
-import { differs } from "./diff";
-import type { Properties } from "./metrics";
+import { ensureFolder, trimSlashes, writeFrontmatter } from "./frontmatter";
+import { applyPrefix, type Properties } from "./metrics";
 
 /**
  * Obsidian re-exports moment, but its type declarations resolve through the
@@ -16,6 +16,8 @@ export interface DailyNoteOptions {
 	folder: string;
 	format: string;
 	createIfMissing: boolean;
+	/** Keeps our properties out of the namespace of a note you own. */
+	prefix: string;
 }
 
 export const DAILY_NOTE_DEFAULTS = { folder: "", format: "YYYY-MM-DD" };
@@ -53,6 +55,7 @@ export function resolveDailyNoteOptions(app: App, overrides: Partial<DailyNoteOp
 		folder: overrides.folder || core.folder || DAILY_NOTE_DEFAULTS.folder,
 		format: overrides.format || core.format || DAILY_NOTE_DEFAULTS.format,
 		createIfMissing: overrides.createIfMissing ?? false,
+		prefix: overrides.prefix ?? "garmin_",
 	};
 }
 
@@ -76,8 +79,13 @@ export class DailyNoteTarget implements NoteTarget {
 		this.options = options;
 	}
 
+	/**
+	 * A day is writable if its note is already there, or if we are allowed to
+	 * make one. Saying no here is what keeps a sparse range from costing
+	 * requests for days that would be skipped anyway.
+	 */
 	exists(date: string): boolean {
-		return this.find(date) !== null;
+		return this.options.createIfMissing || this.find(date) !== null;
 	}
 
 	async write(date: string, properties: Properties): Promise<WriteOutcome> {
@@ -88,25 +96,12 @@ export class DailyNoteTarget implements NoteTarget {
 			this.byName = null;
 		}
 
-		// Skip writes that would change nothing. Without this every sync bumps
-		// the file's mtime, which Obsidian Sync and LiveSync both react to.
-		const existing = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-		if (!differs(existing, properties)) return "unchanged";
-
-		// processFrontMatter is the official API and keeps the metadata cache in
-		// step. It rewrites the whole block, so it is only ever called on files
-		// this sync is genuinely changing.
-		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-			for (const [key, value] of Object.entries(properties)) {
-				frontmatter[key] = value;
-			}
-		});
-		return "written";
+		return writeFrontmatter(this.app, file, applyPrefix(properties, this.options.prefix));
 	}
 
 	private find(date: string): TFile | null {
 		const name = dailyNoteName(date, this.options.format);
-		const folder = this.options.folder.replace(/^\/+|\/+$/g, "");
+		const folder = trimSlashes(this.options.folder);
 		const direct = normalizePath(folder ? `${folder}/${name}.md` : `${name}.md`);
 
 		const exact = this.app.vault.getAbstractFileByPath(direct);
@@ -131,25 +126,14 @@ export class DailyNoteTarget implements NoteTarget {
 
 	private async create(date: string): Promise<TFile> {
 		const name = dailyNoteName(date, this.options.format);
-		const folder = this.options.folder.replace(/^\/+|\/+$/g, "");
+		const folder = trimSlashes(this.options.folder);
 		const path = normalizePath(folder ? `${folder}/${name}.md` : `${name}.md`);
 
 		const dir = path.slice(0, path.lastIndexOf("/"));
-		if (dir) await this.ensureFolder(dir);
+		if (dir) await ensureFolder(this.app, dir);
 
 		// Deliberately empty: the daily-note template is not applied, because
 		// expanding only some of its placeholders would be worse than none.
 		return this.app.vault.create(path, "");
-	}
-
-	private async ensureFolder(path: string): Promise<void> {
-		const parts = normalizePath(path).split("/");
-		let current = "";
-		for (const part of parts) {
-			current = current ? `${current}/${part}` : part;
-			if (!this.app.vault.getAbstractFileByPath(current)) {
-				await this.app.vault.createFolder(current);
-			}
-		}
 	}
 }

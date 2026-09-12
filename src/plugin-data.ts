@@ -75,6 +75,14 @@ export class PluginData implements TokenStore {
 				source.units === "metric" || source.units === "imperial" || source.units === "auto"
 					? source.units
 					: d.units,
+			storageMode:
+				source.storageMode === "dailyNotes" || source.storageMode === "both"
+					? source.storageMode
+					: d.storageMode,
+			dataFolder: nonEmpty(source.dataFolder, d.dataFolder),
+			dataFolderPrefix: text(source.dataFolderPrefix, d.dataFolderPrefix),
+			createBasesView: bool(source.createBasesView, d.createBasesView),
+
 			prefix: text(source.prefix, d.prefix),
 			dailyNoteFolder: text(source.dailyNoteFolder, d.dailyNoteFolder),
 			dailyNoteFormat: text(source.dailyNoteFormat, d.dailyNoteFormat),

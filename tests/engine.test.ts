@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../src/garmin/errors";
 import {
+	MultiTarget,
 	dateRange,
 	lastNDays,
 	syncRange,
@@ -76,8 +77,6 @@ const options = (over: Partial<SyncOptions> = {}): SyncOptions => ({
 	to: "2026-09-12",
 	groups: ["activity"],
 	units: "metric",
-	prefix: "garmin_",
-	requireExistingNote: true,
 	wait: async () => {},
 	...over,
 });
@@ -147,7 +146,7 @@ describe("syncRange", () => {
 	it("writes the mapped properties", async () => {
 		const target = new FakeTarget(new Set(["2026-09-12"]));
 		await syncRange(new FakeSource(), target, options());
-		assert.deepEqual(target.written.get("2026-09-12"), { garmin_steps: 8000 });
+		assert.deepEqual(target.written.get("2026-09-12"), { steps: 8000 });
 	});
 
 	it("counts unchanged days apart from written ones", async () => {
@@ -180,7 +179,7 @@ describe("syncRange", () => {
 		);
 
 		assert.equal(report.written, 1);
-		assert.deepEqual(target.written.get("2026-09-12"), { garmin_steps: 8000 });
+		assert.deepEqual(target.written.get("2026-09-12"), { steps: 8000 });
 		const day = report.days[0]!;
 		assert.match(day.warnings!.join(), /sleep/);
 	});
@@ -262,7 +261,7 @@ describe("syncRange — workouts", () => {
 		await syncRange(source, target, options({ groups: ["workouts"] }));
 
 		assert.equal(source.activityPages, 1, "one page covered the range");
-		assert.equal((target.written.get("2026-09-12")!.garmin_workouts as unknown[]).length, 1);
+		assert.equal((target.written.get("2026-09-12")!.workouts as unknown[]).length, 1);
 		assert.ok(!target.written.has("2026-09-11"));
 	});
 
@@ -277,7 +276,7 @@ describe("syncRange — workouts", () => {
 			options({ from: "2026-09-12", groups: ["activity", "workouts"] }),
 		);
 		assert.equal(report.written, 1);
-		assert.deepEqual(target.written.get("2026-09-12"), { garmin_steps: 8000 });
+		assert.deepEqual(target.written.get("2026-09-12"), { steps: 8000 });
 	});
 
 	it("stops before any day when the activity list is rate limited", async () => {
@@ -313,5 +312,80 @@ describe("syncRange — request budget", () => {
 			options({ pauseBetweenDays: 250, wait: async (ms) => void waits.push(ms) }),
 		);
 		assert.deepEqual(waits, [250, 250]);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  MultiTarget                                                        */
+/* ------------------------------------------------------------------ */
+
+describe("MultiTarget", () => {
+	function stub(exists: boolean, outcome: WriteOutcome) {
+		const calls: string[] = [];
+		const target: NoteTarget = {
+			exists: () => exists,
+			write: async (date) => {
+				calls.push(date);
+				return outcome;
+			},
+		};
+		return { target, calls };
+	}
+
+	it("is writable if any target can take the day", () => {
+		const a = stub(false, "written");
+		const b = stub(true, "written");
+		assert.equal(new MultiTarget([a.target, b.target]).exists("2026-09-12"), true);
+	});
+
+	it("is not writable when no target can", () => {
+		const a = stub(false, "written");
+		assert.equal(new MultiTarget([a.target]).exists("2026-09-12"), false);
+	});
+
+	it("counts the day as written if anywhere took it", async () => {
+		const a = stub(true, "unchanged");
+		const b = stub(true, "written");
+		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
+		assert.equal(outcome, "written");
+	});
+
+	it("reports unchanged only when every target agreed", async () => {
+		const a = stub(true, "unchanged");
+		const b = stub(true, "unchanged");
+		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
+		assert.equal(outcome, "unchanged");
+	});
+
+	it("skips a target that cannot take the day, without failing the others", async () => {
+		const a = stub(false, "written");
+		const b = stub(true, "written");
+		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
+		assert.equal(outcome, "written");
+		assert.deepEqual(a.calls, [], "a day with no daily note is not written there");
+		assert.deepEqual(b.calls, ["2026-09-12"]);
+	});
+
+	it("is missing when no target took it", async () => {
+		const a = stub(false, "written");
+		const outcome = await new MultiTarget([a.target]).write("2026-09-12", { steps: 1 });
+		assert.equal(outcome, "missing");
+	});
+});
+
+describe("syncRange — a target that creates its own notes", () => {
+	it("covers every day in the range, so backfill needs nothing to exist first", async () => {
+		const source = new FakeSource();
+		const written: string[] = [];
+		const target: NoteTarget = {
+			exists: () => true,
+			write: async (date) => {
+				written.push(date);
+				return "written";
+			},
+		};
+		const report = await syncRange(source, target, options());
+		assert.deepEqual(written.sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
+		assert.equal(report.skipped, 0);
 	});
 });
