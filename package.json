@@ -7,9 +7,10 @@
 	"private": true,
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && node scripts/check-mobile-safe.mjs",
+		"build": "tsc -noEmit -skipLibCheck && npm run test && node esbuild.config.mjs production && node scripts/check-mobile-safe.mjs",
 		"check": "node scripts/check-mobile-safe.mjs",
-		"probe:node": "esbuild scripts/node-probe.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.node-probe.mjs --log-level=warning && node scripts/.node-probe.mjs"
+		"probe:node": "esbuild scripts/node-probe.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.node-probe.mjs --log-level=warning && node scripts/.node-probe.mjs",
+		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test tests/.build"
 	},
 	"license": "MIT",
 	"devDependencies": {

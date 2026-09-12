@@ -1,5 +1,26 @@
+/**
+ * What the core is allowed to know about logging: it narrates a procedure, and
+ * something else decides whether that reaches a modal, a file, or nowhere.
+ */
+export interface Log {
+	step(title: string): void;
+	detail(key: string, value: unknown): void;
+	ok(message: string): void;
+	warn(message: string): void;
+	fail(message: string): void;
+}
+
+/** Default for callers that want no output. */
+export const silentLog: Log = {
+	step() {},
+	detail() {},
+	ok() {},
+	warn() {},
+	fail() {},
+};
+
 /** Collects probe output as text that is safe to copy, save, and paste into an issue. */
-export class ProbeLog {
+export class ProbeLog implements Log {
 	private lines: string[] = [];
 	private onAppend?: () => void;
 
@@ -12,12 +33,12 @@ export class ProbeLog {
 		this.onAppend?.();
 	}
 
-	section(title: string): void {
+	step(title: string): void {
 		if (this.lines.length) this.line();
 		this.line(`── ${title} ${"─".repeat(Math.max(0, 46 - title.length))}`);
 	}
 
-	kv(key: string, value: unknown): void {
+	detail(key: string, value: unknown): void {
 		this.line(`  ${key.padEnd(22)} ${String(value)}`);
 	}
 

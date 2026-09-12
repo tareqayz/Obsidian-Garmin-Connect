@@ -1,5 +1,6 @@
 import { CookieJar, parseJson, type HttpClient } from "../http";
-import { ProbeLog, redactToken, snippet } from "../log";
+import { redactToken, snippet, type Log } from "../log";
+import { jwtClientId } from "./tokens";
 import {
 	DI_CLIENT_IDS,
 	DI_GRANT_TYPE,
@@ -43,7 +44,7 @@ interface SsoResponse {
 export interface AuthContext {
 	http: HttpClient;
 	jar: CookieJar;
-	log: ProbeLog;
+	log: Log;
 	domain: GarminDomain;
 }
 
@@ -67,7 +68,7 @@ export interface AuthContext {
 export async function probeSsoReachability(ctx: AuthContext): Promise<boolean> {
 	const { sso, iosService } = endpoints(ctx.domain);
 	const url = `${sso}/mobile/api/login`;
-	ctx.log.kv("GET", `${url} (POST-only; a JSON 405 is the pass)`);
+	ctx.log.detail("GET", `${url} (POST-only; a JSON 405 is the pass)`);
 
 	// Same query and headers as the real login POST, so this exercises the exact
 	// request shape Cloudflare will score in step 1 — only the method differs.
@@ -86,13 +87,13 @@ export async function probeSsoReachability(ctx: AuthContext): Promise<boolean> {
 		return false;
 	}
 
-	ctx.log.kv("status", res.status);
-	ctx.log.kv("content-type", res.headers["content-type"] ?? "(none)");
-	ctx.log.kv("server", res.headers["server"] ?? "(none)");
-	ctx.log.kv("cf-ray", res.headers["cf-ray"] ?? "(none)");
+	ctx.log.detail("status", res.status);
+	ctx.log.detail("content-type", res.headers["content-type"] ?? "(none)");
+	ctx.log.detail("server", res.headers["server"] ?? "(none)");
+	ctx.log.detail("cf-ray", res.headers["cf-ray"] ?? "(none)");
 
 	const cookies = ctx.jar.ingest(res.headers);
-	ctx.log.kv("set-cookie", cookies.length ? cookies.join(", ") : "(none)");
+	ctx.log.detail("set-cookie", cookies.length ? cookies.join(", ") : "(none)");
 
 	const body = parseJson<{ title?: string; error?: string; status?: number }>(res.text);
 
@@ -108,7 +109,7 @@ export async function probeSsoReachability(ctx: AuthContext): Promise<boolean> {
 	}
 	if (res.status === 403) {
 		ctx.log.fail("403 — Cloudflare is challenging this HTTP client on the API path");
-		ctx.log.kv("body", snippet(res.text, 160));
+		ctx.log.detail("body", snippet(res.text, 160));
 		return false;
 	}
 	if (res.status === 429) {
@@ -116,7 +117,7 @@ export async function probeSsoReachability(ctx: AuthContext): Promise<boolean> {
 		return false;
 	}
 	ctx.log.fail("non-JSON response — a challenge page, most likely");
-	ctx.log.kv("body", snippet(res.text, 160));
+	ctx.log.detail("body", snippet(res.text, 160));
 	return false;
 }
 
@@ -131,9 +132,9 @@ export async function mobileLogin(
 ): Promise<LoginOutcome> {
 	const { sso, iosService } = endpoints(ctx.domain);
 	const url = `${sso}/mobile/api/login`;
-	ctx.log.kv("POST", url);
-	ctx.log.kv("clientId", IOS_SSO_CLIENT_ID);
-	ctx.log.kv("service", iosService);
+	ctx.log.detail("POST", url);
+	ctx.log.detail("clientId", IOS_SSO_CLIENT_ID);
+	ctx.log.detail("service", iosService);
 
 	const res = await ctx.http.request({
 		url,
@@ -153,11 +154,11 @@ export async function mobileLogin(
 		return { kind: "transport", detail: res.error ?? "unknown" };
 	}
 
-	ctx.log.kv("status", res.status);
-	ctx.log.kv("content-type", res.headers["content-type"] ?? "(none)");
-	ctx.log.kv("cf-ray", res.headers["cf-ray"] ?? "(none)");
+	ctx.log.detail("status", res.status);
+	ctx.log.detail("content-type", res.headers["content-type"] ?? "(none)");
+	ctx.log.detail("cf-ray", res.headers["cf-ray"] ?? "(none)");
 	const cookies = ctx.jar.ingest(res.headers);
-	ctx.log.kv("set-cookie", cookies.length ? cookies.join(", ") : "(none)");
+	ctx.log.detail("set-cookie", cookies.length ? cookies.join(", ") : "(none)");
 
 	if (res.status === 429) {
 		ctx.log.fail("429 — Garmin is rate limiting this IP");
@@ -171,12 +172,12 @@ export async function mobileLogin(
 	const body = parseJson<SsoResponse>(res.text);
 	if (!body) {
 		ctx.log.fail("response was not JSON — an HTML challenge page, most likely");
-		ctx.log.kv("body", snippet(res.text, 200));
+		ctx.log.detail("body", snippet(res.text, 200));
 		return { kind: "blocked", status: res.status, detail: snippet(res.text, 200) };
 	}
 
 	const type = body.responseStatus?.type;
-	ctx.log.kv("responseStatus.type", type ?? "(missing)");
+	ctx.log.detail("responseStatus.type", type ?? "(missing)");
 
 	if (type === "MFA_REQUIRED") {
 		const method = body.customerMfaInfo?.mfaLastMethodUsed ?? "email";
@@ -215,8 +216,8 @@ export async function verifyMfa(
 ): Promise<LoginOutcome> {
 	const { sso, iosService } = endpoints(ctx.domain);
 	const url = `${sso}/mobile/api/mfa/verifyCode`;
-	ctx.log.kv("POST", url);
-	ctx.log.kv("cookies sent", ctx.jar.size ? ctx.jar.names().join(", ") : "(none)");
+	ctx.log.detail("POST", url);
+	ctx.log.detail("cookies sent", ctx.jar.size ? ctx.jar.names().join(", ") : "(none)");
 
 	if (ctx.jar.size === 0) {
 		ctx.log.warn("no SSO cookies captured — this leg needs session continuity");
@@ -246,7 +247,7 @@ export async function verifyMfa(
 		return { kind: "transport", detail: res.error ?? "unknown" };
 	}
 
-	ctx.log.kv("status", res.status);
+	ctx.log.detail("status", res.status);
 	ctx.jar.ingest(res.headers);
 
 	if (res.status === 429) return rateLimited(ctx, "HTTP 429 on MFA verify");
@@ -259,7 +260,7 @@ export async function verifyMfa(
 	if (body.error?.["status-code"] === "429") return rateLimited(ctx, "429 in JSON body");
 
 	const type = body.responseStatus?.type;
-	ctx.log.kv("responseStatus.type", type ?? "(missing)");
+	ctx.log.detail("responseStatus.type", type ?? "(missing)");
 
 	if (type === "SUCCESSFUL" && body.serviceTicketId) {
 		ctx.log.ok(`service ticket issued: ${body.serviceTicketId.slice(0, 8)}…`);
@@ -279,7 +280,7 @@ export async function exchangeServiceTicket(
 	ticket: string,
 ): Promise<DiTokens | null> {
 	const { diToken, iosService } = endpoints(ctx.domain);
-	ctx.log.kv("POST", diToken);
+	ctx.log.detail("POST", diToken);
 
 	for (const clientId of DI_CLIENT_IDS) {
 		const res = await ctx.http.request({
@@ -329,9 +330,9 @@ export async function exchangeServiceTicket(
 		}
 
 		ctx.log.ok(`${clientId} → 200`);
-		ctx.log.kv("access_token", redactToken(data.access_token));
-		ctx.log.kv("refresh_token", redactToken(data.refresh_token));
-		ctx.log.kv("expires_in", data.expires_in ?? "(not reported)");
+		ctx.log.detail("access_token", redactToken(data.access_token));
+		ctx.log.detail("refresh_token", redactToken(data.refresh_token));
+		ctx.log.detail("expires_in", data.expires_in ?? "(not reported)");
 		return {
 			accessToken: data.access_token,
 			refreshToken: data.refresh_token,
@@ -356,7 +357,7 @@ export async function exchangeServiceTicket(
 export async function verifyToken(ctx: AuthContext, accessToken: string): Promise<boolean> {
 	const { connectApi } = endpoints(ctx.domain);
 	const url = `${connectApi}/userprofile-service/socialProfile`;
-	ctx.log.kv("GET", url);
+	ctx.log.detail("GET", url);
 
 	const res = await ctx.http.request({
 		url,
@@ -367,7 +368,7 @@ export async function verifyToken(ctx: AuthContext, accessToken: string): Promis
 		ctx.log.fail(`transport error: ${res.error}`);
 		return false;
 	}
-	ctx.log.kv("status", res.status);
+	ctx.log.detail("status", res.status);
 
 	if (res.status === 401 || res.status === 403) {
 		ctx.log.fail("API tier rejected the token");
@@ -380,8 +381,8 @@ export async function verifyToken(ctx: AuthContext, accessToken: string): Promis
 
 	const profile = parseJson<{ displayName?: string; userName?: string; fullName?: string }>(res.text);
 	ctx.log.ok("API tier accepted the token");
-	ctx.log.kv("displayName", profile?.displayName ?? "(absent)");
-	ctx.log.kv("fullName", profile?.fullName ? "(present)" : "(absent)");
+	ctx.log.detail("displayName", profile?.displayName ?? "(absent)");
+	ctx.log.detail("fullName", profile?.fullName ? "(present)" : "(absent)");
 	return true;
 }
 
@@ -397,17 +398,4 @@ function withCookies(ctx: AuthContext, headers: Record<string, string>): Record<
 function rateLimited(ctx: AuthContext, detail: string): LoginOutcome {
 	ctx.log.fail(detail);
 	return { kind: "rate-limited", detail };
-}
-
-/** The DI client id is echoed in the JWT payload; prefer it for refreshes. */
-export function jwtClientId(token: string): string | null {
-	try {
-		const payload = token.split(".")[1];
-		if (!payload) return null;
-		const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-		const claims = JSON.parse(json) as { client_id?: string };
-		return claims.client_id ?? null;
-	} catch {
-		return null;
-	}
 }

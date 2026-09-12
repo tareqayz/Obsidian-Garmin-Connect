@@ -1,12 +1,29 @@
-import { Plugin } from "obsidian";
-import { DEFAULT_SETTINGS, ProbeSettingTab, type ProbeSettings } from "./settings";
+import { Notice, Plugin } from "obsidian";
+import { GarminApi } from "./garmin/endpoints";
+import { ObsidianHttpClient } from "./obsidian-http";
+import { PluginData } from "./plugin-data";
+import { GarminSettingTab } from "./settings";
 import { ProbeModal } from "./ui/probe-modal";
 
-export default class GarminProbePlugin extends Plugin {
-	settings: ProbeSettings = { ...DEFAULT_SETTINGS };
+export default class GarminPlugin extends Plugin {
+	data!: PluginData;
+	garmin!: GarminApi;
 
 	async onload(): Promise<void> {
-		await this.loadSettings();
+		this.data = new PluginData(this);
+		await this.data.init();
+
+		this.buildClient();
+		await this.garmin.restore();
+
+		if (this.data.migratedAwayFromStoredPassword) {
+			// Worth interrupting for: the password was sitting in a synced file.
+			new Notice(
+				"Garmin Connect: a password left in data.json by the phase 0 probe has " +
+					"been deleted. Consider changing your Garmin password.",
+				10000,
+			);
+		}
 
 		this.addRibbonIcon("activity", "Garmin Connect probe", () => this.openProbe());
 		this.addCommand({
@@ -14,23 +31,19 @@ export default class GarminProbePlugin extends Plugin {
 			name: "Run connectivity probe",
 			callback: () => this.openProbe(),
 		});
-		this.addSettingTab(new ProbeSettingTab(this.app, this));
+		this.addSettingTab(new GarminSettingTab(this.app, this));
+	}
+
+	/** The domain is baked into every URL, so changing it needs a fresh client. */
+	buildClient(): void {
+		this.garmin = new GarminApi({
+			http: new ObsidianHttpClient(),
+			store: this.data,
+			domain: this.data.settings.domain,
+		});
 	}
 
 	private openProbe(): void {
-		new ProbeModal(this.app, this.settings).open();
-	}
-
-	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings(): Promise<void> {
-		// Never persist a password the user did not ask us to keep.
-		const toSave: ProbeSettings = {
-			...this.settings,
-			password: this.settings.rememberPassword ? this.settings.password : "",
-		};
-		await this.saveData(toSave);
+		new ProbeModal(this.app, this).open();
 	}
 }

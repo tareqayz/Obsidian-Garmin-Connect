@@ -1,34 +1,41 @@
 import { App, Modal, Notice, Setting, normalizePath } from "obsidian";
 import { ObsidianHttpClient } from "../obsidian-http";
 import { ProbeLog } from "../log";
-import { reportPlatform, runFingerprintProbe, runGarminProbe, type Verdict } from "../probe";
-import type { ProbeSettings } from "../settings";
+import {
+	reportPlatform,
+	runFingerprintProbe,
+	runGarminProbe,
+	runPersistenceProbe,
+	type Verdict,
+} from "../probe";
+import type GarminPlugin from "../main";
 
 export class ProbeModal extends Modal {
-	private settings: ProbeSettings;
-	private password: string;
+	private plugin: GarminPlugin;
+	/** Held for this modal only, never written anywhere. */
+	private password = "";
 	private logEl!: HTMLElement;
 	private mfaHost!: HTMLElement;
 	private buttons: HTMLButtonElement[] = [];
 	private log = new ProbeLog();
 	private running = false;
 
-	constructor(app: App, settings: ProbeSettings) {
+	constructor(app: App, plugin: GarminPlugin) {
 		super(app);
-		this.settings = settings;
-		this.password = settings.rememberPassword ? settings.password : "";
+		this.plugin = plugin;
 	}
 
 	onOpen(): void {
 		const { contentEl } = this;
+		const settings = this.plugin.data.settings;
 		contentEl.addClass("gcp-modal");
-		contentEl.createEl("h2", { text: "Garmin Connect — phase 0 probe" });
+		contentEl.createEl("h2", { text: "Garmin Connect — diagnostics" });
 
 		contentEl.createDiv({ cls: "gcp-caution" }, (el) => {
 			el.createEl("strong", { text: "Before you run this. " });
 			el.appendText(
 				"Garmin rate-limits login attempts per IP and can lock an account after " +
-					"repeated failures. Run the probe deliberately, not in a loop, and leave " +
+					"repeated failures. Run these deliberately, not in a loop, and leave " +
 					"15-30 minutes between attempts if you see a 429.",
 			);
 		});
@@ -38,21 +45,25 @@ export class ProbeModal extends Modal {
 			.addText((t) =>
 				t
 					.setPlaceholder("you@example.com")
-					.setValue(this.settings.email)
-					.onChange((v) => (this.settings.email = v.trim())),
+					.setValue(settings.email)
+					.onChange(async (v) => {
+						settings.email = v.trim();
+						await this.plugin.data.saveSettings();
+					}),
 			);
 
 		new Setting(contentEl)
 			.setName("Password")
-			.setDesc(this.settings.rememberPassword ? "Loaded from settings." : "Not stored.")
+			.setDesc("Used for this sign-in only. Never written to disk.")
 			.addText((t) => {
 				t.inputEl.type = "password";
-				t.setValue(this.password).onChange((v) => (this.password = v));
+				t.onChange((v) => (this.password = v));
 			});
 
 		const actions = contentEl.createDiv({ cls: "gcp-actions" });
-		this.addButton(actions, "1. Check network fingerprint", () => this.doFingerprint());
-		this.addButton(actions, "2. Test Garmin login", () => this.doLogin(), true);
+		this.addButton(actions, "1. Network fingerprint", () => this.run(() => this.fingerprint()));
+		this.addButton(actions, "2. Test login", () => this.run(() => this.login()));
+		this.addButton(actions, "3. Test session persistence", () => this.run(() => this.persist()), true);
 
 		this.mfaHost = contentEl.createDiv();
 		this.logEl = contentEl.createEl("pre", { cls: "gcp-log" });
@@ -62,79 +73,73 @@ export class ProbeModal extends Modal {
 		this.addButton(footer, "Save to vault", () => void this.saveLog());
 		this.addButton(footer, "Close", () => this.close());
 
-		this.log = this.newLog();
+		this.log = new ProbeLog(() => this.render());
 		reportPlatform(this.log);
 		this.render();
 	}
 
 	onClose(): void {
+		this.password = "";
 		this.contentEl.empty();
 	}
 
 	/* -------------------------------------------------------------- */
-
-	private newLog(): ProbeLog {
-		return new ProbeLog(() => this.render());
-	}
 
 	private render(): void {
 		this.logEl.setText(this.log.render());
 		this.logEl.scrollTop = this.logEl.scrollHeight;
 	}
 
-	private addButton(
-		parent: HTMLElement,
-		text: string,
-		onClick: () => void,
-		cta = false,
-	): void {
+	private addButton(parent: HTMLElement, text: string, onClick: () => void, cta = false): void {
 		const btn = parent.createEl("button", { text });
 		if (cta) btn.addClass("mod-cta");
 		btn.onclick = onClick;
 		this.buttons.push(btn);
 	}
 
-	private setBusy(busy: boolean): void {
-		this.running = busy;
-		for (const b of this.buttons) b.disabled = busy;
-	}
-
-	/* -------------------------------------------------------------- */
-
-	private async doFingerprint(): Promise<void> {
+	private async run(task: () => Promise<Verdict | void>): Promise<void> {
 		if (this.running) return;
-		this.setBusy(true);
+		this.running = true;
+		for (const b of this.buttons) b.disabled = true;
+		let verdict: Verdict | void;
 		try {
-			await runFingerprintProbe(new ObsidianHttpClient(), this.log);
+			verdict = await task();
 		} catch (err) {
 			this.log.fail(`probe threw: ${err instanceof Error ? err.message : String(err)}`);
+			verdict = "failed";
 		} finally {
-			this.setBusy(false);
+			this.running = false;
+			for (const b of this.buttons) b.disabled = false;
+		}
+		if (verdict) {
+			new Notice(`Garmin probe: ${verdict}`);
+			if (this.plugin.data.settings.autoSaveLog) await this.saveLog(true);
 		}
 	}
 
-	private async doLogin(): Promise<void> {
-		if (this.running) return;
-		if (!this.settings.email || !this.password) {
+	private fingerprint(): Promise<void> {
+		return runFingerprintProbe(new ObsidianHttpClient(), this.log);
+	}
+
+	private async login(): Promise<Verdict> {
+		const settings = this.plugin.data.settings;
+		if (!settings.email || !this.password) {
 			new Notice("Enter an email and password first.");
-			return;
+			return "cancelled";
 		}
-		this.setBusy(true);
-		let verdict: Verdict = "failed";
-		try {
-			verdict = await runGarminProbe(new ObsidianHttpClient(), this.log, {
-				email: this.settings.email,
-				password: this.password,
-				domain: this.settings.domain,
-				requestMfaCode: (method) => this.promptForMfa(method),
-			});
-		} catch (err) {
-			this.log.fail(`probe threw: ${err instanceof Error ? err.message : String(err)}`);
-		} finally {
-			this.setBusy(false);
-		}
-		new Notice(`Garmin probe: ${verdict}`);
-		if (this.settings.autoSaveLog) await this.saveLog(true);
+		return runGarminProbe(new ObsidianHttpClient(), this.log, {
+			email: settings.email,
+			password: this.password,
+			domain: settings.domain,
+			requestMfaCode: (method) => this.promptForMfa(method),
+		});
+	}
+
+	private persist(): Promise<Verdict> {
+		return runPersistenceProbe(this.plugin.garmin, this.log, {
+			email: this.plugin.data.settings.email,
+			password: this.password,
+		});
 	}
 
 	/** Renders an inline code field and resolves when the user submits or cancels. */
@@ -176,7 +181,7 @@ export class ProbeModal extends Modal {
 	 * other note, and there is no console to read.
 	 */
 	private async saveLog(quiet = false): Promise<void> {
-		const folder = normalizePath(this.settings.logFolder);
+		const folder = normalizePath(this.plugin.data.settings.logFolder);
 		const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 		const path = normalizePath(`${folder}/garmin-probe-${stamp}.md`);
 		try {

@@ -6,3 +6,4 @@ data.json
 scripts/.node-probe.mjs
 .DS_Store
 garmin-probe-logs/
+tests/.build/

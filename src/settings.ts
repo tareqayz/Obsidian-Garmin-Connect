@@ -1,74 +1,67 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { GarminDomain } from "./garmin/constants";
-import type GarminProbePlugin from "./main";
+import type GarminPlugin from "./main";
 
-export interface ProbeSettings {
+export interface GarminSettings {
 	email: string;
-	password: string;
-	rememberPassword: boolean;
 	domain: GarminDomain;
 	logFolder: string;
 	autoSaveLog: boolean;
 }
 
-export const DEFAULT_SETTINGS: ProbeSettings = {
+export const DEFAULT_SETTINGS: GarminSettings = {
 	email: "",
-	password: "",
-	rememberPassword: false,
 	domain: "garmin.com",
 	logFolder: "garmin-probe-logs",
 	autoSaveLog: true,
 };
 
-export class ProbeSettingTab extends PluginSettingTab {
-	private plugin: GarminProbePlugin;
+export class GarminSettingTab extends PluginSettingTab {
+	private plugin: GarminPlugin;
 
-	constructor(app: App, plugin: GarminProbePlugin) {
+	constructor(app: App, plugin: GarminPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
 		const { containerEl } = this;
+		const data = this.plugin.data;
 		containerEl.empty();
 
+		new Setting(containerEl).setName("Connection").setHeading();
+
+		const session = this.plugin.garmin.session;
 		new Setting(containerEl)
-			.setName("Garmin email")
-			.addText((t) =>
-				t
-					.setPlaceholder("you@example.com")
-					.setValue(this.plugin.settings.email)
-					.onChange(async (v) => {
-						this.plugin.settings.email = v.trim();
-						await this.plugin.saveSettings();
+			.setName("Status")
+			.setDesc(
+				session
+					? `Signed in. Session saved ${new Date(session.savedAt).toLocaleString()}.`
+					: "Not signed in. Use the probe to sign in.",
+			)
+			.addButton((b) =>
+				b
+					.setButtonText("Sign out")
+					.setDisabled(!session)
+					.onClick(async () => {
+						await this.plugin.garmin.logout();
+						new Notice("Signed out of Garmin Connect.");
+						this.display();
 					}),
 			);
 
 		new Setting(containerEl)
-			.setName("Remember password")
-			.setDesc(
-				"Stores the password in this plugin's data.json as plain text, which syncs " +
-					"with your vault. Convenient for repeated mobile testing; turn it off " +
-					"and delete data.json when you are done probing.",
-			)
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.rememberPassword).onChange(async (v) => {
-					this.plugin.settings.rememberPassword = v;
-					if (!v) this.plugin.settings.password = "";
-					await this.plugin.saveSettings();
-					this.display();
-				}),
+			.setName("Garmin email")
+			.setDesc("Only the email is stored. The password is used to sign in and never saved.")
+			.addText((t) =>
+				t
+					.setPlaceholder("you@example.com")
+					.setValue(data.settings.email)
+					.onChange(async (v) => {
+						data.settings.email = v.trim();
+						await data.saveSettings();
+					}),
 			);
-
-		if (this.plugin.settings.rememberPassword) {
-			new Setting(containerEl).setName("Garmin password").addText((t) => {
-				t.inputEl.type = "password";
-				t.setValue(this.plugin.settings.password).onChange(async (v) => {
-					this.plugin.settings.password = v;
-					await this.plugin.saveSettings();
-				});
-			});
-		}
 
 		new Setting(containerEl)
 			.setName("Region")
@@ -77,20 +70,22 @@ export class ProbeSettingTab extends PluginSettingTab {
 				d
 					.addOption("garmin.com", "garmin.com")
 					.addOption("garmin.cn", "garmin.cn")
-					.setValue(this.plugin.settings.domain)
+					.setValue(data.settings.domain)
 					.onChange(async (v) => {
-						this.plugin.settings.domain = v as GarminDomain;
-						await this.plugin.saveSettings();
+						data.settings.domain = v as GarminDomain;
+						await data.saveSettings();
 					}),
 			);
 
+		new Setting(containerEl).setName("Diagnostics").setHeading();
+
 		new Setting(containerEl)
-			.setName("Save every run to the vault")
+			.setName("Save every probe run to the vault")
 			.setDesc("The only practical way to read probe output from a phone.")
 			.addToggle((t) =>
-				t.setValue(this.plugin.settings.autoSaveLog).onChange(async (v) => {
-					this.plugin.settings.autoSaveLog = v;
-					await this.plugin.saveSettings();
+				t.setValue(data.settings.autoSaveLog).onChange(async (v) => {
+					data.settings.autoSaveLog = v;
+					await data.saveSettings();
 				}),
 			);
 
@@ -98,11 +93,11 @@ export class ProbeSettingTab extends PluginSettingTab {
 			.setName("Log folder")
 			.addText((t) =>
 				t
-					.setPlaceholder("garmin-probe-logs")
-					.setValue(this.plugin.settings.logFolder)
+					.setPlaceholder(DEFAULT_SETTINGS.logFolder)
+					.setValue(data.settings.logFolder)
 					.onChange(async (v) => {
-						this.plugin.settings.logFolder = v.trim() || DEFAULT_SETTINGS.logFolder;
-						await this.plugin.saveSettings();
+						data.settings.logFolder = v.trim() || DEFAULT_SETTINGS.logFolder;
+						await data.saveSettings();
 					}),
 			);
 	}
