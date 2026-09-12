@@ -136,6 +136,24 @@ export function detail(value: number): string {
 	return (Math.round(value * 100) / 100).toLocaleString();
 }
 
+/** Seconds → "24:31" or "3:12:04". What a race prediction should read as. */
+export function duration(seconds: number): string {
+	const total = Math.round(seconds);
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const sec = total % 60;
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
+/** Rows inside an explicit window, oldest first. */
+export function between(rows: readonly DayRow[], from: string, to: string): DayRow[] {
+	if (!from || !to || to < from) return [];
+	return rows
+		.filter((r) => r.date >= from && r.date <= to)
+		.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** 7.5 → "7h 30m" */
 export function hoursAndMinutes(hours: number): string {
 	const whole = Math.floor(hours);
@@ -167,7 +185,18 @@ export function axisFormat(ticks: readonly number[]): (value: number) => string 
 	// Zero is always plain: "0K" is noise on an axis that starts at nothing.
 	if (max >= 10_000) return (v) => (v === 0 ? "0" : `${trim(v / 1000)}K`);
 	if (max >= 1000) return (v) => Math.round(v).toLocaleString();
-	if (max >= 10) return (v) => String(Math.round(v));
+
+	// Decimals are chosen by trying the shortest form that still tells the truth
+	// about every tick. Deciding from magnitude alone renders a VO2 Max axis of
+	// 48.0/48.5/49.0 as "49, 49, 48"; deciding from the gap alone renders a tick
+	// at 2.5 as "3".
+	for (let places = 0; places <= 3; places++) {
+		const labels = ticks.map((t) => t.toFixed(places));
+		const faithful = ticks.every((t, i) => Math.abs(Number(labels[i]) - t) < 1e-9);
+		if (faithful && new Set(labels).size === labels.length) {
+			return (v) => v.toFixed(places);
+		}
+	}
 	return (v) => trim(v);
 }
 

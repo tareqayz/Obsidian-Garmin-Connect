@@ -177,7 +177,20 @@ describe("axisFormat", () => {
 	});
 
 	it("keeps small scales readable", () => {
-		assert.deepEqual([0, 2.5, 5].map(axisFormat([0, 2.5, 5])), ["0", "2.5", "5"]);
+		assert.deepEqual([0, 2.5, 5].map(axisFormat([0, 2.5, 5])), ["0.0", "2.5", "5.0"]);
+	});
+
+	it("never renders two adjacent ticks identically", () => {
+		// A VO2 Max axis: rounding by magnitude alone gives "49, 49, 48".
+		const ticks = [48, 48.5, 49];
+		const labels = ticks.map(axisFormat(ticks));
+		assert.equal(new Set(labels).size, labels.length, labels.join(" | "));
+		assert.deepEqual(labels, ["48.0", "48.5", "49.0"]);
+	});
+
+	it("adds a second decimal when the ticks are that close", () => {
+		const ticks = [1.2, 1.25, 1.3];
+		assert.deepEqual(ticks.map(axisFormat(ticks)), ["1.20", "1.25", "1.30"]);
 	});
 });
 

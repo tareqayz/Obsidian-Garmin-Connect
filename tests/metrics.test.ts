@@ -199,8 +199,18 @@ describe("endpointsFor", () => {
 			sleep: false,
 			hrv: false,
 			readiness: false,
+			endurance: false,
+			maxMetrics: false,
+			races: false,
 			workouts: false,
 		});
+	});
+
+	it("pulls VO2 Max and endurance from one group but different endpoints", () => {
+		const wanted = endpointsFor(["fitness"]);
+		assert.equal(wanted.maxMetrics, true, "VO2 Max comes from a range endpoint");
+		assert.equal(wanted.endurance, true, "endurance score is per day");
+		assert.equal(wanted.races, false);
 	});
 });
 
@@ -248,5 +258,61 @@ describe("keysFor", () => {
 		);
 		const known = new Set(keysFor(["activity"]));
 		for (const key of produced) assert.ok(known.has(key), `keysFor is missing "${key}"`);
+	});
+});
+
+describe("mapDay — fitness", () => {
+	it("prefers the precise VO2 Max over the rounded one", () => {
+		const props = mapDay(
+			{ maxMetrics: { generic: { vo2MaxPreciseValue: 48.6, vo2MaxValue: 49 } } },
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(props.vo2max, 48.6);
+	});
+
+	it("falls back to the rounded value when there is no precise one", () => {
+		const props = mapDay(
+			{ maxMetrics: { generic: { vo2MaxValue: 49 } } },
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(props.vo2max, 49);
+	});
+
+	it("keeps running and cycling VO2 Max apart", () => {
+		const props = mapDay(
+			{
+				maxMetrics: {
+					generic: { vo2MaxPreciseValue: 48.6 },
+					cycling: { vo2MaxPreciseValue: 42.1 },
+				},
+			},
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(props.vo2max, 48.6);
+		assert.equal(props.vo2max_cycling, 42.1);
+	});
+
+	it("writes nothing when Garmin has no max metrics for the day", () => {
+		assert.deepEqual(mapDay({ maxMetrics: null }, opts({ groups: ["fitness"] })), {});
+	});
+});
+
+describe("mapDay — race predictions", () => {
+	it("stores seconds, which chart and sort where a formatted time cannot", () => {
+		const props = mapDay(
+			{ races: { time5K: 1471, time10K: 3060, timeHalfMarathon: 6780, timeMarathon: 14400 } },
+			opts({ groups: ["races"] }),
+		);
+		assert.deepEqual(props, {
+			race_5k: 1471,
+			race_10k: 3060,
+			race_half: 6780,
+			race_marathon: 14400,
+		});
+	});
+
+	it("omits a distance Garmin has no prediction for", () => {
+		const props = mapDay({ races: { time5K: 1471 } }, opts({ groups: ["races"] }));
+		assert.deepEqual(Object.keys(props), ["race_5k"]);
 	});
 });

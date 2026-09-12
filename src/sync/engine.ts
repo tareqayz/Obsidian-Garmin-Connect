@@ -1,4 +1,11 @@
-import type { Activity, DailySummary, SleepData } from "../garmin/endpoints";
+import type {
+	Activity,
+	DailySummary,
+	EnduranceScore,
+	MaxMetrics,
+	RacePrediction,
+	SleepData,
+} from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
 import {
@@ -19,6 +26,10 @@ export interface SyncSource {
 	sleep(date: string): Promise<SleepData>;
 	hrv(date: string): Promise<Record<string, unknown> | null>;
 	trainingReadiness(date: string): Promise<unknown[]>;
+	enduranceScore(date: string): Promise<EnduranceScore | null>;
+	/** Range endpoints: one call covers the whole window. */
+	maxMetrics(start: string, end?: string): Promise<MaxMetrics[]>;
+	racePredictions(start: string, end?: string): Promise<RacePrediction[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
 }
 
@@ -73,6 +84,11 @@ export interface DayResult {
 
 export interface SyncReport {
 	days: DayResult[];
+	/**
+	 * Problems that were not specific to one day — a range endpoint failing, say.
+	 * Without these a missing metric looks like Garmin simply had no data.
+	 */
+	warnings: string[];
 	written: number;
 	unchanged: number;
 	skipped: number;
@@ -139,6 +155,27 @@ export function dateRange(from: string, to: string): string[] {
 	return dates;
 }
 
+/**
+ * Garmin rejects a race-prediction range longer than a year, and the other range
+ * endpoints are undocumented, so every range request is cut to windows of this
+ * size. A 407-day backfill asking for 407 days in one go is out of contract.
+ */
+export const RANGE_CHUNK_DAYS = 365;
+
+/** Splits an inclusive range into windows of at most `size` days, oldest first. */
+export function chunkRange(from: string, to: string, size = RANGE_CHUNK_DAYS): Array<{ from: string; to: string }> {
+	const start = utcOf(from);
+	const end = utcOf(to);
+	if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [];
+
+	const windows: Array<{ from: string; to: string }> = [];
+	for (let cursor = start; cursor <= end; cursor += size * DAY_MS) {
+		const stop = Math.min(cursor + (size - 1) * DAY_MS, end);
+		windows.push({ from: isoOf(cursor), to: isoOf(stop) });
+	}
+	return windows;
+}
+
 /** The last `days` days ending today (inclusive). */
 export function lastNDays(days: number, today: string): { from: string; to: string } {
 	const end = utcOf(today);
@@ -163,6 +200,7 @@ export async function syncRange(
 
 	const report: SyncReport = {
 		days: [],
+		warnings: [],
 		written: 0,
 		unchanged: 0,
 		skipped: 0,
@@ -200,6 +238,37 @@ export async function syncRange(
 		}
 	}
 
+	// VO2 Max and race predictions come back for a whole range in one request,
+	// so they are fetched once here rather than four hundred times below.
+	const oldest = due[due.length - 1] ?? opts.from;
+	const newest = due[0] ?? opts.to;
+
+	let maxMetricsByDate = new Map<string, MaxMetrics>();
+	if (wanted.maxMetrics) {
+		const got = await fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b));
+		report.requests += got.requests;
+		maxMetricsByDate = byCalendarDate(got.rows);
+		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
+		else if (maxMetricsByDate.size === 0) {
+			note(report, log, "VO2 Max: Garmin returned no rows for this range");
+		}
+		log.detail("VO2 Max days", maxMetricsByDate.size);
+	}
+
+	let racesByDate = new Map<string, RacePrediction>();
+	if (wanted.races) {
+		const got = await fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b));
+		report.requests += got.requests;
+		racesByDate = byCalendarDate(got.rows);
+		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.error) note(report, log, `race predictions: ${got.error}`);
+		else if (racesByDate.size === 0) {
+			note(report, log, "race predictions: Garmin returned no rows for this range");
+		}
+		log.detail("race prediction days", racesByDate.size);
+	}
+
 	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
 	let emptyRun = 0;
 	let done = 0;
@@ -214,7 +283,12 @@ export async function syncRange(
 		report.requests += fetched.requests;
 		if (fetched.fatal) return stop(report, fetched.fatal, log);
 
-		const data: DayData = { ...fetched.data, workouts: workoutsByDate.get(date) ?? [] };
+		const data: DayData = {
+			...fetched.data,
+			workouts: workoutsByDate.get(date) ?? [],
+			maxMetrics: maxMetricsByDate.get(date) ?? null,
+			races: racesByDate.get(date) ?? null,
+		};
 		const properties = mapDay(data, { groups: opts.groups, units: opts.units });
 		const count = Object.keys(properties).length;
 
@@ -287,6 +361,7 @@ async function fetchDay(
 	if (wanted.sleep) jobs.push({ name: "sleep", run: () => source.sleep(date) });
 	if (wanted.hrv) jobs.push({ name: "hrv", run: () => source.hrv(date) });
 	if (wanted.readiness) jobs.push({ name: "readiness", run: () => source.trainingReadiness(date) });
+	if (wanted.endurance) jobs.push({ name: "endurance", run: () => source.enduranceScore(date) });
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
@@ -320,9 +395,52 @@ function assign(data: DayData, name: keyof DayData, value: unknown): void {
 		case "readiness":
 			data.readiness = Array.isArray(value) ? (value as ReadinessEntry[]) : null;
 			break;
+		case "endurance":
+			data.endurance = (value ?? null) as DayData["endurance"];
+			break;
 		default:
 			break;
 	}
+}
+
+/**
+ * Runs a range request in year-long chunks and merges the results.
+ *
+ * A chunk that fails is reported rather than swallowed: a metric silently
+ * missing from a year of notes is worse than a warning.
+ */
+async function fetchRange<T extends { calendarDate?: string }>(
+	from: string,
+	to: string,
+	fetch: (start: string, end: string) => Promise<T[]>,
+): Promise<{ rows: T[]; requests: number; error?: string; fatal?: unknown }> {
+	const rows: T[] = [];
+	let requests = 0;
+	for (const window of chunkRange(from, to)) {
+		try {
+			rows.push(...(await fetch(window.from, window.to)));
+			requests += 1;
+		} catch (err) {
+			requests += 1;
+			if (isFatal(err)) return { rows, requests, fatal: err };
+			return { rows, requests, error: `${window.from}..${window.to}: ${message(err)}` };
+		}
+	}
+	return { rows, requests };
+}
+
+function note(report: SyncReport, log: Log, text: string): void {
+	report.warnings.push(text);
+	log.warn(text);
+}
+
+/** Indexes a range response by the day it describes. */
+function byCalendarDate<T extends { calendarDate?: string }>(rows: readonly T[]): Map<string, T> {
+	const map = new Map<string, T>();
+	for (const row of rows) {
+		if (typeof row?.calendarDate === "string") map.set(row.calendarDate, row);
+	}
+	return map;
 }
 
 const ACTIVITY_PAGE = 50;

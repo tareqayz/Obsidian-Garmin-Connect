@@ -9,9 +9,13 @@
 		format?: (value: number) => string;
 		/** 1 when a rise is good, -1 when a fall is good, 0 when it is neither. */
 		goodDirection: 1 | -1 | 0;
+		/** Shown behind the "i" button. Omit and no button appears. */
+		info?: string;
 	}
 
-	let { label, stats, unit = "", format, goodDirection }: Props = $props();
+	let { label, stats, unit = "", format, goodDirection, info }: Props = $props();
+
+	let showInfo = $state(false);
 
 	let render = $derived(format ?? compact);
 	let delta = $derived(stats.delta);
@@ -30,7 +34,19 @@
 </script>
 
 <div class="tile">
-	<div class="label">{label}</div>
+	<div class="head">
+		<div class="label">{label}</div>
+		{#if info}
+			<button
+				class="icon"
+				class:on={showInfo}
+				aria-expanded={showInfo}
+				aria-label="About {label}"
+				title="About {label}"
+				onclick={() => (showInfo = !showInfo)}>i</button
+			>
+		{/if}
+	</div>
 	<div class="value">{stats.latest ? render(stats.latest.value) + unit : "—"}</div>
 	<div class="foot">
 		{#if delta !== undefined && goodDirection !== 0}
@@ -44,6 +60,10 @@
 		{/if}
 	</div>
 	<Sparkline points={stats.points.slice(-30)} />
+
+	{#if showInfo && info}
+		<p class="info">{info}</p>
+	{/if}
 </div>
 
 <style>
@@ -54,9 +74,41 @@
 		background: var(--gcd-surface);
 		min-width: 0;
 	}
+	.head {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
 	.label {
 		color: var(--gcd-muted);
 		font-size: var(--font-ui-smaller, 12px);
+		min-width: 0;
+	}
+	.icon {
+		margin-left: auto;
+		width: 18px;
+		height: 18px;
+		padding: 0;
+		border-radius: 50%;
+		border: 1px solid var(--gcd-border);
+		background: transparent;
+		color: var(--gcd-muted);
+		font-size: 10px;
+		line-height: 1;
+		cursor: pointer;
+		box-shadow: none;
+		flex: none;
+	}
+	.icon:hover,
+	.icon.on {
+		background: var(--gcd-raised);
+		color: var(--gcd-text);
+	}
+	.info {
+		margin: 8px 0 0;
+		color: var(--gcd-muted);
+		font-size: var(--font-ui-smaller, 12px);
+		line-height: 1.5;
 	}
 	/* Proportional figures: tabular makes a large number look loose. */
 	.value {
@@ -71,10 +123,16 @@
 		gap: 6px;
 		min-height: 18px;
 		margin-top: 2px;
+		flex-wrap: wrap;
 	}
+	/* Wrap between the delta and its caption, never inside the caption. */
 	.note {
 		color: var(--gcd-muted);
 		font-size: var(--font-ui-smaller, 12px);
+		white-space: nowrap;
+	}
+	.delta {
+		white-space: nowrap;
 	}
 	.delta {
 		display: inline-flex;
@@ -82,6 +140,9 @@
 		gap: 2px;
 		font-size: var(--font-ui-smaller, 12px);
 		font-weight: 600;
+	}
+	.tile :global(.gcd-spark) {
+		margin-top: 6px;
 	}
 	.delta.good { color: var(--gcd-good); }
 	.delta.bad { color: var(--gcd-bad); }

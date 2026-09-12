@@ -35,6 +35,8 @@
 		stress: "Stress and Body Battery",
 		hrv: "HRV — overnight average and status",
 		readiness: "Training readiness",
+		fitness: "Fitness — VO2 Max, fitness age, endurance score",
+		races: "Race predictions — 5K, 10K, half, marathon",
 		workouts: "Workouts — a list of the day's activities",
 	};
 

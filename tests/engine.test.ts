@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../src/garmin/errors";
 import {
 	MultiTarget,
+	RANGE_CHUNK_DAYS,
+	chunkRange,
 	dateRange,
 	lastNDays,
 	syncRange,
@@ -24,6 +26,9 @@ class FakeSource implements SyncSource {
 	failWith: Record<string, unknown> = {};
 	activityList: Activity[] = [];
 	activityPages = 0;
+	rangeCalls = 0;
+	maxMetricsRows: Array<{ calendarDate: string; generic: { vo2MaxPreciseValue: number } }> = [];
+	raceRows: Array<{ calendarDate: string; time5K: number }> = [];
 
 	private guard(name: string, date?: string) {
 		this.calls.push(date ? `${name}:${date}` : name);
@@ -51,6 +56,20 @@ class FakeSource implements SyncSource {
 		this.guard(`activities:${start}:${limit}`);
 		this.activityPages += 1;
 		return this.activityList;
+	}
+	async enduranceScore(date: string) {
+		this.guard("enduranceScore", date);
+		return { calendarDate: date, overallScore: 7100 };
+	}
+	async maxMetrics(start: string, end = start) {
+		this.guard(`maxMetrics:${start}:${end}`);
+		this.rangeCalls += 1;
+		return this.maxMetricsRows;
+	}
+	async racePredictions(start: string, end = start) {
+		this.guard(`racePredictions:${start}:${end}`);
+		this.rangeCalls += 1;
+		return this.raceRows;
 	}
 }
 
@@ -453,5 +472,135 @@ describe("syncRange — stopAfterEmptyDays", () => {
 		);
 		assert.equal(report.stoppedEarly, undefined);
 		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 12);
+	});
+});
+
+describe("syncRange — range-fetched metrics", () => {
+	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+
+	it("asks for VO2 Max and race predictions once for the whole window", async () => {
+		const source = new FakeSource();
+		source.maxMetricsRows = [{ calendarDate: "2026-09-12", generic: { vo2MaxPreciseValue: 48.6 } }];
+		source.raceRows = [{ calendarDate: "2026-09-12", time5K: 1471 }];
+
+		const report = await syncRange(
+			source,
+			always,
+			options({ groups: ["fitness", "races"] }),
+		);
+
+		// Three days in the range, but one call each — not three.
+		assert.equal(source.rangeCalls, 2);
+		assert.ok(source.calls.includes("maxMetrics:2026-09-10:2026-09-12"));
+		assert.ok(source.calls.includes("racePredictions:2026-09-10:2026-09-12"));
+		assert.equal(report.written, 3);
+	});
+
+	it("matches each day to its own row and leaves the rest without", async () => {
+		const written = new Map<string, Record<string, unknown>>();
+		const target: NoteTarget = {
+			exists: () => true,
+			write: async (date, props) => {
+				written.set(date, props);
+				return "written";
+			},
+		};
+		const source = new FakeSource();
+		source.maxMetricsRows = [{ calendarDate: "2026-09-11", generic: { vo2MaxPreciseValue: 48.6 } }];
+
+		await syncRange(source, target, options({ groups: ["fitness", "activity"] }));
+		assert.equal(written.get("2026-09-11")!.vo2max, 48.6);
+		assert.ok(!("vo2max" in written.get("2026-09-12")!));
+	});
+
+	it("carries on without them when the range call fails", async () => {
+		const source = new FakeSource();
+		source.failWith["maxMetrics:2026-09-10:2026-09-12"] = new GarminApiError("boom", 500, "");
+		const report = await syncRange(
+			source,
+			always,
+			options({ groups: ["fitness", "activity"] }),
+		);
+		assert.equal(report.stoppedEarly, undefined);
+		assert.equal(report.written, 3);
+	});
+
+	it("stops before any day when the range call is rate limited", async () => {
+		const source = new FakeSource();
+		source.failWith["maxMetrics:2026-09-10:2026-09-12"] = new GarminRateLimitError("slow down");
+		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
+		assert.match(report.stoppedEarly ?? "", /rate limited/);
+		assert.equal(source.calls.filter((c) => c.startsWith("enduranceScore")).length, 0);
+	});
+});
+
+describe("chunkRange", () => {
+	it("leaves a short range in one piece", () => {
+		assert.deepEqual(chunkRange("2026-09-01", "2026-09-12"), [
+			{ from: "2026-09-01", to: "2026-09-12" },
+		]);
+	});
+
+	it("splits a range longer than Garmin accepts", () => {
+		// Garmin rejects a race-prediction range longer than a year.
+		const windows = chunkRange("2025-08-02", "2026-09-12");
+		assert.equal(windows.length, 2);
+		assert.equal(windows[0]!.from, "2025-08-02");
+		assert.equal(windows[1]!.to, "2026-09-12");
+		for (const w of windows) {
+			assert.ok(dateRange(w.from, w.to).length <= RANGE_CHUNK_DAYS, `${w.from}..${w.to}`);
+		}
+	});
+
+	it("covers every day exactly once", () => {
+		const all = chunkRange("2024-01-01", "2026-09-12").flatMap((w) => dateRange(w.from, w.to));
+		assert.equal(new Set(all).size, all.length, "no day appears twice");
+		assert.equal(all.length, dateRange("2024-01-01", "2026-09-12").length);
+	});
+
+	it("is empty for an inverted range", () => {
+		assert.deepEqual(chunkRange("2026-09-12", "2026-09-01"), []);
+	});
+});
+
+describe("syncRange — range endpoints that come back empty", () => {
+	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+
+	it("chunks a multi-year backfill instead of asking for it all at once", async () => {
+		const source = new FakeSource();
+		const asked: string[] = [];
+		source.racePredictions = async (start: string, end = start) => {
+			asked.push(`${start}..${end}`);
+			return [];
+		};
+		await syncRange(
+			source,
+			always,
+			options({ from: "2024-01-01", to: "2026-09-12", groups: ["races"] }),
+		);
+		assert.ok(asked.length >= 3, `expected several windows, got ${asked.join(", ")}`);
+		for (const window of asked) {
+			const [a, b] = window.split("..");
+			assert.ok(dateRange(a!, b!).length <= RANGE_CHUNK_DAYS, window);
+		}
+	});
+
+	it("says so when a range endpoint returns nothing", async () => {
+		const source = new FakeSource();
+		source.maxMetricsRows = [];
+		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
+		assert.match(report.warnings.join(" "), /VO2 Max: Garmin returned no rows/);
+	});
+
+	it("says so when a range endpoint fails, without losing the rest of the sync", async () => {
+		const source = new FakeSource();
+		source.failWith["racePredictions:2026-09-10:2026-09-12"] = new GarminApiError("HTTP 400", 400, "");
+		const report = await syncRange(
+			source,
+			always,
+			options({ groups: ["races", "activity"] }),
+		);
+		assert.match(report.warnings.join(" "), /race predictions: .*400/);
+		assert.equal(report.written, 3, "the rest of the sync still ran");
 	});
 });

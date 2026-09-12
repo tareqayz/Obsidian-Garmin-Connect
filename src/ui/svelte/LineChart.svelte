@@ -8,9 +8,12 @@
 		height: number;
 		label: string;
 		unit?: string;
+		/** Overrides axis and tooltip formatting, e.g. seconds as a race time. */
+		format?: (value: number) => string;
 	}
 
-	let { points, height, label, unit = "" }: Props = $props();
+	let { points, height, label, unit = "", format }: Props = $props();
+	let render = $derived(format ?? detail);
 
 	let dates = $derived(points.map((p) => p.date));
 	let values = $derived(points.map((p) => p.value));
@@ -21,8 +24,9 @@
 	{values}
 	{height}
 	zeroBased={false}
+	{format}
 	anchorY={(i, scale) => scale.y(values[i] ?? 0)}
-	rowsFor={(i) => [{ label, value: `${detail(values[i] ?? 0)}${unit}` }]}
+	rowsFor={(i) => [{ label, value: `${render(values[i] ?? 0)}${unit}` }]}
 >
 	{#snippet marks(scale, active)}
 		{@const d = linePath(values, scale)}

@@ -60,6 +60,39 @@ export interface HeartRateData {
 	[key: string]: unknown;
 }
 
+/**
+ * One day of "max metrics". VO2 Max lives here, per running/cycling sub-object.
+ * Shape inferred from the endpoint rather than observed — read defensively.
+ */
+export interface MaxMetrics {
+	calendarDate?: string;
+	generic?: {
+		vo2MaxPreciseValue?: number | null;
+		vo2MaxValue?: number | null;
+		fitnessAge?: number | null;
+		[key: string]: unknown;
+	};
+	cycling?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null; [key: string]: unknown };
+	[key: string]: unknown;
+}
+
+/** Predicted finish times, in seconds. */
+export interface RacePrediction {
+	calendarDate?: string;
+	time5K?: number | null;
+	time10K?: number | null;
+	timeHalfMarathon?: number | null;
+	timeMarathon?: number | null;
+	[key: string]: unknown;
+}
+
+export interface EnduranceScore {
+	calendarDate?: string;
+	overallScore?: number | null;
+	classification?: number | null;
+	[key: string]: unknown;
+}
+
 export interface Activity {
 	activityId?: number;
 	activityName?: string;
@@ -209,6 +242,42 @@ export class GarminApi extends GarminClient {
 	async trainingReadiness(date: string): Promise<unknown[]> {
 		assertIsoDate(date);
 		return this.request(`/metrics-service/metrics/trainingreadiness/${date}`);
+	}
+
+	/**
+	 * VO2 Max and fitness age across a range — one request for the whole window,
+	 * not one per day, because the endpoint takes the range in its path.
+	 */
+	async maxMetrics(start: string, end = start): Promise<MaxMetrics[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.request<MaxMetrics[] | null>(
+			`/metrics-service/metrics/maxmet/daily/${start}/${end}`,
+		);
+		return data ?? [];
+	}
+
+	/**
+	 * Predicted 5K / 10K / half / marathon times across a range, also one
+	 * request. Garmin rejects ranges longer than a year.
+	 */
+	async racePredictions(start: string, end = start): Promise<RacePrediction[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const who = await this.requireDisplayName();
+		const data = await this.request<RacePrediction[] | null>(
+			`/metrics-service/metrics/racepredictions/daily/${who}`,
+			{ query: { fromCalendarDate: start, toCalendarDate: end } },
+		);
+		return data ?? [];
+	}
+
+	/** Endurance score for one day. The range form only returns weekly averages. */
+	async enduranceScore(date: string): Promise<EnduranceScore | null> {
+		assertIsoDate(date);
+		return this.request("/metrics-service/metrics/endurancescore", {
+			query: { calendarDate: date },
+		});
 	}
 
 	async activities(start = 0, limit = 20): Promise<Activity[]> {

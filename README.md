@@ -69,10 +69,16 @@ multiples for resting HR, HRV, Body Battery and training readiness. A range row
 (30 days / 90 days / 1 year) scopes everything below it, and a **Table** toggle
 swaps the whole view for the same numbers as text.
 
-The same row carries **Sync** (the last few days) and **Backfill…** (any range
-you pick), with a status line underneath saying what the vault currently holds —
-"Data through 12 Sep · 386 days stored" — so the dashboard is where you both read
-the data and fetch it.
+A **Custom** chip swaps the presets for two date pickers when you want an exact
+window. The same row carries **Sync** (the last few days) and **Backfill…** (any
+range you pick), with a status line underneath saying what the vault currently
+holds — "Data through 12 Sep · 386 days stored" — so the dashboard is where you
+both read the data and fetch it.
+
+Every tile and card has an **i** button explaining what the metric is and how to
+read it, and every chart has an **⤢** button that expands it to the full pane
+with a taller plot and a summary strip (latest, average, lowest, highest, and the
+day each happened).
 
 The UI is **Svelte 5**, set up the way [Obsidian's guide][svelte-guide]
 prescribes: `esbuild-svelte` in the build, components mounted with `mount()` and

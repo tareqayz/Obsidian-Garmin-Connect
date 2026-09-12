@@ -3,17 +3,43 @@
 
 	interface Props {
 		rangeDays: number;
+		/** True when the window is an explicit from/to rather than a preset. */
+		custom: boolean;
+		from: string;
+		to: string;
+		today: string;
 		showTable: boolean;
 		syncing: boolean;
 		canSync: boolean;
 		onRange: (days: number) => void;
+		onCustom: () => void;
+		onFrom: (date: string) => void;
+		onTo: (date: string) => void;
 		onToggleTable: () => void;
 		onSync: () => void;
 		onBackfill: () => void;
 	}
 
-	let { rangeDays, showTable, syncing, canSync, onRange, onToggleTable, onSync, onBackfill }: Props =
-		$props();
+	let {
+		rangeDays,
+		custom,
+		from,
+		to,
+		today,
+		showTable,
+		syncing,
+		canSync,
+		onRange,
+		onCustom,
+		onFrom,
+		onTo,
+		onToggleTable,
+		onSync,
+		onBackfill,
+	}: Props = $props();
+
+	// Garmin Connect did not exist before this, so an earlier date is a typo.
+	const EARLIEST = "2010-01-01";
 </script>
 
 <!-- One row, above everything it scopes. Never a filter inside a chart card. -->
@@ -22,11 +48,14 @@
 		{#each RANGES as range (range.days)}
 			<button
 				class="chip"
-				class:selected={range.days === rangeDays}
-				aria-pressed={range.days === rangeDays}
+				class:selected={!custom && range.days === rangeDays}
+				aria-pressed={!custom && range.days === rangeDays}
 				onclick={() => onRange(range.days)}>{range.label}</button
 			>
 		{/each}
+		<button class="chip" class:selected={custom} aria-pressed={custom} onclick={onCustom}>
+			Custom
+		</button>
 	</div>
 
 	<div class="group end">
@@ -45,7 +74,44 @@
 	</div>
 </div>
 
+{#if custom}
+	<!-- Revealed only when chosen, so the common case stays a single row. -->
+	<div class="window">
+		<label for="gcd-from">From</label>
+		<input
+			id="gcd-from"
+			type="date"
+			min={EARLIEST}
+			max={today}
+			value={from}
+			onchange={(e) => onFrom(e.currentTarget.value)}
+		/>
+		<label for="gcd-to">To</label>
+		<input
+			id="gcd-to"
+			type="date"
+			min={EARLIEST}
+			max={today}
+			value={to}
+			onchange={(e) => onTo(e.currentTarget.value)}
+		/>
+	</div>
+{/if}
+
 <style>
+	.window {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+		margin-bottom: 8px;
+		font-size: var(--font-ui-smaller, 12px);
+		color: var(--gcd-muted);
+	}
+	.window input {
+		font-size: var(--font-ui-smaller, 12px);
+		padding: 2px 6px;
+	}
 	.filters {
 		display: flex;
 		align-items: center;

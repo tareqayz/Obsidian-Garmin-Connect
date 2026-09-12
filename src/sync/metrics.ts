@@ -15,6 +15,8 @@ export type MetricGroup =
 	| "stress"
 	| "hrv"
 	| "readiness"
+	| "fitness"
+	| "races"
 	| "workouts";
 
 export const ALL_GROUPS: MetricGroup[] = [
@@ -24,6 +26,8 @@ export const ALL_GROUPS: MetricGroup[] = [
 	"stress",
 	"hrv",
 	"readiness",
+	"fitness",
+	"races",
 	"workouts",
 ];
 
@@ -47,11 +51,30 @@ export interface ReadinessEntry {
 	[key: string]: unknown;
 }
 
+export interface MaxMetricsData {
+	generic?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null; fitnessAge?: number | null };
+	cycling?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null };
+}
+
+export interface RaceData {
+	time5K?: number | null;
+	time10K?: number | null;
+	timeHalfMarathon?: number | null;
+	timeMarathon?: number | null;
+}
+
+export interface EnduranceData {
+	overallScore?: number | null;
+}
+
 export interface DayData {
 	summary?: DailySummary | null;
 	sleep?: SleepData | null;
 	hrv?: HrvData | null;
 	readiness?: ReadinessEntry[] | null;
+	maxMetrics?: MaxMetricsData | null;
+	races?: RaceData | null;
+	endurance?: EnduranceData | null;
 	workouts?: Activity[] | null;
 }
 
@@ -205,6 +228,28 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		}
 	}
 
+	if (groups.has("fitness")) {
+		const generic = data.maxMetrics?.generic;
+		// Garmin sends both a rounded and a precise VO2 Max; the precise one is
+		// what makes a trend line readable.
+		set("vo2max", metric(generic?.vo2MaxPreciseValue ?? generic?.vo2MaxValue));
+		set(
+			"vo2max_cycling",
+			metric(data.maxMetrics?.cycling?.vo2MaxPreciseValue ?? data.maxMetrics?.cycling?.vo2MaxValue),
+		);
+		set("fitness_age", metric(generic?.fitnessAge));
+		set("endurance_score", metric(data.endurance?.overallScore));
+	}
+
+	if (groups.has("races")) {
+		// Seconds, deliberately: a number charts and sorts, where "24:31" does
+		// neither. Display formatting is the reader's layer, not the data's.
+		set("race_5k", metric(data.races?.time5K));
+		set("race_10k", metric(data.races?.time10K));
+		set("race_half", metric(data.races?.timeHalfMarathon));
+		set("race_marathon", metric(data.races?.timeMarathon));
+	}
+
 	if (groups.has("workouts")) {
 		const workouts = (data.workouts ?? []).map((a) => mapWorkout(a, opts.units));
 		if (workouts.length) set("workouts", workouts);
@@ -267,6 +312,14 @@ export const METRIC_LABELS: Record<string, string> = {
 	hrv_status: "HRV status",
 	training_readiness: "Readiness",
 	training_readiness_level: "Readiness level",
+	vo2max: "VO2 Max",
+	vo2max_cycling: "VO2 Max (cycling)",
+	fitness_age: "Fitness age",
+	endurance_score: "Endurance score",
+	race_5k: "5K prediction",
+	race_10k: "10K prediction",
+	race_half: "Half marathon",
+	race_marathon: "Marathon",
 	workouts: "Workouts",
 };
 
@@ -316,11 +369,16 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 		stress: ["stress_avg", "body_battery_high", "body_battery_low"],
 		hrv: ["hrv_avg", "hrv_high", "hrv_weekly_avg", "hrv_status"],
 		readiness: ["training_readiness", "training_readiness_level"],
+		fitness: ["vo2max", "vo2max_cycling", "fitness_age", "endurance_score"],
+		races: ["race_5k", "race_10k", "race_half", "race_marathon"],
 		workouts: ["workouts"],
 	};
 	const wanted = new Set(groups);
 	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => byGroup[g]);
 }
+
+/** Keys whose value is a duration in seconds rather than a plain number. */
+export const DURATION_KEYS = new Set(["race_5k", "race_10k", "race_half", "race_marathon"]);
 
 /** Groups activities by the local calendar day they started on. */
 export function bucketWorkoutsByDate(activities: readonly Activity[]): Map<string, Activity[]> {
@@ -343,6 +401,11 @@ export function endpointsFor(groups: readonly MetricGroup[]) {
 		sleep: set.has("sleep"),
 		hrv: set.has("hrv"),
 		readiness: set.has("readiness"),
+		// Per-day, unlike the two below.
+		endurance: set.has("fitness"),
+		// Range endpoints: one request each for the whole window, however long.
+		maxMetrics: set.has("fitness"),
+		races: set.has("races"),
 		workouts: set.has("workouts"),
 	};
 }

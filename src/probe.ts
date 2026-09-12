@@ -4,6 +4,7 @@ import { ProbeLog, redactEmail, silentLog, snippet } from "./log";
 import type { GarminDomain } from "./garmin/constants";
 import type { GarminApi } from "./garmin/endpoints";
 import { toIsoDate } from "./garmin/endpoints";
+import { mapDay } from "./sync/metrics";
 import {
 	GarminAuthError,
 	GarminBlockedError,
@@ -327,4 +328,109 @@ function classifyFailure(err: unknown, log: ProbeLog): Verdict {
 	}
 	log.fail(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
 	return "failed";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fitness endpoints                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Field names and types, so a wrong assumption shows up as a wrong key. */
+function shapeOf(value: unknown, depth = 1): string {
+	if (value === null) return "null";
+	if (Array.isArray(value)) return `array(${value.length})`;
+	if (typeof value !== "object") return `${typeof value} ${JSON.stringify(value)}`;
+	const entries = Object.entries(value as Record<string, unknown>);
+	if (entries.length === 0) return "{}";
+	if (depth <= 0) return `{${entries.map(([k]) => k).join(", ")}}`;
+	return `{ ${entries
+		.slice(0, 14)
+		.map(([k, v]) => `${k}: ${shapeOf(v, depth - 1)}`)
+		.join(", ")}${entries.length > 14 ? ", …" : ""} }`;
+}
+
+/**
+ * Shows what the fitness endpoints actually return.
+ *
+ * VO2 Max, endurance score and race predictions were mapped from field names
+ * inferred off the endpoint paths rather than observed. When a metric never
+ * appears in a note, the question is always the same — did the call fail, did it
+ * return nothing, or is the field called something else? This answers it, and
+ * runs `mapDay` at the end so the mapping is tested rather than assumed.
+ */
+export async function runFitnessProbe(
+	api: GarminApi,
+	log: ProbeLog,
+	days = 7,
+): Promise<Verdict> {
+	api.setLog(log);
+	const to = toIsoDate();
+	const from = shiftIso(to, -(days - 1));
+
+	try {
+		log.step(`Fitness endpoints — ${from} → ${to}`);
+
+		const maxMetrics = await inspect(log, "maxMetrics", () => api.maxMetrics(from, to));
+		const races = await inspect(log, "racePredictions", () => api.racePredictions(from, to));
+		const endurance = await inspect(log, "enduranceScore", async () => {
+			const row = await api.enduranceScore(to);
+			return row ? [row] : [];
+		});
+
+		log.step("What the mapper makes of it");
+		const mapped = mapDay(
+			{
+				maxMetrics: (maxMetrics[0] ?? null) as never,
+				races: (races[0] ?? null) as never,
+				endurance: (endurance[0] ?? null) as never,
+			},
+			{ groups: ["fitness", "races"], units: "metric" },
+		);
+		const keys = Object.keys(mapped);
+		if (keys.length === 0) {
+			log.fail("nothing mapped — the field names above do not match what the plugin expects");
+		} else {
+			log.ok(`mapped ${keys.length} propert${keys.length === 1 ? "y" : "ies"}`);
+			for (const [key, value] of Object.entries(mapped)) log.detail(key, value);
+		}
+
+		log.step("Verdict");
+		log.detail("result", keys.length > 0 ? "SUCCESS" : "FAILED");
+		log.line();
+		log.line("  Compare the keys above with what src/sync/metrics.ts reads. If a value");
+		log.line("  is there under a different name, that name is the fix.");
+		return keys.length > 0 ? "success" : "failed";
+	} catch (err) {
+		return classifyFailure(err, log);
+	} finally {
+		api.setLog(silentLog);
+	}
+}
+
+async function inspect<T>(
+	log: ProbeLog,
+	name: string,
+	run: () => Promise<T[]>,
+): Promise<T[]> {
+	try {
+		const rows = await run();
+		log.detail(name, `${rows.length} row(s)`);
+		if (rows.length === 0) {
+			log.warn(`${name} returned nothing — Garmin has no data here, or the range was refused`);
+			return rows;
+		}
+		log.detail(`${name}[0]`, shapeOf(rows[0], 2));
+		log.ok(`${name} responded`);
+		return rows;
+	} catch (err) {
+		if (err instanceof GarminRateLimitError || err instanceof GarminAuthError) throw err;
+		log.fail(`${name} failed: ${err instanceof Error ? err.message : String(err)}`);
+		return [];
+	}
+}
+
+function shiftIso(iso: string, days: number): string {
+	const [y, m, d] = iso.split("-").map(Number);
+	return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1) + days * 86_400_000)
+		.toISOString()
+		.slice(0, 10);
 }

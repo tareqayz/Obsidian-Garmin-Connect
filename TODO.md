@@ -10,18 +10,22 @@
 - Test on Android — different native HTTP stack, so a third TLS fingerprint.
   Desktop and iOS JA4s are recorded in the README.
 - Check behaviour under sync load — many `connectapi` calls in sequence.
-- Verify the HRV and training-readiness payload shapes against a live account.
-  `mapDay` reads `hrvSummary.lastNightAvg` / `.status` and `readiness[0].score`
-  defensively, but those shapes were inferred from the endpoint paths, not seen.
-  If a property never appears, that is the first place to look.
-- Polish the UI; retire the diagnostics modal or hide it behind a debug setting.
-- Dashboard: the workouts group has no chart yet — only the table view shows it.
-- The "stop after empty days" guard cannot tell a genuine gap (a month without
-  the watch) from the end of your history. It names the date it stopped at so you
-  can re-run a narrower range, but detecting the account's real start date — if
-  Garmin exposes one — would be better.
-- Dashboard: consider a distance/calories chart; both are synced but unplotted.
-- Consider applying the daily-note template when creating a missing note.
-  Currently creation makes an empty file, because expanding only some of a
-  template's placeholders would be worse than expanding none.
-- CI/CD pipeline : run automated tests on Garmin API and auth, ensuring nothing has changed - if something has, flag it and see if you can run an agent for an immediate to PR.
+- Verify payload shapes against a live account. `mapDay` reads these defensively,
+  but they were inferred from the endpoint paths rather than observed:
+  `hrvSummary.lastNightAvg` / `.status`, `readiness[0].score`,
+  `maxMetrics.generic.vo2MaxPreciseValue` / `.fitnessAge`,
+  `maxMetrics.cycling.vo2MaxPreciseValue`, `enduranceScore.overallScore`, and
+  `racePredictions[].time5K` / `time10K` / `timeHalfMarathon` / `timeMarathon`.
+  If a property never appears in a note, that is the first place to look.
+- Fitness age and cycling VO2 Max are synced and appear in the table, but have no
+  tile or chart of their own yet.
+- OPEN: VO2 Max never populates, and it is NOT the range-length bug.
+  Evidence from a 407-day vault: endurance score in 393 notes, race predictions in
+  exactly the 5 days of the recent-sync window (syncDays=5), VO2 Max in 0.
+  So the same short window that successfully fetched race predictions got no VO2
+  Max — and since race predictions are derived from VO2 Max, Garmin plainly has
+  the data. That points at a wrong URL or a wrong field name in
+  `GarminApi.maxMetrics` / `mapDay`, not at an absent metric.
+  Run probe step 4 ("Inspect fitness endpoints") and compare the printed keys
+  with what `src/sync/metrics.ts` reads.
+- Customizable layouts - resizeable widgets - advanced widget settings - default layout + can make multiple different layouts (different dashboard pages)

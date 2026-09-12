@@ -7,6 +7,7 @@ import {
 	reportPlatform,
 	runFingerprintProbe,
 	runGarminProbe,
+	runFitnessProbe,
 	runPersistenceProbe,
 	type Verdict,
 } from "../probe";
@@ -50,6 +51,7 @@ export class ProbeModal extends Modal {
 					}),
 				runPersistence: (log: ProbeLog, email: string, password: string) =>
 					runPersistenceProbe(this.plugin.garmin, log, { email, password }),
+				runFitness: (log: ProbeLog) => runFitnessProbe(this.plugin.garmin, log),
 				onFinished: (verdict: Verdict) => new Notice(`Garmin probe: ${verdict}`),
 				onCopyLog: (text: string) => {
 					navigator.clipboard

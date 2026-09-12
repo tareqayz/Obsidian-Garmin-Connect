@@ -222,8 +222,13 @@ export function describe(report: SyncReport): string {
 	if (report.unchanged) parts.push(`${report.unchanged} unchanged`);
 	if (report.skipped) parts.push(`${report.skipped} skipped`);
 	if (report.failed) parts.push(`${report.failed} failed`);
-	const summary = `Garmin sync: ${parts.join(", ")}`;
-	return report.stoppedEarly ? `${summary} — stopped: ${report.stoppedEarly}` : summary;
+
+	let summary = `Garmin sync: ${parts.join(", ")}`;
+	if (report.stoppedEarly) summary += ` — stopped: ${report.stoppedEarly}`;
+	// A range endpoint returning nothing used to be invisible: the run reported
+	// "N written" while a whole metric was quietly missing from every note.
+	if (report.warnings.length) summary += `\n${report.warnings.join("\n")}`;
+	return summary;
 }
 
 function explain(err: unknown): string {

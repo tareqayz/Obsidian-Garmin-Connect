@@ -53,6 +53,14 @@ function build(days: number): DayRow[] {
 				sleep_light_hours: Math.round(light * 100) / 100,
 				sleep_awake_hours: Math.round(awake * 100) / 100,
 				sleep_score: Math.round(68 + rand() * 26),
+				// VO2 Max only updates after a qualifying run, so it steps rather
+				// than moving daily — the preview should show that honestly.
+				vo2max: Math.round((48 + drift * 0.35) * 10) / 10,
+				endurance_score: Math.round(7100 + drift * 120 + rand() * 60),
+				race_5k: Math.round(1460 - drift * 12 + rand() * 40),
+				race_10k: Math.round(3040 - drift * 26 + rand() * 80),
+				race_half: Math.round(6720 - drift * 55 + rand() * 160),
+				race_marathon: Math.round(14200 - drift * 120 + rand() * 340),
 			},
 		});
 	}

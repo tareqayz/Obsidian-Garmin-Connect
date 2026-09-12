@@ -14,6 +14,7 @@
 			requestMfaCode: (method: string) => Promise<string | null>,
 		) => Promise<Verdict>;
 		runPersistence: (log: ProbeLog, email: string, password: string) => Promise<Verdict>;
+		runFitness: (log: ProbeLog) => Promise<Verdict>;
 		onSaveLog: (text: string, quiet: boolean) => Promise<void>;
 		onCopyLog: (text: string) => void;
 		onFinished: (verdict: Verdict) => void;
@@ -28,6 +29,7 @@
 		runFingerprint,
 		runLogin,
 		runPersistence,
+		runFitness,
 		onSaveLog,
 		onCopyLog,
 		onFinished,
@@ -123,6 +125,9 @@
 		onclick={() => run(() => runPersistence(log, email.trim(), password))}
 	>
 		3. Test session persistence
+	</button>
+	<button disabled={busy} onclick={() => run(() => runFitness(log))}>
+		4. Inspect fitness endpoints
 	</button>
 </div>
 
