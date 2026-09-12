@@ -10,5 +10,11 @@
 - Test on Android — different native HTTP stack, so a third TLS fingerprint.
   Desktop and iOS JA4s are recorded in the README.
 - Check behaviour under sync load — many `connectapi` calls in sequence.
-- Sync engine: date range → frontmatter → daily notes, idempotent.
-- Real sign-in UI; retire the diagnostics modal or hide it behind a debug setting.
+- Verify the HRV and training-readiness payload shapes against a live account.
+  `mapDay` reads `hrvSummary.lastNightAvg` / `.status` and `readiness[0].score`
+  defensively, but those shapes were inferred from the endpoint paths, not seen.
+  If a property never appears, that is the first place to look.
+- Polish the UI; retire the diagnostics modal or hide it behind a debug setting.
+- Consider applying the daily-note template when creating a missing note.
+  Currently creation makes an empty file, because expanding only some of a
+  template's placeholders would be worse than expanding none.

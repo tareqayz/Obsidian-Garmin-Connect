@@ -1,6 +1,29 @@
 import type { Plugin } from "obsidian";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, type GarminSettings } from "./settings";
+import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
+
+/* Readers that accept only what they recognise, so nothing unexpected survives
+   a load — neither a stale secret nor a value that would break a slider. */
+
+const text = (v: unknown, fallback: string) => (typeof v === "string" ? v : fallback);
+
+const nonEmpty = (v: unknown, fallback: string) =>
+	typeof v === "string" && v.trim() ? v : fallback;
+
+const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
+
+const int = (v: unknown, fallback: number, min: number, max: number) =>
+	typeof v === "number" && Number.isFinite(v)
+		? Math.min(max, Math.max(min, Math.round(v)))
+		: fallback;
+
+function groups(v: unknown, fallback: MetricGroup[]): MetricGroup[] {
+	if (!Array.isArray(v)) return fallback;
+	const valid = v.filter((g): g is MetricGroup => ALL_GROUPS.includes(g as MetricGroup));
+	// An empty list is a legitimate choice; a malformed one is not.
+	return valid.length === v.length ? valid : fallback;
+}
 
 interface Persisted {
 	settings: GarminSettings;
@@ -41,17 +64,26 @@ export class PluginData implements TokenStore {
 		// Read by allowlist rather than spreading. Phase 0 could store the Garmin
 		// password, and picking known keys means a stray secret cannot survive a
 		// load no matter what is sitting in the file.
+		const d = DEFAULT_SETTINGS;
 		this.settings = {
-			email: typeof source.email === "string" ? source.email : DEFAULT_SETTINGS.email,
-			domain: source.domain === "garmin.cn" ? "garmin.cn" : DEFAULT_SETTINGS.domain,
-			logFolder:
-				typeof source.logFolder === "string" && source.logFolder.trim()
-					? source.logFolder
-					: DEFAULT_SETTINGS.logFolder,
-			autoSaveLog:
-				typeof source.autoSaveLog === "boolean"
-					? source.autoSaveLog
-					: DEFAULT_SETTINGS.autoSaveLog,
+			email: text(source.email, d.email),
+			domain: source.domain === "garmin.cn" ? "garmin.cn" : d.domain,
+
+			syncDays: int(source.syncDays, d.syncDays, 1, 30),
+			groups: groups(source.groups, d.groups),
+			units:
+				source.units === "metric" || source.units === "imperial" || source.units === "auto"
+					? source.units
+					: d.units,
+			prefix: text(source.prefix, d.prefix),
+			dailyNoteFolder: text(source.dailyNoteFolder, d.dailyNoteFolder),
+			dailyNoteFormat: text(source.dailyNoteFormat, d.dailyNoteFormat),
+			createMissingNotes: bool(source.createMissingNotes, d.createMissingNotes),
+			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
+			pauseBetweenDays: int(source.pauseBetweenDays, d.pauseBetweenDays, 0, 5000),
+
+			logFolder: nonEmpty(source.logFolder, d.logFolder),
+			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
 		this.migratedAwayFromStoredPassword = Boolean(source.password);
 
