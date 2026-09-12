@@ -1,0 +1,46 @@
+.gcp-modal { max-width: 46rem; }
+
+.gcp-caution {
+	border-left: 3px solid var(--text-warning);
+	background: var(--background-secondary);
+	padding: 0.6em 0.8em;
+	margin-bottom: 1em;
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+}
+
+.gcp-actions {
+	display: flex;
+	gap: 0.5em;
+	flex-wrap: wrap;
+	margin: 0.75em 0;
+}
+
+.gcp-footer { margin-top: 0.5em; }
+
+.gcp-log {
+	background: var(--background-primary-alt);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 0.75em;
+	max-height: 22rem;
+	overflow: auto;
+	font-family: var(--font-monospace);
+	font-size: 0.78em;
+	line-height: 1.5;
+	white-space: pre;
+	tab-size: 2;
+}
+
+.gcp-mfa {
+	display: flex;
+	gap: 0.5em;
+	align-items: center;
+	flex-wrap: wrap;
+	background: var(--background-secondary);
+	padding: 0.6em 0.8em;
+	border-radius: var(--radius-s);
+	margin-bottom: 0.5em;
+}
+
+.gcp-mfa input { flex: 1 1 8rem; min-width: 6rem; }
