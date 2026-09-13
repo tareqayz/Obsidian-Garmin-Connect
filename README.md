@@ -371,6 +371,7 @@ endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 ```bash
 npm test            # 177 tests, no network, no Obsidian
 npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
+npm run build:dev   # one-shot dev bundle, gallery included
 npm run preview:dashboard  # build the browser preview of the dashboard
 npm run preview:gallery    # build the browser preview of the UI gallery
 npm run probe:node  # runs the real auth module under Node, step 0 only
@@ -391,17 +392,32 @@ launching Obsidian.
 
 ### The UI gallery
 
-`src/ui/svelte/ui/` holds thin wrappers over [bits-ui](https://bits-ui.com)
-primitives — menu, select, popover, dialog, tooltip, tabs, calendar and the rest
-— styled with the same `--gcd-*` tokens as the dashboard, so they follow the
-user's Obsidian theme rather than bringing a palette of their own. There is no
-Tailwind and no shadcn theme layer.
+`src/ui/svelte/ui/` is the shared control layer, styled with the same `--gcd-*`
+tokens as the dashboard so it follows the user's Obsidian theme rather than
+bringing a palette of its own. There is no Tailwind and no shadcn theme layer.
+
+Most of it wraps [bits-ui](https://bits-ui.com) — menu, select, popover, dialog,
+tooltip, tabs, calendar, switch, slider, checkbox, accordion, toggle group.
+`Progress` and `Meter` are hand-rolled instead, because bits-ui's floor is
+~30 KB of shared internals for *any* component and ~165 KB once a component
+needs the floating layer. A bar with `role="progressbar"` needs neither, so
+paying 30 KB for two of them was the wrong trade. The comment at the top of
+each file says which kind it is; that matters, because importing a bits-ui-backed
+control into the shipping dashboard is what pulls bits-ui into production.
 
 `npm run preview:gallery` renders every one of them on a single page with
-synthetic data; open `scripts/.preview/gallery.html`, or append `#dark`. In a
-dev build the same page is also an Obsidian view, reachable from the command
-palette as *Open UI component gallery* — the only way to see the components
-against a real theme.
+synthetic data; open `scripts/.preview/gallery.html`, or append `#dark`.
+
+The same page is also an Obsidian view, which is the only way to see the
+components against a real theme. It exists **only in a dev bundle**, so:
+
+```bash
+npm run build:dev   # or leave `npm run dev` running
+```
+
+then reload the plugin — command palette → *Reload app without saving* — and the
+command palette will have *Garmin Connect (probe): Open UI component gallery*.
+`npm run build` strips it again, so a release build never carries it.
 
 Two things make that affordable:
 

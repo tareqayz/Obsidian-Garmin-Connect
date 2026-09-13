@@ -5,6 +5,7 @@
 		between,
 		duration,
 		inRange,
+		latestValue,
 		seriesOf,
 		statsFor,
 		type DayRow,
@@ -22,6 +23,7 @@
 	import StackedChart from "./StackedChart.svelte";
 	import StatTile from "./StatTile.svelte";
 	import SyncStatus from "./SyncStatus.svelte";
+	import type { SyncProgress } from "../../sync/runner";
 
 	interface Props {
 		initialRows: readonly DayRow[];
@@ -44,6 +46,12 @@
 		rows = next;
 	}
 
+	let progress = $state<SyncProgress | null>(null);
+
+	export function setProgress(next: SyncProgress | null) {
+		progress = next;
+	}
+
 	let rangeDays = $state(30);
 	let custom = $state(false);
 	let from = $state("");
@@ -54,6 +62,10 @@
 	let expanded = $state<string | null>(null);
 	let syncing = $state(false);
 	let syncMessage = $state<string | null>(null);
+
+	// A run started from the backfill modal or the command palette is still a
+	// run: the Sync button has to be disabled for it too, not just for our own.
+	let busy = $derived(syncing || progress !== null);
 
 	let latest = $derived(rows.length > 0 ? rows[rows.length - 1]!.date : null);
 	let visible = $derived(
@@ -200,6 +212,7 @@
 		TILES.filter((t) => availableKeys(visible, [t.key]).length > 0).map((tile) => ({
 			tile,
 			stats: statsFor(seriesOf(visible, tile.key)),
+			goal: tile.goalKey ? latestValue(visible, tile.goalKey) : undefined,
 		})),
 	);
 	let stages = $derived(SLEEP_STAGES.filter((s) => availableKeys(visible, [s.key]).length > 0));
@@ -244,7 +257,7 @@
 		{to}
 		{today}
 		{showTable}
-		{syncing}
+		syncing={busy}
 		{canSync}
 		onRange={(days) => {
 			rangeDays = days;
@@ -258,7 +271,14 @@
 		{onBackfill}
 	/>
 
-	<SyncStatus {latest} total={rows.length} {syncing} {canSync} message={syncMessage} />
+	<SyncStatus
+		{latest}
+		total={rows.length}
+		syncing={busy}
+		{canSync}
+		message={syncMessage}
+		{progress}
+	/>
 
 	{#if visible.length === 0}
 		<div class="empty">
@@ -298,7 +318,7 @@
 	{:else}
 		{#if tiles.length > 0}
 			<div class="tiles">
-				{#each tiles as { tile, stats } (tile.key)}
+				{#each tiles as { tile, stats, goal } (tile.key)}
 					<StatTile
 						label={tile.label}
 						{stats}
@@ -306,6 +326,7 @@
 						format={tile.format}
 						goodDirection={tile.goodDirection}
 						info={tile.info}
+						{goal}
 					/>
 				{/each}
 			</div>

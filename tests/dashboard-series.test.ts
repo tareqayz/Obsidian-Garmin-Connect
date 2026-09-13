@@ -7,6 +7,7 @@ import {
 	detail,
 	hoursAndMinutes,
 	inRange,
+	latestValue,
 	niceTicks,
 	percent,
 	relativeDelta,
@@ -200,5 +201,32 @@ describe("detail", () => {
 		assert.equal(detail(12767), "12,767");
 		assert.equal(detail(48), "48");
 		assert.equal(detail(7.253), "7.25");
+	});
+});
+
+describe("latestValue", () => {
+	const rows = [
+		row("2026-09-10", { steps: 8000, steps_goal: 9000 }),
+		row("2026-09-11", { steps: 12000 }),
+		row("2026-09-12", { steps: 9500, steps_goal: 11000 }),
+	];
+
+	it("reads the newest row that carries the key", () => {
+		assert.equal(latestValue(rows, "steps_goal"), 11000);
+	});
+
+	it("falls back to an older row when the newest has no value", () => {
+		// Garmin only reports a goal on days it recorded one, so the tile has to
+		// look back rather than show nothing.
+		assert.equal(latestValue(rows.slice(0, 2), "steps_goal"), 9000);
+	});
+
+	it("is undefined when no row carries the key", () => {
+		assert.equal(latestValue(rows, "resting_hr"), undefined);
+		assert.equal(latestValue([], "steps_goal"), undefined);
+	});
+
+	it("ignores a non-finite value rather than dividing by it", () => {
+		assert.equal(latestValue([row("2026-09-12", { steps_goal: NaN })], "steps_goal"), undefined);
 	});
 });

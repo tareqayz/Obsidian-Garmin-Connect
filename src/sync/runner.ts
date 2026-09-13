@@ -33,6 +33,14 @@ export interface RunnerSettings {
 
 const BASES_FILE = "Garmin Health.base";
 
+/** Where a run has got to. Null between runs. */
+export interface SyncProgress {
+	done: number;
+	total: number;
+	/** The day currently being fetched. */
+	date: string;
+}
+
 /**
  * Turns settings into a sync run and reports it.
  *
@@ -44,6 +52,7 @@ export class SyncRunner {
 	private settings: () => RunnerSettings;
 	private unitsCache: "metric" | "imperial" | null = null;
 	private running = false;
+	private watchers = new Set<(progress: SyncProgress | null) => void>();
 
 	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
 		this.app = app;
@@ -53,6 +62,23 @@ export class SyncRunner {
 
 	get isRunning(): boolean {
 		return this.running;
+	}
+
+	/**
+	 * Follow a run from outside. Returns the unsubscribe.
+	 *
+	 * The Notice already narrates progress, but it is transient and lives at the
+	 * edge of the screen. An open dashboard should show the same thing in place,
+	 * including for runs it did not start — a backfill from the modal, or a sync
+	 * from the command palette.
+	 */
+	watchProgress(fn: (progress: SyncProgress | null) => void): () => void {
+		this.watchers.add(fn);
+		return () => this.watchers.delete(fn);
+	}
+
+	private emit(progress: SyncProgress | null): void {
+		for (const fn of this.watchers) fn(progress);
 	}
 
 	syncRecent(log?: Log): Promise<SyncReport | null> {
@@ -90,6 +116,7 @@ export class SyncRunner {
 				log,
 				onProgress: (done, total, date) => {
 					progress.setMessage(`Garmin sync: ${done}/${total} (${date})`);
+					this.emit({ done, total, date });
 				},
 			});
 			progress.hide();
@@ -105,6 +132,7 @@ export class SyncRunner {
 			return null;
 		} finally {
 			this.running = false;
+			this.emit(null);
 		}
 	}
 

@@ -16,6 +16,11 @@ export interface TileDef {
 	goodDirection: 1 | -1 | 0;
 	/** Shown behind the tile's info button. What it is and how to read it. */
 	info: string;
+	/**
+	 * The key holding this metric's daily goal, when Garmin reports one. Gives
+	 * the tile a meter showing the latest day against it.
+	 */
+	goalKey?: string;
 }
 
 export const TILES: TileDef[] = [
@@ -23,6 +28,7 @@ export const TILES: TileDef[] = [
 		key: "steps",
 		label: "Steps",
 		goodDirection: 1,
+		goalKey: "steps_goal",
 		info: "Total steps Garmin recorded for the day.",
 	},
 	{

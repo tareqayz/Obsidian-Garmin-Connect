@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { shortDate } from "../../dashboard/series";
+	import type { SyncProgress } from "../../sync/runner";
+	import Progress from "./ui/Progress.svelte";
 
 	interface Props {
 		latest: string | null;
@@ -7,14 +9,25 @@
 		syncing: boolean;
 		canSync: boolean;
 		message: string | null;
+		/** Non-null only while a run is between its first and last day. */
+		progress?: SyncProgress | null;
 	}
 
-	let { latest, total, syncing, canSync, message }: Props = $props();
+	let { latest, total, syncing, canSync, message, progress = null }: Props = $props();
 </script>
 
 <!-- Answers "is this up to date?" without a round trip to the settings pane. -->
 <div class="status" role="status">
-	{#if !canSync}
+	{#if progress}
+		<!-- A year-long backfill is thousands of requests. Showing the day it is
+		     on is the difference between "working" and "hung". -->
+		<Progress
+			value={progress.done}
+			max={progress.total}
+			label="Garmin sync"
+			caption="{progress.done} / {progress.total} · {shortDate(progress.date)}"
+		/>
+	{:else if !canSync}
 		Not signed in — sync is unavailable.
 	{:else if syncing}
 		Syncing…

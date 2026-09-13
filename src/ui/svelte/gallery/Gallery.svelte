@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { BitsConfig } from "bits-ui";
+	import { onDestroy } from "svelte";
 	import { RANGES, TILES } from "../../../dashboard/metrics";
-	import { shiftDate } from "../../../dashboard/series";
+	import { compact, shiftDate, shortDate } from "../../../dashboard/series";
 	import Accordion from "../ui/Accordion.svelte";
 	import Checkbox from "../ui/Checkbox.svelte";
 	import DateRange from "../ui/DateRange.svelte";
 	import Dialog from "../ui/Dialog.svelte";
 	import Menu, { type Entry } from "../ui/Menu.svelte";
+	import Meter from "../ui/Meter.svelte";
 	import Popover from "../ui/Popover.svelte";
+	import Progress from "../ui/Progress.svelte";
 	import { portalHost } from "../ui/portal";
 	import Segmented from "../ui/Segmented.svelte";
 	import Select from "../ui/Select.svelte";
@@ -78,6 +81,40 @@
 		note(`series → ${series.join(", ") || "none"}`);
 	}
 
+	/* A stand-in backfill. The real one ticks once per day fetched, through
+	   SyncRunner.watchProgress — see src/sync/runner.ts. */
+	const BACKFILL_DAYS = 60;
+	let backfill = $state<{ done: number; total: number; date: string } | null>(null);
+	let timer: ReturnType<typeof setInterval> | undefined;
+
+	function runBackfill() {
+		if (timer) return;
+		let done = 0;
+		backfill = { done, total: BACKFILL_DAYS, date: shiftDate(today, -BACKFILL_DAYS) };
+		timer = setInterval(() => {
+			done += 1;
+			if (done > BACKFILL_DAYS) {
+				clearInterval(timer);
+				timer = undefined;
+				backfill = null;
+				note("backfill finished");
+				return;
+			}
+			backfill = {
+				done,
+				total: BACKFILL_DAYS,
+				date: shiftDate(today, -(BACKFILL_DAYS - done)),
+			};
+		}, 70);
+	}
+
+	onDestroy(() => {
+		if (timer) clearInterval(timer);
+	});
+
+	const STEP_GOAL = 10000;
+	let stepsToday = $state(8432);
+
 	let confirmOpen = $state(false);
 	let openPanels = $state<string[]>([]);
 
@@ -140,6 +177,8 @@
 		["switch", "Switch"],
 		["checkbox", "Checkbox"],
 		["slider", "Slider"],
+		["progress", "Progress"],
+		["meter", "Meter"],
 		["accordion", "Accordion"],
 	] as const;
 
@@ -476,6 +515,62 @@
 			</Demo>
 
 			<Demo
+				id="progress"
+				title="Progress"
+				primitive="hand-rolled"
+				use="A running sync or backfill. SyncRunner.watchProgress already emits done/total/date — this is the dashboard end of it."
+				gains="A year-long backfill is thousands of requests. The bar plus the day it is on is the difference between 'working' and 'hung'."
+				fill
+				currentLabel="Today — Notice text"
+				nextLabel="Proposed"
+			>
+				{#snippet current()}
+					<div class="noticeline">Garmin sync: 27/60 (2026-08-17)</div>
+				{/snippet}
+				<div class="progressdemo">
+					{#if backfill}
+						<div class="bar">
+							<Progress
+								value={backfill.done}
+								max={backfill.total}
+								label="Garmin sync"
+								caption="{backfill.done} / {backfill.total} · {shortDate(backfill.date)}"
+							/>
+						</div>
+					{:else}
+						<button class="cta" onclick={runBackfill}>Run a {BACKFILL_DAYS}-day backfill</button>
+					{/if}
+				</div>
+			</Demo>
+
+			<Demo
+				id="meter"
+				title="Meter"
+				primitive="hand-rolled"
+				use="Steps against the day's goal. `steps_goal` is already synced and already draws the dashed line on the chart — the tile ignored it."
+				gains="role=meter, not progressbar: this is a measurement in a known range, not a task advancing. Hitting the goal changes colour."
+				fill
+			>
+				<Meter
+					value={stepsToday}
+					max={STEP_GOAL}
+					label="Steps against goal"
+					caption="{Math.round((stepsToday / STEP_GOAL) * 100)}% of {compact(STEP_GOAL)}"
+				/>
+				<div class="metercontrol">
+					<Slider
+						label="Steps today"
+						display={compact(stepsToday)}
+						value={stepsToday}
+						min={0}
+						max={14000}
+						step={100}
+						onValueChange={(v) => (stepsToday = v)}
+					/>
+				</div>
+			</Demo>
+
+			<Demo
 				id="accordion"
 				fill
 				title="Accordion"
@@ -652,6 +747,24 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+	.noticeline {
+		color: var(--gcd-muted);
+		font-size: var(--font-ui-smaller, 12px);
+		font-variant-numeric: tabular-nums;
+	}
+	.progressdemo {
+		min-height: 24px;
+		display: flex;
+		align-items: center;
+	}
+	/* The bar takes the row; the button that starts it keeps its own width. */
+	.bar {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	.metercontrol {
+		margin-top: 10px;
 	}
 	.popbody {
 		display: flex;

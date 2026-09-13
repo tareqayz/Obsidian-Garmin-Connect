@@ -67,7 +67,7 @@ function build(days: number): DayRow[] {
 	return rows;
 }
 
-mount(Dashboard, {
+const dashboard = mount(Dashboard, {
 	target: document.getElementById("app") as HTMLElement,
 	props: {
 		initialRows: build(400),
@@ -78,7 +78,21 @@ mount(Dashboard, {
 			await new Promise((r) => setTimeout(r, 1200));
 			return "3 written, 1 unchanged";
 		},
-		onBackfill: () => console.log("backfill modal would open"),
+		// The real modal hands off to SyncRunner, which drives the same
+		// setProgress through watchProgress. This fakes the ticks.
+		onBackfill: () => {
+			const total = 45;
+			let done = 0;
+			const timer = setInterval(() => {
+				done += 1;
+				if (done > total) {
+					clearInterval(timer);
+					dashboard.setProgress(null);
+					return;
+				}
+				dashboard.setProgress({ done, total, date: shiftDate(TODAY, -(total - done)) });
+			}, 80);
+		},
 	},
 });
 

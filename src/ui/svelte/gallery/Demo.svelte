@@ -15,9 +15,24 @@
 		current?: Snippet;
 		/** True for controls that own a full row — a settings toggle, a slider. */
 		fill?: boolean;
+		/** What the left pane is showing today. */
+		currentLabel?: string;
+		/** What the right pane is proposing. Not every demo is a bits-ui swap. */
+		nextLabel?: string;
 	}
 
-	let { id, title, primitive, use, gains, children, current, fill = false }: Props = $props();
+	let {
+		id,
+		title,
+		primitive,
+		use,
+		gains,
+		children,
+		current,
+		fill = false,
+		currentLabel = "Today — hand-rolled",
+		nextLabel = "With bits-ui",
+	}: Props = $props();
 </script>
 
 <section {id}>
@@ -30,12 +45,12 @@
 	<div class="stage" class:split={current}>
 		{#if current}
 			<div class="pane">
-				<div class="tag">Today — hand-rolled</div>
+				<div class="tag">{currentLabel}</div>
 				<div class="live" class:fill>{@render current()}</div>
 			</div>
 		{/if}
 		<div class="pane">
-			{#if current}<div class="tag accent">With bits-ui</div>{/if}
+			{#if current}<div class="tag accent">{nextLabel}</div>{/if}
 			<div class="live" class:fill>{@render children()}</div>
 		</div>
 	</div>

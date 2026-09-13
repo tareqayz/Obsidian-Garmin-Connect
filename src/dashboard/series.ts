@@ -91,6 +91,20 @@ function mean(points: readonly Point[]): number {
 }
 
 /** Which of a set of keys any row actually carries — drives what gets drawn. */
+/**
+ * The most recent value of a key, or undefined if no row carries one.
+ *
+ * Garmin reports a step goal per day and it can change, so a tile has to read
+ * the latest one rather than assume the number it saw first.
+ */
+export function latestValue(rows: readonly DayRow[], key: string): number | undefined {
+	for (let i = rows.length - 1; i >= 0; i--) {
+		const value = rows[i]!.values[key];
+		if (typeof value === "number" && Number.isFinite(value)) return value;
+	}
+	return undefined;
+}
+
 export function availableKeys(rows: readonly DayRow[], keys: readonly string[]): string[] {
 	return keys.filter((key) =>
 		rows.some((row) => typeof row.values[key] === "number" && Number.isFinite(row.values[key])),

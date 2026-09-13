@@ -13,6 +13,7 @@ export class GarminDashboardView extends ItemView {
 	private plugin: GarminPlugin;
 	private component: ReturnType<typeof Dashboard> | undefined;
 	private pending = 0;
+	private unwatch: (() => void) | undefined;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GarminPlugin) {
 		super(leaf);
@@ -52,10 +53,18 @@ export class GarminDashboardView extends ItemView {
 		// A sync writes frontmatter; the open dashboard should follow it. Pushing
 		// new rows in keeps the range selection and the table toggle intact.
 		this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
+
+		// Covers runs this view did not start — the backfill modal, or a sync
+		// from the command palette.
+		this.unwatch = this.plugin.sync.watchProgress((progress) =>
+			this.component?.setProgress(progress),
+		);
 	}
 
 	async onClose(): Promise<void> {
 		window.clearTimeout(this.pending);
+		this.unwatch?.();
+		this.unwatch = undefined;
 		if (this.component) {
 			unmount(this.component);
 			this.component = undefined;
