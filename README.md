@@ -372,6 +372,7 @@ endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 npm test            # 177 tests, no network, no Obsidian
 npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
 npm run preview:dashboard  # build the browser preview of the dashboard
+npm run preview:gallery    # build the browser preview of the UI gallery
 npm run probe:node  # runs the real auth module under Node, step 0 only
 ```
 
@@ -387,6 +388,31 @@ The chart components import nothing from Obsidian, which is what lets
 with synthetic data. Open `scripts/.preview/index.html` to see it, or
 append `#dark` for the dark theme. That is how the layout gets checked without
 launching Obsidian.
+
+### The UI gallery
+
+`src/ui/svelte/ui/` holds thin wrappers over [bits-ui](https://bits-ui.com)
+primitives — menu, select, popover, dialog, tooltip, tabs, calendar and the rest
+— styled with the same `--gcd-*` tokens as the dashboard, so they follow the
+user's Obsidian theme rather than bringing a palette of their own. There is no
+Tailwind and no shadcn theme layer.
+
+`npm run preview:gallery` renders every one of them on a single page with
+synthetic data; open `scripts/.preview/gallery.html`, or append `#dark`. In a
+dev build the same page is also an Obsidian view, reachable from the command
+palette as *Open UI component gallery* — the only way to see the components
+against a real theme.
+
+Two things make that affordable:
+
+- The gallery is **dropped from production builds**. `__GALLERY__` dead-codes
+  the call sites and `esbuild.config.mjs` swaps the module for an empty one, so
+  `main.js` is byte-identical to a build without it. bits-ui costs nothing until
+  the shipping UI actually imports a component.
+- bits-ui portals its floating layers onto `<body>`, outside `.gcd-root` where
+  the tokens live. `portalHost()` creates a `.gcd-portal` host that carries the
+  same tokens, and one `<BitsConfig defaultPortalTo>` points every component at
+  it.
 
 `npm run build` fails if a node or electron require leaks into the bundle. That
 is the bug class that loads fine on the desktop and throws on the phone, where it

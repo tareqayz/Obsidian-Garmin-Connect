@@ -5,6 +5,7 @@ import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { SyncRunner } from "./sync/runner";
+import { GARMIN_GALLERY_VIEW, GarminGalleryView, openGallery } from "./ui/gallery-view";
 import { LoginModal } from "./ui/login-modal";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
@@ -36,6 +37,22 @@ export default class GarminPlugin extends Plugin {
 			GARMIN_DASHBOARD_VIEW,
 			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),
 		);
+
+		// A development surface: every shared UI control on one page, against the
+		// user's real theme. Reached by command, never the ribbon, and dropped
+		// entirely from a production build — it carries bits-ui components the
+		// shipping UI does not use yet, which is ~420 KB of nothing on a phone.
+		if (__GALLERY__) {
+			this.registerView(
+				GARMIN_GALLERY_VIEW,
+				(leaf: WorkspaceLeaf) => new GarminGalleryView(leaf),
+			);
+			this.addCommand({
+				id: "open-ui-gallery",
+				name: "Open UI component gallery",
+				callback: () => void openGallery(this.app),
+			});
+		}
 
 		this.addRibbonIcon("activity", "Open Garmin dashboard", () => void this.openDashboard());
 

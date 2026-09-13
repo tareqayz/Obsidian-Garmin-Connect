@@ -9,9 +9,14 @@
 
    Only the tokens live here. Every rule that styles a specific piece of
    the dashboard now sits in the Svelte component that owns it.
+
+   `.gcd-portal` carries the same tokens because bits-ui renders menus,
+   selects and popovers through a portal on <body>, outside `.gcd-root`.
+   Without this the floating layer would lose every --gcd-* variable.
    ================================================================== */
 
-.gcd-root {
+.gcd-root,
+.gcd-portal {
 	--gcd-series: #2a78d6;
 	--gcd-stage-1: #1c5cab;
 	--gcd-stage-2: #2a78d6;
@@ -27,9 +32,18 @@
 	--gcd-text: var(--text-normal, #0b0b0b);
 	--gcd-muted: var(--text-muted, #898781);
 	--gcd-border: var(--background-modifier-border, rgba(11, 11, 11, 0.1));
+
+	/* The floating layer: one elevation, one radius, used by every panel. */
+	--gcd-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.1);
+	--gcd-radius: 8px;
+	/* Above Obsidian's modal layer (100), so a menu opened inside a plugin
+	   modal is not clipped underneath it. bits-ui copies the content's
+	   computed z-index onto the floating wrapper it positions. */
+	--gcd-layer: 1000;
 }
 
-.theme-dark .gcd-root {
+.theme-dark .gcd-root,
+.theme-dark .gcd-portal {
 	--gcd-series: #3987e5;
 	--gcd-stage-1: #256abf;
 	--gcd-stage-2: #3987e5;
@@ -41,4 +55,5 @@
 	--gcd-raised: var(--background-secondary, #262626);
 	--gcd-text: var(--text-normal, #dadada);
 	--gcd-border: var(--background-modifier-border, rgba(255, 255, 255, 0.1));
+	--gcd-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
