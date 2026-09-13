@@ -2,6 +2,7 @@ import { App, TFile, normalizePath, moment } from "obsidian";
 import type { NoteTarget, WriteOutcome } from "./engine";
 import { ensureFolder, trimSlashes, writeFrontmatter } from "./frontmatter";
 import { applyPrefix, type Properties } from "./metrics";
+import { withLink, type LinkOption } from "./link";
 
 /**
  * Obsidian re-exports moment, but its type declarations resolve through the
@@ -18,6 +19,8 @@ export interface DailyNoteOptions {
 	createIfMissing: boolean;
 	/** Keeps our properties out of the namespace of a note you own. */
 	prefix: string;
+	/** Optional hub link written unprefixed, so the graph view has an edge. */
+	link?: LinkOption;
 }
 
 export const DAILY_NOTE_DEFAULTS = { folder: "", format: "YYYY-MM-DD" };
@@ -56,6 +59,7 @@ export function resolveDailyNoteOptions(app: App, overrides: Partial<DailyNoteOp
 		format: overrides.format || core.format || DAILY_NOTE_DEFAULTS.format,
 		createIfMissing: overrides.createIfMissing ?? false,
 		prefix: overrides.prefix ?? "garmin_",
+		link: overrides.link,
 	};
 }
 
@@ -101,7 +105,10 @@ export class DailyNoteTarget implements NoteTarget {
 		return writeFrontmatter(
 			this.app,
 			file,
-			applyPrefix({ date, ...properties }, this.options.prefix),
+			withLink(
+				applyPrefix({ date, ...properties }, this.options.prefix),
+				this.options.link,
+			),
 		);
 	}
 

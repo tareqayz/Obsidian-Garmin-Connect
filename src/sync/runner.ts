@@ -8,6 +8,7 @@ import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
 import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
+import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 
 export type StorageMode = "dataFolder" | "dailyNotes" | "both";
@@ -21,6 +22,10 @@ export interface RunnerSettings {
 	dataFolder: string;
 	dataFolderPrefix: string;
 	createBasesView: boolean;
+	basesFolder: string;
+
+	linkToBase: boolean;
+	linkProperty: string;
 
 	prefix: string;
 	dailyNoteFolder: string;
@@ -109,10 +114,12 @@ export class SyncRunner {
 	}
 
 	private buildTarget(settings: RunnerSettings): NoteTarget {
+		const link = this.linkOption(settings);
 		const dataFolder = () =>
 			new DataFolderTarget(this.app, {
 				folder: settings.dataFolder,
 				prefix: settings.dataFolderPrefix,
+				link,
 			});
 		const dailyNotes = () =>
 			new DailyNoteTarget(
@@ -122,6 +129,7 @@ export class SyncRunner {
 					format: settings.dailyNoteFormat,
 					createIfMissing: settings.createMissingNotes,
 					prefix: settings.prefix,
+					link,
 				}),
 			);
 
@@ -139,8 +147,20 @@ export class SyncRunner {
 	/*  Bases view                                                       */
 	/* ---------------------------------------------------------------- */
 
+	/**
+	 * The link every day note points at, or nothing.
+	 *
+	 * Pointless without the view it links to, so a mode that never creates one
+	 * gets no link rather than a property resolving to a missing file.
+	 */
+	linkOption(settings = this.settings()): LinkOption | undefined {
+		if (!settings.linkToBase || !settings.linkProperty) return undefined;
+		if (settings.storageMode === "dailyNotes" || !settings.createBasesView) return undefined;
+		return { property: settings.linkProperty, target: linkTargetFor(this.basesPath(settings)) };
+	}
+
 	basesPath(settings = this.settings()): string {
-		const folder = trimSlashes(settings.dataFolder);
+		const folder = trimSlashes(settings.basesFolder);
 		return normalizePath(folder ? `${folder}/${BASES_FILE}` : BASES_FILE);
 	}
 
@@ -156,12 +176,13 @@ export class SyncRunner {
 		const path = this.basesPath(settings);
 		if (this.app.vault.getAbstractFileByPath(path)) return "exists";
 
-		const folder = trimSlashes(settings.dataFolder);
-		if (folder) await ensureFolder(this.app, folder);
+		const base = trimSlashes(settings.basesFolder);
+		if (base) await ensureFolder(this.app, base);
 		await this.app.vault.create(
 			path,
 			basesView({
-				folder: folder || "/",
+				// The filter follows the notes, which need not sit beside the view.
+				folder: trimSlashes(settings.dataFolder) || "/",
 				prefix: settings.dataFolderPrefix,
 				groups: settings.groups,
 				units: units ?? (await this.resolveUnits(settings.units)),
@@ -185,7 +206,7 @@ export class SyncRunner {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) await this.app.vault.modify(existing, content);
 		else {
-			const folder = trimSlashes(settings.dataFolder);
+			const folder = trimSlashes(settings.basesFolder);
 			if (folder) await ensureFolder(this.app, folder);
 			await this.app.vault.create(path, content);
 		}
