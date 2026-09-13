@@ -6,6 +6,7 @@ import { describe } from "../sync/runner";
 import Dashboard from "../ui/svelte/Dashboard.svelte";
 import { SyncRangeModal } from "../ui/sync-range-modal";
 import { collectRows } from "./collect";
+import { GARMIN_ICON } from "../ui/icon";
 
 export const GARMIN_DASHBOARD_VIEW = "garmin-dashboard";
 
@@ -28,7 +29,7 @@ export class GarminDashboardView extends ItemView {
 	}
 
 	getIcon(): string {
-		return "activity";
+		return GARMIN_ICON;
 	}
 
 	async onOpen(): Promise<void> {

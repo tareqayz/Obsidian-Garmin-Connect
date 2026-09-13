@@ -5,6 +5,7 @@ import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { SyncRunner } from "./sync/runner";
+import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
 import { LoginModal } from "./ui/login-modal";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
@@ -18,6 +19,8 @@ export default class GarminPlugin extends Plugin {
 	sync!: SyncRunner;
 
 	async onload(): Promise<void> {
+		registerGarminIcon();
+
 		this.data = new PluginData(this);
 		await this.data.init();
 
@@ -37,7 +40,7 @@ export default class GarminPlugin extends Plugin {
 			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),
 		);
 
-		this.addRibbonIcon("activity", "Open Garmin dashboard", () => void this.openDashboard());
+		this.addRibbonIcon(GARMIN_ICON, "Open Garmin dashboard", () => void this.openDashboard());
 
 		this.addCommand({
 			id: "open-dashboard",
