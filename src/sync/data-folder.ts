@@ -2,11 +2,14 @@ import { App, TFile, normalizePath } from "obsidian";
 import type { NoteTarget, WriteOutcome } from "./engine";
 import { ensureFolder, trimSlashes, writeFrontmatter } from "./frontmatter";
 import { applyPrefix, type Properties } from "./metrics";
+import { withLink, type LinkOption } from "./link";
 
 export interface DataFolderOptions {
 	folder: string;
 	/** Empty by default — a dedicated folder has nothing to collide with. */
 	prefix: string;
+	/** Optional hub link written unprefixed, so the graph view has an edge. */
+	link?: LinkOption;
 }
 
 /**
@@ -38,7 +41,10 @@ export class DataFolderTarget implements NoteTarget {
 		return writeFrontmatter(
 			this.app,
 			file,
-			applyPrefix({ date, ...properties }, this.options.prefix),
+			withLink(
+				applyPrefix({ date, ...properties }, this.options.prefix),
+				this.options.link,
+			),
 		);
 	}
 

@@ -20,6 +20,12 @@ export interface GarminSettings {
 	dataFolder: string;
 	dataFolderPrefix: string;
 	createBasesView: boolean;
+	/** Where "Garmin Health.base" lives — usually the parent of the data folder. */
+	basesFolder: string;
+
+	/** Give every day note a property pointing at the base, for the graph view. */
+	linkToBase: boolean;
+	linkProperty: string;
 
 	prefix: string;
 	dailyNoteFolder: string;
@@ -48,10 +54,17 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// every day in a range is writable so backfill works, and the data stays as
 	// properties a Bases view or Dataview query can read.
 	storageMode: "dataFolder",
-	dataFolder: "Garmin",
+	// The notes sit one level down so the folder root holds only the view.
+	dataFolder: "Garmin/data",
 	// Nothing to collide with in a dedicated folder, so the columns read cleanly.
 	dataFolderPrefix: "",
 	createBasesView: true,
+	basesFolder: "Garmin",
+
+	// A single shared link target is what gives the day notes a hub in the
+	// graph view instead of a cloud of unconnected dots.
+	linkToBase: true,
+	linkProperty: "link",
 
 	prefix: "garmin_",
 	dailyNoteFolder: "",

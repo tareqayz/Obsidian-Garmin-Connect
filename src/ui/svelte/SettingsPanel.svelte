@@ -207,6 +207,25 @@
 	<div
 		use:obsidianSetting={(setting) =>
 			setting
+				.setName("Table view folder")
+				.setDesc(
+					"Where \"Garmin Health.base\" lives. Keeping it above the data folder keeps " +
+						"the day notes out of the way. Moving it does not move an existing file.",
+				)
+				.addText((t) =>
+					t
+						.setPlaceholder(DEFAULT_SETTINGS.basesFolder)
+						.setValue(s.basesFolder)
+						.onChange((v) => {
+							s.basesFolder = v.trim() || DEFAULT_SETTINGS.basesFolder;
+							save();
+						}),
+				)}
+	></div>
+
+	<div
+		use:obsidianSetting={(setting) =>
+			setting
 				.setName("Property prefix in the data folder")
 				.setDesc("Blank by default — nothing in a folder of its own to collide with.")
 				.addText((t) =>
@@ -240,6 +259,39 @@
 						.setTooltip("Replaces the view with one matching your current settings")
 						.onClick(async () => {
 							new Notice(`Rebuilt ${await plugin.sync.rewriteBasesView()}`);
+						}),
+				)}
+	></div>
+
+	<div
+		use:obsidianSetting={(setting) =>
+			setting
+				.setName("Link every day to the table view")
+				.setDesc(
+					"Writes a link property on each day's note pointing at the Bases view, so the " +
+						"days hang off one hub instead of floating loose. Note that the graph view " +
+						"only draws edges between notes — a .base file is not one, so change the " +
+						"link target below to a note if you want the graph to show it.",
+				)
+				.addToggle((t) =>
+					t.setValue(s.linkToBase).onChange((v) => {
+						s.linkToBase = v;
+						save();
+					}),
+				)}
+	></div>
+
+	<div
+		use:obsidianSetting={(setting) =>
+			setting
+				.setName("Link property name")
+				.addText((t) =>
+					t
+						.setPlaceholder(DEFAULT_SETTINGS.linkProperty)
+						.setValue(s.linkProperty)
+						.onChange((v) => {
+							s.linkProperty = v.trim() || DEFAULT_SETTINGS.linkProperty;
+							save();
 						}),
 				)}
 	></div>

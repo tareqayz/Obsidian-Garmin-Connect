@@ -82,6 +82,10 @@ export class PluginData implements TokenStore {
 			dataFolder: nonEmpty(source.dataFolder, d.dataFolder),
 			dataFolderPrefix: text(source.dataFolderPrefix, d.dataFolderPrefix),
 			createBasesView: bool(source.createBasesView, d.createBasesView),
+			basesFolder: nonEmpty(source.basesFolder, d.basesFolder),
+
+			linkToBase: bool(source.linkToBase, d.linkToBase),
+			linkProperty: nonEmpty(source.linkProperty, d.linkProperty),
 
 			prefix: text(source.prefix, d.prefix),
 			dailyNoteFolder: text(source.dailyNoteFolder, d.dailyNoteFolder),
