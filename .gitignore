@@ -8,3 +8,5 @@ scripts/.node-probe.mjs
 garmin-probe-logs/
 tests/.build/
 scripts/.preview/
+.hotreload
+.gstack

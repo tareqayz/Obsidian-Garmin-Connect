@@ -1,0 +1,97 @@
+# Builds and publishes a release whenever a tag is pushed.
+#
+# Two channels, told apart by the tag alone:
+#   1.2.0         → draft release, for community-directory users. You add notes and publish.
+#   1.2.0-beta.1  → published pre-release, for BRAT testers.
+#
+# A beta's version is stamped into manifest.json here, in the runner, and never committed.
+# Obsidian reads manifest.json at HEAD of the default branch to decide the published
+# version, so committing a beta bump would ship it to everyone.
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Chains tsc → svelte-check → tests → esbuild → check-mobile-safe, so a build that
+      # would break on a phone never reaches a release asset.
+      - name: Build plugin
+        run: npm run build
+
+      - name: Resolve release channel
+        id: channel
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          case "$tag" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Stamp beta version into the release manifest
+        if: steps.channel.outputs.prerelease == 'true'
+        env:
+          TAG: ${{ steps.channel.outputs.tag }}
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+            manifest.version = process.env.TAG;
+            fs.writeFileSync("manifest.json", JSON.stringify(manifest, null, "\t") + "\n");
+          '
+
+      # BRAT and Obsidian both treat a tag/manifest mismatch as an error, and it is silent
+      # until a user tries to install. Fail here instead.
+      - name: Verify tag matches manifest version
+        env:
+          TAG: ${{ steps.channel.outputs.tag }}
+        run: |
+          version="$(node -p 'require("./manifest.json").version')"
+          if [ "$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match manifest.json version $version — run \`npm version\` rather than tagging by hand"
+            exit 1
+          fi
+
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      # Assets must be attached individually. Obsidian downloads these three by name and
+      # cannot read a zip.
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.channel.outputs.tag }}
+          PRERELEASE: ${{ steps.channel.outputs.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            visibility="--prerelease"   # published: BRAT cannot see drafts
+          else
+            visibility="--draft"        # you write the notes, then publish
+          fi
+          gh release create "$TAG" --title="$TAG" $visibility \
+            main.js manifest.json styles.css
