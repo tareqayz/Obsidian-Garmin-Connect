@@ -4,7 +4,7 @@ Syncs Garmin Connect health data into your daily notes as frontmatter properties
 — **on mobile as well as the desktop**, which is the part nobody had solved.
 
 **Status: phase 2 + dashboard.** Authentication, session persistence, the typed
-API core, the sync engine and the dashboard are done and tested (177 tests).
+API core, the sync engine and the dashboard are done and tested (236 tests).
 The UI is Svelte 5. MFA is not supported yet, and
 the UI is functional rather than polished.
 
@@ -118,11 +118,30 @@ A few choices worth knowing, since they are easy to get wrong:
 
 ### What gets collected
 
-Seven metric groups, each switchable: **activity** (steps, distance, calories,
+Nine metric groups, each switchable: **activity** (steps, distance, calories,
 floors, intensity minutes), **heart** (resting/min/max), **sleep** (duration,
 stages, score, start and end), **stress and Body Battery**, **HRV**, **training
-readiness**, and **workouts**. Turning a group off also stops the request that
-fetches it, and drops its columns from a rebuilt table view.
+readiness**, **fitness** (VO2 Max, fitness age, endurance score), **races**
+(predicted 5K/10K/half/marathon times), and **workouts**. Turning a group off
+also stops the request that fetches it, and drops its columns from a rebuilt
+table view.
+
+Every property, with units and query examples, is in
+[docs/properties.md](docs/properties.md).
+
+---
+
+## Documentation
+
+| Page | What it covers |
+| --- | --- |
+| [Property reference](docs/properties.md) | Every frontmatter property, units, and query examples |
+| [Settings reference](docs/settings.md) | Every setting and what changing it does |
+| [Troubleshooting](docs/troubleshooting.md) | Keyed by symptom |
+| [Architecture](docs/architecture.md) | The two seams, module map, and how to extend |
+| [Garmin API](docs/garmin-api.md) | Endpoints called, and the request budget |
+| [Contributing](CONTRIBUTING.md) | Branch conventions and the release runbooks |
+| [Security](SECURITY.md) | What is stored, what leaves your device |
 
 ---
 
@@ -130,7 +149,7 @@ fetches it, and drops its columns from a rebuilt table view.
 
 ```bash
 npm install
-npm run build      # typecheck → 177 tests → bundle → mobile-safety check
+npm run build      # typecheck → 236 tests → bundle → mobile-safety check
 ```
 
 Reload community plugins in Obsidian, enable **Garmin Connect**, then:
@@ -336,7 +355,7 @@ mobile WebView. Starting transport-agnostic gets both.
 
 ## Diagnostics
 
-*Run connectivity probe* opens a modal with three checks. Every run writes its
+*Run connectivity probe* opens a modal with four checks. Every run writes its
 log to `garmin-probe-logs/` in the vault, which on a phone is the only practical
 way to read the output — there is no console, and the file syncs back to your
 desktop like any other note.
@@ -356,6 +375,11 @@ start: drops the in-memory access token, reloads the refresh token from
 `data.json`, mints a new access token from it alone, and makes two typed
 endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 
+**4. Inspect fitness endpoints** — prints the raw keys `maxMetrics`,
+`racePredictions` and `enduranceScore` actually return, then what the mapper
+extracts from them. Needs no password. This is the check for "a metric is always
+empty": if a value is there under a different name, that name is the fix.
+
 | Verdict | What it means |
 | --- | --- |
 | `SUCCESS` | This platform can authenticate. |
@@ -369,7 +393,7 @@ endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
 ## Tests
 
 ```bash
-npm test            # 177 tests, no network, no Obsidian
+npm test            # 236 tests, no network, no Obsidian
 npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
 npm run preview:dashboard  # build the browser preview of the dashboard
 npm run probe:node  # runs the real auth module under Node, step 0 only
