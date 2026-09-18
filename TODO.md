@@ -1,12 +1,18 @@
-- Verify MFA
-  - `verifyMfa()` in `src/garmin/auth.ts` is written and typechecked but has
-    never run — the test account is never challenged.
-  - `GarminClient.login()` raises `GarminMfaRequiredError` rather than
-    pretending to handle it, so nothing silently half-works.
-  - The leg depends on cookie continuity between the login POST and the verify
-    POST. `CookieJar` carries `CASTGC` / `GARMIN-SSO` / `SESSION` across them;
-    phase 0 confirmed those cookies arrive, but not that Garmin accepts them here.
-  - Needs an account with MFA switched on to finish and verify.
+- Verify MFA against a live challenge
+  - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
+    for a code through `LoginOptions.onMfaRequired`, retries up to
+    `MFA_MAX_ATTEMPTS` on a refusal, and the sign-in modal and probe checks 2
+    and 3 all supply the prompt. Covered by fixtures in `tests/auth.test.ts`.
+  - Two things fixtures cannot settle, both needing an account with MFA on:
+    whether Garmin accepts the `CASTGC` / `GARMIN-SSO` / `SESSION` cookies
+    `CookieJar` carries from the login POST into the verify POST — phase 0
+    confirmed they arrive, not that they are honoured here — and the exact
+    `responseStatus.type` a wrong code comes back with.
+  - Until that second one is observed, any refusal the flow cannot classify by
+    shape is treated as a retryable bad code. Right for a typo, wrong for a dead
+    SSO session; the attempt cap is what bounds the difference. If a live run
+    shows a distinct type for "your code was wrong", classify on it and make the
+    rest fatal.
 - Test on Android — different native HTTP stack, so a third TLS fingerprint.
   Desktop and iOS JA4s are recorded in the README.
 - Check behaviour under sync load — many `connectapi` calls in sequence.

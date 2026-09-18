@@ -8,18 +8,20 @@ import { mapDay } from "./sync/metrics";
 import {
 	GarminAuthError,
 	GarminBlockedError,
+	GarminMfaCancelledError,
 	GarminMfaRequiredError,
 	GarminRateLimitError,
 } from "./garmin/errors";
 import { IOS_LOGIN_UA } from "./garmin/constants";
 import {
+	MFA_MAX_ATTEMPTS,
 	exchangeServiceTicket,
-	mobileLogin,
+	loginWithMfa,
 	probeSsoReachability,
-	verifyMfa,
 	verifyToken,
 	type AuthContext,
 	type LoginOutcome,
+	type MfaPrompt,
 } from "./garmin/auth";
 
 export type Verdict =
@@ -27,6 +29,7 @@ export type Verdict =
 	| "blocked"
 	| "rate-limited"
 	| "bad-credentials"
+	| "bad-mfa-code"
 	| "cancelled"
 	| "failed";
 
@@ -123,7 +126,7 @@ export interface GarminProbeOptions {
 	password: string;
 	domain: GarminDomain;
 	/** Resolve with the code, or null if the user cancels. */
-	requestMfaCode: (method: string) => Promise<string | null>;
+	requestMfaCode: MfaPrompt;
 }
 
 export async function runGarminProbe(
@@ -139,17 +142,15 @@ export async function runGarminProbe(
 	await probeSsoReachability(ctx);
 
 	log.step("Step 1 — SSO login (mobile/iOS flow)");
-	let outcome: LoginOutcome = await mobileLogin(ctx, opts.email, opts.password);
-
-	if (outcome.kind === "mfa") {
-		log.step("Step 2 — MFA");
-		const code = await opts.requestMfaCode(outcome.method);
-		if (!code) {
-			log.warn("cancelled at the MFA prompt");
-			return "cancelled";
-		}
-		outcome = await verifyMfa(ctx, code.trim(), outcome.method);
-	}
+	// The MFA leg lives inside loginWithMfa so the probe and the real sign-in
+	// share one retry budget. Only the step header is emitted here, which keeps
+	// the numbering this log is read by in the file that defines it.
+	const outcome: LoginOutcome = await loginWithMfa(
+		ctx,
+		opts.email,
+		opts.password,
+		narrateMfa(log, opts.requestMfaCode, "Step 2 — MFA"),
+	);
 
 	if (outcome.kind !== "ticket") {
 		return summarise(log, verdictFor(outcome), outcome);
@@ -167,6 +168,27 @@ export async function runGarminProbe(
 	return summarise(log, "success");
 }
 
+/**
+ * Wraps an MFA prompt so every challenge is written to the log before the person
+ * sees it. A probe log is read after the fact, usually by someone else, and
+ * "which attempt was this and what did Garmin say about the last one" is the
+ * part that is impossible to reconstruct later.
+ */
+function narrateMfa(
+	log: ProbeLog,
+	prompt: MfaPrompt | undefined,
+	header?: string,
+): MfaPrompt | undefined {
+	if (!prompt) return undefined;
+	return (challenge) => {
+		if (header && challenge.attempt === 1) log.step(header);
+		log.detail("method", challenge.method);
+		log.detail("attempt", `${challenge.attempt} of ${MFA_MAX_ATTEMPTS}`);
+		if (challenge.error) log.warn(challenge.error);
+		return prompt(challenge);
+	};
+}
+
 /* ------------------------------------------------------------------ */
 /*  Verdict                                                            */
 /* ------------------------------------------------------------------ */
@@ -175,6 +197,10 @@ function verdictFor(outcome: LoginOutcome): Verdict {
 	switch (outcome.kind) {
 		case "bad-credentials":
 			return "bad-credentials";
+		case "bad-mfa-code":
+			return "bad-mfa-code";
+		case "mfa-cancelled":
+			return "cancelled";
 		case "rate-limited":
 			return "rate-limited";
 		case "captcha":
@@ -207,6 +233,13 @@ const ADVICE: Record<Verdict, string[]> = {
 		"Garmin rejected the email/password. Note that repeated failures can lock the",
 		"account, so fix the credentials before running again.",
 	],
+	"bad-mfa-code": [
+		`Garmin refused ${MFA_MAX_ATTEMPTS} verification codes. The email/password were`,
+		"accepted, so this is the code alone — expired, mistyped, or from an older",
+		"message. Re-run and use the newest code Garmin sends.",
+		"If the codes are certainly right, the detail above is Garmin's own word for",
+		"the refusal and is worth putting in an issue.",
+	],
 	cancelled: ["Stopped at the MFA prompt. Re-run when you have the code to hand."],
 	failed: [
 		"Login did not complete. Read the step that failed above.",
@@ -234,6 +267,13 @@ function maskIp(ip: string | undefined): string {
 /*  Session persistence                                                */
 /* ------------------------------------------------------------------ */
 
+export interface PersistenceProbeOptions {
+	email: string;
+	password: string;
+	/** Only reached on the first run, when there is no session to restore. */
+	requestMfaCode?: MfaPrompt;
+}
+
 /**
  * Exercises everything phase 1 added, against the live service: the token store,
  * a simulated cold start, a refresh performed from the refresh token alone, and
@@ -244,7 +284,7 @@ function maskIp(ip: string | undefined): string {
 export async function runPersistenceProbe(
 	api: GarminApi,
 	log: ProbeLog,
-	credentials: { email: string; password: string },
+	credentials: PersistenceProbeOptions,
 ): Promise<Verdict> {
 	api.setLog(log);
 	try {
@@ -260,7 +300,9 @@ export async function runPersistenceProbe(
 				return "cancelled";
 			}
 			log.detail("account", redactEmail(credentials.email));
-			await api.login(credentials.email, credentials.password);
+			await api.login(credentials.email, credentials.password, {
+				onMfaRequired: narrateMfa(log, credentials.requestMfaCode),
+			});
 			log.ok("signed in; refresh token written to data.json");
 			restored = true;
 		}
@@ -316,10 +358,17 @@ function classifyFailure(err: unknown, log: ProbeLog): Verdict {
 		log.line("  compare the JA4 against the values recorded in the README.");
 		return "blocked";
 	}
+	if (err instanceof GarminMfaCancelledError) {
+		log.warn(err.message);
+		log.line();
+		log.line("  Nothing failed — re-run when you have the code to hand.");
+		return "cancelled";
+	}
 	if (err instanceof GarminMfaRequiredError) {
 		log.fail(err.message);
 		log.line();
-		log.line("  MFA is on this account and the MFA leg is not wired up yet.");
+		log.line("  MFA is on this account and this check was given no way to ask for");
+		log.line("  a code. That is a wiring bug, not an account problem.");
 		return "failed";
 	}
 	if (err instanceof GarminAuthError) {

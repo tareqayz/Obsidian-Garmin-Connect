@@ -48,11 +48,25 @@ export class GarminApiError extends GarminError {
 /** The request never completed: offline, DNS, TLS. */
 export class GarminNetworkError extends GarminError {}
 
-/** MFA is required and no code was supplied. Not yet implemented end to end. */
+/**
+ * Garmin demanded a verification code and the caller passed no way to ask for
+ * one. Interactive sign-in hands `login()` a prompt and never sees this; it is
+ * the honest answer for a caller that has nobody to ask.
+ */
 export class GarminMfaRequiredError extends GarminError {
 	readonly method: string;
 	constructor(method: string) {
 		super(`MFA required (method: ${method})`);
 		this.method = method;
+	}
+}
+
+/**
+ * The person closed the code prompt. Distinct from a failure so the UI can go
+ * quiet instead of reporting a problem the user just chose.
+ */
+export class GarminMfaCancelledError extends GarminError {
+	constructor() {
+		super("Sign-in cancelled at the verification code prompt");
 	}
 }

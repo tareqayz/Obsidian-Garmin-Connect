@@ -1,4 +1,11 @@
 <script lang="ts">
+	import { onDestroy } from "svelte";
+	import {
+		MFA_MAX_ATTEMPTS,
+		mfaCodeSource,
+		type MfaChallenge,
+		type MfaPrompt,
+	} from "../../garmin/auth";
 	import { ProbeLog } from "../../log";
 	import type { Verdict } from "../../probe";
 
@@ -11,9 +18,14 @@
 			log: ProbeLog,
 			email: string,
 			password: string,
-			requestMfaCode: (method: string) => Promise<string | null>,
+			requestMfaCode: MfaPrompt,
 		) => Promise<Verdict>;
-		runPersistence: (log: ProbeLog, email: string, password: string) => Promise<Verdict>;
+		runPersistence: (
+			log: ProbeLog,
+			email: string,
+			password: string,
+			requestMfaCode: MfaPrompt,
+		) => Promise<Verdict>;
 		runFitness: (log: ProbeLog) => Promise<Verdict>;
 		onSaveLog: (text: string, quiet: boolean) => Promise<void>;
 		onCopyLog: (text: string) => void;
@@ -46,7 +58,7 @@
 
 	// The MFA prompt is a conditional block plus a parked resolver, rather than
 	// DOM built and torn down inside a promise.
-	let mfaMethod = $state<string | null>(null);
+	let challenge = $state<MfaChallenge | null>(null);
 	let mfaCode = $state("");
 	let resolveMfa: ((code: string | null) => void) | null = null;
 
@@ -55,17 +67,24 @@
 	// svelte-ignore state_referenced_locally
 	platformReport(log);
 
-	function requestMfaCode(method: string): Promise<string | null> {
-		mfaMethod = method;
+	function requestMfaCode(next: MfaChallenge): Promise<string | null> {
+		challenge = next;
 		mfaCode = "";
 		return new Promise((resolve) => (resolveMfa = resolve));
 	}
 
 	function answerMfa(code: string | null) {
-		mfaMethod = null;
+		challenge = null;
 		resolveMfa?.(code);
 		resolveMfa = null;
 	}
+
+	onDestroy(() => {
+		// Closing the modal mid-prompt must settle the parked promise, or the probe
+		// it belongs to never finishes.
+		resolveMfa?.(null);
+		resolveMfa = null;
+	});
 
 	async function run(task: () => Promise<Verdict | void>) {
 		if (busy) return;
@@ -122,7 +141,7 @@
 	<button
 		class="mod-cta"
 		disabled={busy}
-		onclick={() => run(() => runPersistence(log, email.trim(), password))}
+		onclick={() => run(() => runPersistence(log, email.trim(), password, requestMfaCode))}
 	>
 		3. Test session persistence
 	</button>
@@ -131,18 +150,26 @@
 	</button>
 </div>
 
-{#if mfaMethod}
+{#if challenge}
 	<div class="mfa">
-		<label for="gcp-mfa">MFA code (sent via {mfaMethod})</label>
+		<label for="gcp-mfa">
+			MFA code {challenge.attempt} of {MFA_MAX_ATTEMPTS} — from {mfaCodeSource(
+				challenge.method,
+			)}
+		</label>
 		<input
 			id="gcp-mfa"
 			type="text"
 			inputmode="numeric"
+			autocomplete="one-time-code"
 			bind:value={mfaCode}
 			onkeydown={(e) => e.key === "Enter" && answerMfa(mfaCode.trim() || null)}
 		/>
 		<button class="mod-cta" onclick={() => answerMfa(mfaCode.trim() || null)}>Submit</button>
 		<button onclick={() => answerMfa(null)}>Cancel</button>
+		{#if challenge.error}
+			<div class="mfa-error" role="alert">{challenge.error}</div>
+		{/if}
 	</div>
 {/if}
 
@@ -201,6 +228,11 @@
 	.mfa input {
 		flex: 1 1 8rem;
 		min-width: 6rem;
+	}
+	.mfa-error {
+		flex: 1 0 100%;
+		color: var(--text-error);
+		font-size: var(--font-ui-smaller, 12px);
 	}
 	.log {
 		background: var(--background-primary-alt);

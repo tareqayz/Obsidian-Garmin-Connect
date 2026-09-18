@@ -4,9 +4,9 @@ Syncs Garmin Connect health data into your daily notes as frontmatter properties
 — **on mobile as well as the desktop**, which is the part nobody had solved.
 
 **Status: phase 2 + dashboard.** Authentication, session persistence, the typed
-API core, the sync engine and the dashboard are done and tested (236 tests).
-The UI is Svelte 5. MFA is not supported yet, and
-the UI is functional rather than polished.
+API core, the sync engine and the dashboard are done and tested (259 tests).
+Multi-factor authentication is handled. The UI is Svelte 5, functional rather
+than polished.
 
 ## Where the data goes
 
@@ -149,13 +149,15 @@ Every property, with units and query examples, is in
 
 ```bash
 npm install
-npm run build      # typecheck → 236 tests → bundle → mobile-safety check
+npm run build      # typecheck → 259 tests → bundle → mobile-safety check
 ```
 
 Reload community plugins in Obsidian, enable **Garmin Connect**, then:
 
 1. **Sign in to Garmin Connect** (command palette, or the button in settings).
-   Your password is used for that one request and never written anywhere.
+   Your password is used for that one request and never written anywhere. If the
+   account has multi-factor authentication on, the same dialog then asks for the
+   code, and gives you three tries at it before the sign-in starts over.
 2. **Sync recent days** — or bind the ribbon icon, which does the same.
 
 On mobile the plugin arrives through vault sync like any other file; enable it
@@ -386,6 +388,8 @@ empty": if a value is there under a different name, that name is the fix.
 | `BLOCKED` | Cloudflare refused the client. If step 0 passed and step 1 got a 403, the path is open and it is the credential POST being scored — retrying will not help. |
 | `RATE-LIMITED` | A 429. Not a verdict. Wait 15–30 minutes; do not retry in a loop. |
 | `BAD-CREDENTIALS` | Wrong email or password. Fix it before re-running — repeated failures can lock the account. |
+| `BAD-MFA-CODE` | The email and password were accepted; three verification codes were not. Re-run with the newest code Garmin sends. |
+| `CANCELLED` | Stopped at the code prompt. Costs the one login attempt already spent, nothing more. |
 | `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin rotated the DI client IDs; re-check `DI_CLIENT_IDS` against python-garminconnect master. |
 
 ---
@@ -393,7 +397,7 @@ empty": if a value is there under a different name, that name is the fix.
 ## Tests
 
 ```bash
-npm test            # 236 tests, no network, no Obsidian
+npm test            # 259 tests, no network, no Obsidian
 npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
 npm run preview:dashboard  # build the browser preview of the dashboard
 npm run probe:node  # runs the real auth module under Node, step 0 only
@@ -420,9 +424,11 @@ is hardest to debug.
 
 ## What comes next
 
-See [TODO.md](TODO.md). **MFA is the big one** — `verifyMfa()` is written and
-typechecked but has never run, because the test account is never challenged, so
-`login()` raises `GarminMfaRequiredError` rather than pretending to handle it.
+See [TODO.md](TODO.md). The MFA flow is wired end to end and covered by
+fixtures, but no live account has challenged it yet, and the one thing fixtures
+cannot settle is what Garmin actually says when a code is wrong — so a refusal
+the flow cannot classify is treated as a retryable bad code, bounded by an
+attempt cap.
 
 ## If it ever stops working
 

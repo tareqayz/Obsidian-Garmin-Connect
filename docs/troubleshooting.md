@@ -28,6 +28,8 @@ warning below.
 | `BLOCKED` | Garmin's edge refused the client, not your credentials. If step 0 passed and step 1 got a 403, the path is open and it is the credential POST being scored. Retrying will not help. |
 | `RATE-LIMITED` | A 429. Not a verdict — wait 15–30 minutes. Do not retry in a loop. |
 | `BAD-CREDENTIALS` | Wrong email or password. Fix it before re-running; repeated failures can lock the account. |
+| `BAD-MFA-CODE` | The email and password were accepted; three verification codes were not. Re-run with the newest code Garmin sends. |
+| `CANCELLED` | Stopped at the code prompt. Costs the one login attempt already spent, nothing more. |
 | `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin rotated the DI client IDs. |
 
 ---
@@ -47,11 +49,29 @@ SSO embed widget flow, which lands in a different rate-limit bucket.
 **Do not retry in a loop.** Garmin limits login attempts per IP and can lock an
 account after repeated failures.
 
-## "MFA required" and sync stops
+## Multi-factor authentication
 
-Expected. `verifyMfa()` is written and typechecked but **has never run** against
-a live challenge, so `login()` raises `GarminMfaRequiredError` rather than
-pretending to handle it. There is no workaround yet; see [TODO.md](../TODO.md).
+**A sync is never challenged.** Sync runs on the stored refresh token, and only
+*signing in* asks for a code. If a sync stops with an auth error, the session is
+dead and the fix is to sign in again — code and all.
+
+At sign-in the challenge appears in the same dialog: a code field, a line saying
+where the code was sent, and three tries. A refused code is re-asked in place,
+because a mistyped code must not cost a second login attempt against an endpoint
+that rate-limits per IP.
+
+Expect the challenge on **every** sign-in. Garmin's "remember this browser"
+depends on a cookie the plugin deliberately does not keep, so it cannot be
+skipped — but a sign-in is once per session, not once per sync.
+
+If the codes are certainly right and Garmin keeps refusing them, the error
+carries Garmin's own word for the refusal (`INVALID_MFA_CODE`, or something not
+seen before). That string is the useful half of a bug report: any refusal the
+flow cannot classify by shape is treated as a retryable bad code, which is right
+for a typo and wrong for, say, an SSO session that expired mid-sign-in.
+
+"MFA required" as a hard error means something tried to sign in with no way to
+ask for a code. That is a wiring bug, not an account problem.
 
 ## The session dies after a few days
 
