@@ -1,6 +1,6 @@
 {
 	"id": "garmin-connect",
-	"name": "Garmin Connect (probe)",
+	"name": "Garmin Connect",
 	"version": "0.0.1",
 	"minAppVersion": "1.5.7",
 	"description": "Phase 0 diagnostic. Tests whether Garmin Connect SSO login is reachable from Obsidian's HTTP stack on desktop and on mobile.",
