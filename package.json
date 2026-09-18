@@ -11,6 +11,11 @@
 		"check": "node scripts/check-mobile-safe.mjs",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"probe:node": "esbuild scripts/node-probe.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.node-probe.mjs --log-level=warning && node scripts/.node-probe.mjs",
+		"api:extract": "python3 scripts/api/extract-endpoints.py",
+		"api:extract:check": "python3 scripts/api/extract-endpoints.py --check",
+		"api:check": "esbuild scripts/api/contract-check.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-check.mjs --log-level=warning && node scripts/.api-check.mjs",
+		"api:record": "npm run api:check -- --update",
+		"api:token": "esbuild scripts/api/mint-token.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-token.mjs --log-level=warning && node scripts/.api-token.mjs",
 		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test tests/.build",
 		"preview:dashboard": "node scripts/preview.mjs",
 		"svelte-check": "svelte-check --tsconfig tsconfig.json"

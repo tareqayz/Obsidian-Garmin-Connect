@@ -100,9 +100,64 @@ export interface Activity {
 	startTimeGMT?: string;
 	distance?: number | null;
 	duration?: number | null;
+	movingDuration?: number | null;
+	elapsedDuration?: number | null;
 	calories?: number | null;
 	averageHR?: number | null;
+	maxHR?: number | null;
+	steps?: number | null;
+	elevationGain?: number | null;
+	elevationLoss?: number | null;
+	averageSpeed?: number | null;
+	maxSpeed?: number | null;
+	aerobicTrainingEffect?: number | null;
+	anaerobicTrainingEffect?: number | null;
+	vO2MaxValue?: number | null;
+	averageRunningCadenceInStepsPerMinute?: number | null;
 	activityType?: { typeKey?: string; [key: string]: unknown };
+	[key: string]: unknown;
+}
+
+/**
+ * Training status, load and the acute/chronic ratio.
+ *
+ * The per-device sub-objects are keyed by device id, which is why the mapper
+ * takes whichever entry it finds rather than naming one: an account with a
+ * watch and a bike computer has two, and neither key is knowable in advance.
+ */
+export interface TrainingStatus {
+	latestTrainingStatusData?: Record<string, Record<string, unknown>> | null;
+	mostRecentTrainingLoadBalance?: {
+		metricsTrainingLoadBalanceDTOMap?: Record<string, Record<string, unknown>> | null;
+		[key: string]: unknown;
+	} | null;
+	acuteTrainingLoadDTO?: {
+		acwrPercent?: number | null;
+		acwrStatus?: string | null;
+		dailyTrainingLoadAcute?: number | null;
+		dailyTrainingLoadChronic?: number | null;
+		dailyAcuteChronicWorkloadRatio?: number | null;
+		[key: string]: unknown;
+	} | null;
+	[key: string]: unknown;
+}
+
+/** One day of scale readings. Masses are grams; `bodyFat` and `bodyWater` are percentages. */
+export interface BodyCompositionEntry {
+	calendarDate?: string;
+	weight?: number | null;
+	bmi?: number | null;
+	bodyFat?: number | null;
+	bodyWater?: number | null;
+	boneMass?: number | null;
+	muscleMass?: number | null;
+	[key: string]: unknown;
+}
+
+export interface BodyComposition {
+	dateWeightList?: BodyCompositionEntry[] | null;
+	/** Garmin's own average for the day, which is what a multi-weigh-in day should read as. */
+	totalAverage?: BodyCompositionEntry | null;
 	[key: string]: unknown;
 }
 
@@ -277,6 +332,30 @@ export class GarminApi extends GarminClient {
 		assertIsoDate(date);
 		return this.request("/metrics-service/metrics/endurancescore", {
 			query: { calendarDate: date },
+		});
+	}
+
+	/**
+	 * Training status, weekly load and the acute-to-chronic ratio for one day.
+	 *
+	 * Garmin returns `{}` rather than 404 for a day it has nothing for, so an
+	 * empty object here is "no data", not an error.
+	 */
+	async trainingStatus(date: string): Promise<TrainingStatus | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/trainingstatus/aggregated/${date}`);
+	}
+
+	/**
+	 * Scale readings for one day: weight, BMI, body fat and the rest.
+	 *
+	 * `includeAll` keeps every weigh-in rather than only the first, which is what
+	 * makes `totalAverage` meaningful on a day you stepped on twice.
+	 */
+	async bodyComposition(date: string): Promise<BodyComposition | null> {
+		assertIsoDate(date);
+		return this.request(`/weight-service/weight/dayview/${date}`, {
+			query: { includeAll: "true" },
 		});
 	}
 

@@ -57,6 +57,14 @@ class FakeSource implements SyncSource {
 		this.activityPages += 1;
 		return this.activityList;
 	}
+	async trainingStatus(date: string) {
+		this.guard("trainingStatus", date);
+		return { acuteTrainingLoadDTO: { dailyTrainingLoadAcute: 900 } };
+	}
+	async bodyComposition(date: string) {
+		this.guard("bodyComposition", date);
+		return { totalAverage: { weight: 78000, bmi: 23.4 } };
+	}
 	async enduranceScore(date: string) {
 		this.guard("enduranceScore", date);
 		return { calendarDate: date, overallScore: 7100 };

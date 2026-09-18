@@ -30,6 +30,29 @@ export interface GarminClientOptions {
 	store: TokenStore;
 	domain?: GarminDomain;
 	log?: Log;
+	/** Injectable so a test does not actually sleep through a retry. */
+	wait?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Attempts per request, counting the first.
+ *
+ * Garmin's edge drops connections and returns 502s often enough that a single
+ * failed call is usually not news — but a sync of 400 days makes thousands of
+ * calls, so "usually" turns into a metric missing from a handful of notes with
+ * nothing to show why. Three attempts costs at most 1.6s on a genuinely dead
+ * endpoint and rescues the common case.
+ */
+export const MAX_ATTEMPTS = 3;
+
+/** Doubling, with jitter so a burst of parallel day requests does not resynchronise. */
+export function backoffMs(attempt: number, random = Math.random): number {
+	return Math.round(400 * 2 ** (attempt - 1) * (0.75 + random() * 0.5));
+}
+
+/** Worth trying again: nothing came back, or Garmin's own side broke. */
+export function isTransient(status: number): boolean {
+	return status === 0 || (status >= 500 && status < 600);
 }
 
 export interface LoginOptions {
@@ -61,6 +84,7 @@ export class GarminClient {
 	protected readonly http: HttpClient;
 	protected log: Log;
 	private readonly store: TokenStore;
+	private readonly wait: (ms: number) => Promise<void>;
 
 	private auth: PersistedAuth | null = null;
 	private access: AccessToken | null = null;
@@ -71,6 +95,7 @@ export class GarminClient {
 		this.store = opts.store;
 		this.domain = opts.domain ?? "garmin.com";
 		this.log = opts.log ?? silentLog;
+		this.wait = opts.wait ?? ((ms) => new Promise((done) => setTimeout(done, ms)));
 	}
 
 /** Swap the narrator — the probe attaches its own, the plugin runs silent. */
@@ -243,14 +268,32 @@ export class GarminClient {
 
 	async request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 		const token = await this.ensureAccessToken();
-		let res = await this.send(path, opts, token);
+		let res = await this.sendWithRetry(path, opts, token);
 
 		if (res.status === 401) {
 			const fresh = await this.ensureAccessToken(token);
-			if (fresh !== token) res = await this.send(path, opts, fresh);
+			if (fresh !== token) res = await this.sendWithRetry(path, opts, fresh);
 		}
 
 		return this.unwrap<T>(res, path);
+	}
+
+	/**
+	 * Retries a request that failed in a way that says nothing about the request.
+	 *
+	 * Only transport failures and 5xx: a 400 means the same thing however many
+	 * times it is asked, and a 429 is Garmin telling us to stop, which retrying
+	 * is the precise wrong response to.
+	 */
+	private async sendWithRetry(path: string, opts: RequestOptions, token: string) {
+		let res = await this.send(path, opts, token);
+		for (let attempt = 1; attempt < MAX_ATTEMPTS && isTransient(res.status); attempt++) {
+			const pause = backoffMs(attempt);
+			this.log.detail(path, `HTTP ${res.status || "no response"} — retrying in ${pause}ms`);
+			await this.wait(pause);
+			res = await this.send(path, opts, token);
+		}
+		return res;
 	}
 
 	private send(path: string, opts: RequestOptions, token: string) {

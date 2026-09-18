@@ -48,12 +48,26 @@ function rowFrom(app: App, file: TFile, prefix: string): DayRow | null {
 	if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
 
 	const values: Record<string, number> = {};
+	const text: Record<string, string> = {};
+	let workouts: Array<Record<string, unknown>> | undefined;
+
 	for (const [key, value] of Object.entries(frontmatter)) {
 		if (prefix && !key.startsWith(prefix)) continue;
 		const name = prefix ? key.slice(prefix.length) : key;
 		if (name === "date") continue;
+
 		if (typeof value === "number" && Number.isFinite(value)) values[name] = value;
+		// Garmin's qualitative properties — "BALANCED", "PRODUCTIVE_1" — and the
+		// day's activity list. Both were dropped before, which is why a workout
+		// could be synced into a note and still be invisible on the dashboard.
+		else if (typeof value === "string" && value) text[name] = value;
+		else if (name === "workouts" && Array.isArray(value)) {
+			workouts = value.filter(
+				(row): row is Record<string, unknown> =>
+					Boolean(row) && typeof row === "object" && !Array.isArray(row),
+			);
+		}
 	}
 
-	return { date, values };
+	return { date, values, text, ...(workouts?.length ? { workouts } : {}) };
 }

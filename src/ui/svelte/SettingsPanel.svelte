@@ -3,7 +3,7 @@
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
 	import { DAILY_NOTE_DEFAULTS, coreDailyNoteOptions } from "../../sync/daily-note";
-	import { ALL_GROUPS, type MetricGroup } from "../../sync/metrics";
+	import { ALL_GROUPS, FREE_GROUPS, type MetricGroup } from "../../sync/metrics";
 	import type { StorageMode } from "../../sync/runner";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings";
 	import { obsidianSetting } from "./obsidian-setting";
@@ -29,16 +29,24 @@
 	let core = coreDailyNoteOptions(plugin.app);
 
 	const GROUP_LABELS: Record<MetricGroup, string> = {
-		activity: "Activity — steps, distance, calories, floors, intensity minutes",
-		heart: "Heart rate — resting, min, max",
-		sleep: "Sleep — duration, stages, score, start and end",
-		stress: "Stress and Body Battery",
-		hrv: "HRV — overnight average and status",
-		readiness: "Training readiness",
+		activity: "Activity — steps, distance, calories, floors, intensity and active minutes",
+		heart: "Heart rate — resting, seven-day resting, min, max",
+		sleep: "Sleep — duration, stages, score, respiration, SpO2, restlessness",
+		stress: "Stress and Body Battery — averages, peaks, time in each band, charge and drain",
+		hrv: "HRV — overnight average, status and your personal baseline range",
+		readiness: "Training readiness — score, recovery time and the factors behind it",
 		fitness: "Fitness — VO2 Max, fitness age, endurance score",
 		races: "Race predictions — 5K, 10K, half, marathon",
+		respiration: "Respiration — waking average, low and high",
+		spo2: "Pulse ox — average, lowest and latest SpO2",
+		body: "Body composition — weight, BMI, body fat, muscle and bone mass",
+		training: "Training load — status, acute and chronic load, load ratio",
 		workouts: "Workouts — a list of the day's activities",
 	};
+
+	// Five of these ride along in the daily summary, so turning them on is free.
+	// Saying which is the difference between an informed choice and a guess.
+	const freeGroups = new Set<MetricGroup>(FREE_GROUPS);
 
 	function toggleGroup(group: MetricGroup, on: boolean) {
 		groups = on ? [...new Set([...groups, group])] : groups.filter((g) => g !== group);
@@ -298,14 +306,20 @@
 {/if}
 
 <h3>Metrics</h3>
-<p class="hint">Turning a group off also stops the request that fetches it.</p>
+<p class="hint">
+	Each group marked <em>1 request</em> costs one Garmin call per day synced. The rest come out
+	of a request another group already makes, so they are free once anything above them is on.
+</p>
 
 {#each ALL_GROUPS as group (group)}
 	<div
 		use:obsidianSetting={(setting) =>
-			setting.setName(GROUP_LABELS[group]).addToggle((t) =>
-				t.setValue(groups.includes(group)).onChange((on) => toggleGroup(group, on)),
-			)}
+			setting
+				.setName(GROUP_LABELS[group])
+				.setDesc(freeGroups.has(group) ? "Free — shares the daily summary request" : "1 request per day")
+				.addToggle((t) =>
+					t.setValue(groups.includes(group)).onChange((on) => toggleGroup(group, on)),
+				)}
 	></div>
 {/each}
 

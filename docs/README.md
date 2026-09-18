@@ -17,6 +17,7 @@ and why it is built the way it is. These pages are the detail behind it.
 | --- | --- |
 | [Architecture](architecture.md) | The two seams the design rests on, the module map, and where to add things. |
 | [Garmin API](garmin-api.md) | Every endpoint called, which metric group triggers it, and the request budget. |
+| [API catalogue](../api/README.md) | The full endpoint surface, the recorded response shapes, and the daily check that watches them. |
 
 ## Elsewhere in the repo
 

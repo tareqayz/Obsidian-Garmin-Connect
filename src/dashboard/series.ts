@@ -5,9 +5,32 @@
  * arithmetic is the part most worth testing, so it lives on its own.
  */
 
+/** One synced day, as the dashboard reads it back out of frontmatter. */
 export interface DayRow {
 	date: string;
 	values: Record<string, number>;
+	/**
+	 * Garmin's qualitative properties — `hrv_status`, `training_status`. Kept
+	 * apart from `values` so nothing tries to average them.
+	 */
+	text?: Record<string, string>;
+	/** The day's activities, as `mapWorkout` wrote them. */
+	workouts?: Array<Record<string, unknown>>;
+}
+
+/** One activity, with the day it belongs to attached. */
+export interface WorkoutEntry {
+	date: string;
+	name?: string;
+	type?: string;
+	start?: string;
+	minutes?: number;
+	calories?: number;
+	avg_hr?: number;
+	max_hr?: number;
+	pace?: string;
+	training_effect?: number;
+	distance?: { value: number; unit: string };
 }
 
 export interface Point {
@@ -90,6 +113,50 @@ function mean(points: readonly Point[]): number {
 	return points.reduce((sum, p) => sum + p.value, 0) / points.length;
 }
 
+/** The most recent non-empty value of a text property, with its date. */
+export function latestText(
+	rows: readonly DayRow[],
+	key: string,
+): { date: string; value: string } | undefined {
+	for (let i = rows.length - 1; i >= 0; i--) {
+		const value = rows[i]!.text?.[key];
+		if (typeof value === "string" && value) return { date: rows[i]!.date, value };
+	}
+	return undefined;
+}
+
+/**
+ * Every activity in the range, newest first.
+ *
+ * Distance arrives under whichever unit key the sync was written with, so it is
+ * normalised here rather than in the component — the dashboard should not have
+ * to know that a vault synced in miles exists.
+ */
+export function workoutsIn(rows: readonly DayRow[]): WorkoutEntry[] {
+	const out: WorkoutEntry[] = [];
+	for (const row of rows) {
+		for (const raw of row.workouts ?? []) {
+			const entry: WorkoutEntry = { date: row.date };
+			for (const key of ["name", "type", "start", "pace"] as const) {
+				const value = raw[key];
+				if (typeof value === "string" && value) entry[key] = value;
+			}
+			for (const key of ["minutes", "calories", "avg_hr", "max_hr", "training_effect"] as const) {
+				const value = raw[key];
+				if (typeof value === "number" && Number.isFinite(value)) entry[key] = value;
+			}
+			const km = raw.distance_km;
+			const mi = raw.distance_mi;
+			if (typeof km === "number") entry.distance = { value: km, unit: "km" };
+			else if (typeof mi === "number") entry.distance = { value: mi, unit: "mi" };
+			out.push(entry);
+		}
+	}
+	// Within a day Garmin lists newest first already; across days, sort by the
+	// start time when there is one so an evening run precedes that morning's.
+	return out.sort((a, b) => (b.start ?? b.date).localeCompare(a.start ?? a.date));
+}
+
 /** Which of a set of keys any row actually carries — drives what gets drawn. */
 export function availableKeys(rows: readonly DayRow[], keys: readonly string[]): string[] {
 	return keys.filter((key) =>
@@ -97,11 +164,39 @@ export function availableKeys(rows: readonly DayRow[], keys: readonly string[]):
 	);
 }
 
+/**
+ * The same, for Garmin's qualitative properties.
+ *
+ * Kept separate because nothing charts a string: these reach the table and the
+ * detail views, never a series.
+ */
+export function availableTextKeys(rows: readonly DayRow[], keys: readonly string[]): string[] {
+	return keys.filter((key) => rows.some((row) => Boolean(row.text?.[key])));
+}
+
 /* ------------------------------------------------------------------ */
 /*  Dates                                                              */
 /* ------------------------------------------------------------------ */
 
 const DAY_MS = 86_400_000;
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Inclusive day count between two ISO dates, or 0 for anything else.
+ *
+ * The shape is checked rather than assumed: `Date.UTC` happily turns `""` into
+ * a real date in 1900, so an empty window would otherwise measure as one day.
+ */
+export function daysBetween(from: string, to: string): number {
+	if (!ISO_DAY.test(from) || !ISO_DAY.test(to)) return 0;
+	const [fy, fm, fd] = from.split("-").map(Number);
+	const [ty, tm, td] = to.split("-").map(Number);
+	const start = Date.UTC(fy!, fm! - 1, fd!);
+	const end = Date.UTC(ty!, tm! - 1, td!);
+	if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+	return Math.round((end - start) / DAY_MS) + 1;
+}
 
 export function shiftDate(iso: string, days: number): string {
 	const [y, m, d] = iso.split("-").map(Number);

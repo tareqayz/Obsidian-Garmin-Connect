@@ -130,6 +130,10 @@ describe("mapDay — workouts", () => {
 						distance: 5120,
 						calories: 412.7,
 						averageHR: 148.4,
+						maxHR: 171,
+						elevationGain: 42.4,
+						aerobicTrainingEffect: 3.42,
+						movingDuration: 1800,
 					},
 				],
 			},
@@ -144,8 +148,41 @@ describe("mapDay — workouts", () => {
 				distance_km: 5.12,
 				calories: 413,
 				avg_hr: 148,
+				max_hr: 171,
+				elevation_gain_m: 42,
+				training_effect: 3.4,
+				pace: "5:52",
 			},
 		]);
+	});
+
+	it("paces on moving time and in the reader's units", () => {
+		const run = {
+			activityName: "Run",
+			distance: 5000,
+			duration: 1800,
+			movingDuration: 1500,
+		};
+		assert.equal(
+			(mapDay({ workouts: [run] }, opts()).workouts as Array<Record<string, unknown>>)[0]!.pace,
+			"5:00",
+		);
+		assert.equal(
+			(
+				mapDay({ workouts: [run] }, opts({ units: "imperial" })).workouts as Array<
+					Record<string, unknown>
+				>
+			)[0]!.pace,
+			"8:03",
+		);
+	});
+
+	it("omits a pace for an activity that has no distance to pace", () => {
+		const row = (
+			mapDay({ workouts: [{ activityName: "Strength", duration: 1800 }] }, opts())
+				.workouts as Array<Record<string, unknown>>
+		)[0]!;
+		assert.ok(!("pace" in row));
 	});
 
 	it("writes no key when there were no workouts", () => {
@@ -200,6 +237,8 @@ describe("endpointsFor", () => {
 			hrv: false,
 			readiness: false,
 			endurance: false,
+			training: false,
+			body: false,
 			maxMetrics: false,
 			races: false,
 			workouts: false,
@@ -230,7 +269,7 @@ describe("applyPrefix", () => {
 
 describe("keysFor", () => {
 	it("lists keys grouped and in a stable order", () => {
-		assert.deepEqual(keysFor(["heart"]), ["resting_hr", "min_hr", "max_hr"]);
+		assert.deepEqual(keysFor(["heart"]), ["resting_hr", "resting_hr_7d", "min_hr", "max_hr"]);
 	});
 
 	it("orders groups consistently regardless of how they are passed in", () => {
@@ -314,5 +353,219 @@ describe("mapDay — race predictions", () => {
 	it("omits a distance Garmin has no prediction for", () => {
 		const props = mapDay({ races: { time5K: 1471 } }, opts({ groups: ["races"] }));
 		assert.deepEqual(Object.keys(props), ["race_5k"]);
+	});
+});
+
+
+describe("mapDay — metrics that cost nothing extra", () => {
+	// Every field below arrives in a response the sync already makes, which is
+	// what makes them worth mapping: more properties, no more requests.
+	const summary = {
+		bmrKilocalories: 1680,
+		floorsDescended: 9,
+		userFloorsAscendedGoal: 10,
+		intensityMinutesGoal: 150,
+		activeSeconds: 17400,
+		highlyActiveSeconds: 1800,
+		sedentarySeconds: 39600,
+		lastSevenDaysAvgRestingHeartRate: 49,
+		maxStressLevel: 88,
+		stressQualifier: "BALANCED",
+		restStressDuration: 21600,
+		highStressDuration: 1800,
+		bodyBatteryChargedValue: 62,
+		bodyBatteryDrainedValue: 58,
+		bodyBatteryMostRecentValue: 41,
+		avgWakingRespirationValue: 14.6,
+		lowestRespirationValue: 10.2,
+		highestRespirationValue: 19.4,
+		averageSpo2: 96,
+		lowestSpo2: 89,
+		latestSpo2: 97,
+	};
+
+	it("splits the day into activity bands, in minutes", () => {
+		const props = mapDay({ summary }, opts({ groups: ["activity"] }));
+		assert.equal(props.active_minutes, 290);
+		assert.equal(props.highly_active_minutes, 30);
+		assert.equal(props.sedentary_minutes, 660);
+		assert.equal(props.calories_bmr, 1680);
+		assert.equal(props.floors_goal, 10);
+		assert.equal(props.intensity_goal, 150);
+	});
+
+	it("keeps Garmin's own seven-day resting rate beside the daily one", () => {
+		assert.equal(mapDay({ summary }, opts({ groups: ["heart"] })).resting_hr_7d, 49);
+	});
+
+	it("carries the stress bands and both directions of Body Battery", () => {
+		const props = mapDay({ summary }, opts({ groups: ["stress"] }));
+		assert.equal(props.stress_max, 88);
+		assert.equal(props.stress_qualifier, "BALANCED");
+		assert.equal(props.stress_rest_minutes, 360);
+		assert.equal(props.stress_high_minutes, 30);
+		assert.equal(props.body_battery_charged, 62);
+		assert.equal(props.body_battery_drained, 58);
+		assert.equal(props.body_battery_latest, 41);
+		assert.ok(!("stress_low_minutes" in props), "an absent band is not a zero");
+	});
+
+	it("reads respiration and pulse ox out of the same summary", () => {
+		assert.equal(mapDay({ summary }, opts({ groups: ["respiration"] })).respiration_avg, 14.6);
+		assert.equal(mapDay({ summary }, opts({ groups: ["spo2"] })).spo2_low, 89);
+		// Neither group costs a request, so neither may leak into the other's keys.
+		assert.ok(!("spo2_avg" in mapDay({ summary }, opts({ groups: ["respiration"] }))));
+	});
+
+	it("takes the night's own physiology off the sleep response", () => {
+		const props = mapDay(
+			{
+				sleep: {
+					dailySleepDTO: {
+						sleepScores: { overall: { value: 82, qualifierKey: "GOOD" } },
+						restingHeartRate: 47,
+						avgSleepStress: 16,
+						awakeCount: 2,
+						restlessMomentsCount: 14,
+						averageRespirationValue: 13.4,
+						averageSpO2Value: 95,
+						lowestSpO2Value: 88,
+						bodyBatteryChange: 44,
+						napTimeSeconds: 1800,
+					},
+				},
+			},
+			opts({ groups: ["sleep"] }),
+		);
+		assert.equal(props.sleep_quality, "GOOD");
+		assert.equal(props.sleep_resting_hr, 47);
+		assert.equal(props.sleep_restless_moments, 14);
+		assert.equal(props.sleep_spo2_low, 88);
+		assert.equal(props.sleep_body_battery_change, 44);
+		assert.equal(props.nap_hours, 0.5);
+	});
+
+	it("keeps a negative overnight Body Battery change, which is real", () => {
+		// A night that drained rather than recharged is information, not a sentinel.
+		const props = mapDay(
+			{ sleep: { dailySleepDTO: { bodyBatteryChange: -6 } } },
+			opts({ groups: ["sleep"] }),
+		);
+		assert.equal(props.sleep_body_battery_change, -6);
+	});
+
+	it("carries the HRV baseline that makes last night's number readable", () => {
+		const props = mapDay(
+			{
+				hrv: {
+					hrvSummary: {
+						lastNightAvg: 44,
+						baseline: { balancedLow: 38, balancedUpper: 58, lowUpper: 34 },
+					},
+				},
+			},
+			opts({ groups: ["hrv"] }),
+		);
+		assert.equal(props.hrv_baseline_low, 38);
+		assert.equal(props.hrv_baseline_high, 58);
+	});
+
+	it("turns recovery minutes into the hours anyone reads them in", () => {
+		const props = mapDay(
+			{ readiness: [{ score: 70, recoveryTime: 1290, sleepScore: 81, acuteLoad: 640 }] },
+			opts({ groups: ["readiness"] }),
+		);
+		assert.equal(props.recovery_time_hours, 21.5);
+		assert.equal(props.readiness_sleep_score, 81);
+		assert.equal(props.acute_load, 640);
+	});
+});
+
+describe("mapDay — body composition", () => {
+	const body = {
+		totalAverage: { weight: 78400, bmi: 23.46789, bodyFat: 17.4321, muscleMass: 33200, boneMass: 3100 },
+		dateWeightList: [{ weight: 99000 }],
+	};
+
+	it("prefers Garmin's own daily average over the first weigh-in", () => {
+		// Stepping on the scale twice should read as the day, not as whichever
+		// reading happened to come first.
+		assert.equal(mapDay({ body }, opts({ groups: ["body"] })).weight_kg, 78.4);
+	});
+
+	it("falls back to the first reading when there is no average", () => {
+		const props = mapDay(
+			{ body: { dateWeightList: [{ weight: 78400 }] } },
+			opts({ groups: ["body"] }),
+		);
+		assert.equal(props.weight_kg, 78.4);
+	});
+
+	it("converts grams to pounds under an imperial setting, under a different key", () => {
+		const props = mapDay({ body }, opts({ groups: ["body"], units: "imperial" }));
+		assert.equal(props.weight_lb, 172.8);
+		assert.equal(props.muscle_mass_lb, 73.2);
+		assert.ok(!("weight_kg" in props));
+	});
+
+	it("rounds the percentages Garmin sends to six decimals", () => {
+		const props = mapDay({ body }, opts({ groups: ["body"] }));
+		assert.equal(props.bmi, 23.47);
+		assert.equal(props.body_fat_pct, 17.43);
+	});
+
+	it("writes nothing at all on a day with no weigh-in", () => {
+		assert.deepEqual(mapDay({ body: { dateWeightList: [] } }, opts({ groups: ["body"] })), {});
+	});
+});
+
+describe("mapDay — training load", () => {
+	it("reads the status out of whichever device reported it", () => {
+		// The map is keyed by device id, and an account with a watch and a bike
+		// computer has several — none of them knowable in advance.
+		const props = mapDay(
+			{
+				training: {
+					latestTrainingStatusData: {
+						"3418285688": { trainingStatusFeedbackPhrase: "PRODUCTIVE_1", weeklyTrainingLoad: 712 },
+					},
+				},
+			},
+			opts({ groups: ["training"] }),
+		);
+		assert.equal(props.training_status, "PRODUCTIVE_1");
+		assert.equal(props.training_load_weekly, 712);
+	});
+
+	it("takes the ratio directly when Garmin sends it", () => {
+		const props = mapDay(
+			{
+				training: {
+					acuteTrainingLoadDTO: {
+						dailyTrainingLoadAcute: 900,
+						dailyTrainingLoadChronic: 1050,
+						dailyAcuteChronicWorkloadRatio: 0.857,
+						acwrStatus: "OPTIMAL",
+					},
+				},
+			},
+			opts({ groups: ["training"] }),
+		);
+		assert.equal(props.training_load_acute, 900);
+		assert.equal(props.training_load_chronic, 1050);
+		assert.equal(props.training_load_ratio, 0.86);
+		assert.equal(props.training_load_status, "OPTIMAL");
+	});
+
+	it("derives the ratio from the percentage when that is all there is", () => {
+		const props = mapDay(
+			{ training: { acuteTrainingLoadDTO: { acwrPercent: 86 } } },
+			opts({ groups: ["training"] }),
+		);
+		assert.equal(props.training_load_ratio, 0.86);
+	});
+
+	it("writes nothing for an account Garmin has no training status for", () => {
+		assert.deepEqual(mapDay({ training: {} }, opts({ groups: ["training"] })), {});
 	});
 });

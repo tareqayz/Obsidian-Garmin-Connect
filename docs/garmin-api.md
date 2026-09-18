@@ -4,6 +4,12 @@ Every Garmin endpoint this plugin calls, which metric group triggers it, and
 what the request budget works out to. Source: `src/garmin/endpoints.ts` and
 `src/garmin/constants.ts`.
 
+For the full surface — all 135 endpoints Garmin exposes, their request shapes,
+and the response fields observed at each one — see
+[`api/endpoints.json`](../api/endpoints.json) and
+[`api/README.md`](../api/README.md). This page is the narrow, prose version:
+what the plugin uses and why.
+
 This mirrors [`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)
 at master — specifically the post-2026-03 rewrite that dropped `garth`. The old
 OAuth1 `preauthorized` / `exchange/user/2.0` flow is gone.
@@ -78,9 +84,12 @@ One request per day synced.
 | `hrv(date)` | `/hrv-service/hrv/{date}` | `hrv` |
 | `trainingReadiness(date)` | `/metrics-service/metrics/trainingreadiness/{date}` | `readiness` |
 | `enduranceScore(date)` | `/metrics-service/metrics/endurancescore?calendarDate=` | `fitness` |
+| `trainingStatus(date)` | `/metrics-service/metrics/trainingstatus/aggregated/{date}` | `training` |
+| `bodyComposition(date)` | `/weight-service/weight/dayview/{date}?includeAll=true` | `body` |
 
-`dailySummary` serves **three groups from one request**, so switching off just
-one of `activity`, `heart` or `stress` saves nothing.
+`dailySummary` serves **five groups from one request** — `activity`, `heart`,
+`stress`, `respiration` and `spo2` — so switching off just one of them saves
+nothing. Respiration and pulse ox in particular cost no requests at all.
 
 `enduranceScore` is per-day deliberately: the range form of that endpoint returns
 weekly averages, not daily values.
@@ -132,16 +141,38 @@ Roughly:
 The constant is the range endpoints — one call each for `maxMetrics` and
 `racePredictions`, plus however many pages the activity list takes.
 
-With all nine groups on, a day costs five per-day requests. Days that are not
-writable cost **nothing at all**, because `exists()` is consulted before any
-request is made.
+With all thirteen groups on, a day costs **seven** per-day requests: the daily
+summary (which alone serves five groups), sleep, HRV, readiness, endurance,
+training status and body composition. Days that are not writable cost **nothing
+at all**, because `exists()` is consulted before any request is made.
+
+Four of the thirteen groups are free in request terms — `respiration`, `spo2`,
+`heart` and `stress` all ride along in a call `activity` already makes. The
+settings screen marks which is which.
 
 The sync runs **newest day first**, so a run cut short by a rate limit has
 already covered the days you care about most. `pauseBetweenDays` (default 250 ms)
 throttles between days.
 
+## Keeping this honest
+
+Garmin ships changes to these payloads without notice and without a version, so
+none of the above is guaranteed to still be true tomorrow.
+`.github/workflows/api-contract.yml` runs every morning, fetches the sixteen
+endpoints above through this plugin's own `GarminApi`, and compares what comes
+back with the shapes recorded in [`api/schema/`](../api/schema/). A field the
+plugin depends on that stops arriving opens an issue the same day; a field it
+merely reads is reported without failing the run.
+
+`api/README.md` covers the verdicts, the setup, and how to accept a change.
+
 ## Behaviour worth knowing
 
+- **Transient failures are retried, rate limits are not.** A request that comes
+  back 5xx or does not come back at all is retried up to three times with a
+  jittered backoff (`MAX_ATTEMPTS` in `src/garmin/client.ts`). A 429 is not:
+  retrying is the precise wrong response to Garmin asking us to stop, and a 4xx
+  means the same thing however many times it is asked.
 - **`expires_in` is not fixed.** Observed at 66,341 s on one run and 97,344 s on
   another, so the lifetime is always read from the response.
 - **The login response glues seven cookies into one `Set-Cookie` header**, and

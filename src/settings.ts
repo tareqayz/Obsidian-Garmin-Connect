@@ -7,7 +7,15 @@ import type { MetricGroup } from "./sync/metrics";
 import { ALL_GROUPS } from "./sync/metrics";
 import type GarminPlugin from "./main";
 
+/**
+ * Bumped when a release adds metric groups that an existing vault should get
+ * switched on rather than have to discover. See `PluginData.migrate`.
+ */
+export const SETTINGS_VERSION = 2;
+
 export interface GarminSettings {
+	/** Absent in anything written before the migration existed, which reads as 1. */
+	settingsVersion: number;
 	email: string;
 	domain: GarminDomain;
 
@@ -41,6 +49,7 @@ export interface GarminSettings {
 }
 
 export const DEFAULT_SETTINGS: GarminSettings = {
+	settingsVersion: SETTINGS_VERSION,
 	email: "",
 	domain: "garmin.com",
 

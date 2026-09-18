@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, fakeJwt, type FixtureRule } from "../src/testing/fixture-http";
-import { GarminClient } from "../src/garmin/client";
+import { GarminClient, MAX_ATTEMPTS, backoffMs, isTransient } from "../src/garmin/client";
 import {
 	GarminApiError,
 	GarminAuthError,
@@ -17,7 +17,10 @@ import { MemoryTokenStore } from "../src/garmin/tokens";
 function clientWith(rules: FixtureRule[]) {
 	const http = new FixtureHttpClient(rules);
 	const store = new MemoryTokenStore();
-	return { http, store, client: new GarminClient({ http, store }) };
+	// Retries never actually sleep in a test; the waits are recorded instead.
+	const waits: number[] = [];
+	const wait = async (ms: number) => void waits.push(ms);
+	return { http, store, waits, client: new GarminClient({ http, store, wait }) };
 }
 
 // Single-use: a later rule for the same URL is meant to take over, which is how
@@ -375,5 +378,80 @@ describe("session", () => {
 		await client.login("u", "p");
 		assert.equal((await store.load())!.diClientId, "GARMIN_CONNECT_MOBILE_IOS_DI");
 		assert.ok(client.session!.accessExpiresAt! > Date.now());
+	});
+});
+
+
+describe("retrying a transient failure", () => {
+	const signedIn: FixtureRule[] = [loginOk, diOk];
+
+	it("computes a growing backoff with jitter inside a known band", () => {
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			const base = 400 * 2 ** (attempt - 1);
+			for (let i = 0; i < 50; i++) {
+				const ms = backoffMs(attempt);
+				assert.ok(ms >= base * 0.75 - 1 && ms <= base * 1.25 + 1, `${ms} out of band`);
+			}
+		}
+		// Deterministic when the randomness is: the jitter is the only variable.
+		assert.equal(backoffMs(1, () => 0.5), 400);
+		assert.equal(backoffMs(2, () => 0.5), 800);
+	});
+
+	it("treats a dropped connection and a 5xx as worth retrying, and nothing else", () => {
+		assert.equal(isTransient(0), true);
+		assert.equal(isTransient(502), true);
+		assert.equal(isTransient(503), true);
+		for (const status of [200, 400, 401, 403, 404, 429]) {
+			assert.equal(isTransient(status), false, `${status} should not be retried`);
+		}
+	});
+
+	it("retries a 502 and returns the answer that follows", async () => {
+		const { client, http, waits } = clientWith([
+			...signedIn,
+			{ url: "/usersummary-service", times: 2, status: 502, text: "bad gateway" },
+			{ url: "/usersummary-service", json: { totalSteps: 8000 } },
+		]);
+		await client.login("user@example.com", "hunter2");
+
+		const body = await client.request<{ totalSteps: number }>("/usersummary-service/x");
+		assert.equal(body.totalSteps, 8000);
+		assert.equal(http.urls.filter((u) => u.includes("/usersummary-service")).length, 3);
+		assert.equal(waits.length, 2);
+	});
+
+	it("retries a dropped connection", async () => {
+		const { client, http } = clientWith([
+			...signedIn,
+			{ url: "/hrv-service", times: 1, error: "socket hang up" },
+			{ url: "/hrv-service", json: { hrvSummary: { lastNightAvg: 42 } } },
+		]);
+		await client.login("user@example.com", "hunter2");
+
+		await client.request("/hrv-service/2026-09-12");
+		assert.equal(http.urls.filter((u) => u.includes("/hrv-service")).length, 2);
+	});
+
+	it("gives up after MAX_ATTEMPTS rather than hammering a dead endpoint", async () => {
+		const { client, http } = clientWith([
+			...signedIn,
+			{ url: "/metrics-service", status: 503, text: "down" },
+		]);
+		await client.login("user@example.com", "hunter2");
+
+		await assert.rejects(() => client.request("/metrics-service/x"), GarminApiError);
+		assert.equal(http.urls.filter((u) => u.includes("/metrics-service")).length, MAX_ATTEMPTS);
+	});
+
+	it("does not retry a rate limit, which is Garmin asking us to stop", async () => {
+		const { client, http } = clientWith([
+			...signedIn,
+			{ url: "/wellness-service", status: 429, headers: { "retry-after": "60" } },
+		]);
+		await client.login("user@example.com", "hunter2");
+
+		await assert.rejects(() => client.request("/wellness-service/x"), GarminRateLimitError);
+		assert.equal(http.urls.filter((u) => u.includes("/wellness-service")).length, 1);
 	});
 });

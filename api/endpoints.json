@@ -1,0 +1,3240 @@
+{
+	"about": "Every Garmin Connect endpoint known to cyberjunky/python-garminconnect, plus what this plugin does with each one. Request shapes are generated; the `plugin`, `groups`, `cadence`, `check`, `critical`, `schema` and `notes` keys are hand-written and survive regeneration. See api/README.md.",
+	"generated": {
+		"by": "scripts/api/extract-endpoints.py",
+		"at": "2026-09-18T07:31:13Z",
+		"source": {
+			"repo": "https://github.com/cyberjunky/python-garminconnect",
+			"version": "0.3.13",
+			"commit": "6569a424c9d44cc93fdd1b0444cc878d1a630866",
+			"committedAt": "2026-09-09T16:48:39+02:00"
+		}
+	},
+	"hosts": {
+		"connectapi": "https://connectapi.{domain}",
+		"connect": "https://connect.{domain}/modern/proxy (legacy web tier; unused here)",
+		"domain": "garmin.com, or garmin.cn for China accounts"
+	},
+	"legend": {
+		"path": "Template. `{name}` is a path parameter; `{displayName}` is the URL-encoded social-profile display name.",
+		"tier": "Which host the path hangs off.",
+		"plugin": "The method in src/garmin/endpoints.ts that calls it, or absent if the plugin does not.",
+		"groups": "Metric groups (src/sync/metrics.ts) whose sync needs this endpoint.",
+		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through.",
+		"check": "Covered by the daily contract check (.github/workflows/api-contract.yml).",
+		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
+		"schema": "Recorded response shape, relative to api/.",
+		"status": "gone-upstream = present in an earlier catalogue, no longer in python-garminconnect.",
+		"reads": "Response paths the plugin reads but tolerates missing \u2014 a property that will not appear rather than a sync that breaks. Reported by the daily check, never fatal."
+	},
+	"endpoints": [
+		{
+			"id": "activities-by-date",
+			"method": "GET",
+			"path": "/activitylist-service/activities/search/activities",
+			"service": "activitylist-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activities_by_date",
+				"summary": "Fetch available activities between specific dates",
+				"args": [
+					"startdate",
+					"enddate",
+					"activitytype",
+					"sortorder"
+				],
+				"line": 2671
+			}
+		},
+		{
+			"id": "activities-fordate",
+			"method": "GET",
+			"path": "/mobile-gateway/heartRate/forDate/{date}",
+			"service": "mobile-gateway",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activities_fordate",
+				"summary": "Return available activities for date.",
+				"args": [
+					"fordate"
+				],
+				"line": 2415
+			}
+		},
+		{
+			"id": "activity",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity",
+				"summary": "Return activity summary, including basic splits.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3104
+			}
+		},
+		{
+			"id": "activity-details",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/details",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [
+				"maxChartSize",
+				"maxPolylineSize"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_details",
+				"summary": "Return activity details.",
+				"args": [
+					"activity_id",
+					"maxchart",
+					"maxpoly"
+				],
+				"line": 3112
+			}
+		},
+		{
+			"id": "activity-exercise-sets",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/exerciseSets",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_exercise_sets",
+				"summary": "Return activity exercise sets.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3125
+			}
+		},
+		{
+			"id": "activity-gear",
+			"method": "GET",
+			"path": "/gear-service/gear/filterGear",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"activityId"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_gear",
+				"summary": "Return gears used for activity id.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3151
+			}
+		},
+		{
+			"id": "activity-hr-in-timezones",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/hrTimeInZones",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_hr_in_timezones",
+				"summary": "Return activity heartrate in timezones.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3062
+			}
+		},
+		{
+			"id": "activity-power-in-timezones",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/powerTimeInZones",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_power_in_timezones",
+				"summary": "Return activity power in timezones.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3070
+			}
+		},
+		{
+			"id": "activity-split-summaries",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/split_summaries",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_split_summaries",
+				"summary": "Return activity split summaries.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3046
+			}
+		},
+		{
+			"id": "activity-splits",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/splits",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_splits",
+				"summary": "Return activity splits.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3028
+			}
+		},
+		{
+			"id": "activity-typed-splits",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/typedsplits",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_typed_splits",
+				"summary": "Return typed activity splits. Contains similar info to `get_activity_splits`, but for certain activity types",
+				"args": [
+					"activity_id"
+				],
+				"line": 3036
+			}
+		},
+		{
+			"id": "activity-types",
+			"method": "GET",
+			"path": "/activity-service/activity/activityTypes",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_types",
+				"summary": "",
+				"args": [],
+				"line": 2760
+			}
+		},
+		{
+			"id": "activity-weather",
+			"method": "GET",
+			"path": "/activity-service/activity/{activityId}/weather",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activity_weather",
+				"summary": "Return activity weather.",
+				"args": [
+					"activity_id"
+				],
+				"line": 3054
+			}
+		},
+		{
+			"id": "adaptive-training-plan-by-id",
+			"method": "GET",
+			"path": "/trainingplan-service/trainingplan/fbt-adaptive/{planId}",
+			"service": "trainingplan-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"planId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_adaptive_training_plan_by_id",
+				"summary": "Return details for a specific adaptive training plan.",
+				"args": [
+					"plan_id"
+				],
+				"line": 3738
+			}
+		},
+		{
+			"id": "add-body-composition",
+			"method": "POST",
+			"path": "/upload-service/upload",
+			"service": "upload-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "add_body_composition",
+				"summary": "",
+				"args": [
+					"timestamp",
+					"weight",
+					"percent_fat",
+					"percent_hydration",
+					"visceral_fat_mass",
+					"bone_mass",
+					"muscle_mass",
+					"basal_met",
+					"active_met",
+					"physique_rating",
+					"metabolic_age",
+					"visceral_fat_rating",
+					"bmi"
+				],
+				"line": 1213
+			}
+		},
+		{
+			"id": "add-gear-to-activity",
+			"method": "PUT",
+			"path": "/gear-service/gear/link/{gearUuid}/activity/{activityId}",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"gearUuid",
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "add_gear_to_activity",
+				"summary": "Associates gear with an activity. Requires a gearUUID and an activity_id.",
+				"args": [
+					"gearUUID",
+					"activity_id"
+				],
+				"line": 3189
+			}
+		},
+		{
+			"id": "add-hydration-data",
+			"method": "PUT",
+			"path": "/usersummary-service/usersummary/hydration/log",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "add_hydration_data",
+				"summary": "Add hydration data in ml. Defaults to current date and current timestamp if left empty",
+				"args": [
+					"value_in_ml",
+					"timestamp",
+					"cdate"
+				],
+				"line": 1658
+			}
+		},
+		{
+			"id": "add-weigh-in",
+			"method": "POST",
+			"path": "/weight-service/user-weight",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "add_weigh_in",
+				"summary": "Add a weigh-in (default to kg).",
+				"args": [
+					"weight",
+					"unitKey",
+					"timestamp"
+				],
+				"line": 1258
+			}
+		},
+		{
+			"id": "add-weigh-in-with-timestamps",
+			"method": "POST",
+			"path": "/weight-service/user-weight",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "add_weigh_in_with_timestamps",
+				"summary": "Add a weigh-in with explicit timestamps (default to kg).",
+				"args": [
+					"weight",
+					"unitKey",
+					"dateTimestamp",
+					"gmtTimestamp"
+				],
+				"line": 1287
+			}
+		},
+		{
+			"id": "adhoc-challenges",
+			"method": "GET",
+			"path": "/adhocchallenge-service/adHocChallenge/historical",
+			"service": "adhocchallenge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_adhoc_challenges",
+				"summary": "Return adhoc challenges for the current user.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 1865
+			}
+		},
+		{
+			"id": "all-day-events",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailyEvents",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_all_day_events",
+				"summary": "Return available daily events data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1789
+			}
+		},
+		{
+			"id": "all-day-stress",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailyStress/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_all_day_stress",
+				"summary": "Return available all day stress data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1781
+			},
+			"plugin": "GarminApi.stress",
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"schema": "schema/all-day-stress.json",
+			"notes": "Typed and tested but not wired into the sync. The plugin returns it untyped, so the recorded shape is the only contract."
+		},
+		{
+			"id": "available-badge-challenges",
+			"method": "GET",
+			"path": "/badgechallenge-service/badgeChallenge/available",
+			"service": "badgechallenge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_available_badge_challenges",
+				"summary": "Return available badge challenges.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 1885
+			}
+		},
+		{
+			"id": "available-badges",
+			"method": "GET",
+			"path": "/badge-service/badge/available",
+			"service": "badge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"showExclusiveBadge"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_available_badges",
+				"summary": "Return available (not yet earned) badges for the current user.",
+				"args": [],
+				"line": 1827
+			}
+		},
+		{
+			"id": "badge-challenges",
+			"method": "GET",
+			"path": "/badgechallenge-service/badgeChallenge/completed",
+			"service": "badgechallenge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_badge_challenges",
+				"summary": "Return badge challenges for the current user.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 1875
+			}
+		},
+		{
+			"id": "blood-pressure",
+			"method": "GET",
+			"path": "/bloodpressure-service/bloodpressure/range/{startDate}/{endDate}",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"includeAll"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_blood_pressure",
+				"summary": "Returns blood pressure by day for 'startdate' format",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 1447
+			}
+		},
+		{
+			"id": "body-battery",
+			"method": "GET",
+			"path": "/wellness-service/wellness/bodyBattery/reports/daily",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_body_battery",
+				"summary": "Return body battery values by day for 'startdate' format",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 1386
+			},
+			"plugin": "GarminApi.bodyBattery",
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/body-battery.json",
+			"notes": "Typed and tested but not wired into the sync."
+		},
+		{
+			"id": "body-battery-events",
+			"method": "GET",
+			"path": "/wellness-service/wellness/bodyBattery/events/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_body_battery_events",
+				"summary": "Return body battery events for date 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1403
+			}
+		},
+		{
+			"id": "body-composition",
+			"method": "GET",
+			"path": "/weight-service/weight/dateRange",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_body_composition",
+				"summary": "Return available body composition data for 'startdate' format",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 1192
+			}
+		},
+		{
+			"id": "calories-daily",
+			"method": "GET",
+			"path": "/userstats-service/wellness/daily/{displayName}",
+			"service": "userstats-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromDate",
+				"untilDate",
+				"metricId"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_calories_daily",
+				"summary": "Return daily active + resting (BMR) calories for a date range.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 2028
+			}
+		},
+		{
+			"id": "count-activities",
+			"method": "GET",
+			"path": "/activitylist-service/activities/count",
+			"service": "activitylist-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "count_activities",
+				"summary": "Return total number of activities for the current user account.",
+				"args": [],
+				"line": 2366
+			}
+		},
+		{
+			"id": "create-gear",
+			"method": "POST",
+			"path": "/gear-service/gear/v2",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "create_gear",
+				"summary": "Create a new piece of gear (e.g. a pair of shoes) and return it.",
+				"args": [
+					"gear_type",
+					"brand",
+					"model",
+					"name",
+					"first_use_date",
+					"usage_type",
+					"max_usage_distance_km",
+					"max_usage_duration_min",
+					"notes",
+					"activity_type_keys"
+				],
+				"line": 2822
+			}
+		},
+		{
+			"id": "create-manual-activity-from-json",
+			"method": "POST",
+			"path": "/activity-service/activity",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "create_manual_activity_from_json",
+				"summary": "",
+				"args": [
+					"payload"
+				],
+				"line": 2459
+			}
+		},
+		{
+			"id": "cycling-ftp",
+			"method": "GET",
+			"path": "/biometric-service/biometric/latestFunctionalThresholdPower/CYCLING",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_cycling_ftp",
+				"summary": "Return cycling Functional Threshold Power (FTP) information.",
+				"args": [],
+				"line": 3078
+			}
+		},
+		{
+			"id": "daily-steps",
+			"method": "GET",
+			"path": "/usersummary-service/stats/steps/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_daily_steps",
+				"summary": "Fetch available steps data 'start' and 'end' format 'YYYY-MM-DD'.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 1022
+			}
+		},
+		{
+			"id": "daily-weigh-ins",
+			"method": "GET",
+			"path": "/weight-service/weight/dayview/{date}",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [
+				"includeAll"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_daily_weigh_ins",
+				"summary": "Get weigh-ins for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1341
+			},
+			"plugin": "GarminApi.bodyComposition",
+			"groups": [
+				"body"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"totalAverage.weight",
+				"totalAverage.bmi",
+				"totalAverage.bodyFat",
+				"totalAverage.bodyWater",
+				"totalAverage.muscleMass",
+				"totalAverage.boneMass",
+				"dateWeightList[].weight"
+			],
+			"schema": "schema/daily-weigh-ins.json",
+			"notes": "Masses are grams, whatever the account's unit system. Empty on any day without a weigh-in, which for most accounts is most days."
+		},
+		{
+			"id": "delete-activity",
+			"method": "DELETE",
+			"path": "/activity-service/activity/{activityId}",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "delete_activity",
+				"summary": "Delete activity with specified id.",
+				"args": [
+					"activity_id"
+				],
+				"line": 2658
+			}
+		},
+		{
+			"id": "delete-blood-pressure",
+			"method": "DELETE",
+			"path": "/bloodpressure-service/bloodpressure/{date}/{version}",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date",
+				"version"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "delete_blood_pressure",
+				"summary": "Delete specific blood pressure measurement.",
+				"args": [
+					"version",
+					"cdate"
+				],
+				"line": 1464
+			}
+		},
+		{
+			"id": "delete-weigh-in",
+			"method": "DELETE",
+			"path": "/weight-service/weight/{date}/byversion/{weightPk}",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date",
+				"weightPk"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "delete_weigh_in",
+				"summary": "Delete specific weigh-in.",
+				"args": [
+					"weight_pk",
+					"cdate"
+				],
+				"line": 1350
+			}
+		},
+		{
+			"id": "delete-workout",
+			"method": "DELETE",
+			"path": "/workout-service/workout/{workoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"workoutId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "delete_workout",
+				"summary": "Delete a workout template from the workout library.",
+				"args": [
+					"workout_id"
+				],
+				"line": 3288
+			}
+		},
+		{
+			"id": "device-last-used",
+			"method": "GET",
+			"path": "/device-service/deviceservice/mylastused",
+			"service": "device-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_device_last_used",
+				"summary": "Return device last used.",
+				"args": [],
+				"line": 2359
+			}
+		},
+		{
+			"id": "device-settings",
+			"method": "GET",
+			"path": "/device-service/deviceservice/device-info/settings/{deviceId}",
+			"service": "device-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"deviceId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_device_settings",
+				"summary": "Return device settings for device with 'device_id'.",
+				"args": [
+					"device_id"
+				],
+				"line": 2307
+			}
+		},
+		{
+			"id": "device-solar-data",
+			"method": "GET",
+			"path": "/web-gateway/solar/{deviceId}/{startDate}/{endDate}",
+			"service": "web-gateway",
+			"tier": "connectapi",
+			"pathParams": [
+				"deviceId",
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"singleDayView"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_device_solar_data",
+				"summary": "Return solar data for compatible device with 'device_id'.",
+				"args": [
+					"device_id",
+					"startdate",
+					"enddate"
+				],
+				"line": 2324
+			}
+		},
+		{
+			"id": "devices",
+			"method": "GET",
+			"path": "/device-service/deviceregistration/devices",
+			"service": "device-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_devices",
+				"summary": "Return available devices for the current user account.",
+				"args": [],
+				"line": 2300
+			}
+		},
+		{
+			"id": "download-activity-csv",
+			"method": "GET",
+			"path": "/download-service/export/csv/activity/{activityId}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_activity",
+				"summary": "Downloads activity in requested format and returns the raw bytes. For",
+				"args": [
+					"activity_id",
+					"dl_fmt"
+				],
+				"line": 2994
+			}
+		},
+		{
+			"id": "download-activity-gpx",
+			"method": "GET",
+			"path": "/download-service/export/gpx/activity/{activityId}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_activity",
+				"summary": "Downloads activity in requested format and returns the raw bytes. For",
+				"args": [
+					"activity_id",
+					"dl_fmt"
+				],
+				"line": 2994
+			}
+		},
+		{
+			"id": "download-activity-kml",
+			"method": "GET",
+			"path": "/download-service/export/kml/activity/{activityId}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_activity",
+				"summary": "Downloads activity in requested format and returns the raw bytes. For",
+				"args": [
+					"activity_id",
+					"dl_fmt"
+				],
+				"line": 2994
+			}
+		},
+		{
+			"id": "download-activity-original",
+			"method": "GET",
+			"path": "/download-service/files/activity/{activityId}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_activity",
+				"summary": "Downloads activity in requested format and returns the raw bytes. For",
+				"args": [
+					"activity_id",
+					"dl_fmt"
+				],
+				"line": 2994
+			}
+		},
+		{
+			"id": "download-activity-tcx",
+			"method": "GET",
+			"path": "/download-service/export/tcx/activity/{activityId}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_activity",
+				"summary": "Downloads activity in requested format and returns the raw bytes. For",
+				"args": [
+					"activity_id",
+					"dl_fmt"
+				],
+				"line": 2994
+			}
+		},
+		{
+			"id": "download-health-snapshot",
+			"method": "GET",
+			"path": "/download-service/files/wellness/{date}",
+			"service": "download-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_health_snapshot",
+				"summary": "Download the Health Snapshot ZIP file for a calendar date.",
+				"args": [
+					"requested_date"
+				],
+				"line": 3019
+			}
+		},
+		{
+			"id": "download-workout",
+			"method": "GET",
+			"path": "/workout-service/workout/FIT/{workoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"workoutId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "binary",
+			"upstream": {
+				"method": "download_workout",
+				"summary": "Download workout by id.",
+				"args": [
+					"workout_id"
+				],
+				"line": 3295
+			}
+		},
+		{
+			"id": "earned-badges",
+			"method": "GET",
+			"path": "/badge-service/badge/earned",
+			"service": "badge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_earned_badges",
+				"summary": "Return all earned badges for the current user.",
+				"args": [],
+				"line": 1820
+			}
+		},
+		{
+			"id": "endurance-score",
+			"method": "GET",
+			"path": "/metrics-service/metrics/endurancescore",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_endurance_score",
+				"summary": "Return endurance score by day for 'startdate' format 'YYYY-MM-DD'",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 2148
+			},
+			"plugin": "GarminApi.enduranceScore",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"overallScore"
+			],
+			"schema": "schema/endurance-score.json",
+			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values."
+		},
+		{
+			"id": "fitnessage-data",
+			"method": "GET",
+			"path": "/fitnessage-service/fitnessage/{date}",
+			"service": "fitnessage-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_fitnessage_data",
+				"summary": "Return Fitness Age data for current user.",
+				"args": [
+					"cdate"
+				],
+				"line": 2266
+			}
+		},
+		{
+			"id": "floors",
+			"method": "GET",
+			"path": "/wellness-service/wellness/floorsChartData/daily/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_floors",
+				"summary": "Fetch available floors data 'cDate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1007
+			}
+		},
+		{
+			"id": "functional-threshold-power-range",
+			"method": "GET",
+			"path": "/biometric-service/stats/functionalThresholdPower/range/{startDate}/{endDate}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"sport",
+				"aggregation",
+				"aggregationStrategy"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_functional_threshold_power_range",
+				"summary": "Return historic functional threshold power for a Garmin sport.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 1499
+			}
+		},
+		{
+			"id": "gear",
+			"method": "GET",
+			"path": "/gear-service/gear/filterGear",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"userProfilePk"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_gear",
+				"summary": "Return a list of gear for the specified user profile number.",
+				"args": [
+					"userProfileNumber"
+				],
+				"line": 2812
+			}
+		},
+		{
+			"id": "gear-activities",
+			"method": "GET",
+			"path": "/activitylist-service/activities/{gearUuid}/gear",
+			"service": "activitylist-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"gearUuid"
+			],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_gear_activities",
+				"summary": "Return activities where gear uuid was used.",
+				"args": [
+					"gearUUID",
+					"limit"
+				],
+				"line": 3162
+			}
+		},
+		{
+			"id": "gear-defaults",
+			"method": "GET",
+			"path": "/gear-service/gear/user/{userProfileId}/activityTypes",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"userProfileId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_gear_defaults",
+				"summary": "",
+				"args": [
+					"userProfileNumber"
+				],
+				"line": 2948
+			}
+		},
+		{
+			"id": "gear-stats",
+			"method": "GET",
+			"path": "/gear-service/gear/stats/{gearUuid}",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"gearUuid"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_gear_stats",
+				"summary": "Return statistics (e.g. distance) for specific gear UUID.",
+				"args": [
+					"gearUUID"
+				],
+				"line": 2930
+			}
+		},
+		{
+			"id": "get-activities",
+			"method": "GET",
+			"path": "/activitylist-service/activities/search/activities",
+			"service": "activitylist-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_activities",
+				"summary": "Return available activities.",
+				"args": [
+					"start",
+					"limit",
+					"activitytype",
+					"activitysubtype"
+				],
+				"line": 2376
+			},
+			"plugin": "GarminApi.activities",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "paged",
+			"check": true,
+			"critical": [
+				"[].activityId",
+				"[].activityName",
+				"[].startTimeLocal",
+				"[].distance",
+				"[].duration",
+				"[].calories",
+				"[].averageHR",
+				"[].activityType.typeKey"
+			],
+			"schema": "schema/get-activities.json",
+			"reads": [
+				"[].maxHR",
+				"[].steps",
+				"[].elevationGain",
+				"[].movingDuration",
+				"[].aerobicTrainingEffect"
+			]
+		},
+		{
+			"id": "goals",
+			"method": "GET",
+			"path": "/goal-service/goal/goals",
+			"service": "goal-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"status",
+				"start",
+				"limit",
+				"sortOrder"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_goals",
+				"summary": "Fetch all goals based on status",
+				"args": [
+					"status",
+					"start",
+					"limit"
+				],
+				"line": 2765
+			}
+		},
+		{
+			"id": "golf-club-stats",
+			"method": "GET",
+			"path": "/gcs-golfcommunity/api/v2/club/player",
+			"service": "gcs-golfcommunity",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"per-page",
+				"include-stats"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_golf_club_stats",
+				"summary": "Return golf club names and statistics.",
+				"args": [
+					"limit"
+				],
+				"line": 3853
+			}
+		},
+		{
+			"id": "golf-scorecard",
+			"method": "GET",
+			"path": "/gcs-golfcommunity/api/v2/scorecard/detail",
+			"service": "gcs-golfcommunity",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"scorecard-ids",
+				"include-longest-shot-distance"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_golf_scorecard",
+				"summary": "Return golf scorecard detail by scorecard ID.",
+				"args": [
+					"scorecard_id"
+				],
+				"line": 3787
+			}
+		},
+		{
+			"id": "golf-shot-data",
+			"method": "GET",
+			"path": "/gcs-golfcommunity/api/v2/shot/scorecard/{scorecardId}/hole",
+			"service": "gcs-golfcommunity",
+			"tier": "connectapi",
+			"pathParams": [
+				"scorecardId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_golf_shot_data",
+				"summary": "Return golf shot data for a scorecard and specific holes.",
+				"args": [
+					"scorecard_id",
+					"hole_numbers"
+				],
+				"line": 3806
+			}
+		},
+		{
+			"id": "golf-summary",
+			"method": "GET",
+			"path": "/gcs-golfcommunity/api/v2/scorecard/summary",
+			"service": "gcs-golfcommunity",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"per-page",
+				"start"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_golf_summary",
+				"summary": "Return golf scorecard summary.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 3767
+			}
+		},
+		{
+			"id": "golf-user-stats",
+			"method": "GET",
+			"path": "/gcs-golfcommunity/api/v2/player/stats",
+			"service": "gcs-golfcommunity",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_golf_user_stats",
+				"summary": "Return overview of the users golf statistics.",
+				"args": [],
+				"line": 3872
+			}
+		},
+		{
+			"id": "heart-rate-zones",
+			"method": "GET",
+			"path": "/biometric-service/heartRateZones",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_heart_rate_zones",
+				"summary": "Return configured heart rate zones for all sport profiles.",
+				"args": [],
+				"line": 3086
+			}
+		},
+		{
+			"id": "heart-rates",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailyHeartRate/{displayName}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"date"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_heart_rates",
+				"summary": "Fetch available heart rates data 'cDate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1150
+			},
+			"plugin": "GarminApi.heartRate",
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"restingHeartRate",
+				"maxHeartRate",
+				"minHeartRate",
+				"heartRateValues"
+			],
+			"schema": "schema/heart-rates.json",
+			"notes": "Typed and tested but not wired into the sync \u2014 intraday series where the daily summary gives one number."
+		},
+		{
+			"id": "hill-score",
+			"method": "GET",
+			"path": "/metrics-service/metrics/hillscore",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_hill_score",
+				"summary": "Return hill score by day from 'startdate' format 'YYYY-MM-DD'",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 2274
+			}
+		},
+		{
+			"id": "hrv-data",
+			"method": "GET",
+			"path": "/hrv-service/hrv/{date}",
+			"service": "hrv-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_hrv_data",
+				"summary": "Return HRV (Heart Rate Variability) data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 2072
+			},
+			"plugin": "GarminApi.hrv",
+			"groups": [
+				"hrv"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"hrvSummary.lastNightAvg",
+				"hrvSummary.lastNight5MinHigh",
+				"hrvSummary.weeklyAvg",
+				"hrvSummary.status"
+			],
+			"schema": "schema/hrv-data.json",
+			"notes": "Returns null on days with no overnight HRV recording.",
+			"reads": [
+				"hrvSummary.baseline.balancedLow",
+				"hrvSummary.baseline.balancedUpper",
+				"hrvSummary.baseline.lowUpper"
+			]
+		},
+		{
+			"id": "hrv-data-range",
+			"method": "GET",
+			"path": "/hrv-service/hrv/daily/{startDate}/{endDate}",
+			"service": "hrv-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_hrv_data_range",
+				"summary": "Return HRV (Heart Rate Variability) data for a date range.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 2080
+			}
+		},
+		{
+			"id": "hydration-data",
+			"method": "GET",
+			"path": "/usersummary-service/usersummary/hydration/daily/{date}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_hydration_data",
+				"summary": "Return available hydration data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1739
+			}
+		},
+		{
+			"id": "import-activity",
+			"method": "POST",
+			"path": "/upload-service/upload/{fileExtension}",
+			"service": "upload-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"fileExtension"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "import_activity",
+				"summary": "Upload activity as an import (not re-exported to third parties like Strava).",
+				"args": [
+					"activity_path"
+				],
+				"line": 2564
+			}
+		},
+		{
+			"id": "inprogress-virtual-challenges",
+			"method": "GET",
+			"path": "/badgechallenge-service/virtualChallenge/inProgress",
+			"service": "badgechallenge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_inprogress_virtual_challenges",
+				"summary": "Return in-progress virtual challenges for current user.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 1907
+			}
+		},
+		{
+			"id": "intensity-minutes-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/daily/im/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_intensity_minutes_data",
+				"summary": "Return available Intensity Minutes data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1773
+			}
+		},
+		{
+			"id": "lactate-threshold-biometric-latest",
+			"method": "GET",
+			"path": "/biometric-service/biometric/latestLactateThreshold",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_lactate_threshold",
+				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
+				"args": [],
+				"line": 1544
+			}
+		},
+		{
+			"id": "lactate-threshold-biometric-power-to-weight-latest",
+			"method": "GET",
+			"path": "/biometric-service/biometric/powerToWeight/latest/{today}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"today"
+			],
+			"query": [
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_lactate_threshold",
+				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
+				"args": [],
+				"line": 1544
+			}
+		},
+		{
+			"id": "lactate-threshold-stats-heart-rate-range",
+			"method": "GET",
+			"path": "/biometric-service/stats/lactateThresholdHeartRate/range/{startDate}/{endDate}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"sport",
+				"aggregation",
+				"aggregationStrategy"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_lactate_threshold",
+				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
+				"args": [],
+				"line": 1544
+			}
+		},
+		{
+			"id": "lactate-threshold-stats-speed-range",
+			"method": "GET",
+			"path": "/biometric-service/stats/lactateThresholdSpeed/range/{startDate}/{endDate}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"sport",
+				"aggregation",
+				"aggregationStrategy"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_lactate_threshold",
+				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
+				"args": [],
+				"line": 1544
+			}
+		},
+		{
+			"id": "lifestyle-logging-data",
+			"method": "GET",
+			"path": "/lifestylelogging-service/dailyLog/{date}",
+			"service": "lifestylelogging-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_lifestyle_logging_data",
+				"summary": "Return lifestyle logging data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1981
+			}
+		},
+		{
+			"id": "max-metrics",
+			"method": "GET",
+			"path": "/metrics-service/metrics/maxmet/daily/{date}/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date",
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_max_metrics",
+				"summary": "Return available max metric data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1478
+			}
+		},
+		{
+			"id": "max-metrics-range",
+			"method": "GET",
+			"path": "/metrics-service/metrics/maxmet/daily/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_max_metrics_range",
+				"summary": "Return max metric data for a date range ('start'/'end' format 'YYYY-MM-DD').",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 1486
+			},
+			"plugin": "GarminApi.maxMetrics",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].generic.vo2MaxPreciseValue",
+				"[].generic.vo2MaxValue",
+				"[].generic.fitnessAge"
+			],
+			"schema": "schema/max-metrics-range.json",
+			"notes": "VO2 Max and fitness age. `[].cycling.*` only appears for accounts with cycling VO2 Max, so it is not critical.",
+			"reads": [
+				"[].cycling.vo2MaxPreciseValue",
+				"[].cycling.vo2MaxValue"
+			]
+		},
+		{
+			"id": "menstrual-calendar-data",
+			"method": "GET",
+			"path": "/periodichealth-service/menstrualcycle/calendar/{startDate}/{endDate}",
+			"service": "periodichealth-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_menstrual_calendar_data",
+				"summary": "Return summaries of cycles that have days between startdate and enddate.",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 3643
+			}
+		},
+		{
+			"id": "menstrual-data-for-date",
+			"method": "GET",
+			"path": "/periodichealth-service/menstrualcycle/dayview/{date}",
+			"service": "periodichealth-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_menstrual_data_for_date",
+				"summary": "Return menstrual data for date.",
+				"args": [
+					"fordate"
+				],
+				"line": 3635
+			}
+		},
+		{
+			"id": "non-completed-badge-challenges",
+			"method": "GET",
+			"path": "/badgechallenge-service/badgeChallenge/non-completed",
+			"service": "badgechallenge-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_non_completed_badge_challenges",
+				"summary": "Return badge non-completed challenges for current user.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 1895
+			}
+		},
+		{
+			"id": "nutrition-daily-food-log",
+			"method": "GET",
+			"path": "/nutrition-service/food/logs/{date}",
+			"service": "nutrition-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_nutrition_daily_food_log",
+				"summary": "Return food log summary for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 3746
+			}
+		},
+		{
+			"id": "nutrition-daily-meals",
+			"method": "GET",
+			"path": "/nutrition-service/meals/{date}",
+			"service": "nutrition-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_nutrition_daily_meals",
+				"summary": "Return meals summary for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 3753
+			}
+		},
+		{
+			"id": "nutrition-daily-settings",
+			"method": "GET",
+			"path": "/nutrition-service/settings/{date}",
+			"service": "nutrition-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_nutrition_daily_settings",
+				"summary": "Return nutrition settings for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 3760
+			}
+		},
+		{
+			"id": "personal-record",
+			"method": "GET",
+			"path": "/personalrecord-service/personalrecord/prs/{displayName}",
+			"service": "personalrecord-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_personal_record",
+				"summary": "Return personal records for current user.",
+				"args": [],
+				"line": 1799
+			}
+		},
+		{
+			"id": "power-zones",
+			"method": "GET",
+			"path": "/biometric-service/powerZones/sports/all",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_power_zones",
+				"summary": "Return configured power zones for all supported sports.",
+				"args": [],
+				"line": 3091
+			}
+		},
+		{
+			"id": "power-zones-for-sport",
+			"method": "GET",
+			"path": "/biometric-service/powerZones/sport/{sport}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"sport"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_power_zones_for_sport",
+				"summary": "Return configured power zones for a Garmin sport key.",
+				"args": [
+					"sport"
+				],
+				"line": 3097
+			}
+		},
+		{
+			"id": "pregnancy-summary",
+			"method": "GET",
+			"path": "/periodichealth-service/menstrualcycle/pregnancysnapshot",
+			"service": "periodichealth-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_pregnancy_summary",
+				"summary": "Return pregnancy summary for the current user.",
+				"args": [],
+				"line": 3656
+			}
+		},
+		{
+			"id": "primary-training-device",
+			"method": "GET",
+			"path": "/web-gateway/device-info/primary-training-device",
+			"service": "web-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_primary_training_device",
+				"summary": "Return detailed information around primary training devices, included the specified device and the",
+				"args": [],
+				"line": 2315
+			}
+		},
+		{
+			"id": "progress-summary-between-dates",
+			"method": "GET",
+			"path": "/fitnessstats-service/activity",
+			"service": "fitnessstats-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"aggregation",
+				"groupByParentActivityType",
+				"metric"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_progress_summary_between_dates",
+				"summary": "Fetch progress summary data between specific dates",
+				"args": [
+					"startdate",
+					"enddate",
+					"metric",
+					"groupbyactivities"
+				],
+				"line": 2729
+			}
+		},
+		{
+			"id": "push-workout-to-device",
+			"method": "POST",
+			"path": "/device-service/devicemessage/messages",
+			"service": "device-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "push_workout_to_device",
+				"summary": "Push a workout to a device.",
+				"args": [
+					"workout_id",
+					"device_id"
+				],
+				"line": 3536
+			}
+		},
+		{
+			"id": "race-predictions",
+			"method": "GET",
+			"path": "/metrics-service/metrics/racepredictions/{type}/{displayName}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"type",
+				"displayName"
+			],
+			"query": [
+				"fromCalendarDate",
+				"toCalendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_race_predictions",
+				"summary": "Return race predictions for the 5k, 10k, half marathon and marathon.",
+				"args": [
+					"startdate",
+					"enddate",
+					"_type"
+				],
+				"line": 2209
+			},
+			"plugin": "GarminApi.racePredictions",
+			"groups": [
+				"races"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].time5K",
+				"[].time10K",
+				"[].timeHalfMarathon",
+				"[].timeMarathon"
+			],
+			"schema": "schema/race-predictions.json",
+			"notes": "The plugin sends `daily` for {type}. Garmin rejects ranges longer than a year."
+		},
+		{
+			"id": "remove-gear-from-activity",
+			"method": "PUT",
+			"path": "/gear-service/gear/unlink/{gearUuid}/activity/{activityId}",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"gearUuid",
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "remove_gear_from_activity",
+				"summary": "Removes gear from an activity. Requires a gearUUID and an activity_id.",
+				"args": [
+					"gearUUID",
+					"activity_id"
+				],
+				"line": 3220
+			}
+		},
+		{
+			"id": "request-reload",
+			"method": "POST",
+			"path": "/wellness-service/wellness/epoch/request/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "request_reload",
+				"summary": "Request reload of data for a specific date. This is necessary because",
+				"args": [
+					"cdate"
+				],
+				"line": 3263
+			}
+		},
+		{
+			"id": "respiration-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/daily/respiration/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_respiration_data",
+				"summary": "Return available respiration data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1747
+			}
+		},
+		{
+			"id": "rhr-daily",
+			"method": "GET",
+			"path": "/userstats-service/wellness/daily/{displayName}",
+			"service": "userstats-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromDate",
+				"untilDate",
+				"metricId"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_rhr_daily",
+				"summary": "Return daily resting heart rate for a date range ('start'/'end' format 'YYYY-MM-DD').",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 2002
+			}
+		},
+		{
+			"id": "rhr-day",
+			"method": "GET",
+			"path": "/userstats-service/wellness/daily/{displayName}",
+			"service": "userstats-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromDate",
+				"untilDate",
+				"metricId"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_rhr_day",
+				"summary": "Return resting heart rate data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1989
+			},
+			"plugin": "GarminApi.restingHeartRate",
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"schema": "schema/rhr-day.json",
+			"notes": "Typed and tested but not wired into the sync. `metricId=60` selects resting heart rate."
+		},
+		{
+			"id": "running-tolerance",
+			"method": "GET",
+			"path": "/metrics-service/metrics/runningtolerance/stats",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"aggregation"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_running_tolerance",
+				"summary": "Return running tolerance data for date range.",
+				"args": [
+					"startdate",
+					"enddate",
+					"aggregation"
+				],
+				"line": 2174
+			}
+		},
+		{
+			"id": "schedule-workout",
+			"method": "POST",
+			"path": "/workout-service/schedule/{workoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"workoutId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "schedule_workout",
+				"summary": "Schedule a workout on a specific date in the Garmin calendar.",
+				"args": [
+					"workout_id",
+					"date_str"
+				],
+				"line": 3611
+			}
+		},
+		{
+			"id": "scheduled-workout-by-id",
+			"method": "GET",
+			"path": "/workout-service/schedule/{scheduledWorkoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"scheduledWorkoutId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_scheduled_workout_by_id",
+				"summary": "Return scheduled workout by ID.",
+				"args": [
+					"scheduled_workout_id"
+				],
+				"line": 3600
+			}
+		},
+		{
+			"id": "scheduled-workouts",
+			"method": "GET",
+			"path": "/calendar-service/year/{year}/month/{monthIndex}",
+			"service": "calendar-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"year",
+				"monthIndex"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_scheduled_workouts",
+				"summary": "Return scheduled workout by year and month.",
+				"args": [
+					"year",
+					"month"
+				],
+				"line": 3581
+			}
+		},
+		{
+			"id": "set-activity-description",
+			"method": "PUT",
+			"path": "/activity-service/activity/{activityId}",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "set_activity_description",
+				"summary": "Set description for activity with id.",
+				"args": [
+					"activity_id",
+					"description"
+				],
+				"line": 2451
+			}
+		},
+		{
+			"id": "set-activity-exercise-sets",
+			"method": "PUT",
+			"path": "/activity-service/activity/{activityId}/exerciseSets",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "set_activity_exercise_sets",
+				"summary": "Replace exercise sets for activity with id.",
+				"args": [
+					"activity_id",
+					"payload"
+				],
+				"line": 3133
+			}
+		},
+		{
+			"id": "set-activity-name",
+			"method": "PUT",
+			"path": "/activity-service/activity/{activityId}",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "set_activity_name",
+				"summary": "Set name for activity with id.",
+				"args": [
+					"activity_id",
+					"title"
+				],
+				"line": 2423
+			}
+		},
+		{
+			"id": "set-activity-type",
+			"method": "PUT",
+			"path": "/activity-service/activity/{activityId}",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"activityId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "set_activity_type",
+				"summary": "",
+				"args": [
+					"activity_id",
+					"type_id",
+					"type_key",
+					"parent_type_id"
+				],
+				"line": 2431
+			}
+		},
+		{
+			"id": "set-blood-pressure",
+			"method": "POST",
+			"path": "/bloodpressure-service/bloodpressure",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "set_blood_pressure",
+				"summary": "Add blood pressure measurement.",
+				"args": [
+					"systolic",
+					"diastolic",
+					"pulse",
+					"timestamp",
+					"notes"
+				],
+				"line": 1414
+			}
+		},
+		{
+			"id": "set-gear-default",
+			"method": "VARIES",
+			"path": "/gear-service/gear/{gearUuid}/activityType/{activityType}{defaultSuffix}",
+			"service": "gear-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"gearUuid",
+				"activityType",
+				"defaultSuffix"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "set_gear_default",
+				"summary": "",
+				"args": [
+					"activityType",
+					"gearUUID",
+					"defaultGear"
+				],
+				"line": 2958
+			},
+			"methodNote": "verb chosen at runtime: method_override"
+		},
+		{
+			"id": "sleep-daily",
+			"method": "GET",
+			"path": "/sleep-service/stats/sleep/daily/{startDate}/{endDate}",
+			"service": "sleep-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_sleep_daily",
+				"summary": "Fetch daily sleep summaries for 'start' and 'end' format 'YYYY-MM-DD'.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 1935
+			}
+		},
+		{
+			"id": "sleep-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailySleepData/{displayName}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"date",
+				"nonSleepBufferMinutes"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_sleep_data",
+				"summary": "Return sleep data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1919
+			},
+			"plugin": "GarminApi.sleep",
+			"groups": [
+				"sleep"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"dailySleepDTO.calendarDate",
+				"dailySleepDTO.sleepTimeSeconds",
+				"dailySleepDTO.deepSleepSeconds",
+				"dailySleepDTO.lightSleepSeconds",
+				"dailySleepDTO.remSleepSeconds",
+				"dailySleepDTO.awakeSleepSeconds",
+				"dailySleepDTO.sleepStartTimestampGMT",
+				"dailySleepDTO.sleepEndTimestampGMT",
+				"dailySleepDTO.sleepScores.overall.value"
+			],
+			"schema": "schema/sleep-data.json",
+			"reads": [
+				"dailySleepDTO.sleepScores.overall.qualifierKey",
+				"dailySleepDTO.restingHeartRate",
+				"dailySleepDTO.avgSleepStress",
+				"dailySleepDTO.awakeCount",
+				"dailySleepDTO.restlessMomentsCount",
+				"dailySleepDTO.averageRespirationValue",
+				"dailySleepDTO.averageSpO2Value",
+				"dailySleepDTO.lowestSpO2Value",
+				"dailySleepDTO.bodyBatteryChange",
+				"dailySleepDTO.napTimeSeconds"
+			]
+		},
+		{
+			"id": "social-profile",
+			"method": "GET",
+			"path": "/userprofile-service/socialProfile",
+			"service": "userprofile-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "Garmin._require_display_name",
+				"summary": "Resolve the display name every wellness path interpolates.",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.socialProfile",
+			"cadence": "session",
+			"check": true,
+			"critical": [
+				"displayName",
+				"fullName"
+			],
+			"schema": "schema/social-profile.json",
+			"notes": "displayName is interpolated into most wellness paths; the plugin URL-encodes it first."
+		},
+		{
+			"id": "spo2-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/daily/spo2/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_spo2_data",
+				"summary": "Return available SpO2 data 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1755
+			}
+		},
+		{
+			"id": "steps-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailySummaryChart/{displayName}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"date"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_steps_data",
+				"summary": "Fetch available steps data 'cDate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 990
+			}
+		},
+		{
+			"id": "stress-data",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailyStress/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_stress_data",
+				"summary": "Return stress data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 1973
+			}
+		},
+		{
+			"id": "training-plan-by-id",
+			"method": "GET",
+			"path": "/trainingplan-service/trainingplan/phased/{planId}",
+			"service": "trainingplan-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"planId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_training_plan_by_id",
+				"summary": "Return details for a specific training plan.",
+				"args": [
+					"plan_id"
+				],
+				"line": 3730
+			}
+		},
+		{
+			"id": "training-plans",
+			"method": "GET",
+			"path": "/trainingplan-service/trainingplan/plans",
+			"service": "trainingplan-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_training_plans",
+				"summary": "Return all available training plans.",
+				"args": [],
+				"line": 3724
+			}
+		},
+		{
+			"id": "training-readiness",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingreadiness/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_training_readiness",
+				"summary": "Return training readiness data for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 2093
+			},
+			"plugin": "GarminApi.trainingReadiness",
+			"groups": [
+				"readiness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"[].score",
+				"[].level"
+			],
+			"schema": "schema/training-readiness.json",
+			"notes": "An array; the plugin reads element 0.",
+			"reads": [
+				"[].sleepScore",
+				"[].hrvFactorPercent",
+				"[].recoveryTime",
+				"[].acuteLoad"
+			]
+		},
+		{
+			"id": "training-status",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingstatus/aggregated/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_training_status",
+				"summary": "Return training status data for current user.",
+				"args": [
+					"cdate"
+				],
+				"line": 2258
+			},
+			"plugin": "GarminApi.trainingStatus",
+			"groups": [
+				"training"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"acuteTrainingLoadDTO.dailyTrainingLoadAcute",
+				"acuteTrainingLoadDTO.dailyTrainingLoadChronic",
+				"acuteTrainingLoadDTO.dailyAcuteChronicWorkloadRatio",
+				"acuteTrainingLoadDTO.acwrPercent",
+				"acuteTrainingLoadDTO.acwrStatus"
+			],
+			"schema": "schema/training-status.json",
+			"notes": "latestTrainingStatusData is keyed by device id, so the mapper takes whichever entry is there rather than naming one. Nothing here is critical: an account with no training load simply gets no training properties."
+		},
+		{
+			"id": "unschedule-workout",
+			"method": "DELETE",
+			"path": "/workout-service/schedule/{scheduledWorkoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"scheduledWorkoutId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "unschedule_workout",
+				"summary": "Remove a scheduled workout from the calendar without deleting the template.",
+				"args": [
+					"scheduled_workout_id"
+				],
+				"line": 3626
+			}
+		},
+		{
+			"id": "update-workout",
+			"method": "PUT",
+			"path": "/workout-service/workout/{workoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"workoutId"
+			],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "update_workout",
+				"summary": "Update (replace) an existing workout in place using json data.",
+				"args": [
+					"workout_id",
+					"workout_json"
+				],
+				"line": 3323
+			}
+		},
+		{
+			"id": "upload-activity",
+			"method": "POST",
+			"path": "/upload-service/upload",
+			"service": "upload-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "upload_activity",
+				"summary": "Upload activity in fit format from file.",
+				"args": [
+					"activity_path"
+				],
+				"line": 2510
+			}
+		},
+		{
+			"id": "upload-workout",
+			"method": "POST",
+			"path": "/workout-service/workout",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"upstream": {
+				"method": "upload_workout",
+				"summary": "Upload workout using json data.",
+				"args": [
+					"workout_json"
+				],
+				"line": 3303
+			}
+		},
+		{
+			"id": "user-profile",
+			"method": "GET",
+			"path": "/userprofile-service/userprofile/user-settings",
+			"service": "userprofile-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_user_profile",
+				"summary": "Get all users settings.",
+				"args": [],
+				"line": 3249
+			},
+			"plugin": "GarminApi.userSettings",
+			"cadence": "session",
+			"check": true,
+			"critical": [
+				"userData.measurementSystem"
+			],
+			"schema": "schema/user-profile.json",
+			"notes": "Only read to resolve the `auto` unit setting (src/sync/runner.ts)."
+		},
+		{
+			"id": "user-summary",
+			"method": "GET",
+			"path": "/usersummary-service/usersummary/daily/{displayName}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_user_summary",
+				"summary": "Return user activity summary for 'cdate' format 'YYYY-MM-DD'.",
+				"args": [
+					"cdate"
+				],
+				"line": 963
+			},
+			"plugin": "GarminApi.dailySummary",
+			"groups": [
+				"activity",
+				"heart",
+				"stress"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"totalSteps",
+				"dailyStepGoal",
+				"totalDistanceMeters",
+				"totalKilocalories",
+				"activeKilocalories",
+				"floorsAscended",
+				"moderateIntensityMinutes",
+				"vigorousIntensityMinutes",
+				"restingHeartRate",
+				"minHeartRate",
+				"maxHeartRate",
+				"averageStressLevel",
+				"bodyBatteryHighestValue",
+				"bodyBatteryLowestValue"
+			],
+			"schema": "schema/user-summary.json",
+			"notes": "Serves three metric groups from one request. A `privacyProtected: true` body means the session is not fully authorised.",
+			"reads": [
+				"bmrKilocalories",
+				"floorsDescended",
+				"userFloorsAscendedGoal",
+				"intensityMinutesGoal",
+				"activeSeconds",
+				"highlyActiveSeconds",
+				"sedentarySeconds",
+				"lastSevenDaysAvgRestingHeartRate",
+				"maxStressLevel",
+				"stressQualifier",
+				"restStressDuration",
+				"lowStressDuration",
+				"mediumStressDuration",
+				"highStressDuration",
+				"bodyBatteryMostRecentValue",
+				"bodyBatteryChargedValue",
+				"bodyBatteryDrainedValue",
+				"avgWakingRespirationValue",
+				"lowestRespirationValue",
+				"highestRespirationValue",
+				"averageSpo2",
+				"lowestSpo2",
+				"latestSpo2"
+			]
+		},
+		{
+			"id": "userprofile-settings",
+			"method": "GET",
+			"path": "/userprofile-service/userprofile/settings",
+			"service": "userprofile-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_userprofile_settings",
+				"summary": "Get user settings.",
+				"args": [],
+				"line": 3256
+			}
+		},
+		{
+			"id": "weekly-intensity-minutes",
+			"method": "GET",
+			"path": "/usersummary-service/stats/im/weekly/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_weekly_intensity_minutes",
+				"summary": "Fetch weekly intensity minutes aggregates.",
+				"args": [
+					"start",
+					"end"
+				],
+				"line": 1125
+			}
+		},
+		{
+			"id": "weekly-steps",
+			"method": "GET",
+			"path": "/usersummary-service/stats/steps/weekly/{endDate}/{weeks}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"endDate",
+				"weeks"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_weekly_steps",
+				"summary": "Fetch weekly steps aggregates.",
+				"args": [
+					"end",
+					"weeks"
+				],
+				"line": 1080
+			}
+		},
+		{
+			"id": "weekly-stress",
+			"method": "GET",
+			"path": "/usersummary-service/stats/stress/weekly/{endDate}/{weeks}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"endDate",
+				"weeks"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_weekly_stress",
+				"summary": "Fetch weekly stress aggregates.",
+				"args": [
+					"end",
+					"weeks"
+				],
+				"line": 1104
+			}
+		},
+		{
+			"id": "weigh-ins",
+			"method": "GET",
+			"path": "/weight-service/weight/range/{startDate}/{endDate}",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"includeAll"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_weigh_ins",
+				"summary": "Get weigh-ins between startdate and enddate using format 'YYYY-MM-DD'.",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": 1331
+			}
+		},
+		{
+			"id": "workout-by-id",
+			"method": "GET",
+			"path": "/workout-service/workout/{workoutId}",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"workoutId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_workout_by_id",
+				"summary": "Return workout by id.",
+				"args": [
+					"workout_id"
+				],
+				"line": 3282
+			}
+		},
+		{
+			"id": "workouts",
+			"method": "GET",
+			"path": "/workout-service/workouts",
+			"service": "workout-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"start",
+				"limit"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"upstream": {
+				"method": "get_workouts",
+				"summary": "Return workouts starting at offset `start` with at most `limit` results.",
+				"args": [
+					"start",
+					"limit"
+				],
+				"line": 3273
+			}
+		}
+	]
+}

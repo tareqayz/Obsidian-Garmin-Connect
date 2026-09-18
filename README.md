@@ -4,7 +4,7 @@ Syncs Garmin Connect health data into your daily notes as frontmatter properties
 — **on mobile as well as the desktop**, which is the part nobody had solved.
 
 **Status: phase 2 + dashboard.** Authentication, session persistence, the typed
-API core, the sync engine and the dashboard are done and tested (259 tests).
+API core, the sync engine and the dashboard are done and tested (354 tests).
 Multi-factor authentication is handled. The UI is Svelte 5, functional rather
 than polished.
 
@@ -63,11 +63,27 @@ it from current settings when you want that.
 ## The dashboard
 
 **Open dashboard** (ribbon, or the command palette) opens a pane of charts drawn
-from whatever has been synced — stat tiles with week-over-week deltas and
-sparklines, a steps column chart against your goal, sleep by stage, and small
-multiples for resting HR, HRV, Body Battery and training readiness. A range row
-(30 days / 90 days / 1 year) scopes everything below it, and a **Table** toggle
-swaps the whole view for the same numbers as text.
+from whatever has been synced. It leads with goal rings for steps, intensity
+minutes and floors, then a strip of stat tiles carrying week-over-week deltas and
+sparklines. Below that, **five collapsible sections** — Activity, Sleep, Recovery
+and stress, Fitness and training, Body — hold around thirty-six cards between
+them. A range row (30 days / 90 days / 1 year) scopes everything below it, and a
+**Table** toggle swaps the whole view for the same numbers as text.
+
+Beyond the line, column, band and stacked charts, the sections carry:
+
+- a **calendar heatmap** with a metric picker — one square per day, shaded by
+  quartile so a single extraordinary day does not wash out the year, and days
+  with nothing synced drawn as outlines rather than pale squares;
+- an **activity list** — every workout in the range with its distance, pace,
+  heart rate, calories and training effect. These were being synced into every
+  note and shown nowhere;
+- **composition bars** for the day split into activity bands, the four stress
+  bands, and the night's sleep mix;
+- a **baseline chart** that draws HRV inside the personal range Garmin judges it
+  by, because 38 ms means nothing on its own;
+- a **two-series line chart** for acute against chronic training load, which is
+  the only way that pair reads.
 
 A **Custom** chip swaps the presets for two date pickers when you want an exact
 window. The same row carries **Sync** (the last few days) and **Backfill…** (any
@@ -118,13 +134,23 @@ A few choices worth knowing, since they are easy to get wrong:
 
 ### What gets collected
 
-Nine metric groups, each switchable: **activity** (steps, distance, calories,
-floors, intensity minutes), **heart** (resting/min/max), **sleep** (duration,
-stages, score, start and end), **stress and Body Battery**, **HRV**, **training
-readiness**, **fitness** (VO2 Max, fitness age, endurance score), **races**
-(predicted 5K/10K/half/marathon times), and **workouts**. Turning a group off
-also stops the request that fetches it, and drops its columns from a rebuilt
-table view.
+Thirteen metric groups, each switchable, writing around ninety properties
+between them: **activity** (steps, distance, calories, floors, intensity minutes,
+and the day split into active, highly active and sedentary), **heart**
+(resting, Garmin's seven-day resting average, min, max), **sleep** (duration,
+stages, score, the night's own resting heart rate, respiration, SpO2, awakenings
+and recharge), **stress and Body Battery** (averages, peaks, minutes in each
+band, charged and drained), **HRV** (overnight average and the baseline range it
+is judged against), **training readiness** (score plus the factors behind it),
+**fitness** (VO2 Max, fitness age, endurance score), **races** (predicted
+5K/10K/half/marathon times), **respiration**, **pulse ox**, **body composition**
+(weight, BMI, body fat, muscle and bone mass), **training load** (status, acute,
+chronic, ratio), and **workouts**.
+
+Turning a group off stops the request that fetches it *when it has one*. Five of
+the thirteen share the daily summary call, so respiration and pulse ox in
+particular cost nothing at all; the settings screen marks each group as free or
+as one request per day. With everything on, a day costs seven requests.
 
 Every property, with units and query examples, is in
 [docs/properties.md](docs/properties.md).
@@ -140,6 +166,7 @@ Every property, with units and query examples, is in
 | [Troubleshooting](docs/troubleshooting.md) | Keyed by symptom |
 | [Architecture](docs/architecture.md) | The two seams, module map, and how to extend |
 | [Garmin API](docs/garmin-api.md) | Endpoints called, and the request budget |
+| [API catalogue](api/README.md) | Every endpoint Garmin exposes, the response shapes recorded, and the daily check that watches them |
 | [Contributing](CONTRIBUTING.md) | Branch conventions and the release runbooks |
 | [Security](SECURITY.md) | What is stored, what leaves your device |
 
@@ -302,12 +329,20 @@ src/dashboard/
   series.ts              rows → series, stats, formatting  — pure
   scales.ts              chart geometry, ticks, paths      — pure
   metrics.ts             what is shown and how it behaves  — pure
+  heatmap.ts             the calendar grid and its quartiles — pure
   collect.ts             reads days back out of the vault
   view.ts                the Obsidian ItemView, mounts Svelte
 src/ui/svelte/
-  Dashboard.svelte       root: filters, tiles, cards, table
+  Dashboard.svelte       root: filters, rings, tiles, sections, table
   Chart.svelte           shared frame: scale, axes, hit bands, tooltip
   ColumnChart / LineChart / BandChart / StackedChart
+  BaselineChart          a line inside the range it is judged by
+  MultiLineChart         several series on one axis, gaps left as gaps
+  CalendarHeatmap        one square per day, quartile-shaded
+  CompositionBar         one whole split into ordered parts
+  GoalRing               progress against a target Garmin set
+  WorkoutList            the range's activities
+  Section                a collapsible group of cards
   StatTile / Sparkline / Legend / Card / FilterBar / DataTable
   LoginForm / SyncRangeForm / ProbePanel / SettingsPanel
   obsidian-setting.ts    action that drops a native Setting row into markup
