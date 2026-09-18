@@ -16,6 +16,12 @@ See [security](../SECURITY.md) before you sync that file anywhere public.
 Your **password is never stored**. It is used for one sign-in request and
 dropped. Only a refresh token and the DI client ID it belongs to are written.
 
+If the account has multi-factor authentication on, the sign-in dialog asks for
+the verification code as a second step. The code is not stored either, and
+because "remember this browser" needs a cookie the plugin deliberately does not
+keep, expect the challenge on every sign-in — which is once per session, not
+once per sync.
+
 ## What gets collected
 
 | Setting | Default | Effect |

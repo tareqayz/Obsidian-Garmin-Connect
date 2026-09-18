@@ -6,10 +6,12 @@ import {
 	GarminApiError,
 	GarminAuthError,
 	GarminBlockedError,
+	GarminMfaCancelledError,
 	GarminMfaRequiredError,
 	GarminNetworkError,
 	GarminRateLimitError,
 } from "../src/garmin/errors";
+import { MFA_MAX_ATTEMPTS } from "../src/garmin/auth";
 import { MemoryTokenStore } from "../src/garmin/tokens";
 
 function clientWith(rules: FixtureRule[]) {
@@ -85,7 +87,7 @@ describe("login", () => {
 		await assert.rejects(() => client.login("u", "p"), GarminRateLimitError);
 	});
 
-	it("raises a distinct error when MFA is demanded", async () => {
+	it("raises a distinct error when MFA is demanded and nothing can ask for a code", async () => {
 		const { client } = clientWith([
 			{
 				url: "/mobile/api/login",
@@ -113,6 +115,93 @@ describe("login", () => {
 		// A 429 on a re-login should not sign the user out of the session they had.
 		assert.equal(client.isAuthenticated, true);
 		assert.equal((await store.load())!.refreshToken, "refresh-1");
+	});
+});
+
+describe("login with MFA", () => {
+	const mfaDemanded: FixtureRule = {
+		url: "/mobile/api/login",
+		times: 1,
+		json: {
+			responseStatus: { type: "MFA_REQUIRED" },
+			customerMfaInfo: { mfaLastMethodUsed: "EMAIL" },
+		},
+	};
+	const codeAccepted: FixtureRule = {
+		url: "/mobile/api/mfa/verifyCode",
+		times: 1,
+		json: { responseStatus: { type: "SUCCESSFUL" }, serviceTicketId: "ST-MFA" },
+	};
+	const codeRefused: FixtureRule = {
+		url: "/mobile/api/mfa/verifyCode",
+		json: { responseStatus: { type: "INVALID_MFA_CODE" } },
+	};
+
+	it("stores the same narrow session a passwordless account would", async () => {
+		const { client, store } = clientWith([mfaDemanded, codeAccepted, diOk]);
+		await client.login("user@example.com", "hunter2", {
+			onMfaRequired: async () => "123456",
+		});
+
+		const saved = await store.load();
+		assert.equal(saved!.refreshToken, "refresh-1");
+		assert.deepEqual(Object.keys(saved!).sort(), ["diClientId", "refreshToken", "savedAt"]);
+		assert.equal(client.isAuthenticated, true);
+	});
+
+	it("never puts the code anywhere but the verify body", async () => {
+		const { client, http } = clientWith([mfaDemanded, codeAccepted, diOk]);
+		await client.login("u", "pw", { onMfaRequired: async () => "123456" });
+
+		const withCode = http.requests.filter((r) => (r.body ?? "").includes("123456"));
+		assert.equal(withCode.length, 1);
+		assert.match(withCode[0]!.resolvedUrl, /\/mobile\/api\/mfa\/verifyCode/);
+	});
+
+	it("reports a cancelled prompt as its own error, having committed nothing", async () => {
+		const { client, store, http } = clientWith([mfaDemanded]);
+		await assert.rejects(
+			() => client.login("u", "pw", { onMfaRequired: async () => null }),
+			GarminMfaCancelledError,
+		);
+
+		assert.equal(client.isAuthenticated, false);
+		assert.equal(await store.load(), null);
+		assert.equal(http.urls.filter((u) => u.includes("diauth")).length, 0);
+	});
+
+	it("leaves a working session intact when a re-login is abandoned at the prompt", async () => {
+		const { client, store } = clientWith([loginOk, diOk, mfaDemanded]);
+		await client.login("a@example.com", "pw");
+		await assert.rejects(
+			() => client.login("b@example.com", "pw", { onMfaRequired: async () => null }),
+			GarminMfaCancelledError,
+		);
+
+		assert.equal(client.isAuthenticated, true);
+		assert.equal((await store.load())!.refreshToken, "refresh-1");
+	});
+
+	it("surfaces an exhausted attempt budget as an auth failure that names the reason", async () => {
+		const { client } = clientWith([mfaDemanded, codeRefused]);
+		await assert.rejects(
+			() => client.login("u", "pw", { onMfaRequired: async () => "000000" }),
+			(err: unknown) =>
+				err instanceof GarminAuthError &&
+				err.message.includes(String(MFA_MAX_ATTEMPTS)) &&
+				err.message.includes("INVALID_MFA_CODE"),
+		);
+	});
+
+	it("still distinguishes rate limiting from a bad code", async () => {
+		const { client } = clientWith([
+			mfaDemanded,
+			{ url: "/mobile/api/mfa/verifyCode", status: 429, text: "" },
+		]);
+		await assert.rejects(
+			() => client.login("u", "pw", { onMfaRequired: async () => "123456" }),
+			GarminRateLimitError,
+		);
 	});
 });
 

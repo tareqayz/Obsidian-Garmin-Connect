@@ -1,11 +1,17 @@
 import { CookieJar, parseJson, type HttpClient } from "../http";
 import { silentLog, snippet, type Log } from "../log";
 import { endpoints, nativeHeaders, type GarminDomain } from "./constants";
-import { exchangeServiceTicket, mobileLogin, type AuthContext } from "./auth";
+import {
+	exchangeServiceTicket,
+	loginWithMfa,
+	type AuthContext,
+	type MfaPrompt,
+} from "./auth";
 import {
 	GarminApiError,
 	GarminAuthError,
 	GarminBlockedError,
+	GarminMfaCancelledError,
 	GarminMfaRequiredError,
 	GarminNetworkError,
 	GarminRateLimitError,
@@ -24,6 +30,18 @@ export interface GarminClientOptions {
 	store: TokenStore;
 	domain?: GarminDomain;
 	log?: Log;
+}
+
+export interface LoginOptions {
+	/**
+	 * Called when Garmin demands a verification code. Return the code, or `null`
+	 * to abandon the sign-in. It is called again — with `error` set — each time
+	 * Garmin refuses one, up to `MFA_MAX_ATTEMPTS`.
+	 *
+	 * Omit it and an MFA challenge raises `GarminMfaRequiredError`, which is the
+	 * right answer for a caller with nobody to ask.
+	 */
+	onMfaRequired?: MfaPrompt;
 }
 
 export interface RequestOptions {
@@ -84,8 +102,14 @@ export class GarminClient {
 	/**
 	 * Log in with credentials. The password is used for this call and never
 	 * stored, referenced, or logged.
+	 *
+	 * When the account has MFA switched on, `opts.onMfaRequired` is what turns the
+	 * challenge into a code. The cookie jar below is why that has to happen inside
+	 * this call rather than through a second public method: Garmin's verify POST
+	 * only counts if it carries the session cookies the login POST set, and a jar
+	 * scoped to the call cannot be left stranded half-open by a closed modal.
 	 */
-	async login(email: string, password: string): Promise<void> {
+	async login(email: string, password: string, opts: LoginOptions = {}): Promise<void> {
 		// Deliberately not clearing the current session first. A re-login that
 		// fails on a 429 or a network blip should leave a working session alone;
 		// the new one is committed only once it is complete.
@@ -96,13 +120,20 @@ export class GarminClient {
 			domain: this.domain,
 		};
 
-		const outcome = await mobileLogin(ctx, email, password);
+		const outcome = await loginWithMfa(ctx, email, password, opts.onMfaRequired);
 		switch (outcome.kind) {
 			case "ticket":
 				break;
 			case "mfa":
-				// Deliberately unimplemented for now — see TODO in the README.
 				throw new GarminMfaRequiredError(outcome.method);
+			case "mfa-cancelled":
+				throw new GarminMfaCancelledError();
+			case "bad-mfa-code":
+				throw new GarminAuthError(
+					`Garmin refused ${outcome.attempts} verification ` +
+						`${outcome.attempts === 1 ? "code" : "codes"} (${outcome.detail}). ` +
+						"Sign in again to have a new one sent.",
+				);
 			case "bad-credentials":
 				throw new GarminAuthError("Garmin rejected the email or password");
 			case "rate-limited":

@@ -27,7 +27,7 @@ No OAuth1, no HMAC signing, which is why it ports to TypeScript cleanly.
 | --- | --- |
 | 0 | `GET {sso}/mobile/api/login` — credential-free reachability check. The endpoint is POST-only, so a JSON `405` means the edge let you through. A `403` means it did not. |
 | 1 | `POST {sso}/mobile/api/login` — JSON body, iOS client. Returns a service ticket. |
-| 2 | MFA, if demanded. **Written but never exercised against a live challenge.** |
+| 2 | `POST {sso}/mobile/api/mfa/verifyCode`, when step 1 answers `MFA_REQUIRED`. Carries the cookies step 1 set — the two POSTs share one `CookieJar`, because `requestUrl` keeps no jar of its own. Up to `MFA_MAX_ATTEMPTS` codes per sign-in. |
 | 3 | `POST {diToken}` — exchanges the ticket for OAuth2 bearer tokens, HTTP Basic with an empty password. |
 | 4 | Any `connectapi` call, to confirm the API tier accepts the token. |
 

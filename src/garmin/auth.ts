@@ -18,7 +18,12 @@ import {
 
 export type LoginOutcome =
 	| { kind: "ticket"; ticket: string }
+	/** Garmin wants a code, and this caller was given no way to ask for one. */
 	| { kind: "mfa"; method: string }
+	/** The person closed the code prompt. Nothing failed. */
+	| { kind: "mfa-cancelled" }
+	/** Garmin refused the code. `attempts` is how many it refused. */
+	| { kind: "bad-mfa-code"; detail: string; attempts: number }
 	| { kind: "bad-credentials" }
 	| { kind: "captcha" }
 	| { kind: "rate-limited"; detail: string }
@@ -47,6 +52,29 @@ export interface AuthContext {
 	log: Log;
 	domain: GarminDomain;
 }
+
+export interface MfaChallenge {
+	/** Garmin's own token for the channel. Echoed back on the verify POST. */
+	method: string;
+	/** 1 for the first code asked for, 2 after one was refused, and so on. */
+	attempt: number;
+	/** Why the previous code was refused. Absent on the first ask. */
+	error?: string;
+}
+
+/**
+ * Asks a human for the code. Resolving with `null` — or with nothing but
+ * whitespace — abandons the sign-in, which is how both prompts in this plugin
+ * already report a cancel.
+ */
+export type MfaPrompt = (challenge: MfaChallenge) => Promise<string | null>;
+
+/**
+ * Codes are typed by hand and get typed wrong, so one refusal must not cost a
+ * whole login attempt against a rate-limited endpoint. Three is room for a typo
+ * and a re-read; asking forever is how an account gets locked.
+ */
+export const MFA_MAX_ATTEMPTS = 3;
 
 /* ------------------------------------------------------------------ */
 /*  Step 0 — is the SSO host reachable at all from this platform?       */
@@ -236,6 +264,12 @@ export async function verifyMfa(
 		body: JSON.stringify({
 			mfaMethod: method,
 			mfaVerificationCode: code,
+			// Sent because the app sends it, but it buys nothing across sessions:
+			// Garmin answers it with a cookie, and the jar holding that cookie lives
+			// only for this sign-in. Keeping it would put a second long-lived secret
+			// on disk beside the refresh token to save one code entry every few
+			// weeks — see the note on PersistedAuth in tokens.ts for why that trade
+			// goes the other way here.
 			rememberMyBrowser: true,
 			reconsentList: [],
 			mfaSetup: false,
@@ -254,7 +288,8 @@ export async function verifyMfa(
 
 	const body = parseJson<SsoResponse>(res.text);
 	if (!body) {
-		ctx.log.fail("MFA response was not JSON");
+		ctx.log.fail("MFA response was not JSON — an HTML challenge page, most likely");
+		ctx.log.detail("body", snippet(res.text, 200));
 		return { kind: "blocked", status: res.status, detail: snippet(res.text, 200) };
 	}
 	if (body.error?.["status-code"] === "429") return rateLimited(ctx, "429 in JSON body");
@@ -267,8 +302,100 @@ export async function verifyMfa(
 		return { kind: "ticket", ticket: body.serviceTicketId };
 	}
 
-	ctx.log.fail(`MFA verification failed: ${type ?? snippet(res.text, 160)}`);
-	return { kind: "unexpected", status: res.status, detail: type ?? snippet(res.text, 160) };
+	// Anything else here is Garmin refusing the code. The credentials were
+	// accepted at step 1 and the code is the only new input, so a refusal is a
+	// wrong or expired code far more often than it is anything else — and calling
+	// it retryable is what lets a typo cost a re-type instead of a second login
+	// attempt. The refusals that are *not* retryable (429, a challenge page, a
+	// dead transport) were caught above by their shape rather than by guessing at
+	// Garmin's vocabulary, and `resolveMfa`'s attempt cap bounds whatever is left
+	// — a dead SSO session, say, which no fresh code would fix either.
+	const detail = refusalDetail(body, res.text);
+	ctx.log.fail(`Garmin refused the code — ${detail}`);
+	return { kind: "bad-mfa-code", detail, attempts: 1 };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Steps 1 + 2 — sign-in, MFA included                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The whole sign-in: the credential POST, then the MFA leg when Garmin demands
+ * one. Both callers that sign in — the plugin's client and the probe — come
+ * through here, so the retry budget, and the cookie continuity the verify POST
+ * depends on, are defined in one place.
+ *
+ * Without a `prompt` the `mfa` outcome is returned untouched: that is how a
+ * caller with nobody to ask learns it cannot go on.
+ */
+export async function loginWithMfa(
+	ctx: AuthContext,
+	email: string,
+	password: string,
+	prompt?: MfaPrompt,
+): Promise<LoginOutcome> {
+	const outcome = await mobileLogin(ctx, email, password);
+	if (outcome.kind !== "mfa" || !prompt) return outcome;
+	return resolveMfa(ctx, outcome.method, prompt);
+}
+
+async function resolveMfa(
+	ctx: AuthContext,
+	method: string,
+	prompt: MfaPrompt,
+): Promise<LoginOutcome> {
+	let error: string | undefined;
+	let detail = "no reason given";
+
+	for (let attempt = 1; attempt <= MFA_MAX_ATTEMPTS; attempt++) {
+		const code = (await prompt({ method, attempt, error }))?.trim();
+		if (!code) {
+			ctx.log.warn("cancelled at the MFA prompt");
+			return { kind: "mfa-cancelled" };
+		}
+
+		const outcome = await verifyMfa(ctx, code, method);
+		if (outcome.kind !== "bad-mfa-code") return outcome;
+
+		detail = outcome.detail;
+		error = `Garmin did not accept that code (${detail}).`;
+	}
+
+	ctx.log.fail(
+		`${MFA_MAX_ATTEMPTS} codes refused — stopping here rather than working ` +
+			"towards a locked account",
+	);
+	return { kind: "bad-mfa-code", detail, attempts: MFA_MAX_ATTEMPTS };
+}
+
+/** Where someone should go looking for their code. */
+export function mfaCodeSource(method: string): string {
+	switch (method.trim().toLowerCase().replace(/[\s_-]/g, "")) {
+		case "email":
+			return "your email";
+		case "sms":
+		case "text":
+		case "phone":
+			return "the text message Garmin just sent";
+		case "totp":
+		case "authenticator":
+		case "authenticatorapp":
+			return "your authenticator app";
+		default:
+			// Garmin's own word for a channel we have not seen. The account holder
+			// knows where their codes arrive; a confident wrong guess would only send
+			// them looking in the wrong place.
+			return `Garmin's ${method} method`;
+	}
+}
+
+/** The shortest true thing we can say about why a code bounced. */
+function refusalDetail(body: SsoResponse, raw: string): string {
+	const type = body.responseStatus?.type;
+	if (type) return type;
+	const status = body.error?.["status-code"];
+	if (status) return `status-code ${status}`;
+	return snippet(raw, 80) || "no reason given";
 }
 
 /* ------------------------------------------------------------------ */

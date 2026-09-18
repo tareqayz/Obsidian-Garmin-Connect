@@ -1,4 +1,4 @@
-import { GarminClient } from "./client";
+import { GarminClient, type LoginOptions } from "./client";
 import { GarminApiError, GarminAuthError } from "./errors";
 
 /* ------------------------------------------------------------------ */
@@ -139,8 +139,8 @@ export class GarminApi extends GarminClient {
 	private fullName: string | null = null;
 
 	/** Signing in as someone else must not inherit the previous account's URLs. */
-	async login(email: string, password: string): Promise<void> {
-		await super.login(email, password);
+	async login(email: string, password: string, opts: LoginOptions = {}): Promise<void> {
+		await super.login(email, password, opts);
 		this.displayName = null;
 		this.fullName = null;
 	}

@@ -122,7 +122,8 @@ Garmin's edge can refuse a request outright, and burying that under a generic
 | `GarminRateLimitError` | HTTP 429, carries `retryAfter` | Abandon the range |
 | `GarminApiError` | An ordinary non-2xx from the API tier | Warn, keep the day |
 | `GarminNetworkError` | Never completed: offline, DNS, TLS | Warn, keep the day |
-| `GarminMfaRequiredError` | MFA demanded, no code supplied | Not yet handled |
+| `GarminMfaRequiredError` | MFA demanded, and the caller passed no prompt | Sign-in only |
+| `GarminMfaCancelledError` | The person closed the code prompt | Sign-in only |
 
 The rule: a failure that would repeat identically on every later request
 abandons the whole range. A single endpoint failing for a single day is a

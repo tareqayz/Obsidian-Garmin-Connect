@@ -1,5 +1,6 @@
 import { App, Modal, Notice, normalizePath } from "obsidian";
 import { mount, unmount } from "svelte";
+import type { MfaPrompt } from "../garmin/auth";
 import type { ProbeLog } from "../log";
 import type GarminPlugin from "../main";
 import { ObsidianHttpClient } from "../obsidian-http";
@@ -37,20 +38,19 @@ export class ProbeModal extends Modal {
 					void this.plugin.data.saveSettings();
 				},
 				runFingerprint: (log: ProbeLog) => runFingerprintProbe(new ObsidianHttpClient(), log),
-				runLogin: (
-					log: ProbeLog,
-					email: string,
-					password: string,
-					requestMfaCode: (method: string) => Promise<string | null>,
-				) =>
+				runLogin: (log: ProbeLog, email: string, password: string, requestMfaCode: MfaPrompt) =>
 					runGarminProbe(new ObsidianHttpClient(), log, {
 						email,
 						password,
 						domain: settings.domain,
 						requestMfaCode,
 					}),
-				runPersistence: (log: ProbeLog, email: string, password: string) =>
-					runPersistenceProbe(this.plugin.garmin, log, { email, password }),
+				runPersistence: (
+					log: ProbeLog,
+					email: string,
+					password: string,
+					requestMfaCode: MfaPrompt,
+				) => runPersistenceProbe(this.plugin.garmin, log, { email, password, requestMfaCode }),
 				runFitness: (log: ProbeLog) => runFitnessProbe(this.plugin.garmin, log),
 				onFinished: (verdict: Verdict) => new Notice(`Garmin probe: ${verdict}`),
 				onCopyLog: (text: string) => {

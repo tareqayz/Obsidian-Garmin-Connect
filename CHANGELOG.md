@@ -11,6 +11,12 @@ see [CONTRIBUTING.md](CONTRIBUTING.md) for how a release is cut.
 
 ### Added
 
+- **Multi-factor authentication.** Signing in now asks for the verification code
+  when Garmin demands one, in the same dialog. A refused code is re-asked in
+  place — up to three tries — so a typo costs a re-type rather than a second
+  login attempt against a per-IP rate limit. A cancelled prompt is reported
+  distinctly from a failed one, and leaves any working session untouched. Probe
+  checks 2 and 3 use the same prompt and the same retry budget.
 - Trunk-based git conventions and a tag-driven release pipeline
   (`.github/workflows/release.yml`), with separate stable and BRAT beta channels.
 - `version-bump.mjs`, `versions.json` and an `.npmrc` that pins

@@ -1,7 +1,9 @@
 import { App, Modal, Notice } from "obsidian";
 import { mount, unmount } from "svelte";
+import type { MfaPrompt } from "../garmin/auth";
 import {
 	GarminBlockedError,
+	GarminMfaCancelledError,
 	GarminMfaRequiredError,
 	GarminRateLimitError,
 } from "../garmin/errors";
@@ -29,9 +31,11 @@ export class LoginModal extends Modal {
 					this.plugin.data.settings.email = email;
 					void this.plugin.data.saveSettings();
 				},
-				onSubmit: async (email: string, password: string) => {
+				onSubmit: async (email: string, password: string, onMfaRequired: MfaPrompt) => {
 					try {
-						await this.plugin.garmin.login(email, password);
+						// The form owns the code prompt and hands it over here, so the
+						// whole sign-in stays one await and the SSO cookies survive it.
+						await this.plugin.garmin.login(email, password, { onMfaRequired });
 						new Notice("Signed in to Garmin Connect.");
 						this.onDone?.();
 						this.close();
@@ -55,8 +59,12 @@ export class LoginModal extends Modal {
 }
 
 function explain(err: unknown): string {
+	if (err instanceof GarminMfaCancelledError) {
+		return "Sign-in cancelled at the verification code step.";
+	}
 	if (err instanceof GarminMfaRequiredError) {
-		return "This account uses multi-factor authentication, which is not supported yet. See TODO.md.";
+		// Only reachable if this modal ever stops passing a prompt down.
+		return `Garmin asked for a verification code (${err.method}) and nothing offered one.`;
 	}
 	if (err instanceof GarminRateLimitError) {
 		return "Garmin is rate limiting this network. Wait 15–30 minutes before trying again.";
