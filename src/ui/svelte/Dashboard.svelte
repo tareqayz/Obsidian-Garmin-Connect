@@ -42,7 +42,8 @@
 	import StackedChart from "./StackedChart.svelte";
 	import StatTile from "./StatTile.svelte";
 	import SyncStatus from "./SyncStatus.svelte";
-	import WorkoutList from "./WorkoutList.svelte";
+	import ActivityDetail from "./v2/ActivityDetail.svelte";
+	import ActivityRow from "./v2/ActivityRow.svelte";
 
 	interface Props {
 		initialRows: readonly DayRow[];
@@ -77,6 +78,8 @@
 	let syncMessage = $state<string | null>(null);
 	let collapsed = $state(new Set<SectionId>());
 	let heatKey = $state<string | null>(null);
+	/** The activity whose detail screen has taken over the pane. */
+	let openActivity = $state<WorkoutEntry | null>(null);
 
 	let latest = $derived(rows.length > 0 ? rows[rows.length - 1]!.date : null);
 	let visible = $derived(custom ? between(rows, from, to) : inRange(rows, rangeDays, today));
@@ -497,7 +500,20 @@
 	{:else if card.plot.kind === "composition"}
 		<CompositionBar segments={card.plot.segments} unit={card.unit} caption={card.plot.caption} />
 	{:else if card.plot.kind === "workouts"}
-		<WorkoutList workouts={card.plot.entries} limit={height > 200 ? 40 : 8} />
+		{@const limit = height > 200 ? 40 : 8}
+		{@const shown = card.plot.entries.slice(0, limit)}
+		{@const hidden = card.plot.entries.length - shown.length}
+		<!-- A recessed tray inside the card, so the rows have a surface to be
+		     raised from. Elevation is what carries a v2 row, and a white row on a
+		     white card has nothing to cast a shadow against. -->
+		<div class="activities">
+			{#each shown as entry, i (entry.start ?? `${entry.date}-${i}`)}
+				<ActivityRow {entry} onOpen={(e) => (openActivity = e)} />
+			{/each}
+		</div>
+		{#if hidden > 0}
+			<p class="more">{hidden} more in this range.</p>
+		{/if}
 	{:else}
 		<StackedChart rows={visible} {stages} {height} format={card.format} />
 		<Legend {stages} />
@@ -564,6 +580,10 @@
 		<Card title="All values" subtitle="{visible.length} days">
 			<DataTable rows={visible} />
 		</Card>
+	{:else if openActivity}
+		<!-- One session, full pane. The v1 dashboard could only ever show a day;
+		     this is the row underneath it. -->
+		<ActivityDetail entry={openActivity} onBack={() => (openActivity = null)} />
 	{:else if openCard}
 		<!-- Expanded: one card, the full pane, and the numbers a hover would carry. -->
 		<Card
@@ -717,5 +737,18 @@
 		font-weight: 600;
 		color: var(--gcd-text);
 		margin-bottom: 4px;
+	}
+	.activities {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 8px;
+		border-radius: 8px;
+		background: var(--v2-surface-app);
+	}
+	.more {
+		margin: 8px 0 0;
+		color: var(--gcd-muted);
+		font-size: var(--font-ui-smaller, 12px);
 	}
 </style>
