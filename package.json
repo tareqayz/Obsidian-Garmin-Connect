@@ -16,7 +16,7 @@
 		"api:check": "esbuild scripts/api/contract-check.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-check.mjs --log-level=warning && node scripts/.api-check.mjs",
 		"api:record": "npm run api:check -- --update",
 		"api:token": "esbuild scripts/api/mint-token.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-token.mjs --log-level=warning && node scripts/.api-token.mjs",
-		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test tests/.build",
+		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test \"tests/.build/*.mjs\"",
 		"preview:dashboard": "node scripts/preview.mjs",
 		"svelte-check": "svelte-check --tsconfig tsconfig.json"
 	},
