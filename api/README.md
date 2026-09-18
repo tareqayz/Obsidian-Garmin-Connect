@@ -45,10 +45,17 @@ breaks.
 }
 ```
 
-`critical` is the important one: the response paths the plugin actually reads.
-`[]` descends into array items, so `[].generic.vo2MaxPreciseValue` reaches into
-each day of a range response. Losing one of these fails the daily check; losing
-anything else does not.
+Two lists say what the plugin does with the response. `[]` descends into array
+items, so `[].generic.vo2MaxPreciseValue` reaches into each day of a range
+response.
+
+- **`critical`** — paths the plugin depends on. Losing one fails the daily check.
+- **`reads`** — paths it reads but tolerates missing: a property that will not
+  appear rather than a sync that breaks. Reported, never fatal. It is also where
+  a field name taken from documentation rather than observed belongs, until a
+  live recording has confirmed it.
+
+Losing anything outside both lists is a warning at most.
 
 ### Regenerating
 
@@ -71,7 +78,7 @@ the news this file exists to carry.
 
 It drives the plugin's own `GarminApi` — not a parallel HTTP client — so a path,
 header or parameter that stops working here is one that stops working in the
-plugin. Fourteen endpoints, about twenty requests, sampling the last three
+plugin. Sixteen endpoints and about 115 response paths, sampling the last three
 complete days and a fourteen-day range.
 
 Each endpoint comes back with one verdict:

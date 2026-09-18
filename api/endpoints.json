@@ -24,7 +24,8 @@
 		"check": "Covered by the daily contract check (.github/workflows/api-contract.yml).",
 		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
 		"schema": "Recorded response shape, relative to api/.",
-		"status": "gone-upstream = present in an earlier catalogue, no longer in python-garminconnect."
+		"status": "gone-upstream = present in an earlier catalogue, no longer in python-garminconnect.",
+		"reads": "Response paths the plugin reads but tolerates missing \u2014 a property that will not appear rather than a sync that breaks. Reported by the daily check, never fatal."
 	},
 	"endpoints": [
 		{
@@ -830,7 +831,25 @@
 					"cdate"
 				],
 				"line": 1341
-			}
+			},
+			"plugin": "GarminApi.bodyComposition",
+			"groups": [
+				"body"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"totalAverage.weight",
+				"totalAverage.bmi",
+				"totalAverage.bodyFat",
+				"totalAverage.bodyWater",
+				"totalAverage.muscleMass",
+				"totalAverage.boneMass",
+				"dateWeightList[].weight"
+			],
+			"schema": "schema/daily-weigh-ins.json",
+			"notes": "Masses are grams, whatever the account's unit system. Empty on any day without a weigh-in, which for most accounts is most days."
 		},
 		{
 			"id": "delete-activity",
@@ -1401,7 +1420,14 @@
 				"[].averageHR",
 				"[].activityType.typeKey"
 			],
-			"schema": "schema/get-activities.json"
+			"schema": "schema/get-activities.json",
+			"reads": [
+				"[].maxHR",
+				"[].steps",
+				"[].elevationGain",
+				"[].movingDuration",
+				"[].aerobicTrainingEffect"
+			]
 		},
 		{
 			"id": "goals",
@@ -1642,7 +1668,12 @@
 				"hrvSummary.status"
 			],
 			"schema": "schema/hrv-data.json",
-			"notes": "Returns null on days with no overnight HRV recording."
+			"notes": "Returns null on days with no overnight HRV recording.",
+			"reads": [
+				"hrvSummary.baseline.balancedLow",
+				"hrvSummary.baseline.balancedUpper",
+				"hrvSummary.baseline.lowUpper"
+			]
 		},
 		{
 			"id": "hrv-data-range",
@@ -1917,7 +1948,11 @@
 				"[].generic.fitnessAge"
 			],
 			"schema": "schema/max-metrics-range.json",
-			"notes": "VO2 Max and fitness age. `[].cycling.*` only appears for accounts with cycling VO2 Max, so it is not critical."
+			"notes": "VO2 Max and fitness age. `[].cycling.*` only appears for accounts with cycling VO2 Max, so it is not critical.",
+			"reads": [
+				"[].cycling.vo2MaxPreciseValue",
+				"[].cycling.vo2MaxValue"
+			]
 		},
 		{
 			"id": "menstrual-calendar-data",
@@ -2645,7 +2680,19 @@
 				"dailySleepDTO.sleepEndTimestampGMT",
 				"dailySleepDTO.sleepScores.overall.value"
 			],
-			"schema": "schema/sleep-data.json"
+			"schema": "schema/sleep-data.json",
+			"reads": [
+				"dailySleepDTO.sleepScores.overall.qualifierKey",
+				"dailySleepDTO.restingHeartRate",
+				"dailySleepDTO.avgSleepStress",
+				"dailySleepDTO.awakeCount",
+				"dailySleepDTO.restlessMomentsCount",
+				"dailySleepDTO.averageRespirationValue",
+				"dailySleepDTO.averageSpO2Value",
+				"dailySleepDTO.lowestSpO2Value",
+				"dailySleepDTO.bodyBatteryChange",
+				"dailySleepDTO.napTimeSeconds"
+			]
 		},
 		{
 			"id": "social-profile",
@@ -2808,7 +2855,13 @@
 				"[].level"
 			],
 			"schema": "schema/training-readiness.json",
-			"notes": "An array; the plugin reads element 0."
+			"notes": "An array; the plugin reads element 0.",
+			"reads": [
+				"[].sleepScore",
+				"[].hrvFactorPercent",
+				"[].recoveryTime",
+				"[].acuteLoad"
+			]
 		},
 		{
 			"id": "training-status",
@@ -2829,7 +2882,23 @@
 					"cdate"
 				],
 				"line": 2258
-			}
+			},
+			"plugin": "GarminApi.trainingStatus",
+			"groups": [
+				"training"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"acuteTrainingLoadDTO.dailyTrainingLoadAcute",
+				"acuteTrainingLoadDTO.dailyTrainingLoadChronic",
+				"acuteTrainingLoadDTO.dailyAcuteChronicWorkloadRatio",
+				"acuteTrainingLoadDTO.acwrPercent",
+				"acuteTrainingLoadDTO.acwrStatus"
+			],
+			"schema": "schema/training-status.json",
+			"notes": "latestTrainingStatusData is keyed by device id, so the mapper takes whichever entry is there rather than naming one. Nothing here is critical: an account with no training load simply gets no training properties."
 		},
 		{
 			"id": "unschedule-workout",
@@ -2985,7 +3054,32 @@
 				"bodyBatteryLowestValue"
 			],
 			"schema": "schema/user-summary.json",
-			"notes": "Serves three metric groups from one request. A `privacyProtected: true` body means the session is not fully authorised."
+			"notes": "Serves three metric groups from one request. A `privacyProtected: true` body means the session is not fully authorised.",
+			"reads": [
+				"bmrKilocalories",
+				"floorsDescended",
+				"userFloorsAscendedGoal",
+				"intensityMinutesGoal",
+				"activeSeconds",
+				"highlyActiveSeconds",
+				"sedentarySeconds",
+				"lastSevenDaysAvgRestingHeartRate",
+				"maxStressLevel",
+				"stressQualifier",
+				"restStressDuration",
+				"lowStressDuration",
+				"mediumStressDuration",
+				"highStressDuration",
+				"bodyBatteryMostRecentValue",
+				"bodyBatteryChargedValue",
+				"bodyBatteryDrainedValue",
+				"avgWakingRespirationValue",
+				"lowestRespirationValue",
+				"highestRespirationValue",
+				"averageSpo2",
+				"lowestSpo2",
+				"latestSpo2"
+			]
 		},
 		{
 			"id": "userprofile-settings",

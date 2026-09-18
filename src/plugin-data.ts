@@ -1,6 +1,6 @@
 import type { Plugin } from "obsidian";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
-import { DEFAULT_SETTINGS, type GarminSettings } from "./settings";
+import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 
 /* Readers that accept only what they recognise, so nothing unexpected survives
@@ -66,6 +66,7 @@ export class PluginData implements TokenStore {
 		// load no matter what is sitting in the file.
 		const d = DEFAULT_SETTINGS;
 		this.settings = {
+			settingsVersion: int(source.settingsVersion, 1, 1, SETTINGS_VERSION),
 			email: text(source.email, d.email),
 			domain: source.domain === "garmin.cn" ? "garmin.cn" : d.domain,
 
@@ -99,11 +100,35 @@ export class PluginData implements TokenStore {
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
 		this.migratedAwayFromStoredPassword = Boolean(source.password);
+		const migrated = this.migrate();
 
 		const auth = raw.auth as PersistedAuth | null | undefined;
 		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
 
-		if (legacy || this.migratedAwayFromStoredPassword) await this.flush();
+		if (legacy || migrated || this.migratedAwayFromStoredPassword) await this.flush();
+	}
+
+	/**
+	 * Switch on metric groups a release added.
+	 *
+	 * A vault that saved its settings before a group existed has no opinion about
+	 * it, and leaving it off would mean the new metrics never appear until
+	 * someone goes looking in settings for a toggle they do not know about.
+	 * Versioned rather than "add anything missing", so a group you deliberately
+	 * turned off stays off.
+	 */
+	private migrate(): boolean {
+		if (this.settings.settingsVersion >= SETTINGS_VERSION) return false;
+		if (this.settings.groups.length > 0) {
+			const added: MetricGroup[] = ["respiration", "spo2", "body", "training"];
+			this.settings.groups = [
+				...ALL_GROUPS.filter(
+					(g) => this.settings.groups.includes(g) || added.includes(g),
+				),
+			];
+		}
+		this.settings.settingsVersion = SETTINGS_VERSION;
+		return true;
 	}
 
 	/* TokenStore ----------------------------------------------------- */

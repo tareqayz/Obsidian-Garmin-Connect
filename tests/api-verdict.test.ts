@@ -14,6 +14,7 @@ const entry: CatalogueEntry = {
 	plugin: "GarminApi.maxMetrics",
 	check: true,
 	critical: ["[].calendarDate", "[].generic.vo2MaxPreciseValue"],
+	reads: ["[].cycling.vo2MaxPreciseValue"],
 	schema: "schema/max-metrics-range.json",
 };
 
@@ -90,6 +91,16 @@ describe("check", () => {
 			result.critical.find((c) => c.path === "[].generic.vo2MaxPreciseValue")?.status,
 			"null",
 		);
+	});
+
+	it("reports an advisory path without letting it fail the run", () => {
+		// `[].cycling.*` only exists for accounts with cycling VO2 Max. Reading it
+		// is fine; depending on it would not be.
+		const result = check(entry, [[day()]], baseline);
+		assert.notEqual(result.verdict, "fail");
+		assert.deepEqual(result.reads, [
+			{ path: "[].cycling.vo2MaxPreciseValue", status: "missing" },
+		]);
 	});
 
 	it("stays quiet when only some days carry the metric", () => {

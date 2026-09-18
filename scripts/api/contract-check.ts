@@ -192,6 +192,7 @@ async function main(): Promise<number> {
 				samples: 0,
 				changes: [],
 				critical: [],
+				reads: [],
 				error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
 			});
 		}

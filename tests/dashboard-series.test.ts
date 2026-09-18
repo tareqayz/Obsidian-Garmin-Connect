@@ -4,7 +4,10 @@ import {
 	availableKeys,
 	axisFormat,
 	compact,
+	daysBetween,
 	detail,
+	latestText,
+	workoutsIn,
 	hoursAndMinutes,
 	inRange,
 	niceTicks,
@@ -200,5 +203,92 @@ describe("detail", () => {
 		assert.equal(detail(12767), "12,767");
 		assert.equal(detail(48), "48");
 		assert.equal(detail(7.253), "7.25");
+	});
+});
+
+
+describe("daysBetween", () => {
+	it("counts both ends", () => {
+		assert.equal(daysBetween("2026-09-12", "2026-09-12"), 1);
+		assert.equal(daysBetween("2026-09-12", "2026-09-18"), 7);
+	});
+
+	it("counts across a month and a leap day", () => {
+		assert.equal(daysBetween("2026-08-30", "2026-09-02"), 4);
+		assert.equal(daysBetween("2024-02-28", "2024-03-01"), 3);
+	});
+
+	it("is zero for a backwards or malformed range", () => {
+		assert.equal(daysBetween("2026-09-18", "2026-09-12"), 0);
+		assert.equal(daysBetween("", ""), 0);
+	});
+});
+
+describe("latestText", () => {
+	const rows: DayRow[] = [
+		{ date: "2026-09-10", values: {}, text: { hrv_status: "BALANCED" } },
+		{ date: "2026-09-11", values: {}, text: {} },
+		{ date: "2026-09-12", values: {}, text: { hrv_status: "LOW" } },
+	];
+
+	it("takes the newest non-empty value", () => {
+		assert.deepEqual(latestText(rows, "hrv_status"), { date: "2026-09-12", value: "LOW" });
+	});
+
+	it("skips back over days that carry nothing", () => {
+		assert.deepEqual(latestText(rows.slice(0, 2), "hrv_status"), {
+			date: "2026-09-10",
+			value: "BALANCED",
+		});
+	});
+
+	it("says nothing rather than guessing when no day carries it", () => {
+		assert.equal(latestText(rows, "training_status"), undefined);
+	});
+});
+
+describe("workoutsIn", () => {
+	const rows: DayRow[] = [
+		{
+			date: "2026-09-11",
+			values: {},
+			workouts: [{ name: "Ride", type: "cycling", start: "2026-09-11T17:20", minutes: 62, distance_km: 24.1 }],
+		},
+		{
+			date: "2026-09-12",
+			values: {},
+			workouts: [
+				{ name: "Run", type: "running", start: "2026-09-12T07:31", avg_hr: 148, calories: 412 },
+				{ name: "Evening walk", type: "walking", start: "2026-09-12T19:02", distance_mi: 2.4 },
+			],
+		},
+	];
+
+	it("flattens every day's activities, newest first", () => {
+		assert.deepEqual(
+			workoutsIn(rows).map((w) => w.name),
+			["Evening walk", "Run", "Ride"],
+		);
+	});
+
+	it("attaches the day each activity belongs to", () => {
+		assert.equal(workoutsIn(rows)[0]!.date, "2026-09-12");
+	});
+
+	it("normalises distance so a vault synced in miles reads the same", () => {
+		const [walk, , ride] = workoutsIn(rows);
+		assert.deepEqual(walk!.distance, { value: 2.4, unit: "mi" });
+		assert.deepEqual(ride!.distance, { value: 24.1, unit: "km" });
+	});
+
+	it("drops fields of the wrong type rather than passing them through", () => {
+		const junk: DayRow[] = [
+			{ date: "2026-09-12", values: {}, workouts: [{ name: 42, minutes: "long", avg_hr: 150 }] },
+		];
+		assert.deepEqual(workoutsIn(junk), [{ date: "2026-09-12", avg_hr: 150 }]);
+	});
+
+	it("is empty for days that carry no activities", () => {
+		assert.deepEqual(workoutsIn([{ date: "2026-09-12", values: {} }]), []);
 	});
 });

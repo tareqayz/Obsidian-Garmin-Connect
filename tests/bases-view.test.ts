@@ -44,7 +44,6 @@ describe("basesView", () => {
 		assert.deepEqual(base.views?.[0]?.order, [
 			"note.date",
 			"note.resting_hr",
-			"note.min_hr",
 			"note.max_hr",
 		]);
 	});
@@ -69,7 +68,6 @@ describe("basesView", () => {
 		assert.deepEqual(base.views?.[0]?.order, [
 			"note.g_date",
 			"note.g_resting_hr",
-			"note.g_min_hr",
 			"note.g_max_hr",
 		]);
 	});

@@ -27,8 +27,10 @@
   `maxMetrics.cycling.vo2MaxPreciseValue`, `enduranceScore.overallScore`, and
   `racePredictions[].time5K` / `time10K` / `timeHalfMarathon` / `timeMarathon`.
   If a property never appears in a note, that is the first place to look.
-- Fitness age and cycling VO2 Max are synced and appear in the table, but have no
-  tile or chart of their own yet.
+- Cycling VO2 Max is synced and appears in the table, but has no card of its own.
+  Fitness age now has one. The awkward part is that it is only meaningful for
+  accounts that ride, so a card would be empty for most people — the availability
+  filter already handles that, it just has not been written.
 - OPEN: VO2 Max never populates, and it is NOT the range-length bug.
   Evidence from a 407-day vault: endurance score in 393 notes, race predictions in
   exactly the 5 days of the recent-sync window (syncDays=5), VO2 Max in 0.
@@ -40,4 +42,14 @@
   with what `src/sync/metrics.ts` reads — or run `npm run api:record` and read
   `api/schema/max-metrics-range.json`, which answers the same question and
   leaves the answer committed.
-- Customizable layouts - resizeable widgets - advanced widget settings - default layout + can make multiple different layouts (different dashboard pages)
+- Customizable layouts - resizeable widgets - advanced widget settings - default
+  layout + can make multiple different layouts (different dashboard pages).
+  Partly started: the dashboard is now five collapsible sections rather than one
+  flat grid, and which sections are open is per-view state. What is still missing
+  is choosing *which cards* appear, reordering them, and saving that as a layout.
+- The new mappings in `mapDay` for `body`, `training`, respiration, pulse ox and
+  the extra sleep, stress and readiness fields were written from Garmin's field
+  names rather than from observed responses. They are listed under `reads` in
+  `api/endpoints.json`, so one `npm run api:record` run reports exactly which of
+  them are real — anything coming back `missing` is reading a key Garmin does not
+  send. That is the same failure mode as the VO2 Max item above.

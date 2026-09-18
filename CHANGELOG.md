@@ -17,6 +17,27 @@ see [CONTRIBUTING.md](CONTRIBUTING.md) for how a release is cut.
   login attempt against a per-IP rate limit. A cancelled prompt is reported
   distinctly from a failed one, and leaves any working session untouched. Probe
   checks 2 and 3 use the same prompt and the same retry budget.
+- **Four times the metrics, most of them free.** Around forty-five new
+  properties come out of responses the sync already fetched — the day split into
+  active, highly active and sedentary minutes; the four stress bands; Body
+  Battery charged and drained rather than only high and low; the night's own
+  resting heart rate, respiration, SpO2 and recharge; the HRV baseline range that
+  makes last night's number readable; the factors behind the readiness score.
+  Four new metric groups join them: `respiration` and `spo2` ride along in the
+  daily summary at no extra cost, while `body` (weight, BMI, body fat, muscle and
+  bone mass) and `training` (status, acute and chronic load, load ratio) each add
+  one request per day. A vault that predates them gets them switched on once.
+- **A dashboard that can hold it.** Thirty-six cards in five collapsible
+  sections — Activity, Sleep, Recovery and stress, Fitness and training, Body —
+  behind a headline strip of goal rings and tiles. New components: a calendar
+  heatmap with a metric picker, an activity list (workouts were being synced into
+  every note and shown nowhere), composition bars for the day, the stress bands
+  and the sleep mix, goal rings for steps, intensity minutes and floors, a
+  baseline chart that puts HRV inside its own personal range, and a two-series
+  line chart for acute against chronic training load.
+- **Transient failures are retried.** A request that comes back 5xx or does not
+  come back at all is retried up to three times with a jittered backoff. A 429 is
+  not: retrying is the precise wrong response to Garmin asking us to stop.
 - **A written-down Garmin API, and a daily check against the live one.**
   `api/endpoints.json` catalogues all 135 endpoints Garmin exposes — request
   shape, which ones this plugin calls, and the response fields it reads —

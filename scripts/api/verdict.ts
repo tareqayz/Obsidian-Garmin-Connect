@@ -27,6 +27,8 @@ export interface Result {
 	samples: number;
 	changes: Change[];
 	critical: Array<{ path: string; status: PathStatus }>;
+	/** Advisory paths and how they fared. Never affects the verdict. */
+	reads: Array<{ path: string; status: PathStatus }>;
 	shape?: Shape;
 	error?: string;
 }
@@ -51,7 +53,8 @@ export function check(
 	const critical = entry.critical ?? [];
 	const observed = inferAll(samples);
 	const statuses = critical.map((path) => ({ path, status: statusOf(samples, path) }));
-	const base = { entry, samples: samples.length, critical: statuses, shape: observed };
+	const reads = (entry.reads ?? []).map((path) => ({ path, status: statusOf(samples, path) }));
+	const base = { entry, samples: samples.length, critical: statuses, reads, shape: observed };
 
 	if (!recorded) return { ...base, verdict: "new", changes: [] };
 
@@ -124,9 +127,24 @@ export function report(results: readonly Result[], window: Window, today: string
 
 		const unhealthy = result.critical.filter((item) => item.status !== "ok");
 		if (unhealthy.length) {
-			lines.push("| the plugin reads | status |", "| --- | --- |");
+			lines.push("| the plugin depends on | status |", "| --- | --- |");
 			for (const item of unhealthy) lines.push(`| \`${item.path}\` | ${item.status} |`);
 			lines.push("");
+		}
+
+		// Advisory: a property that will not appear rather than a sync that breaks.
+		// This is where a mapping inferred from documentation shows whether it was
+		// right, which is the fastest way to find a metric reading the wrong key.
+		const quiet = result.reads.filter((item) => item.status !== "ok");
+		if (quiet.length) {
+			lines.push(
+				`<details><summary>${quiet.length} of ${result.reads.length} optional paths absent or empty</summary>`,
+				"",
+				"| also read | status |",
+				"| --- | --- |",
+			);
+			for (const item of quiet) lines.push(`| \`${item.path}\` | ${item.status} |`);
+			lines.push("", "</details>", "");
 		}
 
 		for (const change of result.changes) {

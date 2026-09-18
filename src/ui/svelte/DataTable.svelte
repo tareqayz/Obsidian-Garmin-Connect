@@ -1,12 +1,31 @@
 <script lang="ts">
-	import { TABLE_KEYS } from "../../dashboard/metrics";
-	import { availableKeys, compact, shortDate, type DayRow } from "../../dashboard/series";
-	import { METRIC_LABELS } from "../../sync/metrics";
+	import { TABLE_KEYS, formatFor } from "../../dashboard/metrics";
+	import {
+		availableKeys,
+		availableTextKeys,
+		compact,
+		shortDate,
+		type DayRow,
+	} from "../../dashboard/series";
+	import { DURATION_KEYS, METRIC_LABELS } from "../../sync/metrics";
 
 	let { rows }: { rows: readonly DayRow[] } = $props();
 
-	let keys = $derived(availableKeys(rows, TABLE_KEYS));
+	// Numbers and Garmin's qualitative labels, in the order the sync writes them,
+	// so a column never appears here that is not also in the note.
+	let numeric = $derived(new Set(availableKeys(rows, TABLE_KEYS)));
+	let textual = $derived(new Set(availableTextKeys(rows, TABLE_KEYS)));
+	let keys = $derived(TABLE_KEYS.filter((k) => numeric.has(k) || textual.has(k)));
 	let newestFirst = $derived([...rows].reverse());
+
+	/** Race predictions are seconds on the wire and times on screen. */
+	function cell(row: DayRow, key: string): string {
+		const value = row.values[key];
+		if (typeof value === "number") {
+			return DURATION_KEYS.has(key) ? formatFor(key)(value) : compact(value);
+		}
+		return row.text?.[key] ?? "—";
+	}
 </script>
 
 <!-- The twin every chart needs: the same numbers, with no colour and no hover. -->
@@ -25,7 +44,7 @@
 				<tr>
 					<th scope="row">{shortDate(row.date)}</th>
 					{#each keys as key (key)}
-						<td>{typeof row.values[key] === "number" ? compact(row.values[key]) : "—"}</td>
+						<td class:text={textual.has(key) && !numeric.has(key)}>{cell(row, key)}</td>
 					{/each}
 				</tr>
 			{/each}
@@ -58,5 +77,10 @@
 	tbody th:first-child,
 	thead th:first-child {
 		text-align: left;
+	}
+	/* Labels are words, and words read left-aligned however the numbers sit. */
+	td.text {
+		text-align: left;
+		font-variant-numeric: normal;
 	}
 </style>

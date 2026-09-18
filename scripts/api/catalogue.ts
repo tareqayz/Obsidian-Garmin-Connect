@@ -39,8 +39,15 @@ export interface CatalogueEntry {
 	plugin?: string;
 	/** Covered by the daily contract check. */
 	check?: boolean;
-	/** Response paths the plugin reads; `[]` descends into array items. */
+	/** Response paths the plugin depends on. Losing one fails the check. */
 	critical?: string[];
+	/**
+	 * Paths the plugin reads but tolerates missing — a metric that simply will
+	 * not appear rather than a sync that breaks. Reported, never fatal, which is
+	 * also where a field name inferred from documentation rather than observed
+	 * belongs until a live run has confirmed it.
+	 */
+	reads?: string[];
 	/** Recorded shape, relative to `api/`. */
 	schema?: string;
 	notes?: string;

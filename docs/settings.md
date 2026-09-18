@@ -26,17 +26,31 @@ once per sync.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `groups` | all nine | Which metric groups to sync. |
+| `groups` | all thirteen | Which metric groups to sync. |
 | `units` | `auto` | `metric` writes `distance_km`, `imperial` writes `distance_mi`, `auto` follows your Garmin account. |
 
-The nine groups are `activity`, `heart`, `sleep`, `stress`, `hrv`, `readiness`,
-`fitness`, `races`, `workouts`. See [properties](properties.md) for what each
-one writes.
+The thirteen groups are `activity`, `heart`, `sleep`, `stress`, `hrv`,
+`readiness`, `fitness`, `races`, `respiration`, `spo2`, `body`, `training` and
+`workouts`. See [properties](properties.md) for what each one writes.
 
-**Turning a group off also stops the request that fetches it**, so a narrow
-selection is genuinely cheaper, not just quieter. It also drops that group's
-columns from a rebuilt table view. `activity`, `heart` and `stress` share one
-request, so switching off only one of the three saves nothing.
+**Turning a group off stops the request that fetches it — when it has one.**
+Five groups share the daily summary call: `activity`, `heart`, `stress`,
+`respiration` and `spo2`. Switching off one of those five saves nothing unless
+you switch off all five, which is why the settings screen marks each group as
+either *free* or *1 request per day*.
+
+With everything on, a day costs seven requests. The eight groups that cost one
+each are `activity` (which carries the other four), `sleep`, `hrv`, `readiness`,
+`fitness`, `races`, `training` and `body`; `races` and part of `fitness` are
+range calls made once for the whole window rather than per day.
+
+Turning a group off also drops its columns from a rebuilt table view.
+
+> **Upgrading.** `respiration`, `spo2`, `body` and `training` arrived after the
+> first release. A vault that saved its settings before they existed gets them
+> switched on once, because leaving them off would mean the new metrics never
+> appeared until you went looking for a toggle you did not know about. A group
+> you switch off yourself stays off.
 
 ## Storage
 

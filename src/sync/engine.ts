@@ -1,10 +1,12 @@
 import type {
 	Activity,
+	BodyComposition,
 	DailySummary,
 	EnduranceScore,
 	MaxMetrics,
 	RacePrediction,
 	SleepData,
+	TrainingStatus,
 } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
@@ -27,6 +29,8 @@ export interface SyncSource {
 	hrv(date: string): Promise<Record<string, unknown> | null>;
 	trainingReadiness(date: string): Promise<unknown[]>;
 	enduranceScore(date: string): Promise<EnduranceScore | null>;
+	trainingStatus(date: string): Promise<TrainingStatus | null>;
+	bodyComposition(date: string): Promise<BodyComposition | null>;
 	/** Range endpoints: one call covers the whole window. */
 	maxMetrics(start: string, end?: string): Promise<MaxMetrics[]>;
 	racePredictions(start: string, end?: string): Promise<RacePrediction[]>;
@@ -362,6 +366,8 @@ async function fetchDay(
 	if (wanted.hrv) jobs.push({ name: "hrv", run: () => source.hrv(date) });
 	if (wanted.readiness) jobs.push({ name: "readiness", run: () => source.trainingReadiness(date) });
 	if (wanted.endurance) jobs.push({ name: "endurance", run: () => source.enduranceScore(date) });
+	if (wanted.training) jobs.push({ name: "training", run: () => source.trainingStatus(date) });
+	if (wanted.body) jobs.push({ name: "body", run: () => source.bodyComposition(date) });
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
@@ -397,6 +403,12 @@ function assign(data: DayData, name: keyof DayData, value: unknown): void {
 			break;
 		case "endurance":
 			data.endurance = (value ?? null) as DayData["endurance"];
+			break;
+		case "training":
+			data.training = (value ?? null) as TrainingStatus | null;
+			break;
+		case "body":
+			data.body = (value ?? null) as BodyComposition | null;
 			break;
 		default:
 			break;
