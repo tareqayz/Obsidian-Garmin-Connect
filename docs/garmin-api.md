@@ -4,6 +4,12 @@ Every Garmin endpoint this plugin calls, which metric group triggers it, and
 what the request budget works out to. Source: `src/garmin/endpoints.ts` and
 `src/garmin/constants.ts`.
 
+For the full surface — all 135 endpoints Garmin exposes, their request shapes,
+and the response fields observed at each one — see
+[`api/endpoints.json`](../api/endpoints.json) and
+[`api/README.md`](../api/README.md). This page is the narrow, prose version:
+what the plugin uses and why.
+
 This mirrors [`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)
 at master — specifically the post-2026-03 rewrite that dropped `garth`. The old
 OAuth1 `preauthorized` / `exchange/user/2.0` flow is gone.
@@ -139,6 +145,17 @@ request is made.
 The sync runs **newest day first**, so a run cut short by a rate limit has
 already covered the days you care about most. `pauseBetweenDays` (default 250 ms)
 throttles between days.
+
+## Keeping this honest
+
+Garmin ships changes to these payloads without notice and without a version, so
+none of the above is guaranteed to still be true tomorrow.
+`.github/workflows/api-contract.yml` runs every morning, fetches the fourteen
+endpoints above through this plugin's own `GarminApi`, and compares what comes
+back with the shapes recorded in [`api/schema/`](../api/schema/). A field the
+plugin reads that stops arriving opens an issue the same day.
+
+`api/README.md` covers the verdicts, the setup, and how to accept a change.
 
 ## Behaviour worth knowing
 

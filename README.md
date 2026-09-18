@@ -140,6 +140,7 @@ Every property, with units and query examples, is in
 | [Troubleshooting](docs/troubleshooting.md) | Keyed by symptom |
 | [Architecture](docs/architecture.md) | The two seams, module map, and how to extend |
 | [Garmin API](docs/garmin-api.md) | Endpoints called, and the request budget |
+| [API catalogue](api/README.md) | Every endpoint Garmin exposes, the response shapes recorded, and the daily check that watches them |
 | [Contributing](CONTRIBUTING.md) | Branch conventions and the release runbooks |
 | [Security](SECURITY.md) | What is stored, what leaves your device |
 

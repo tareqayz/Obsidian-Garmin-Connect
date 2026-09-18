@@ -10,3 +10,7 @@ tests/.build/
 scripts/.preview/
 .hotreload
 .gstack
+scripts/.api-check.mjs
+scripts/.api-token.mjs
+.garmin-token.json
+api-contract-report.md

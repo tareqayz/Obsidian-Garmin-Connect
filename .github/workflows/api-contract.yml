@@ -1,0 +1,211 @@
+# Garmin ships breaking changes to its private API without notice and without a
+# version. This runs every morning and tells us the same day, instead of a user
+# telling us weeks later that a property stopped appearing.
+#
+# Two jobs, because only one of them needs an account:
+#
+#   catalogue  offline. Runs on pull requests too. Checks that api/endpoints.json
+#              still agrees with python-garminconnect and with the plugin's own
+#              code — a renamed method or an unprobed endpoint fails here.
+#   contract   live. Signs in, fetches the endpoints the plugin depends on, and
+#              compares the shapes against api/schema/*.json.
+#
+# Setup lives in api/README.md. Without the GARMIN_TOKENS secret the live job
+# skips rather than fails, so a fork sees green.
+name: Garmin API contract
+
+on:
+  schedule:
+    # 06:17 UTC. Off the hour, because the top of the hour is when every other
+    # scheduled workflow on GitHub wakes up and queue time balloons.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      record:
+        description: "Fold today's shapes into api/schema/* and open a pull request"
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - "api/**"
+      - "scripts/api/**"
+      - "src/garmin/**"
+      - "src/sync/metrics.ts"
+      - ".github/workflows/api-contract.yml"
+
+# A second run signing in while the first is mid-sweep is a good way to meet
+# Garmin's per-IP rate limiter.
+concurrency:
+  group: garmin-api-contract
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  catalogue:
+    name: Catalogue and offline checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - run: npm ci
+
+      # tsc, svelte-check and the unit tests, including tests/api-catalogue.test.ts:
+      # ids unique, every checked endpoint has a probe, every `plugin` name still
+      # resolves on GarminApi, every `critical` path exists in the recorded shape.
+      - name: Typecheck and test
+        run: |
+          npx tsc -noEmit -skipLibCheck
+          npm test
+
+      - name: Fetch python-garminconnect
+        run: git clone --depth 1 https://github.com/cyberjunky/python-garminconnect.git "$RUNNER_TEMP/pgc"
+
+      # Advisory: upstream adding an endpoint does not break this plugin, but it
+      # is the earliest warning we get that Garmin moved something.
+      - name: Compare catalogue against upstream
+        continue-on-error: true
+        env:
+          GARMINCONNECT_SRC: ${{ runner.temp }}/pgc
+        run: |
+          npm run --silent api:extract:check > upstream.txt 2>&1 && status=0 || status=$?
+          {
+            echo "## Catalogue vs python-garminconnect"
+            echo
+            echo '```'
+            cat upstream.txt
+            echo '```'
+            [ "$status" -eq 0 ] || echo "Run \`npm run api:extract\` to adopt these."
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat upstream.txt
+          exit "$status"
+
+  contract:
+    name: Live contract check
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: write # only used by the record path, which pushes a branch
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - run: npm ci
+
+      # `secrets` is not available in a job-level `if`, so the guard has to be a
+      # step. Skipping beats failing: a fork with no account should still be green.
+      - name: Is there a session to use?
+        id: session
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+        run: |
+          if [ -n "$GARMIN_TOKENS" ] || [ -n "$GARMIN_EMAIL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No GARMIN_TOKENS secret — skipping the live check. See api/README.md."
+          fi
+
+      - name: Check the live API
+        id: check
+        if: steps.session.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          # Written, never echoed. Under RUNNER_TEMP so it cannot be picked up by
+          # an artifact upload or a stray `git add`.
+          GARMIN_TOKEN_OUT: ${{ runner.temp }}/garmin-token.json
+          RECORD: ${{ inputs.record && '--update' || '' }}
+        run: npm run --silent api:check -- --report api-contract-report.md $RECORD
+
+      - name: Publish the report
+        if: steps.session.outputs.ready == 'true' && hashFiles('api-contract-report.md') != ''
+        run: cat api-contract-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Garmin may hand back a new refresh token when the old one is used. Losing
+      # it strands the next run on a token that has already been retired, days
+      # later, for no visible reason. GITHUB_TOKEN cannot write secrets, so this
+      # needs a fine-grained PAT with "Secrets: write" as GH_SECRETS_TOKEN.
+      - name: Return the rotated session to its secret
+        if: steps.session.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          TOKEN_FILE: ${{ runner.temp }}/garmin-token.json
+        run: |
+          if [ ! -f "$TOKEN_FILE" ]; then
+            echo "::warning::No session file was written; the check did not get that far."
+            exit 0
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::No GH_SECRETS_TOKEN — a rotated refresh token cannot be saved."
+            exit 0
+          fi
+          gh secret set GARMIN_TOKENS --repo "$GITHUB_REPOSITORY" < "$TOKEN_FILE"
+          echo "GARMIN_TOKENS refreshed"
+
+      - name: Open a pull request with the recorded shapes
+        if: inputs.record && steps.session.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # --porcelain rather than `git diff`, so the first ever recording —
+          # which produces untracked files — is not mistaken for no change.
+          if [ -z "$(git status --porcelain -- api/schema)" ]; then
+            echo "::notice::Nothing changed in api/schema."
+            exit 0
+          fi
+          branch="chore/api-schema-$(date -u +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add api/schema
+          git commit -m "chore: record Garmin response shapes for $(date -u +%Y-%m-%d)"
+          git push -u origin "$branch"
+          gh pr create --title "chore: record Garmin response shapes" \
+            --body-file api-contract-report.md --base "${GITHUB_REF_NAME}"
+
+      # One issue, reopened and commented on rather than a new one every morning.
+      - name: Report a broken contract
+        if: steps.session.outputs.ready == 'true' && steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "Garmin API contract check is failing"
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create garmin-api --color B60205 \
+            --description "Garmin changed a response the plugin reads" 2>/dev/null || true
+
+          {
+            [ -f api-contract-report.md ] && cat api-contract-report.md \
+              || echo "The check could not complete. See the run log."
+            echo
+            echo "---"
+            echo "[Workflow run]($RUN) · re-run with **record** to accept these shapes."
+          } > issue-body.md
+
+          number="$(gh issue list --label garmin-api --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file issue-body.md
+          else
+            gh issue create --title "$TITLE" --label garmin-api --body-file issue-body.md
+          fi
+
+      - name: Fail the run if a contract broke
+        if: steps.session.outputs.ready == 'true' && steps.check.outcome == 'failure'
+        run: exit 1

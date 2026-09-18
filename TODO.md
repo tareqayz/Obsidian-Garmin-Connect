@@ -16,8 +16,12 @@
 - Test on Android — different native HTTP stack, so a third TLS fingerprint.
   Desktop and iOS JA4s are recorded in the README.
 - Check behaviour under sync load — many `connectapi` calls in sequence.
-- Verify payload shapes against a live account. `mapDay` reads these defensively,
-  but they were inferred from the endpoint paths rather than observed:
+- Verify payload shapes against a live account. `npm run api:record` now does
+  this in one command: it fetches every endpoint the sync uses and writes the
+  observed field names and types to `api/schema/`, and
+  `tests/api-catalogue.test.ts` then fails if any path below is not in that
+  recording. Until it has been run once, these remain inferred from the endpoint
+  paths rather than observed:
   `hrvSummary.lastNightAvg` / `.status`, `readiness[0].score`,
   `maxMetrics.generic.vo2MaxPreciseValue` / `.fitnessAge`,
   `maxMetrics.cycling.vo2MaxPreciseValue`, `enduranceScore.overallScore`, and
@@ -33,5 +37,7 @@
   the data. That points at a wrong URL or a wrong field name in
   `GarminApi.maxMetrics` / `mapDay`, not at an absent metric.
   Run probe step 4 ("Inspect fitness endpoints") and compare the printed keys
-  with what `src/sync/metrics.ts` reads.
+  with what `src/sync/metrics.ts` reads — or run `npm run api:record` and read
+  `api/schema/max-metrics-range.json`, which answers the same question and
+  leaves the answer committed.
 - Customizable layouts - resizeable widgets - advanced widget settings - default layout + can make multiple different layouts (different dashboard pages)

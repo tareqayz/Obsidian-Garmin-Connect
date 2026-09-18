@@ -17,6 +17,15 @@ see [CONTRIBUTING.md](CONTRIBUTING.md) for how a release is cut.
   login attempt against a per-IP rate limit. A cancelled prompt is reported
   distinctly from a failed one, and leaves any working session untouched. Probe
   checks 2 and 3 use the same prompt and the same retry budget.
+- **A written-down Garmin API, and a daily check against the live one.**
+  `api/endpoints.json` catalogues all 135 endpoints Garmin exposes — request
+  shape, which ones this plugin calls, and the response fields it reads —
+  generated from `python-garminconnect` by `scripts/api/extract-endpoints.py`.
+  `api/schema/` records the response shapes actually observed.
+  `.github/workflows/api-contract.yml` fetches them every morning through the
+  plugin's own client and opens an issue the same day a field the plugin reads
+  stops arriving. Garmin ships breaking changes without notice or a version;
+  this is how we hear about them before a user does.
 - Trunk-based git conventions and a tag-driven release pipeline
   (`.github/workflows/release.yml`), with separate stable and BRAT beta channels.
 - `version-bump.mjs`, `versions.json` and an `.npmrc` that pins
