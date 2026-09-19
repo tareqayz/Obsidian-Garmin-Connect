@@ -36,6 +36,11 @@
 		align-items: center;
 		gap: 8px;
 		width: 100%;
+		/* The header is a button, so it inherits Obsidian's `height` and
+		   `border-radius`. The height clips the title; the radius is a 44px
+		   pill on mobile, which curves the rule below away to nothing. */
+		height: auto;
+		border-radius: 0;
 		padding: 4px 0 8px;
 		background: transparent;
 		border: none;

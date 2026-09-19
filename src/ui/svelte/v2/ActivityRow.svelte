@@ -53,6 +53,11 @@
 		align-items: center;
 		gap: 12px;
 		width: 100%;
+		/* Obsidian gives every <button> `height: var(--input-height)` — 30px on
+		   desktop, 44px on mobile. A row is taller than that even on one line,
+		   and taller again once the metrics wrap, so without this the box stays
+		   at Obsidian's height and the content paints over the rows below. */
+		height: auto;
 		padding: 12px 14px;
 		border: none;
 		border-radius: 8px;

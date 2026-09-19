@@ -40,43 +40,48 @@
      synced, which on a health log is as much of the answer as the values. -->
 <div class="heat" bind:clientWidth={width}>
 	{#if grid.weeks.length > 0 && width > 0}
-		<div class="months" style:padding-left="26px">
-			{#each grid.months as month (month.column)}
-				<span class="month" style:left="{month.column * (cell + 2)}px">{month.label}</span>
-			{/each}
-		</div>
-
-		<div class="body">
-			<div class="days" style:height="{7 * (cell + 2)}px">
-				{#each WEEKDAYS as day, i (i)}
-					<span class="day" style:height="{cell + 2}px" style:line-height="{cell + 2}px">{day}</span>
+		<!-- A year of squares stops shrinking at 6px, so on a narrow pane it is
+		     wider than the card. Scrolling it beats clipping it: the labels and
+		     the grid move together, and the legend below does not. -->
+		<div class="grid">
+			<div class="months">
+				{#each grid.months as month (month.column)}
+					<span class="month" style:left="{month.column * (cell + 2)}px">{month.label}</span>
 				{/each}
 			</div>
 
-			<div class="weeks">
-				{#each grid.weeks as week, w (w)}
-					<div class="week">
-						{#each week as day (day.date)}
-							{#if day.filler}
-								<span class="cell hole" style:width="{cell}px" style:height="{cell}px"></span>
-							{:else}
-								<span
-									class="cell"
-									class:empty={day.level === 0}
-									style:width="{cell}px"
-									style:height="{cell}px"
-									style:background={day.level === 0
-										? undefined
-										: `var(--gcd-stage-${day.level})`}
-									role="img"
-									aria-label={title(day)}
-									onmouseenter={() => (hovered = day)}
-									onmouseleave={() => (hovered = null)}
-								></span>
-							{/if}
-						{/each}
-					</div>
-				{/each}
+			<div class="body">
+				<div class="days" style:height="{7 * (cell + 2)}px">
+					{#each WEEKDAYS as day, i (i)}
+						<span class="day" style:height="{cell + 2}px" style:line-height="{cell + 2}px">{day}</span>
+					{/each}
+				</div>
+
+				<div class="weeks">
+					{#each grid.weeks as week, w (w)}
+						<div class="week">
+							{#each week as day (day.date)}
+								{#if day.filler}
+									<span class="cell hole" style:width="{cell}px" style:height="{cell}px"></span>
+								{:else}
+									<span
+										class="cell"
+										class:empty={day.level === 0}
+										style:width="{cell}px"
+										style:height="{cell}px"
+										style:background={day.level === 0
+											? undefined
+											: `var(--gcd-stage-${day.level})`}
+										role="img"
+										aria-label={title(day)}
+										onmouseenter={() => (hovered = day)}
+										onmouseleave={() => (hovered = null)}
+									></span>
+								{/if}
+							{/each}
+						</div>
+					{/each}
+				</div>
 			</div>
 		</div>
 
@@ -109,8 +114,17 @@
 		width: 100%;
 		min-width: 0;
 	}
+	.grid {
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+	}
 	.months {
 		position: relative;
+		/* Clears the weekday gutter (.days is 22px, .body adds a 4px gap), which
+		   is the same 26px the cell size is solved against. A margin rather than
+		   padding: the labels inside are absolutely positioned, and padding does
+		   not move their containing block. */
+		margin-left: 26px;
 		height: 14px;
 		color: var(--gcd-muted);
 		font-size: 10px;
