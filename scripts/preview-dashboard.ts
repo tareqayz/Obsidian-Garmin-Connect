@@ -5,6 +5,7 @@
  *   npm run preview:dashboard
  */
 import { mount } from "svelte";
+import { DEFAULT_LAYOUTS, type LayoutsState } from "../src/dashboard/layouts";
 import Dashboard from "../src/ui/svelte/Dashboard.svelte";
 import { shiftDate, type DayRow } from "../src/dashboard/series";
 
@@ -192,6 +193,8 @@ mount(Dashboard, {
 			return "3 written, 1 unchanged";
 		},
 		onBackfill: () => console.log("backfill modal would open"),
+		initialLayouts: DEFAULT_LAYOUTS,
+		onLayouts: (next: LayoutsState) => console.log("layouts saved", next.active),
 	},
 });
 

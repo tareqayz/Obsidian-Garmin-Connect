@@ -3,6 +3,18 @@
 Obsidian plugin that syncs Garmin Connect data into the vault. `CONTRIBUTING.md` is the full
 rulebook; this file is the short version that matters while making changes.
 
+## UI
+
+Any updated to UI should be managed in the relevant figma file : https://www.figma.com/design/vlk7D6Cmjry8fhUuDQMT2H/Obsidian-Garmin-Connect-%E2%80%94-Dashboard-UI?m=auto&t=gA6vYah7LKnBRSY6-6
+
+This is relevant for:
+- Designing new components
+- updating components
+- creating alternative views for components
+- new UI related features or changes.
+
+Always cross-check UI implementations by verifying using the [obsidian CLI command](/docs/obsidian-cli.md)
+
 ## Git
 
 - `main` is the only long-lived branch. Never commit to it directly — branch first.
@@ -55,3 +67,4 @@ Key routing rules:
 - Save progress → invoke /context-save
 - Resume context → invoke /context-restore
 - Author a backlog-ready spec/issue → invoke /spec
+- Figma → invoke /figma-use

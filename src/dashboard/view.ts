@@ -1,4 +1,5 @@
 import { ItemView, type WorkspaceLeaf } from "obsidian";
+import type { LayoutsState } from "./layouts";
 import { mount, unmount } from "svelte";
 import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
@@ -47,6 +48,10 @@ export class GarminDashboardView extends ItemView {
 					return report ? describe(report).replace(/^Garmin sync: /, "") : null;
 				},
 				onBackfill: () => new SyncRangeModal(this.app, this.plugin).open(),
+				initialLayouts: this.plugin.data.layouts,
+				// Every edit lands here; there is no save button by design, so the
+				// write has to be the same action as the change.
+				onLayouts: (next: LayoutsState) => void this.plugin.data.saveLayouts(next),
 			},
 		});
 

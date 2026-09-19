@@ -42,3 +42,84 @@
 	--gcd-text: var(--text-normal, #dadada);
 	--gcd-border: var(--background-modifier-border, rgba(255, 255, 255, 0.1));
 }
+
+/* ==================================================================
+   Garmin dashboard — v2
+   The second design language, from the Figma library. It sits beside
+   v1 rather than replacing it: v1 charts keep --gcd-*, v2 surfaces and
+   activity views add --v2-*.
+
+   Three things v1 does not have. Sport is categorical, so each one
+   gets a hue of its own rather than a weight of the blue ramp.
+   Heart-rate zones are ordered, so they run cool to hot. And a v2 card
+   is raised by a shadow rather than outlined by a hairline, which
+   needs a page surface behind it to be raised *from*.
+
+   The two surfaces are the one place v2 does not defer to Obsidian's
+   theme. Obsidian's --background-primary/-secondary pair does not
+   preserve a consistent lightness order across modes: secondary is
+   lighter than primary in dark and darker in light. Mapping the card
+   onto either one inverts figure and ground in one of the two modes,
+   which is precisely the relationship the elevation is carrying. So
+   these two are literal, and everything else still follows the theme.
+   ================================================================== */
+
+.gcd-root {
+	--v2-surface-app: #f7f7f5;
+	--v2-surface-card: #ffffff;
+	--v2-muted: #6b6a64;
+	--v2-accent: #256abf;
+
+	--v2-positive: #147a3d;
+	--v2-negative: #c0392b;
+	--v2-positive-tint: #e3efe8;
+	--v2-negative-tint: #f7e7e6;
+	/* Edit mode's wash. Tinted rather than outlined, so there is never any
+	   doubt about whether a drag would move something. */
+	--v2-accent-tint: #e8f0fb;
+
+	--v2-sport-run: #e0662e;
+	--v2-sport-ride: #2e7fd4;
+	--v2-sport-swim: #16a0a0;
+	--v2-sport-strength: #7b5bd4;
+	--v2-sport-other: #6b7280;
+
+	--v2-zone-1: #7a8fa6;
+	--v2-zone-2: #3b82c4;
+	--v2-zone-3: #2e9e5b;
+	--v2-zone-4: #c9781a;
+	--v2-zone-5: #c43b3b;
+
+	/* Figma's "v2/Elevation 1". */
+	--v2-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.09), 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.theme-dark .gcd-root {
+	--v2-surface-app: #171717;
+	--v2-surface-card: #242424;
+	--v2-muted: #a8a69e;
+	--v2-accent: #5598e7;
+
+	--v2-positive: #3fbf6a;
+	--v2-negative: #f0605c;
+	--v2-positive-tint: #294031;
+	--v2-negative-tint: #33201e;
+	--v2-accent-tint: #1c2c42;
+
+	--v2-sport-run: #f0855a;
+	--v2-sport-ride: #5b9fe3;
+	--v2-sport-swim: #2cbdbd;
+	--v2-sport-strength: #9b82e0;
+	--v2-sport-other: #9aa2ae;
+
+	--v2-zone-1: #a3b5c8;
+	--v2-zone-2: #5b9bd6;
+	--v2-zone-3: #45b673;
+	--v2-zone-4: #eda044;
+	--v2-zone-5: #d95c5c;
+
+	/* A 5%-black shadow is invisible on a dark surface; the design has no
+	   dark value for it, so the opacities are lifted to keep the card
+	   reading as raised rather than flat. */
+	--v2-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
+}

@@ -42,11 +42,15 @@
   with what `src/sync/metrics.ts` reads — or run `npm run api:record` and read
   `api/schema/max-metrics-range.json`, which answers the same question and
   leaves the answer committed.
-- Customizable layouts - resizeable widgets - advanced widget settings - default
-  layout + can make multiple different layouts (different dashboard pages).
-  Partly started: the dashboard is now five collapsible sections rather than one
-  flat grid, and which sections are open is per-view state. What is still missing
-  is choosing *which cards* appear, reordering them, and saving that as a layout.
+- Layouts: two follow-ups deliberately left out of the first cut.
+  - A layout cannot pin its own date range. A "Sleep" layout probably always
+    wants 90 days, but the filter bar is global, and making it per-layout means
+    the range chips have to say which of the two they are obeying. Per-*widget*
+    range overrides do exist, under the widget's ⋯ menu.
+  - No import or export. The stored shape in `data.json` is already portable, so
+    this is small, but it needs the reader to be exercised against hand-written
+    input — `readLayouts` drops unknown block types and unknown card ids today,
+    which is the behaviour an import has to rely on.
 - The new mappings in `mapDay` for `body`, `training`, respiration, pulse ox and
   the extra sleep, stress and readiness fields were written from Garmin's field
   names rather than from observed responses. They are listed under `reads` in

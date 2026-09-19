@@ -1,4 +1,5 @@
 import type { Plugin } from "obsidian";
+import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
@@ -28,13 +29,15 @@ function groups(v: unknown, fallback: MetricGroup[]): MetricGroup[] {
 interface Persisted {
 	settings: GarminSettings;
 	auth: PersistedAuth | null;
+	layouts: LayoutsState;
 }
 
 /**
  * Owns `data.json`.
  *
- * Settings and the session share one file, so both go through here — otherwise
- * saving settings would clobber a token written moments earlier.
+ * Settings, the session and the dashboard layouts share one file, so all three
+ * go through here — otherwise saving settings would clobber a token written
+ * moments earlier.
  *
  * It is also the only `TokenStore` the plugin uses, and what it stores is
  * deliberately narrow: a refresh token and the DI client it belongs to. No
@@ -42,6 +45,12 @@ interface Persisted {
  */
 export class PluginData implements TokenStore {
 	settings: GarminSettings = { ...DEFAULT_SETTINGS };
+	/**
+	 * Dashboard layouts. Kept beside settings rather than inside them because
+	 * they are a different kind of thing: settings say what to sync, a layout
+	 * says how to read it, and the settings tab never touches these.
+	 */
+	layouts: LayoutsState = { ...DEFAULT_LAYOUTS };
 
 	private plugin: Plugin;
 	private auth: PersistedAuth | null = null;
@@ -102,6 +111,10 @@ export class PluginData implements TokenStore {
 		this.migratedAwayFromStoredPassword = Boolean(source.password);
 		const migrated = this.migrate();
 
+		// Same allowlist treatment as settings: a block this build cannot draw is
+		// dropped rather than rendered. See `readLayouts`.
+		this.layouts = readLayouts(raw.layouts);
+
 		const auth = raw.auth as PersistedAuth | null | undefined;
 		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
 
@@ -153,12 +166,19 @@ export class PluginData implements TokenStore {
 		await this.flush();
 	}
 
+	/* Layouts -------------------------------------------------------- */
+
+	async saveLayouts(next: LayoutsState): Promise<void> {
+		this.layouts = next;
+		await this.flush();
+	}
+
 	get hasSession(): boolean {
 		return this.auth !== null;
 	}
 
 	private async flush(): Promise<void> {
-		const payload: Persisted = { settings: this.settings, auth: this.auth };
+		const payload: Persisted = { settings: this.settings, auth: this.auth, layouts: this.layouts };
 		await this.plugin.saveData(payload);
 	}
 }

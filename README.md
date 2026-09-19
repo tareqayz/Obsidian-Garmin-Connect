@@ -70,6 +70,9 @@ and stress, Fitness and training, Body — hold around thirty-six cards between
 them. A range row (30 days / 90 days / 1 year) scopes everything below it, and a
 **Table** toggle swaps the whole view for the same numbers as text.
 
+That arrangement is the **Default layout**, and it is only the starting point —
+see [Layouts](#layouts) below.
+
 Beyond the line, column, band and stacked charts, the sections carry:
 
 - a **calendar heatmap** with a metric picker — one square per day, shaded by
@@ -90,6 +93,54 @@ window. The same row carries **Sync** (the last few days) and **Backfill…** (a
 range you pick), with a status line underneath saying what the vault currently
 holds — "Data through 12 Sep · 386 days stored" — so the dashboard is where you
 both read the data and fetch it.
+
+## Layouts
+
+The dashboard is not one fixed page. Everyone starts on **Default** — the
+arrangement described above — and can build as many others as they want:
+a Training layout, a Sleep one, a two-widget morning check.
+
+The pill bar at the top switches between them; **Edit layout** turns on the
+arranging mode, where every widget grows a grip, a size badge, a settings menu
+and a remove button. In that mode you can:
+
+- **drag a widget** by its grip to move it, with the rest of the grid parting
+  live around it;
+- **drag its bottom-right corner** to resize, snapping to the column grid;
+- **add widgets** from a picker that lists all thirty-six cards plus the goal
+  rings, the stat row and section headings;
+- **remove** anything, including a section heading — which leaves the widgets
+  under it where they are rather than deleting them with it;
+- open **⋯** on a widget for its own settings: width, height, which measure a
+  switchable card shows, whether the goal line is drawn, and a **date range**
+  that either follows the filter bar or pins that one widget to its own window.
+
+There is no Save button. Edits apply as you make them, and **Reset** puts the
+shipped layout back.
+
+### One layout, three widths
+
+A layout is saved with the plugin rather than with the device, so the same one
+opens on your phone. That is why a widget's width is stored as a span of a
+four-column grid rather than in pixels, and why the **pane** decides how many
+columns there are — not the platform. An Obsidian leaf 340px wide in a desktop
+sidebar renders exactly like a phone.
+
+| Pane width | Columns | What happens to a span |
+| --- | --- | --- |
+| 900px and up | 4 | Every span is available |
+| 560–899px | 2 | ¼ and ½ become a half; ¾ and Full take the row |
+| under 560px | 1 | Everything is full width — except stat tiles, which stay two-up |
+
+Nothing about the stored layout changes when the pane resizes, so dragging a
+window narrow and wide again is lossless.
+
+The gestures differ by input rather than by device. With a pointer, a drag
+starts as soon as the grip has moved a few pixels and the corner grip resizes.
+With touch there is no corner target — 14px is not hittable — so width and
+height move into the widget's settings, and a drag has to begin with a short
+hold on the grip, which is what stops an attempt to scroll past a widget from
+picking it up instead.
 
 Every tile and card has an **i** button explaining what the metric is and how to
 read it, and every chart has an **⤢** button that expands it to the full pane
@@ -329,11 +380,13 @@ src/dashboard/
   series.ts              rows → series, stats, formatting  — pure
   scales.ts              chart geometry, ticks, paths      — pure
   metrics.ts             what is shown and how it behaves  — pure
+  layouts.ts             the layout model, grid and reader  — pure
+  layout-edit.ts         every layout change, as pure functions
   heatmap.ts             the calendar grid and its quartiles — pure
   collect.ts             reads days back out of the vault
   view.ts                the Obsidian ItemView, mounts Svelte
 src/ui/svelte/
-  Dashboard.svelte       root: filters, rings, tiles, sections, table
+  Dashboard.svelte       root: layout bar, filters, blocks, editing
   Chart.svelte           shared frame: scale, axes, hit bands, tooltip
   ColumnChart / LineChart / BandChart / StackedChart
   BaselineChart          a line inside the range it is judged by
@@ -343,6 +396,12 @@ src/ui/svelte/
   GoalRing               progress against a target Garmin set
   WorkoutList            the range's activities
   Section                a collapsible group of cards
+  layouts/LayoutBar      the pill switcher and its menu
+  layouts/EditToolbar    the tinted strip that means "edit mode"
+  layouts/WidgetFrame    grip, size badge, settings and remove
+  layouts/WidgetPicker   every widget, grouped, with a "not synced" state
+  layouts/WidgetSettings size, range and display options for one widget
+  layouts/LayoutDialog   new layout and rename
   StatTile / Sparkline / Legend / Card / FilterBar / DataTable
   LoginForm / SyncRangeForm / ProbePanel / SettingsPanel
   obsidian-setting.ts    action that drops a native Setting row into markup

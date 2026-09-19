@@ -11,6 +11,25 @@ see [CONTRIBUTING.md](CONTRIBUTING.md) for how a release is cut.
 
 ### Added
 
+- **Customisable dashboard layouts.** The dashboard is now a layout rather than
+  a fixed page. Everyone starts on Default — byte-for-byte the arrangement that
+  shipped before — and can build as many more as they want, switching between
+  them from a pill bar. **Edit layout** gives every widget a drag grip, a
+  resize corner, a settings menu and a remove button; widgets are added from a
+  picker covering all thirty-six cards plus the goal rings, the stat row and
+  section headings. Per-widget settings cover width, height, the measure a
+  switchable card shows, the goal line, and a date range that either follows the
+  filter bar or pins that widget to its own window.
+
+  A layout is saved with the plugin, not the device, so it follows the vault to
+  a phone. Width is therefore stored as a span of a four-column grid and the
+  **pane** decides how many columns exist — a 340px desktop sidebar renders the
+  same as a phone. Stat tiles stay two-up at every width; charts do not.
+
+  Default is generated rather than stored until it is edited, so a release that
+  adds a card still adds it to everybody's dashboard, and "Reset" is a delete.
+  There is no Save button: edits apply and persist as they are made.
+
 - **Multi-factor authentication.** Signing in now asks for the verification code
   when Garmin demands one, in the same dialog. A refused code is re-asked in
   place — up to three tries — so a typo costs a re-type rather than a second

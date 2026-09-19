@@ -30,7 +30,10 @@ export interface WorkoutEntry {
 	max_hr?: number;
 	pace?: string;
 	training_effect?: number;
+	steps?: number;
 	distance?: { value: number; unit: string };
+	/** Elevation gained, in metres or feet depending on the synced units. */
+	ascent?: { value: number; unit: string };
 }
 
 export interface Point {
@@ -141,7 +144,14 @@ export function workoutsIn(rows: readonly DayRow[]): WorkoutEntry[] {
 				const value = raw[key];
 				if (typeof value === "string" && value) entry[key] = value;
 			}
-			for (const key of ["minutes", "calories", "avg_hr", "max_hr", "training_effect"] as const) {
+			for (const key of [
+				"minutes",
+				"calories",
+				"avg_hr",
+				"max_hr",
+				"training_effect",
+				"steps",
+			] as const) {
 				const value = raw[key];
 				if (typeof value === "number" && Number.isFinite(value)) entry[key] = value;
 			}
@@ -149,6 +159,12 @@ export function workoutsIn(rows: readonly DayRow[]): WorkoutEntry[] {
 			const mi = raw.distance_mi;
 			if (typeof km === "number") entry.distance = { value: km, unit: "km" };
 			else if (typeof mi === "number") entry.distance = { value: mi, unit: "mi" };
+			// `mapWorkout` has always written these two; reading them back is what
+			// was missing, which is why an activity's climb never reached the UI.
+			const metres = raw.elevation_gain_m;
+			const feet = raw.elevation_gain_ft;
+			if (typeof metres === "number") entry.ascent = { value: metres, unit: "m" };
+			else if (typeof feet === "number") entry.ascent = { value: feet, unit: "ft" };
 			out.push(entry);
 		}
 	}
