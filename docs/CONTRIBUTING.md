@@ -12,10 +12,6 @@
 | `docs/<slug>` | documentation only |
 | `refactor/<slug>` | no behaviour change |
 
-One branch per unit of work, named after the outcome, one level deep. `feature/ui/layouts`
-and `feature/layouts` once existed for the same work — that is the failure this rule exists
-to prevent, and one level keeps `git branch --list 'feature/*'` predictable.
-
 ### What this repo deliberately does not use
 
 - **No `staging` or `develop`.** A plugin has no servers, so there is no environment to

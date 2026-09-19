@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-garmin-connect",
 	"version": "0.0.1",
-	"description": "Phase 0 probe: can Obsidian talk to Garmin SSO on desktop and mobile?",
+	"description": "Sync, store and visualize Garmin Connect data in your Obsidian vault",
 	"main": "main.js",
 	"type": "module",
 	"private": true,
