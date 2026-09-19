@@ -3,7 +3,9 @@
 	"name": "Garmin Connect",
 	"version": "0.0.1",
 	"minAppVersion": "1.5.7",
-	"description": "Phase 0 diagnostic. Tests whether Garmin Connect SSO login is reachable from Obsidian's HTTP stack on desktop and on mobile.",
+	"description": "Sync, store and visualize Garmin Connect data in your Obsidian vault",
 	"author": "Tareq Alansari",
+	"authorUrl": "https://github.com/tareqayz",
+	"fundingUrl": "https://buymeacoffee.com/tareqayz",
 	"isDesktopOnly": false
 }
