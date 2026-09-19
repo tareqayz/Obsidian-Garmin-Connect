@@ -123,3 +123,77 @@
 	   reading as raised rather than flat. */
 	--v2-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
 }
+
+/* ==================================================================
+   Sync Notice
+   Sync reports itself here and nowhere else: one bar, in the corner the
+   toast already owns, rather than a second one in the dashboard.
+
+   Obsidian's toast is its own chrome and sits outside .gcd-root, so it
+   cannot inherit the dashboard tokens. The rail's two colours are
+   literal for that reason, picked to read on the notice's near-black
+   surface in either theme.
+   ================================================================== */
+
+.gcn-sync {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 220px;
+}
+
+.gcn-line {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.gcn-count {
+	opacity: 0.7;
+	font-variant-numeric: tabular-nums;
+}
+
+.gcn-rail {
+	height: 3px;
+	border-radius: 999px;
+	background: rgba(127, 127, 127, 0.35);
+	overflow: hidden;
+}
+
+.gcn-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: #5598e7;
+	transition: width 220ms ease;
+}
+
+/* Before the first day lands there is no share to draw, so the bar
+   shuttles rather than claiming a number it does not have. */
+.gcn-rail.is-indeterminate .gcn-fill {
+	width: 28%;
+	animation: gcn-shuttle 1100ms ease-in-out infinite alternate;
+}
+
+@keyframes gcn-shuttle {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(257%);
+	}
+}
+
+.gcn-detail {
+	font-size: var(--font-ui-smaller, 12px);
+	opacity: 0.65;
+	font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.gcn-rail.is-indeterminate .gcn-fill {
+		animation: none;
+		width: 100%;
+		opacity: 0.5;
+	}
+}

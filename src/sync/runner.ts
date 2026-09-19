@@ -10,6 +10,7 @@ import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } f
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
+import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 
 export type StorageMode = "dataFolder" | "dailyNotes" | "both";
 
@@ -81,7 +82,8 @@ export class SyncRunner {
 		}
 
 		const settings = this.settings();
-		const progress = new Notice("Garmin sync: starting…", 0);
+		const startedAt = Date.now();
+		const notice = new Notice(noticeBody({ done: 0, total: 0, date: null, eta: null }), 0);
 		this.running = true;
 		try {
 			const units = await this.resolveUnits(settings.units);
@@ -94,10 +96,17 @@ export class SyncRunner {
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
 				onProgress: (done, total, date) => {
-					progress.setMessage(`Garmin sync: ${done}/${total} (${date})`);
+					notice.setMessage(
+						noticeBody({
+							done,
+							total,
+							date,
+							eta: etaSeconds(Date.now() - startedAt, done, total),
+						}),
+					);
 				},
 			});
-			progress.hide();
+			notice.hide();
 
 			// Only worth creating once there is something for it to show.
 			if (report.written > 0) await this.ensureBasesView(settings, units);
@@ -105,7 +114,7 @@ export class SyncRunner {
 			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
 			return report;
 		} catch (err) {
-			progress.hide();
+			notice.hide();
 			new Notice(`Garmin sync failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
@@ -250,6 +259,51 @@ export function describe(report: SyncReport): string {
 	// "N written" while a whole metric was quietly missing from every note.
 	if (report.warnings.length) summary += `\n${report.warnings.join("\n")}`;
 	return summary;
+}
+
+/**
+ * The progress Notice.
+ *
+ * A fragment rather than a string because a bar is not something a string can
+ * say, and setMessage takes either. The toast is Obsidian's own chrome and
+ * lives outside .gcd-root, so the rail's two colours come from styles.css
+ * rather than the dashboard tokens.
+ */
+function noticeBody(progress: SyncProgress): DocumentFragment {
+	const fragment = document.createDocumentFragment();
+	const wrap = document.createElement("div");
+	wrap.className = "gcn-sync";
+
+	const line = document.createElement("div");
+	line.className = "gcn-line";
+	const title = document.createElement("span");
+	title.textContent = "Garmin sync";
+	const count = document.createElement("span");
+	count.className = "gcn-count";
+	count.textContent = progress.total > 0 ? `${progress.done} of ${progress.total}` : "starting…";
+	line.append(title, count);
+
+	const rail = document.createElement("div");
+	rail.className = progress.total > 0 ? "gcn-rail" : "gcn-rail is-indeterminate";
+	const fill = document.createElement("div");
+	fill.className = "gcn-fill";
+	if (progress.total > 0) fill.style.width = `${Math.round(fraction(progress) * 100)}%`;
+	rail.append(fill);
+
+	wrap.append(line, rail);
+
+	// The day and the time left are the two things a count alone cannot answer:
+	// how far back the run has reached, and whether it is worth waiting for.
+	const detail = [progress.date, formatEta(progress.eta)].filter(Boolean).join(" · ");
+	if (detail) {
+		const el = document.createElement("div");
+		el.className = "gcn-detail";
+		el.textContent = detail;
+		wrap.append(el);
+	}
+
+	fragment.append(wrap);
+	return fragment;
 }
 
 function explain(err: unknown): string {
