@@ -1,0 +1,538 @@
+# Garmin Connect for Obsidian
+
+Syncs Garmin Connect health data into your daily notes as frontmatter properties
+— **on mobile as well as the desktop**, which is the part nobody had solved.
+
+**Status: phase 2 + dashboard.** Authentication, session persistence, the typed
+API core, the sync engine and the dashboard are done and tested (354 tests).
+Multi-factor authentication is handled. The UI is Svelte 5, functional rather
+than polished.
+
+## Where the data goes
+
+By default, **one note per day in a folder of its own**, with the metrics as
+frontmatter properties:
+
+```yaml
+# Garmin/2026-09-12.md
+---
+date: 2026-09-12
+steps: 8432
+distance_km: 6.21
+resting_hr: 48
+sleep_hours: 7.5
+sleep_score: 82
+body_battery_high: 88
+hrv_avg: 42
+training_readiness: 71
+workouts:
+  - name: Morning Run
+    type: running
+    start: 2026-09-12T07:31
+    minutes: 31
+    distance_km: 5.12
+---
+```
+
+On the first sync that writes something, an Obsidian **Bases view** is generated
+next to it (`Garmin/Garmin Health.base`) so the folder reads as a sortable,
+filterable table:
+
+| Date | Steps | Resting HR | Sleep (h) | Readiness |
+| --- | --- | --- | --- | --- |
+| 2026-09-12 | 8432 | 48 | 7.5 | 71 |
+| 2026-09-11 | 6110 | 51 | 6.8 | 64 |
+
+That is the table without the markdown table. A markdown table would be inert
+text — Dataview and Bases both query *properties*, not table rows — so this way
+you get the same view and can still ask "resting HR on days I ran more than
+10 km". The view is created once and never overwritten, so any columns or
+filters you change by hand survive. *Rebuild the Garmin table view* regenerates
+it from current settings when you want that.
+
+### Or daily notes, or both
+
+**Settings → Storage** switches between:
+
+| Mode | Behaviour |
+| --- | --- |
+| **Data folder** (default) | One note per day in `Garmin/`. Never touches notes you wrote. Every day is writable, so backfill works with nothing existing first. Properties unprefixed — nothing to collide with. |
+| **Daily notes** | Properties go into the daily note you already keep, prefixed `garmin_` so they cannot collide. Only writes to notes that already exist unless you turn on *Create missing notes*. |
+| **Both** | Writes to each. A day counts as written if either took it. |
+
+## The dashboard
+
+**Open dashboard** (ribbon, or the command palette) opens a pane of charts drawn
+from whatever has been synced. It leads with goal rings for steps, intensity
+minutes and floors, then a strip of stat tiles carrying week-over-week deltas and
+sparklines. Below that, **five collapsible sections** — Activity, Sleep, Recovery
+and stress, Fitness and training, Body — hold around thirty-six cards between
+them. A range row (30 days / 90 days / 1 year) scopes everything below it, and a
+**Table** toggle swaps the whole view for the same numbers as text.
+
+That arrangement is the **Default layout**, and it is only the starting point —
+see [Layouts](#layouts) below.
+
+Beyond the line, column, band and stacked charts, the sections carry:
+
+- a **calendar heatmap** with a metric picker — one square per day, shaded by
+  quartile so a single extraordinary day does not wash out the year, and days
+  with nothing synced drawn as outlines rather than pale squares;
+- an **activity list** — every workout in the range with its distance, pace,
+  heart rate, calories and training effect. These were being synced into every
+  note and shown nowhere;
+- **composition bars** for the day split into activity bands, the four stress
+  bands, and the night's sleep mix;
+- a **baseline chart** that draws HRV inside the personal range Garmin judges it
+  by, because 38 ms means nothing on its own;
+- a **two-series line chart** for acute against chronic training load, which is
+  the only way that pair reads.
+
+A **Custom** chip swaps the presets for two date pickers when you want an exact
+window. The same row carries **Sync** (the last few days) and **Backfill…** (any
+range you pick), with a status line underneath saying what the vault currently
+holds — "Data through 12 Sep · 386 days stored" — so the dashboard is where you
+both read the data and fetch it.
+
+## Layouts
+
+The dashboard is not one fixed page. Everyone starts on **Default** — the
+arrangement described above — and can build as many others as they want:
+a Training layout, a Sleep one, a two-widget morning check.
+
+The pill bar at the top switches between them; **Edit layout** turns on the
+arranging mode, where every widget grows a grip, a size badge, a settings menu
+and a remove button. In that mode you can:
+
+- **drag a widget** by its grip to move it, with the rest of the grid parting
+  live around it;
+- **drag its bottom-right corner** to resize, snapping to the column grid;
+- **add widgets** from a picker that lists all thirty-six cards plus the goal
+  rings, the stat row and section headings;
+- **remove** anything, including a section heading — which leaves the widgets
+  under it where they are rather than deleting them with it;
+- open **⋯** on a widget for its own settings: width, height, which measure a
+  switchable card shows, whether the goal line is drawn, and a **date range**
+  that either follows the filter bar or pins that one widget to its own window.
+
+There is no Save button. Edits apply as you make them, and **Reset** puts the
+shipped layout back.
+
+### One layout, three widths
+
+A layout is saved with the plugin rather than with the device, so the same one
+opens on your phone. That is why a widget's width is stored as a span of a
+four-column grid rather than in pixels, and why the **pane** decides how many
+columns there are — not the platform. An Obsidian leaf 340px wide in a desktop
+sidebar renders exactly like a phone.
+
+| Pane width | Columns | What happens to a span |
+| --- | --- | --- |
+| 900px and up | 4 | Every span is available |
+| 560–899px | 2 | ¼ and ½ become a half; ¾ and Full take the row |
+| under 560px | 1 | Everything is full width — except stat tiles, which stay two-up |
+
+Nothing about the stored layout changes when the pane resizes, so dragging a
+window narrow and wide again is lossless.
+
+The gestures differ by input rather than by device. With a pointer, a drag
+starts as soon as the grip has moved a few pixels and the corner grip resizes.
+With touch there is no corner target — 14px is not hittable — so width and
+height move into the widget's settings, and a drag has to begin with a short
+hold on the grip, which is what stops an attempt to scroll past a widget from
+picking it up instead.
+
+Every tile and card has an **i** button explaining what the metric is and how to
+read it, and every chart has an **⤢** button that expands it to the full pane
+with a taller plot and a summary strip (latest, average, lowest, highest, and the
+day each happened).
+
+The UI is **Svelte 5**, set up the way [Obsidian's guide][svelte-guide]
+prescribes: `esbuild-svelte` in the build, components mounted with `mount()` and
+torn down with `unmount()`. The charts are hand-drawn SVG — no chart library, no
+CDN, because an Obsidian plugin cannot load external scripts and a bundled chart
+library would be dead weight on a phone. What Svelte buys here is that a chart is
+now markup instead of DOM-construction code, and that `bind:clientWidth` replaces
+a ResizeObserver plus a measure-then-draw second pass: each chart simply sizes
+itself to the card it lands in.
+
+[svelte-guide]: https://docs.obsidian.md/Plugins/Getting+started/Use+Svelte+in+your+plugin
+
+A few choices worth knowing, since they are easy to get wrong:
+
+- **Sleep stages take an ordinal ramp of one hue, not four colours.** Deep →
+  light → REM → awake is an *ordered* scale, so four categorical hues would be
+  encoding order as identity. The four blue steps were checked with the palette
+  validator against Obsidian's light and dark surfaces.
+- **No dual-axis charts anywhere.** Two measures of different scale get two
+  charts. Resting HR, HRV, Body Battery and readiness are small multiples with
+  one axis each.
+- **Colour never carries meaning alone.** The sleep chart has a legend; delta
+  chips lead with an arrow; every chart has the table view as its twin.
+- **Deltas know which way is good.** A falling resting heart rate is green and a
+  rising one is red — the opposite of steps. Deltas compare the last seven days
+  against the seven before, because a single day of Garmin data swings too much
+  to be a trend.
+- **Themes.** Chrome follows Obsidian's own CSS variables, so the dashboard
+  matches your theme; only the series colours are fixed, and both light and dark
+  steps were validated against the surfaces they render on.
+- **Settings keep native controls.** The settings panel is a Svelte component,
+  but every row is built with Obsidian's own `Setting` API through a small
+  action. Hand-rolling toggles and sliders would mean re-implementing Obsidian's
+  look and its mobile behaviour and getting both subtly wrong. Svelte decides
+  which rows exist — so switching storage mode now shows and hides sections
+  instead of rebuilding the whole pane and losing your scroll position.
+
+### What gets collected
+
+Thirteen metric groups, each switchable, writing around ninety properties
+between them: **activity** (steps, distance, calories, floors, intensity minutes,
+and the day split into active, highly active and sedentary), **heart**
+(resting, Garmin's seven-day resting average, min, max), **sleep** (duration,
+stages, score, the night's own resting heart rate, respiration, SpO2, awakenings
+and recharge), **stress and Body Battery** (averages, peaks, minutes in each
+band, charged and drained), **HRV** (overnight average and the baseline range it
+is judged against), **training readiness** (score plus the factors behind it),
+**fitness** (VO2 Max, fitness age, endurance score), **races** (predicted
+5K/10K/half/marathon times), **respiration**, **pulse ox**, **body composition**
+(weight, BMI, body fat, muscle and bone mass), **training load** (status, acute,
+chronic, ratio), and **workouts**.
+
+Turning a group off stops the request that fetches it *when it has one*. Five of
+the thirteen share the daily summary call, so respiration and pulse ox in
+particular cost nothing at all; the settings screen marks each group as free or
+as one request per day. With everything on, a day costs seven requests.
+
+Every property, with units and query examples, is in
+[docs/properties.md](docs/properties.md).
+
+---
+
+## Documentation
+
+| Page | What it covers |
+| --- | --- |
+| [Property reference](docs/properties.md) | Every frontmatter property, units, and query examples |
+| [Settings reference](docs/settings.md) | Every setting and what changing it does |
+| [Troubleshooting](docs/troubleshooting.md) | Keyed by symptom |
+| [Architecture](docs/architecture.md) | The two seams, module map, and how to extend |
+| [Garmin API](docs/garmin-api.md) | Endpoints called, and the request budget |
+| [API catalogue](api/README.md) | Every endpoint Garmin exposes, the response shapes recorded, and the daily check that watches them |
+| [Contributing](CONTRIBUTING.md) | Branch conventions and the release runbooks |
+| [Security](SECURITY.md) | What is stored, what leaves your device |
+
+---
+
+## Setup
+
+```bash
+npm install
+npm run build      # typecheck → 259 tests → bundle → mobile-safety check
+```
+
+Reload community plugins in Obsidian, enable **Garmin Connect**, then:
+
+1. **Sign in to Garmin Connect** (command palette, or the button in settings).
+   Your password is used for that one request and never written anywhere. If the
+   account has multi-factor authentication on, the same dialog then asks for the
+   code, and gives you three tries at it before the sign-in starts over.
+2. **Sync recent days** — or bind the ribbon icon, which does the same.
+
+On mobile the plugin arrives through vault sync like any other file; enable it
+in *Settings → Community plugins* and sign in there too. The two devices keep
+separate sessions.
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| Sync recent days | The last *N* days (default 3) |
+| Sync today | Just today |
+| Sync a date range… | Backfill, with a request estimate before you commit |
+| Open dashboard | The charts pane |
+| Rebuild the Garmin table view | Regenerates the Bases view from current settings |
+| Sign in to Garmin Connect | |
+| Run connectivity probe | Diagnostics — see below |
+
+---
+
+## How syncing behaves
+
+**A day with nowhere to go costs nothing.** The target decides whether a day is
+writable, and it decides *before any request is made*. In daily-notes mode with
+*Create missing notes* off, a day without a note is skipped for free — so a
+sparse range barely touches the network. The data folder always says yes, which
+is why backfill works there.
+
+**In daily-notes mode it finds your notes the way Obsidian does.** Folder and
+date format come from the core Daily Notes plugin, with overrides in settings.
+A note you have moved is still found by name.
+
+**Re-syncing is free.** Before writing, the incoming properties are compared
+against what is already in the frontmatter; if nothing would change, the file is
+not touched. That matters with Obsidian Sync or LiveSync, which both treat a
+bumped mtime as a change to propagate.
+
+**It syncs more than one day on purpose.** Garmin keeps revising a day after it
+ends — sleep is finalised late, and a watch that syncs in the morning rewrites
+yesterday. Three days is the default.
+
+**It backs off rather than digging in.** A 429 or a dead session abandons the
+whole range immediately, because every later request would fail the same way. A
+single endpoint failing for a single day is just a warning: the rest of that day
+still gets written.
+
+**It stops when it runs off the end of your history.** Backfills are unbounded —
+you can ask for 2010 — but a range that reaches past the start of your Garmin
+data would otherwise keep asking, four requests a day, until Garmin rate-limits
+it. Since the sync walks newest to oldest, that empty region is always the tail,
+so after 45 consecutive days with nothing in them (configurable; 0 disables) it
+gives up and says so: *"nothing found for 45 days running, back to 2024-11-28 —
+the account looks to have no data older than that"*. Nothing bogus is ever
+written for those days; a day with no usable numbers is skipped, not stored as
+zeroes.
+
+**Request budget.** Roughly *groups needed* × *days with notes*, plus one paged
+call for the activity list across the whole range — not one per day. The sync
+runs newest day first, so a run cut short by a rate limit covered the days you
+actually care about. There is a configurable pause between days.
+
+---
+
+## Please be careful with
+
+- **Rate limits and lockout.** Garmin limits login attempts per IP and can lock
+  an account after repeated failures. Sign in deliberately; if you see a 429,
+  wait 15–30 minutes.
+- **The password is never stored.** It is typed in, used for one sign-in, and
+  dropped. Only a refresh token and its DI client ID are written to `data.json`.
+  *If you ran the phase 0 build*, it did store your password there. The plugin
+  now deletes it on load and says so with a notice — but it sat in a synced vault
+  for a while, so changing your Garmin password is the cautious move.
+- **That refresh token is durable account access** sitting in a file your vault
+  syncs. Sign out from settings when you are done with a device.
+- **`tls.peet.ws`.** A third-party echo service, contacted only when you press
+  the fingerprint button in the probe, and only ever sent a User-Agent string.
+
+---
+
+## The part that could have killed this
+
+`cyberjunky/python-garminconnect` is the reference implementation. Since its
+post-garth rewrite it authenticates like the mobile app: a JSON POST to
+`sso.garmin.com/mobile/api/login`, then a service-ticket exchange at
+`diauth.garmin.com` for OAuth2 bearer tokens. No OAuth1, no HMAC signing — the
+flow ports to TypeScript cleanly.
+
+The problem was the front door. It installs `curl_cffi` to **forge TLS
+fingerprints** and sleeps 10–20 s before login POSTs so Cloudflare's WAF does not
+flag the burst. From Obsidian you get `requestUrl` — Electron's stack on the
+desktop, the OS HTTP client on mobile — and you do not choose the fingerprint.
+
+**Measured 2026-09-12, both platforms authenticate end to end:**
+
+| | Desktop (Electron) | iOS (OS stack) | curl |
+| --- | --- | --- | --- |
+| JA4 | `t13d1516h2_8daaf6152771_02713d6af862` | `t13d2013h2_a09f3c656075_7f0f34a4126d` | — |
+| UA override honoured | yes | yes | n/a |
+| Login POST | 200 `SUCCESSFUL` | 200 `SUCCESSFUL` | 405 on GET |
+
+Three different TLS fingerprints all passed — including the desktop's, which is
+Chromium TLS carrying an iPhone `User-Agent`, an obvious mismatch Cloudflare did
+not punish. **Garmin is not enforcing TLS fingerprinting on `/mobile/api/*`**,
+which is why this works without `curl_cffi`. Note also that the human-facing
+sign-in page at `/portal/sso/en-US/sign-in` returns a 403 challenge even to
+plain curl: the two paths are in different protection buckets.
+
+That is a server-side policy, not a guarantee. Garmin can tighten it any day and
+there would be no workaround from inside Obsidian — which is why an edge refusal
+is surfaced as its own error rather than a generic "sync failed".
+
+Two other things phase 0 settled: `expires_in` came back as 66341 s on one run
+and 97344 s on another, so the access-token lifetime is not fixed and is always
+read from the response; and the login response returns seven cookies glued into
+one `Set-Cookie` header, which the jar splits correctly.
+
+---
+
+## How this is built
+
+```
+src/http.ts              HttpClient, CookieJar                — imports nothing
+src/log.ts               the Log interface + probe renderer
+src/garmin/
+  constants.ts           endpoints, client IDs, native headers
+  errors.ts              typed failures (Auth / Blocked / RateLimit / Api / Network)
+  auth.ts                sign-in: login, MFA, ticket exchange
+  tokens.ts              TokenStore, expiry, refresh
+  client.ts              authenticated transport: refresh, 401 retry
+  endpoints.ts           typed API wrappers (extends client)
+src/sync/
+  metrics.ts             Garmin payloads → properties     — pure
+  diff.ts                the dirty check                  — pure
+  bases-view.ts          generates the Bases table view   — pure
+  engine.ts              orchestration, MultiTarget       — pure
+  daily-note.ts          NoteTarget: your daily notes
+  data-folder.ts         NoteTarget: one note per day
+  frontmatter.ts         shared dirty-checked write
+  runner.ts              settings → a run, and reporting
+src/dashboard/
+  series.ts              rows → series, stats, formatting  — pure
+  scales.ts              chart geometry, ticks, paths      — pure
+  metrics.ts             what is shown and how it behaves  — pure
+  layouts.ts             the layout model, grid and reader  — pure
+  layout-edit.ts         every layout change, as pure functions
+  heatmap.ts             the calendar grid and its quartiles — pure
+  collect.ts             reads days back out of the vault
+  view.ts                the Obsidian ItemView, mounts Svelte
+src/ui/svelte/
+  Dashboard.svelte       root: layout bar, filters, blocks, editing
+  Chart.svelte           shared frame: scale, axes, hit bands, tooltip
+  ColumnChart / LineChart / BandChart / StackedChart
+  BaselineChart          a line inside the range it is judged by
+  MultiLineChart         several series on one axis, gaps left as gaps
+  CalendarHeatmap        one square per day, quartile-shaded
+  CompositionBar         one whole split into ordered parts
+  GoalRing               progress against a target Garmin set
+  WorkoutList            the range's activities
+  Section                a collapsible group of cards
+  layouts/LayoutBar      the pill switcher and its menu
+  layouts/EditToolbar    the tinted strip that means "edit mode"
+  layouts/WidgetFrame    grip, size badge, settings and remove
+  layouts/WidgetPicker   every widget, grouped, with a "not synced" state
+  layouts/WidgetSettings size, range and display options for one widget
+  layouts/LayoutDialog   new layout and rename
+  StatTile / Sparkline / Legend / Card / FilterBar / DataTable
+  LoginForm / SyncRangeForm / ProbePanel / SettingsPanel
+  obsidian-setting.ts    action that drops a native Setting row into markup
+src/obsidian-http.ts     requestUrl adapter   — the only Obsidian import in the auth path
+src/fetch-http.ts        fetch adapter        — Node harness and tests
+src/testing/             fixture transport
+src/probe.ts, ui/, …     plugin layer         — Obsidian freely
+```
+
+Two seams carry the whole design. **HTTP is injected**, so the Garmin logic runs
+unchanged under `requestUrl` on a phone, under `fetch` in Node, or against
+recorded fixtures in a test. **The note target is injected**, so the sync engine
+— dates, budgets, back-off, partial failures — is pure and testable with no
+Obsidian at all. Adding the data-folder mode needed no engine change: it is one
+more `NoteTarget`.
+
+The reason "build `node-garminconnect` first, consume it from the plugin" fails
+is not that libraries are wrong — it is that a Node library bakes in Node
+assumptions (`https`, `tough-cookie`, `axios`) you then cannot remove for a
+mobile WebView. Starting transport-agnostic gets both.
+
+### What the client does for you
+
+- **Refresh ahead of expiry**, with a five-minute margin, reading `expires_in`
+  from the response rather than assuming a lifetime.
+- **One refresh for concurrent callers.** A day touching four endpoints at once
+  triggers a single token exchange, not four.
+- **401 → refresh once → retry once**, then give up. If a concurrent request
+  already refreshed past the token that failed, the retry uses theirs.
+- **Rotation is persisted.** Garmin may hand back a new refresh token on use;
+  dropping it would strand the session days later for no visible reason.
+- **A failed re-login leaves a working session alone.** A 429 while signing in
+  again should not sign you out of the session you had.
+- **403 is triaged.** A JSON 403 is the API declining; a non-JSON 403 is the edge
+  declining. Different problems, different errors.
+
+### Two things a port must get right
+
+- **`requestUrl` throws on status ≥ 400** unless you pass `throw: false`, and a
+  403 body is exactly what you need when diagnosing a challenge.
+- **`requestUrl` keeps no cookie jar**, and `headers` is `Record<string, string>`,
+  so multiple `Set-Cookie` values arrive comma-joined — and cookie expiry dates
+  contain commas too. `splitSetCookie` splits only on a comma followed by a
+  `token=`.
+
+---
+
+## Diagnostics
+
+*Run connectivity probe* opens a modal with four checks. Every run writes its
+log to `garmin-probe-logs/` in the vault, which on a phone is the only practical
+way to read the output — there is no console, and the file syncs back to your
+desktop like any other note.
+
+**1. Network fingerprint** — asks `tls.peet.ws` what this platform looks like on
+the wire. Reports the UA the server actually saw (if `requestUrl` drops the
+override, the rest is moot), JA3/JA4, and the HTTP version.
+
+**2. Test login** — step 0 is a credential-free reachability check (a JSON `405`
+from the POST-only login endpoint means the edge let us through), then the login
+POST, then MFA if demanded, then the DI ticket exchange, then a live
+`connectapi` call. That last step exists because a token can come back `200`
+from the auth host and still be refused by the API tier.
+
+**3. Test session persistence** — signs in if needed, then simulates a cold
+start: drops the in-memory access token, reloads the refresh token from
+`data.json`, mints a new access token from it alone, and makes two typed
+endpoint calls. Fixtures prove the logic; only this proves Garmin agrees.
+
+**4. Inspect fitness endpoints** — prints the raw keys `maxMetrics`,
+`racePredictions` and `enduranceScore` actually return, then what the mapper
+extracts from them. Needs no password. This is the check for "a metric is always
+empty": if a value is there under a different name, that name is the fix.
+
+| Verdict | What it means |
+| --- | --- |
+| `SUCCESS` | This platform can authenticate. |
+| `BLOCKED` | Cloudflare refused the client. If step 0 passed and step 1 got a 403, the path is open and it is the credential POST being scored — retrying will not help. |
+| `RATE-LIMITED` | A 429. Not a verdict. Wait 15–30 minutes; do not retry in a loop. |
+| `BAD-CREDENTIALS` | Wrong email or password. Fix it before re-running — repeated failures can lock the account. |
+| `BAD-MFA-CODE` | The email and password were accepted; three verification codes were not. Re-run with the newest code Garmin sends. |
+| `CANCELLED` | Stopped at the code prompt. Costs the one login attempt already spent, nothing more. |
+| `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin rotated the DI client IDs; re-check `DI_CLIENT_IDS` against python-garminconnect master. |
+
+---
+
+## Tests
+
+```bash
+npm test            # 259 tests, no network, no Obsidian
+npm run build       # typecheck → svelte-check → tests → bundle → mobile-safety check
+npm run preview:dashboard  # build the browser preview of the dashboard
+npm run probe:node  # runs the real auth module under Node, step 0 only
+```
+
+Tests bundle with esbuild and run on Node's built-in runner. `FixtureHttpClient`
+replays canned responses in order, which is how sequences like "401, then
+refresh, then success" and "first DI client ID rejected, second accepted" are
+expressed. Nothing of ours is mocked — the fixtures sit at the transport seam,
+and the sync engine's doubles sit at the note-target seam, so what is under test
+is the real code.
+
+The chart components import nothing from Obsidian, which is what lets
+`npm run preview:dashboard` mount the real `Dashboard.svelte` in a plain browser
+with synthetic data. Open `scripts/.preview/index.html` to see it, or
+append `#dark` for the dark theme. That is how the layout gets checked without
+launching Obsidian.
+
+`npm run build` fails if a node or electron require leaks into the bundle. That
+is the bug class that loads fine on the desktop and throws on the phone, where it
+is hardest to debug.
+
+---
+
+## What comes next
+
+See [TODO.md](TODO.md). The MFA flow is wired end to end and covered by
+fixtures, but no live account has challenged it yet, and the one thing fixtures
+cannot settle is what Garmin actually says when a code is wrong — so a refusal
+the flow cannot classify is treated as a retryable bad code, bounded by an
+attempt cap.
+
+## If it ever stops working
+
+If Garmin tightens the edge later, the cheap things to try before giving up are:
+the Android client (`GCM_ANDROID_DARK` with the `/gcm/android` service URL)
+instead of iOS; matching more of the real app's header set and ordering; and the
+SSO embed widget flow, which uses an HTML form and lands in a different
+rate-limit bucket. All three are in python-garminconnect and none need TLS
+forgery.
+
+Prior art: **Garmin Health Sync** does the same job but is `isDesktopOnly: true`,
+because it authenticates through an Electron `BrowserWindow` and uses the old
+OAuth1 endpoints. Mobile was the gap.

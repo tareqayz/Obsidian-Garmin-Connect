@@ -37,14 +37,6 @@ control, treat it as a live credential.
 - The two devices keep **separate sessions**, so signing out on one does not sign
   you out on the other.
 
-## If you ran the phase 0 build
-
-An early build **did store your password** in `data.json`. The plugin now deletes
-it on load and tells you so with a notice, but it sat in a synced vault for a
-while.
-
-**Changing your Garmin password is the cautious move** if you used that build.
-
 ## What leaves your device
 
 | Destination | When | What |
