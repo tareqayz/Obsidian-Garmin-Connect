@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-garmin-connect",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"description": "Sync, store and visualize Garmin Connect data in your Obsidian vault",
 	"main": "main.js",
 	"type": "module",

@@ -1,7 +1,7 @@
 {
 	"id": "garmin-connect",
 	"name": "Garmin Connect",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"minAppVersion": "1.5.7",
 	"description": "Sync, store and visualize Garmin Connect data in your Obsidian vault",
 	"author": "Tareq Alansari",
