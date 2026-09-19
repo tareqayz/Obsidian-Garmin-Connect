@@ -74,6 +74,9 @@
 	--v2-negative: #c0392b;
 	--v2-positive-tint: #e3efe8;
 	--v2-negative-tint: #f7e7e6;
+	/* Edit mode's wash. Tinted rather than outlined, so there is never any
+	   doubt about whether a drag would move something. */
+	--v2-accent-tint: #e8f0fb;
 
 	--v2-sport-run: #e0662e;
 	--v2-sport-ride: #2e7fd4;
@@ -101,6 +104,7 @@
 	--v2-negative: #f0605c;
 	--v2-positive-tint: #294031;
 	--v2-negative-tint: #33201e;
+	--v2-accent-tint: #1c2c42;
 
 	--v2-sport-run: #f0855a;
 	--v2-sport-ride: #5b9fe3;
