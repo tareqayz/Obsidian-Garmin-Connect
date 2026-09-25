@@ -8,9 +8,11 @@ import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
 import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
+import { mapAccount } from "./intraday";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
+import { VaultSeriesStore } from "./series-store";
 
 export type StorageMode = "dataFolder" | "dailyNotes" | "both";
 
@@ -87,11 +89,13 @@ export class SyncRunner {
 		this.running = true;
 		try {
 			const units = await this.resolveUnits(settings.units);
+			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			const report = await syncRange(this.api, this.buildTarget(settings), {
 				from,
 				to,
 				groups: settings.groups,
 				units,
+				series,
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -107,6 +111,17 @@ export class SyncRunner {
 				},
 			});
 			notice.hide();
+
+			// The profile was fetched anyway, for the display name in the URLs.
+			// Nothing new to ask Garmin for — just somewhere to keep the avatar.
+			const account = mapAccount(this.api.profile);
+			if (account && settings.groups.includes("intraday")) {
+				try {
+					await series.writeAccount(account);
+				} catch (err) {
+					log?.warn(`account file failed: ${explain(err)}`);
+				}
+			}
 
 			// Only worth creating once there is something for it to show.
 			if (report.written > 0) await this.ensureBasesView(settings, units);

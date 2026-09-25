@@ -133,7 +133,11 @@ export class PluginData implements TokenStore {
 	private migrate(): boolean {
 		if (this.settings.settingsVersion >= SETTINGS_VERSION) return false;
 		if (this.settings.groups.length > 0) {
-			const added: MetricGroup[] = ["respiration", "spo2", "body", "training"];
+			const from = this.settings.settingsVersion;
+			const added: MetricGroup[] = [
+				...(from < 2 ? (["respiration", "spo2", "body", "training"] as const) : []),
+				...(from < 3 ? (["intraday"] as const) : []),
+			];
 			this.settings.groups = [
 				...ALL_GROUPS.filter(
 					(g) => this.settings.groups.includes(g) || added.includes(g),

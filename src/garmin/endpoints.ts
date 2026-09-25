@@ -12,6 +12,9 @@ export interface SocialProfile {
 	fullName?: string;
 	userName?: string;
 	profileId?: number;
+	profileImageUrlLarge?: string | null;
+	profileImageUrlMedium?: string | null;
+	profileImageUrlSmall?: string | null;
 	[key: string]: unknown;
 }
 
@@ -61,19 +64,114 @@ export interface HeartRateData {
 }
 
 /**
+ * Intraday stress and Body Battery for one day.
+ *
+ * Both arrays are rows of numbers whose column order is given by the matching
+ * descriptor list, which is why the mapper looks the column up rather than
+ * assuming it: `[timestamp, stressLevel]` and
+ * `[timestamp, status, bodyBatteryLevel, version]` today.
+ */
+export interface DailyStress {
+	calendarDate?: string;
+	avgStressLevel?: number | null;
+	maxStressLevel?: number | null;
+	stressValueDescriptorsDTOList?: ValueDescriptor[] | null;
+	stressValuesArray?: Array<Array<number | string | null>> | null;
+	bodyBatteryValueDescriptorsDTOList?: ValueDescriptor[] | null;
+	bodyBatteryValuesArray?: Array<Array<number | string | null>> | null;
+	[key: string]: unknown;
+}
+
+export interface ValueDescriptor {
+	key?: string;
+	index?: number;
+	[key: string]: unknown;
+}
+
+/** One 15-minute bucket of the day's step chart. Times are GMT strings without a zone. */
+export interface StepsChartEntry {
+	startGMT?: string;
+	endGMT?: string;
+	steps?: number | null;
+	primaryActivityLevel?: string | null;
+	[key: string]: unknown;
+}
+
+/** Something that moved Body Battery: a night's sleep, a workout, a stressful stretch. */
+export interface BodyBatteryEvent {
+	event?: {
+		eventType?: string | null;
+		eventStartTimeGmt?: string | null;
+		durationInMilliseconds?: number | null;
+		bodyBatteryImpact?: number | null;
+		feedbackType?: string | null;
+		shortFeedback?: string | null;
+		[key: string]: unknown;
+	} | null;
+	activityName?: string | null;
+	activityType?: string | null;
+	activityId?: number | null;
+	averageStress?: number | null;
+	[key: string]: unknown;
+}
+
+/** Fitness age and what it is made of. `components` values carry a `value` each. */
+export interface FitnessAge {
+	chronologicalAge?: number | null;
+	fitnessAge?: number | null;
+	achievableFitnessAge?: number | null;
+	previousFitnessAge?: number | null;
+	components?: Record<string, { value?: number | null; [key: string]: unknown } | null> | null;
+	lastUpdated?: string | null;
+	[key: string]: unknown;
+}
+
+/** Heat and altitude acclimation. Rides along with VO2 Max in both places Garmin sends it. */
+export interface Acclimation {
+	calendarDate?: string;
+	heatAcclimationPercentage?: number | null;
+	heatTrend?: string | null;
+	altitudeAcclimation?: number | null;
+	altitudeTrend?: string | null;
+	currentAltitude?: number | null;
+	[key: string]: unknown;
+}
+
+/**
  * One day of "max metrics". VO2 Max lives here, per running/cycling sub-object.
- * Shape inferred from the endpoint rather than observed — read defensively.
+ *
+ * The day is on the sub-objects (`generic.calendarDate`), not on the row —
+ * reading it off the row is why VO2 Max never reached a note. See
+ * `maxMetricsDate`.
  */
 export interface MaxMetrics {
 	calendarDate?: string;
 	generic?: {
+		calendarDate?: string;
 		vo2MaxPreciseValue?: number | null;
 		vo2MaxValue?: number | null;
 		fitnessAge?: number | null;
 		[key: string]: unknown;
-	};
-	cycling?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null; [key: string]: unknown };
+	} | null;
+	cycling?: {
+		calendarDate?: string;
+		vo2MaxPreciseValue?: number | null;
+		vo2MaxValue?: number | null;
+		[key: string]: unknown;
+	} | null;
+	heatAltitudeAcclimation?: Acclimation | null;
 	[key: string]: unknown;
+}
+
+/** The day a max-metrics row describes, wherever Garmin put it. */
+export function maxMetricsDate(row: MaxMetrics | null | undefined): string | undefined {
+	const candidates = [
+		row?.calendarDate,
+		row?.generic?.calendarDate,
+		row?.cycling?.calendarDate,
+		row?.heatAltitudeAcclimation?.calendarDate,
+	];
+	return candidates.find((d): d is string => typeof d === "string" && ISO_DATE.test(d.slice(0, 10)))?.slice(0, 10);
 }
 
 /** Predicted finish times, in seconds. */
@@ -90,6 +188,9 @@ export interface EnduranceScore {
 	calendarDate?: string;
 	overallScore?: number | null;
 	classification?: number | null;
+	feedbackPhrase?: string | number | null;
+	gaugeLowerLimit?: number | null;
+	gaugeUpperLimit?: number | null;
 	[key: string]: unknown;
 }
 
@@ -118,27 +219,43 @@ export interface Activity {
 	[key: string]: unknown;
 }
 
+export interface AcuteTrainingLoad {
+	acwrPercent?: number | null;
+	acwrStatus?: string | null;
+	acwrStatusFeedback?: string | null;
+	dailyTrainingLoadAcute?: number | null;
+	dailyTrainingLoadChronic?: number | null;
+	dailyAcuteChronicWorkloadRatio?: number | null;
+	minTrainingLoadChronic?: number | null;
+	maxTrainingLoadChronic?: number | null;
+	[key: string]: unknown;
+}
+
 /**
  * Training status, load and the acute/chronic ratio.
  *
  * The per-device sub-objects are keyed by device id, which is why the mapper
  * takes whichever entry it finds rather than naming one: an account with a
  * watch and a bike computer has two, and neither key is knowable in advance.
+ *
+ * The status map sits under `mostRecentTrainingStatus`, and the acute load
+ * inside each device entry. The top-level spellings are what this type used to
+ * say — no note ever got a training property from them — and are still read as
+ * a fallback in case some accounts do send them flat.
  */
 export interface TrainingStatus {
+	mostRecentTrainingStatus?: {
+		latestTrainingStatusData?: Record<string, Record<string, unknown>> | null;
+		[key: string]: unknown;
+	} | null;
 	latestTrainingStatusData?: Record<string, Record<string, unknown>> | null;
 	mostRecentTrainingLoadBalance?: {
 		metricsTrainingLoadBalanceDTOMap?: Record<string, Record<string, unknown>> | null;
 		[key: string]: unknown;
 	} | null;
-	acuteTrainingLoadDTO?: {
-		acwrPercent?: number | null;
-		acwrStatus?: string | null;
-		dailyTrainingLoadAcute?: number | null;
-		dailyTrainingLoadChronic?: number | null;
-		dailyAcuteChronicWorkloadRatio?: number | null;
-		[key: string]: unknown;
-	} | null;
+	/** Same shape as a `maxMetrics` row: the latest VO2 Max and acclimation. */
+	mostRecentVO2Max?: MaxMetrics | null;
+	acuteTrainingLoadDTO?: AcuteTrainingLoad | null;
 	[key: string]: unknown;
 }
 
@@ -192,18 +309,21 @@ export function assertIsoDate(value: string, label = "date"): string {
 export class GarminApi extends GarminClient {
 	private displayName: string | null = null;
 	private fullName: string | null = null;
+	private lastProfile: SocialProfile | null = null;
 
 	/** Signing in as someone else must not inherit the previous account's URLs. */
 	async login(email: string, password: string, opts: LoginOptions = {}): Promise<void> {
 		await super.login(email, password, opts);
 		this.displayName = null;
 		this.fullName = null;
+		this.lastProfile = null;
 	}
 
 	/** Cleared alongside the session so a second account cannot inherit the first's URLs. */
 	async logout(): Promise<void> {
 		this.displayName = null;
 		this.fullName = null;
+		this.lastProfile = null;
 		await super.logout();
 	}
 
@@ -213,12 +333,18 @@ export class GarminApi extends GarminClient {
 			this.displayName = profile.displayName;
 		}
 		if (typeof profile?.fullName === "string") this.fullName = profile.fullName;
+		if (profile && typeof profile === "object") this.lastProfile = profile;
 		return profile;
 	}
 
 	/** The account's full name, once a profile has been fetched. */
 	get name(): string | null {
 		return this.fullName;
+	}
+
+	/** The profile as last fetched this session, or null before the first call. */
+	get profile(): SocialProfile | null {
+		return this.lastProfile;
 	}
 
 	/**
@@ -268,9 +394,36 @@ export class GarminApi extends GarminClient {
 		});
 	}
 
-	async stress(date: string): Promise<Record<string, unknown>> {
+	/** Intraday stress *and* Body Battery — one request serves both charts. */
+	async stress(date: string): Promise<DailyStress | null> {
 		assertIsoDate(date);
 		return this.request(`/wellness-service/wellness/dailyStress/${date}`);
+	}
+
+	/** The day's steps in 15-minute buckets. */
+	async stepsChart(date: string): Promise<StepsChartEntry[]> {
+		assertIsoDate(date);
+		const who = await this.requireDisplayName();
+		const data = await this.request<StepsChartEntry[] | null>(
+			`/wellness-service/wellness/dailySummaryChart/${who}`,
+			{ query: { date } },
+		);
+		return data ?? [];
+	}
+
+	/** What charged and drained Body Battery that day: sleep, workouts, stress. */
+	async bodyBatteryEvents(date: string): Promise<BodyBatteryEvent[]> {
+		assertIsoDate(date);
+		const data = await this.request<BodyBatteryEvent[] | null>(
+			`/wellness-service/wellness/bodyBattery/events/${date}`,
+		);
+		return data ?? [];
+	}
+
+	/** Fitness age, chronological age and the factors behind the gap. */
+	async fitnessAge(date: string): Promise<FitnessAge | null> {
+		assertIsoDate(date);
+		return this.request(`/fitnessage-service/fitnessage/${date}`);
 	}
 
 	async bodyBattery(startDate: string, endDate = startDate): Promise<unknown[]> {

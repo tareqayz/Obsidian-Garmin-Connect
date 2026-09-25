@@ -515,7 +515,16 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/all-day-stress.json",
-			"notes": "Typed and tested but not wired into the sync. The plugin returns it untyped, so the recorded shape is the only contract."
+			"notes": "Intraday stress and Body Battery in one payload. Column positions are looked up from the descriptor lists. Series file only; newest days of a run only.",
+			"groups": [
+				"intraday"
+			],
+			"reads": [
+				"stressValuesArray",
+				"stressValueDescriptorsDTOList",
+				"bodyBatteryValuesArray",
+				"bodyBatteryValueDescriptorsDTOList"
+			]
 		},
 		{
 			"id": "available-badge-challenges",
@@ -655,7 +664,27 @@
 					"cdate"
 				],
 				"line": 1403
-			}
+			},
+			"plugin": "GarminApi.bodyBatteryEvents",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].event.eventType",
+				"[].event.eventStartTimeGmt",
+				"[].event.durationInMilliseconds",
+				"[].event.bodyBatteryImpact",
+				"[].event.shortFeedback",
+				"[].activityName",
+				"[].activityType",
+				"[].activityId",
+				"[].averageStress"
+			],
+			"schema": "schema/body-battery-events.json",
+			"notes": "Sleep / activity / stress markers for the Body Battery chart. Series file only."
 		},
 		{
 			"id": "body-composition",
@@ -1221,7 +1250,11 @@
 				"overallScore"
 			],
 			"schema": "schema/endurance-score.json",
-			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values."
+			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values.",
+			"reads": [
+				"classification",
+				"feedbackPhrase"
+			]
 		},
 		{
 			"id": "fitnessage-data",
@@ -1242,7 +1275,23 @@
 					"cdate"
 				],
 				"line": 2266
-			}
+			},
+			"plugin": "GarminApi.fitnessAge",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"fitnessAge",
+				"chronologicalAge",
+				"achievableFitnessAge",
+				"previousFitnessAge",
+				"components"
+			],
+			"schema": "schema/fitnessage-data.json",
+			"notes": "Source of record for fitness_age; each component becomes fitness_age_<component>, named after whatever keys Garmin sends."
 		},
 		{
 			"id": "floors",
@@ -1605,13 +1654,19 @@
 			"check": true,
 			"critical": [
 				"calendarDate",
-				"restingHeartRate",
-				"maxHeartRate",
-				"minHeartRate",
 				"heartRateValues"
 			],
 			"schema": "schema/heart-rates.json",
-			"notes": "Typed and tested but not wired into the sync \u2014 intraday series where the daily summary gives one number."
+			"notes": "Intraday heart rate for the series file; the last non-null reading becomes hr_latest.",
+			"groups": [
+				"intraday"
+			],
+			"reads": [
+				"restingHeartRate",
+				"maxHeartRate",
+				"minHeartRate",
+				"heartRateValueDescriptors"
+			]
 		},
 		{
 			"id": "hill-score",
@@ -1941,17 +1996,23 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [
-				"[].calendarDate",
+			"critical": [],
+			"schema": "schema/max-metrics-range.json",
+			"notes": "VO2 Max, fitness age and acclimation. The day is read from generic/cycling/heatAltitudeAcclimation.calendarDate (not the row, which is believed to have none \u2014 why VO2 Max never populated). Nothing is critical until a recording confirms the shape.",
+			"reads": [
+				"[].generic.calendarDate",
 				"[].generic.vo2MaxPreciseValue",
 				"[].generic.vo2MaxValue",
-				"[].generic.fitnessAge"
-			],
-			"schema": "schema/max-metrics-range.json",
-			"notes": "VO2 Max and fitness age. `[].cycling.*` only appears for accounts with cycling VO2 Max, so it is not critical.",
-			"reads": [
+				"[].generic.fitnessAge",
+				"[].cycling.calendarDate",
 				"[].cycling.vo2MaxPreciseValue",
-				"[].cycling.vo2MaxValue"
+				"[].cycling.vo2MaxValue",
+				"[].heatAltitudeAcclimation.calendarDate",
+				"[].heatAltitudeAcclimation.heatAcclimationPercentage",
+				"[].heatAltitudeAcclimation.heatTrend",
+				"[].heatAltitudeAcclimation.altitudeAcclimation",
+				"[].heatAltitudeAcclimation.altitudeTrend",
+				"[].calendarDate"
 			]
 		},
 		{
@@ -2691,8 +2752,21 @@
 				"dailySleepDTO.averageSpO2Value",
 				"dailySleepDTO.lowestSpO2Value",
 				"dailySleepDTO.bodyBatteryChange",
-				"dailySleepDTO.napTimeSeconds"
-			]
+				"dailySleepDTO.napTimeSeconds",
+				"dailySleepDTO.sleepNeed",
+				"dailySleepDTO.nextSleepNeed",
+				"dailySleepDTO.sleepScoreFeedback",
+				"dailySleepDTO.sleepScoreInsight",
+				"dailySleepDTO.sleepScores.totalDuration.qualifierKey",
+				"dailySleepDTO.sleepScores.stress.qualifierKey",
+				"dailySleepDTO.sleepScores.awakeCount.qualifierKey",
+				"dailySleepDTO.sleepScores.remPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.lightPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.deepPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.restlessness.qualifierKey",
+				"sleepLevels"
+			],
+			"notes": "sleepLevels (the hypnogram) goes to the series file when the intraday group is on; sleepNeed.* are minutes and are written as hours."
 		},
 		{
 			"id": "social-profile",
@@ -2719,7 +2793,13 @@
 				"fullName"
 			],
 			"schema": "schema/social-profile.json",
-			"notes": "displayName is interpolated into most wellness paths; the plugin URL-encodes it first."
+			"notes": "displayName is interpolated into most wellness paths; the plugin URL-encodes it first. Name and avatar URLs are also written to <dataFolder>/account.json.",
+			"reads": [
+				"profileImageUrlLarge",
+				"profileImageUrlMedium",
+				"profileImageUrlSmall",
+				"userName"
+			]
 		},
 		{
 			"id": "spo2-data",
@@ -2763,7 +2843,22 @@
 					"cdate"
 				],
 				"line": 990
-			}
+			},
+			"plugin": "GarminApi.stepsChart",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].startGMT",
+				"[].endGMT",
+				"[].steps",
+				"[].primaryActivityLevel"
+			],
+			"schema": "schema/steps-data.json",
+			"notes": "Intraday steps in 15-minute buckets. Written to the day's series file, not frontmatter; fetched only for the newest days of a run."
 		},
 		{
 			"id": "stress-data",
@@ -2860,7 +2955,22 @@
 				"[].sleepScore",
 				"[].hrvFactorPercent",
 				"[].recoveryTime",
-				"[].acuteLoad"
+				"[].acuteLoad",
+				"[].feedbackShort",
+				"[].feedbackLong",
+				"[].inputContext",
+				"[].sleepScoreFactorPercent",
+				"[].sleepScoreFactorFeedback",
+				"[].recoveryTimeFactorPercent",
+				"[].recoveryTimeFactorFeedback",
+				"[].hrvFactorFeedback",
+				"[].acwrFactorPercent",
+				"[].acwrFactorFeedback",
+				"[].sleepHistoryFactorPercent",
+				"[].sleepHistoryFactorFeedback",
+				"[].stressHistoryFactorPercent",
+				"[].stressHistoryFactorFeedback",
+				"[].hrvWeeklyAverage"
 			]
 		},
 		{
@@ -2891,6 +3001,12 @@
 			"check": true,
 			"critical": [],
 			"reads": [
+				"mostRecentTrainingStatus.latestTrainingStatusData",
+				"mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap",
+				"mostRecentVO2Max.generic.calendarDate",
+				"mostRecentVO2Max.generic.vo2MaxPreciseValue",
+				"mostRecentVO2Max.heatAltitudeAcclimation",
+				"latestTrainingStatusData",
 				"acuteTrainingLoadDTO.dailyTrainingLoadAcute",
 				"acuteTrainingLoadDTO.dailyTrainingLoadChronic",
 				"acuteTrainingLoadDTO.dailyAcuteChronicWorkloadRatio",
@@ -2898,7 +3014,7 @@
 				"acuteTrainingLoadDTO.acwrStatus"
 			],
 			"schema": "schema/training-status.json",
-			"notes": "latestTrainingStatusData is keyed by device id, so the mapper takes whichever entry is there rather than naming one. Nothing here is critical: an account with no training load simply gets no training properties."
+			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced."
 		},
 		{
 			"id": "unschedule-workout",
@@ -3078,7 +3194,8 @@
 				"highestRespirationValue",
 				"averageSpo2",
 				"lowestSpo2",
-				"latestSpo2"
+				"latestSpo2",
+				"consumedKilocalories"
 			]
 		},
 		{

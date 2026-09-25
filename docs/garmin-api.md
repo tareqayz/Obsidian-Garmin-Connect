@@ -86,6 +86,20 @@ One request per day synced.
 | `enduranceScore(date)` | `/metrics-service/metrics/endurancescore?calendarDate=` | `fitness` |
 | `trainingStatus(date)` | `/metrics-service/metrics/trainingstatus/aggregated/{date}` | `training` |
 | `bodyComposition(date)` | `/weight-service/weight/dayview/{date}?includeAll=true` | `body` |
+| `fitnessAge(date)` | `/fitnessage-service/fitnessage/{date}` | `fitness` |
+
+### Intraday (newest seven days of a sync only)
+
+| Method | Path | Group |
+| --- | --- | --- |
+| `stress(date)` | `/wellness-service/wellness/dailyStress/{date}` | `intraday` — stress and Body Battery |
+| `heartRate(date)` | `/wellness-service/wellness/dailyHeartRate/{who}?date=` | `intraday` |
+| `stepsChart(date)` | `/wellness-service/wellness/dailySummaryChart/{who}?date=` | `intraday` |
+| `bodyBatteryEvents(date)` | `/wellness-service/wellness/bodyBattery/events/{date}` | `intraday` |
+
+These go to `<dataFolder>/series/<date>.json`, not frontmatter. See
+[properties → intraday](properties.md#intraday). `INTRADAY_DAYS` in
+`src/sync/engine.ts` sets the window.
 
 `dailySummary` serves **five groups from one request** — `activity`, `heart`,
 `stress`, `respiration` and `spo2` — so switching off just one of them saves
@@ -121,13 +135,12 @@ Implemented and tested, not currently wired into the sync:
 
 | Method | Path |
 | --- | --- |
-| `heartRate(date)` | `/wellness-service/wellness/dailyHeartRate/{who}` |
-| `stress(date)` | `/wellness-service/wellness/dailyStress/{date}` |
 | `bodyBattery(start, end)` | `/wellness-service/wellness/bodyBattery/reports/daily?startDate=&endDate=` |
 | `restingHeartRate(date)` | `/userstats-service/wellness/daily/{who}` |
 
-These return intraday series where the daily summary returns a single number.
-Wiring one in means adding properties — see
+Both duplicate what the sync already gets: `dailyStress` carries the Body
+Battery series, and the daily summary carries resting heart rate. Wiring one in
+means adding properties — see
 [architecture → extending](architecture.md#add-a-metric).
 
 ## Request budget
@@ -141,9 +154,10 @@ Roughly:
 The constant is the range endpoints — one call each for `maxMetrics` and
 `racePredictions`, plus however many pages the activity list takes.
 
-With all thirteen groups on, a day costs **seven** per-day requests: the daily
+With all fourteen groups on, a day costs **eight** per-day requests: the daily
 summary (which alone serves five groups), sleep, HRV, readiness, endurance,
-training status and body composition. Days that are not writable cost **nothing
+fitness age, training status and body composition — plus **four more** for each
+of the newest seven days, for the intraday series. Days that are not writable cost **nothing
 at all**, because `exists()` is consulted before any request is made.
 
 Four of the thirteen groups are free in request terms — `respiration`, `spo2`,

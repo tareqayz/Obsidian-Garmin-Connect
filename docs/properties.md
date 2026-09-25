@@ -54,6 +54,7 @@ From `/usersummary-service/usersummary/daily/{displayName}`.
 | `active_minutes` | integer | minutes | `activeSeconds` ÷ 60 |
 | `highly_active_minutes` | integer | minutes | `highlyActiveSeconds` ÷ 60 |
 | `sedentary_minutes` | integer | minutes | `sedentarySeconds` ÷ 60 |
+| `calories_consumed` | integer | kcal | `consumedKilocalories` — only for accounts that log food |
 
 `calories` includes the resting burn; `calories_active` is what you moved for
 and `calories_bmr` is what your body would have used lying still. The three
@@ -105,6 +106,20 @@ From `/wellness-service/wellness/dailySleepData/{displayName}`, the
 | `sleep_spo2_low` | integer | % | `lowestSpO2Value` |
 | `sleep_body_battery_change` | integer | points | `bodyBatteryChange` |
 | `nap_hours` | number, 2 dp | hours | `napTimeSeconds` ÷ 3600 |
+| `sleep_quality_duration` / `_stress` / `_awakenings` / `_rem` / `_light` / `_deep` / `_restlessness` | string | — | `sleepScores.{totalDuration, stress, awakeCount, remPercentage, lightPercentage, deepPercentage, restlessness}.qualifierKey` |
+| `sleep_feedback` | string | — | `sleepScoreFeedback` |
+| `sleep_insight` | string | — | `sleepScoreInsight` |
+| `sleep_need_hours` | number, 2 dp | hours | `sleepNeed.actual` ÷ 60 (Sleep Coach) |
+| `sleep_need_baseline_hours` | number, 2 dp | hours | `sleepNeed.baseline` ÷ 60 |
+| `sleep_need_next_hours` | number, 2 dp | hours | `nextSleepNeed.actual` ÷ 60 |
+| `sleep_need_feedback` | string | — | `sleepNeed.feedback` |
+| `sleep_need_training_feedback` | string | — | `sleepNeed.trainingFeedback` |
+| `sleep_need_history_adjustment` / `_hrv_adjustment` / `_nap_adjustment` | string | — | `sleepNeed.{sleepHistoryAdjustment, hrvAdjustment, napAdjustment}` |
+
+The sub-score verdicts and the Sleep Coach fields are read from the same sleep
+payload as everything above — no extra request — but their names come from
+public client libraries, not an observed response. Anything that never appears
+in a note is a key Garmin does not send; `npm run api:record` settles it.
 
 `sleep_body_battery_change` is the one metric allowed to go **negative**: a night
 that drained rather than recharged is information, not a sentinel. It is also the
@@ -182,6 +197,16 @@ From `/metrics-service/metrics/trainingreadiness/{date}`, first entry.
 | `recovery_time_hours` | number, 1 dp | hours | `[0].recoveryTime` ÷ 60 |
 | `acute_load` | integer | load | `[0].acuteLoad` |
 
+| `readiness_feedback` / `readiness_feedback_long` | string | — | `[0].feedbackShort` / `feedbackLong` |
+| `readiness_context` | string | — | `[0].inputContext` |
+| `readiness_<factor>_factor` | integer | % | `[0].<factor>FactorPercent` |
+| `readiness_<factor>_feedback` | string | — | `[0].<factor>FactorFeedback` |
+| `readiness_hrv_weekly_avg` | number | ms | `[0].hrvWeeklyAverage` |
+
+`<factor>` is one of `sleep` (`sleepScore…`), `recovery` (`recoveryTime…`),
+`hrv`, `load` (`acwr…`), `sleep_history` and `stress_history` — the six factors
+the app lists under the score.
+
 Garmin counts recovery in minutes; it is written here in hours, which is how
 anyone reads it. When readiness is low, the factor properties say why.
 
@@ -194,14 +219,31 @@ endurance score.
 | --- | --- | --- | --- |
 | `vo2max` | number | ml/kg/min | `maxMetrics.generic.vo2MaxPreciseValue`, falling back to `vo2MaxValue` |
 | `vo2max_cycling` | number | ml/kg/min | `maxMetrics.cycling.vo2MaxPreciseValue`, falling back to `vo2MaxValue` |
-| `fitness_age` | number | years | `maxMetrics.generic.fitnessAge` |
+| `fitness_age` | number, 2 dp | years | `fitnessage-service` `fitnessAge`, falling back to `maxMetrics.generic.fitnessAge` |
+| `fitness_age_achievable` / `fitness_age_previous` | number, 2 dp | years | `achievableFitnessAge` / `previousFitnessAge` |
+| `chronological_age` | integer | years | `chronologicalAge` |
+| `fitness_age_<component>` | number, 2 dp | varies | `components.<component>.value`, named after Garmin's key in snake case |
 | `endurance_score` | number | score | `endurance.overallScore` |
+| `endurance_classification` | integer | enum | `endurance.classification` |
+| `endurance_feedback` | string | — | `endurance.feedbackPhrase` |
+| `heat_acclimation_pct` | integer | % | `heatAltitudeAcclimation.heatAcclimationPercentage` |
+| `heat_acclimation_trend` | string | — | `heatAltitudeAcclimation.heatTrend` |
+| `altitude_acclimation_m` / `_ft` | integer | m / ft | `heatAltitudeAcclimation.altitudeAcclimation` |
+| `altitude_acclimation_trend` | string | — | `heatAltitudeAcclimation.altitudeTrend` |
 
 Garmin sends both a rounded and a precise VO2 Max. The precise one is preferred
 because a rounded series makes a trend line into a staircase.
 
-> **Known issue.** `vo2max` currently never populates even on accounts where
-> Garmin plainly has the data. See [troubleshooting](troubleshooting.md#vo2-max-is-always-empty).
+VO2 Max and acclimation come from the max-metrics range call, whose rows carry
+their day on `generic.calendarDate` (and `cycling.` / `heatAltitudeAcclimation.`)
+rather than on the row. When that call has nothing for a day and the `training`
+group is on, training status's `mostRecentVO2Max` fills in — but only if its own
+`calendarDate` is that day, so a backfill never smears one reading across a year.
+
+> **Known issue, likely fixed.** `vo2max` never populated before, because the
+> range rows were indexed by a top-level `calendarDate` Garmin does not send.
+> Unconfirmed until a live sync or `npm run api:record` shows it. See
+> [troubleshooting](troubleshooting.md#vo2-max-is-always-empty).
 
 ## respiration
 
@@ -257,16 +299,33 @@ From `/metrics-service/metrics/trainingstatus/aggregated/{date}`.
 
 | Property | Type | Unit | Source field |
 | --- | --- | --- | --- |
-| `training_status` | string | — | `latestTrainingStatusData.*.trainingStatusFeedbackPhrase` |
-| `training_load_weekly` | integer | load | `latestTrainingStatusData.*.weeklyTrainingLoad` |
-| `training_load_acute` | integer | load | `acuteTrainingLoadDTO.dailyTrainingLoadAcute` |
-| `training_load_chronic` | integer | load | `acuteTrainingLoadDTO.dailyTrainingLoadChronic` |
+| `training_status` | string | — | `<status>.trainingStatusFeedbackPhrase` |
+| `training_status_since` | date | — | `<status>.sinceDate` |
+| `fitness_trend` | integer | enum | `<status>.fitnessTrend` |
+| `training_load_weekly` | integer | load | `<status>.weeklyTrainingLoad` |
+| `training_load_tunnel_min` / `_max` | integer | load | `<status>.loadTunnelMin` / `loadTunnelMax` |
+| `training_load_acute` | integer | load | `<acute>.dailyTrainingLoadAcute` |
+| `training_load_chronic` | integer | load | `<acute>.dailyTrainingLoadChronic` |
+| `training_load_optimal_min` / `_max` | integer | load | `<acute>.minTrainingLoadChronic` / `maxTrainingLoadChronic` |
 | `training_load_ratio` | number, 2 dp | ratio | `dailyAcuteChronicWorkloadRatio`, or `acwrPercent` ÷ 100 |
-| `training_load_status` | string | — | `acuteTrainingLoadDTO.acwrStatus` |
+| `training_load_status` | string | — | `<acute>.acwrStatus` |
+| `training_load_feedback` | string | — | `<acute>.acwrStatusFeedback` |
+| `load_aerobic_low` / `load_aerobic_high` / `load_anaerobic` | integer | load | `<balance>.monthlyLoad{AerobicLow, AerobicHigh, Anaerobic}` |
+| `load_<bucket>_target_min` / `_max` | integer | load | `<balance>.monthlyLoad<Bucket>TargetMin` / `TargetMax` |
+| `load_focus` | string | — | `<balance>.trainingBalanceFeedbackPhrase` |
 
-`latestTrainingStatusData` is keyed by **device id**, and an account with a watch
-and a bike computer has several — none of them knowable in advance. The mapper
-takes whichever entry is there.
+Where `<status>` is `mostRecentTrainingStatus.latestTrainingStatusData.<deviceId>`,
+`<acute>` is `acuteTrainingLoadDTO` inside that entry (or at the top level, if an
+account sends it there), and `<balance>` is
+`mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<deviceId>`.
+
+Both maps are keyed by **device id**, and an account with a watch and a bike
+computer has several — none of them knowable in advance. The mapper takes the
+entry marked `primaryTrainingDevice: true`, or whichever is there.
+
+Before this layout was known the mapper read `latestTrainingStatusData` and
+`acuteTrainingLoadDTO` at the top level, which is why no note had a `training_*`
+property.
 
 Acute load is roughly the last week of training and chronic is roughly the last
 month. The ratio between them is the single most useful training number Garmin
@@ -291,6 +350,50 @@ Dataview:
 const s = dv.current().race_5k;
 dv.paragraph(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
 ```
+
+## intraday
+
+Heart rate, stress, Body Battery, steps and sleep stages across the day. Four
+requests a day — `dailyStress` (stress *and* Body Battery), `dailyHeartRate`,
+`dailySummaryChart` (steps) and `bodyBattery/events` — spent only on the
+**newest seven days** of any sync. The sleep hypnogram costs nothing: it is in
+the sleep payload, so every day with sleep gets it.
+
+One property reaches the note:
+
+| Property | Type | Unit | Source field |
+| --- | --- | --- | --- |
+| `hr_latest` | integer | bpm | last non-null reading in `heartRateValues` |
+
+Everything else goes to a **series file** per day, beside the notes, because a day
+of heart rate is hundreds of points and frontmatter is the wrong place for it:
+
+```
+<dataFolder>/series/2026-09-20.json
+<dataFolder>/account.json
+```
+
+```jsonc
+{
+  "date": "2026-09-20",
+  "version": 1,
+  // [epochMs, value]; null is a gap Garmin reported (off-wrist, mid-activity).
+  "stress":      [[1789884000000, 22], [1789884180000, null]],
+  "bodyBattery": [[1789884000000, 64]],
+  "heartRate":   [[1789884000000, 52]],
+  "steps":       [{ "start": 1789884000000, "end": 1789884900000, "steps": 412, "level": "active" }],
+  // level: Garmin's stage code, believed 0 deep, 1 light, 2 REM, 3 awake.
+  "sleepLevels": [{ "start": 1789855080000, "end": 1789856880000, "level": 1 }],
+  "bodyBatteryEvents": [{ "type": "SLEEP", "start": 1789855080000, "minutes": 464, "impact": 52, "feedback": "…" }]
+}
+```
+
+Every timestamp is epoch milliseconds, UTC. A key is left out when Garmin had
+nothing for it. The file is rewritten only when its content changes.
+
+`account.json` holds what belongs to no day: display name, full name and the
+avatar URLs from the social profile the sync already fetches. No tokens, no
+email.
 
 ## workouts
 

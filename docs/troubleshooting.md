@@ -100,7 +100,15 @@ later request would fail the same way.
 
 ## VO2 Max is always empty
 
-**Known open bug.** Not a range-length problem.
+**Probable fix shipped, not yet confirmed live.** The range rows carry their day
+on `generic.calendarDate`, not on the row, and the engine used to index them by
+a top-level `calendarDate` — so every row was dropped as dateless and the sync
+warned "Garmin returned no rows". It now reads the day from the sub-objects
+(`maxMetricsDate` in `src/garmin/endpoints.ts`), and training status's
+`mostRecentVO2Max` fills in for the day it belongs to. If `vo2max` is still
+empty after a sync, the diagnosis below still applies.
+
+Not a range-length problem.
 
 Evidence from a 407-day vault: endurance score present in 393 notes, race
 predictions present in exactly the 5 days of the recent-sync window, VO2 Max in

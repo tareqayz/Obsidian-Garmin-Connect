@@ -117,6 +117,33 @@ describe("endpoint URLs", () => {
 		assert.equal(http.urls.filter((u) => u.includes("socialProfile")).length, 0);
 	});
 
+	it("builds the intraday steps call with the display name", async () => {
+		const { http, client } = await api([profile, { url: "/dailySummaryChart", text: "" }]);
+		assert.deepEqual(await client.stepsChart("2026-09-12"), []);
+		assert.match(http.urls.at(-1)!, /dailySummaryChart\/abc-123\?date=2026-09-12$/);
+	});
+
+	it("builds the Body Battery events and fitness age calls", async () => {
+		const { http, client } = await api([
+			{ url: "/bodyBattery/events", json: [] },
+			{ url: "/fitnessage-service", json: {} },
+		]);
+		await client.bodyBatteryEvents("2026-09-12");
+		await client.fitnessAge("2026-09-12");
+		assert.deepEqual(http.urls.slice(-2), [
+			"https://connectapi.garmin.com/wellness-service/wellness/bodyBattery/events/2026-09-12",
+			"https://connectapi.garmin.com/fitnessage-service/fitnessage/2026-09-12",
+		]);
+	});
+
+	it("keeps the whole profile for the account file", async () => {
+		const { client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc", profileImageUrlLarge: "u" } },
+		]);
+		await client.socialProfile();
+		assert.equal(client.profile?.profileImageUrlLarge, "u");
+	});
+
 	it("defaults a body battery range to a single day", async () => {
 		const { http, client } = await api([{ url: "/bodyBattery", json: [] }]);
 		await client.bodyBattery("2026-09-12");

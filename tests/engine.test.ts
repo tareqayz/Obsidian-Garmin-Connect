@@ -10,9 +10,11 @@ import {
 	syncRange,
 	type NoteTarget,
 	type SyncOptions,
+	type SeriesTarget,
 	type SyncSource,
 	type WriteOutcome,
 } from "../src/sync/engine";
+import type { DaySeries } from "../src/sync/intraday";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { Activity } from "../src/garmin/endpoints";
 
@@ -27,7 +29,10 @@ class FakeSource implements SyncSource {
 	activityList: Activity[] = [];
 	activityPages = 0;
 	rangeCalls = 0;
-	maxMetricsRows: Array<{ calendarDate: string; generic: { vo2MaxPreciseValue: number } }> = [];
+	maxMetricsRows: Array<{
+		calendarDate?: string;
+		generic: { calendarDate?: string; vo2MaxPreciseValue: number };
+	}> = [];
 	raceRows: Array<{ calendarDate: string; time5K: number }> = [];
 
 	private guard(name: string, date?: string) {
@@ -68,6 +73,38 @@ class FakeSource implements SyncSource {
 	async enduranceScore(date: string) {
 		this.guard("enduranceScore", date);
 		return { calendarDate: date, overallScore: 7100 };
+	}
+	async fitnessAge(date: string) {
+		this.guard("fitnessAge", date);
+		return { fitnessAge: 34.6, chronologicalAge: 40 };
+	}
+	async stress(date: string) {
+		this.guard("stress", date);
+		return {
+			stressValuesArray: [
+				[1_000, 20],
+				[2_000, -1],
+			],
+			bodyBatteryValuesArray: [[1_000, "MEASURED", 60, 2.0]],
+		};
+	}
+	async heartRate(date: string) {
+		this.guard("heartRate", date);
+		return {
+			heartRateValues: [
+				[1_000, 58],
+				[2_000, 61],
+				[3_000, null],
+			] as Array<[number, number | null]>,
+		};
+	}
+	async stepsChart(date: string) {
+		this.guard("stepsChart", date);
+		return [{ startGMT: "2026-09-12T08:00:00.0", endGMT: "2026-09-12T08:15:00.0", steps: 412 }];
+	}
+	async bodyBatteryEvents(date: string) {
+		this.guard("bodyBatteryEvents", date);
+		return [];
 	}
 	async maxMetrics(start: string, end = start) {
 		this.guard(`maxMetrics:${start}:${end}`);
@@ -414,6 +451,74 @@ describe("syncRange — a target that creates its own notes", () => {
 		const report = await syncRange(source, target, options());
 		assert.deepEqual(written.sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
 		assert.equal(report.skipped, 0);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Intraday series                                                    */
+/* ------------------------------------------------------------------ */
+
+class FakeSeries implements SeriesTarget {
+	written = new Map<string, DaySeries>();
+	async write(date: string, series: DaySeries) {
+		this.written.set(date, series);
+		return "written" as const;
+	}
+}
+
+describe("syncRange — intraday", () => {
+	it("writes series to their own target and only the latest HR to the note", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const series = new FakeSeries();
+		const report = await syncRange(
+			source,
+			target,
+			options({ from: "2026-09-12", groups: ["intraday"], series }),
+		);
+
+		assert.deepEqual(target.written.get("2026-09-12"), { hr_latest: 61 });
+		const day = series.written.get("2026-09-12")!;
+		assert.deepEqual(day.stress, [
+			[1_000, 20],
+			[2_000, null],
+		]);
+		assert.deepEqual(day.bodyBattery, [[1_000, 60]]);
+		assert.equal(day.steps![0]!.steps, 412);
+		assert.equal(report.seriesWritten, 1);
+		assert.equal(report.requests, 4);
+	});
+
+	it("spends intraday requests only on the newest days of a run", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+		await syncRange(
+			source,
+			target,
+			options({ groups: ["activity", "intraday"], series: new FakeSeries(), intradayDays: 2 }),
+		);
+		assert.deepEqual(
+			source.calls.filter((c) => c.startsWith("stress")),
+			["stress:2026-09-12", "stress:2026-09-11"],
+		);
+	});
+
+	it("fetches nothing intraday without somewhere to put it", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		await syncRange(source, target, options({ from: "2026-09-12", groups: ["intraday"] }));
+		assert.deepEqual(source.calls, []);
+	});
+});
+
+describe("syncRange — max metrics", () => {
+	it("finds the day on the generic sub-object, where Garmin puts it", async () => {
+		const source = new FakeSource();
+		source.maxMetricsRows = [{ generic: { calendarDate: "2026-09-12", vo2MaxPreciseValue: 52.3 } }];
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const report = await syncRange(source, target, options({ from: "2026-09-12", groups: ["fitness"] }));
+		assert.equal(target.written.get("2026-09-12")!.vo2max, 52.3);
+		assert.deepEqual(report.warnings, []);
 	});
 });
 

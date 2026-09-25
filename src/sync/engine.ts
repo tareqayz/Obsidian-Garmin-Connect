@@ -1,15 +1,22 @@
-import type {
-	Activity,
-	BodyComposition,
-	DailySummary,
-	EnduranceScore,
-	MaxMetrics,
-	RacePrediction,
-	SleepData,
-	TrainingStatus,
+import {
+	maxMetricsDate,
+	type Activity,
+	type BodyBatteryEvent,
+	type BodyComposition,
+	type DailyStress,
+	type DailySummary,
+	type EnduranceScore,
+	type FitnessAge,
+	type HeartRateData,
+	type MaxMetrics,
+	type RacePrediction,
+	type SleepData,
+	type StepsChartEntry,
+	type TrainingStatus,
 } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
+import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
 import {
 	bucketWorkoutsByDate,
 	endpointsFor,
@@ -31,6 +38,12 @@ export interface SyncSource {
 	enduranceScore(date: string): Promise<EnduranceScore | null>;
 	trainingStatus(date: string): Promise<TrainingStatus | null>;
 	bodyComposition(date: string): Promise<BodyComposition | null>;
+	fitnessAge(date: string): Promise<FitnessAge | null>;
+	/** Intraday: several hundred points each, so only for the newest days of a run. */
+	stress(date: string): Promise<DailyStress | null>;
+	heartRate(date: string): Promise<HeartRateData>;
+	stepsChart(date: string): Promise<StepsChartEntry[]>;
+	bodyBatteryEvents(date: string): Promise<BodyBatteryEvent[]>;
 	/** Range endpoints: one call covers the whole window. */
 	maxMetrics(start: string, end?: string): Promise<MaxMetrics[]>;
 	racePredictions(start: string, end?: string): Promise<RacePrediction[]>;
@@ -38,6 +51,11 @@ export interface SyncSource {
 }
 
 export type WriteOutcome = "written" | "unchanged" | "missing";
+
+/** Where a day's intraday series end up — a file per day, not frontmatter. */
+export interface SeriesTarget {
+	write(date: string, series: DaySeries): Promise<"written" | "unchanged">;
+}
 
 /** Where a day's properties end up. Obsidian lives behind this. */
 export interface NoteTarget {
@@ -55,6 +73,14 @@ export interface SyncOptions {
 	to: string;
 	groups: readonly MetricGroup[];
 	units: "metric" | "imperial";
+	/** Where intraday series go. Without one the `intraday` group fetches nothing. */
+	series?: SeriesTarget;
+	/**
+	 * How many of the newest days in a run get intraday series. They cost four
+	 * requests a day, and a year's backfill of them would be 1,460 requests for
+	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
+	 */
+	intradayDays?: number;
 	/** Courtesy pause between days, in ms. */
 	pauseBetweenDays?: number;
 	/**
@@ -100,6 +126,8 @@ export interface SyncReport {
 	/** Set when the sync gave up before finishing the range. */
 	stoppedEarly?: string;
 	requests: number;
+	/** Days whose series file was created or changed. */
+	seriesWritten: number;
 }
 
 /**
@@ -166,6 +194,9 @@ export function dateRange(from: string, to: string): string[] {
  */
 export const RANGE_CHUNK_DAYS = 365;
 
+/** See `SyncOptions.intradayDays`. A week covers the dashboard's today and yesterday with room to spare. */
+export const INTRADAY_DAYS = 7;
+
 /** Splits an inclusive range into windows of at most `size` days, oldest first. */
 export function chunkRange(from: string, to: string, size = RANGE_CHUNK_DAYS): Array<{ from: string; to: string }> {
 	const start = utcOf(from);
@@ -210,6 +241,7 @@ export async function syncRange(
 		skipped: 0,
 		failed: 0,
 		requests: 0,
+		seriesWritten: 0,
 	};
 	if (dates.length === 0) return report;
 
@@ -251,7 +283,7 @@ export async function syncRange(
 	if (wanted.maxMetrics) {
 		const got = await fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b));
 		report.requests += got.requests;
-		maxMetricsByDate = byCalendarDate(got.rows);
+		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
 		else if (maxMetricsByDate.size === 0) {
@@ -274,30 +306,49 @@ export async function syncRange(
 	}
 
 	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
+	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
 	let emptyRun = 0;
 	let done = 0;
 
-	for (const date of due) {
+	for (const [index, date] of due.entries()) {
 		if (opts.shouldStop?.()) {
 			report.stoppedEarly = "cancelled";
 			break;
 		}
 
-		const fetched = await fetchDay(source, date, wanted);
+		const withSeries = Boolean(wanted.intraday && opts.series);
+		const fetched = await fetchDay(source, date, {
+			...wanted,
+			intraday: withSeries && index < intradayDays,
+		});
 		report.requests += fetched.requests;
 		if (fetched.fatal) return stop(report, fetched.fatal, log);
+
+		// The hypnogram rides in the sleep payload, so every day with sleep gets
+		// a series file, not only the newest few that paid for the rest.
+		const series = withSeries ? mapSeries({ ...fetched.intraday, sleep: fetched.data.sleep }) : null;
 
 		const data: DayData = {
 			...fetched.data,
 			workouts: workoutsByDate.get(date) ?? [],
 			maxMetrics: maxMetricsByDate.get(date) ?? null,
 			races: racesByDate.get(date) ?? null,
+			series,
 		};
-		const properties = mapDay(data, { groups: opts.groups, units: opts.units });
+		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
 		const count = Object.keys(properties).length;
 
 		const result: DayResult = { date, status: "no-data", properties: count };
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
+
+		if (series && !isEmptySeries(series) && opts.series) {
+			try {
+				if ((await opts.series.write(date, series)) === "written") report.seriesWritten += 1;
+			} catch (err) {
+				(result.warnings ??= []).push(`series file: ${message(err)}`);
+				log.warn(`${date}: series file failed: ${message(err)}`);
+			}
+		}
 
 		if (count === 0) {
 			log.detail(date, "no data");
@@ -349,6 +400,7 @@ export async function syncRange(
 
 interface DayFetch {
 	data: DayData;
+	intraday: IntradayPayloads;
 	warnings: string[];
 	requests: number;
 	/** Set when the sync must abandon the whole range, not just this day. */
@@ -360,7 +412,7 @@ async function fetchDay(
 	date: string,
 	wanted: ReturnType<typeof endpointsFor>,
 ): Promise<DayFetch> {
-	const jobs: Array<{ name: keyof DayData; run: () => Promise<unknown> }> = [];
+	const jobs: Array<{ name: keyof DayData | IntradayJob; run: () => Promise<unknown> }> = [];
 	if (wanted.summary) jobs.push({ name: "summary", run: () => source.dailySummary(date) });
 	if (wanted.sleep) jobs.push({ name: "sleep", run: () => source.sleep(date) });
 	if (wanted.hrv) jobs.push({ name: "hrv", run: () => source.hrv(date) });
@@ -368,14 +420,22 @@ async function fetchDay(
 	if (wanted.endurance) jobs.push({ name: "endurance", run: () => source.enduranceScore(date) });
 	if (wanted.training) jobs.push({ name: "training", run: () => source.trainingStatus(date) });
 	if (wanted.body) jobs.push({ name: "body", run: () => source.bodyComposition(date) });
+	if (wanted.fitnessAge) jobs.push({ name: "fitnessAge", run: () => source.fitnessAge(date) });
+	if (wanted.intraday) {
+		jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
+		jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
+		jobs.push({ name: "intraday.steps", run: () => source.stepsChart(date) });
+		jobs.push({ name: "intraday.bodyBatteryEvents", run: () => source.bodyBatteryEvents(date) });
+	}
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, warnings: [], requests: jobs.length };
+	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length };
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
-			assign(out.data, name, result.value);
+			if (isIntradayJob(name)) assignIntraday(out.intraday, name, result.value);
+			else assign(out.data, name, result.value);
 			return;
 		}
 		// One endpoint being unavailable for one day must not lose the rest of
@@ -410,7 +470,33 @@ function assign(data: DayData, name: keyof DayData, value: unknown): void {
 		case "body":
 			data.body = (value ?? null) as BodyComposition | null;
 			break;
+		case "fitnessAge":
+			data.fitnessAge = (value ?? null) as FitnessAge | null;
+			break;
 		default:
+			break;
+	}
+}
+
+type IntradayJob = `intraday.${keyof Omit<IntradayPayloads, "sleep">}`;
+
+function isIntradayJob(name: string): name is IntradayJob {
+	return name.startsWith("intraday.");
+}
+
+function assignIntraday(out: IntradayPayloads, name: IntradayJob, value: unknown): void {
+	switch (name) {
+		case "intraday.stress":
+			out.stress = (value ?? null) as DailyStress | null;
+			break;
+		case "intraday.heartRate":
+			out.heartRate = (value ?? null) as HeartRateData | null;
+			break;
+		case "intraday.steps":
+			out.steps = Array.isArray(value) ? (value as StepsChartEntry[]) : null;
+			break;
+		case "intraday.bodyBatteryEvents":
+			out.bodyBatteryEvents = Array.isArray(value) ? (value as BodyBatteryEvent[]) : null;
 			break;
 	}
 }
@@ -448,9 +534,14 @@ function note(report: SyncReport, log: Log, text: string): void {
 
 /** Indexes a range response by the day it describes. */
 function byCalendarDate<T extends { calendarDate?: string }>(rows: readonly T[]): Map<string, T> {
+	return byDate(rows, (row) => row?.calendarDate);
+}
+
+function byDate<T>(rows: readonly T[], dateOf: (row: T) => string | undefined): Map<string, T> {
 	const map = new Map<string, T>();
 	for (const row of rows) {
-		if (typeof row?.calendarDate === "string") map.set(row.calendarDate, row);
+		const date = dateOf(row);
+		if (typeof date === "string") map.set(date, row);
 	}
 	return map;
 }

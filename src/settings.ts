@@ -11,7 +11,7 @@ import type GarminPlugin from "./main";
  * Bumped when a release adds metric groups that an existing vault should get
  * switched on rather than have to discover. See `PluginData.migrate`.
  */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 export interface GarminSettings {
 	/** Absent in anything written before the migration existed, which reads as 1. */
