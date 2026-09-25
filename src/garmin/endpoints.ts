@@ -278,6 +278,60 @@ export interface BodyComposition {
 	[key: string]: unknown;
 }
 
+/** One daily Health Status verdict — HRV, HR, SpO2, respiration, skin temperature. */
+export interface HealthStatusMetric {
+	type?: string | null;
+	value?: number | null;
+	status?: string | null;
+	baselineLowerLimit?: number | null;
+	baselineUpperLimit?: number | null;
+	percentage?: number | null;
+	feedbackKey?: string | null;
+	[key: string]: unknown;
+}
+
+export interface HealthStatus {
+	calendarDate?: string;
+	outliersCount?: number | null;
+	metrics?: HealthStatusMetric[] | null;
+	[key: string]: unknown;
+}
+
+/** A two-minute Health Snapshot session, with min/avg/max per measurement. */
+export interface HealthSnapshot {
+	calendarDate?: string;
+	startTimestampGMT?: string | null;
+	endTimestampGMT?: string | null;
+	startTimestampLocal?: string | null;
+	summaryTypeDataList?: Array<{
+		summaryType?: string | null;
+		minValue?: number | null;
+		maxValue?: number | null;
+		avgValue?: number | null;
+	}> | null;
+	[key: string]: unknown;
+}
+
+export interface HillScore {
+	calendarDate?: string;
+	overallScore?: number | null;
+	strengthScore?: number | null;
+	enduranceScore?: number | null;
+	hillScoreClassificationId?: number | null;
+	hillScoreFeedbackPhraseId?: number | null;
+	primaryTrainingDevice?: boolean;
+	[key: string]: unknown;
+}
+
+export interface RunningTolerance {
+	calendarDate?: string;
+	acuteImpactLoad?: number | null;
+	acuteDistance?: number | null;
+	acuteTolerance?: number | null;
+	runningToleranceFeedBackPhrase?: string | null;
+	[key: string]: unknown;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -510,6 +564,122 @@ export class GarminApi extends GarminClient {
 		return this.request(`/weight-service/weight/dayview/${date}`, {
 			query: { includeAll: "true" },
 		});
+	}
+
+	/**
+	 * Garmin's GraphQL gateway — the same one the web app uses. Several metrics
+	 * have no REST route at all (Health Status, Health Snapshots, cycling
+	 * ability), so this is the only way to them. Queries are sent inline, as the
+	 * web app sends them; `data` is unwrapped, and GraphQL errors throw.
+	 */
+	async graphql<T>(query: string): Promise<T> {
+		const res = await this.request<{ data?: T; errors?: Array<{ message?: string }> } | null>(
+			"/graphql-gateway/graphql",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ query }),
+			},
+		);
+		if (res?.errors?.length) {
+			throw new GarminApiError(`GraphQL: ${res.errors.map((e) => e.message).join("; ")}`, 200, "");
+		}
+		return (res?.data ?? {}) as T;
+	}
+
+	/** Health Status for one day. */
+	async healthStatus(date: string): Promise<HealthStatus | null> {
+		assertIsoDate(date);
+		const data = await this.graphql<{ healthStatusSummary?: HealthStatus | null }>(
+			`query { healthStatusSummary(calendarDate:"${date}") { calendarDate outliersCount ` +
+				"metrics { value baselineUpperLimit baselineLowerLimit status percentage feedbackKey type } } }",
+		);
+		return data.healthStatusSummary ?? null;
+	}
+
+	async healthSnapshots(start: string, end = start): Promise<HealthSnapshot[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.graphql<{ healthSnapshotScalar?: HealthSnapshot[] | null }>(
+			`query{healthSnapshotScalar(startDate:"${start}", endDate:"${end}")}`,
+		);
+		return data.healthSnapshotScalar ?? [];
+	}
+
+	/** Daily hill scores across a range. `aggregation` shapes only the averages, not the list. */
+	async hillScores(start: string, end = start): Promise<HillScore[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.graphql<{ hillScoreScalar?: { hillScoreDTOList?: HillScore[] | null } | null }>(
+			`query{hillScoreScalar(startDate:"${start}", endDate:"${end}", aggregation:"weekly")}`,
+		);
+		return data.hillScoreScalar?.hillScoreDTOList ?? [];
+	}
+
+	async runningTolerance(start: string, end = start): Promise<RunningTolerance[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.request<RunningTolerance[] | null>(
+			"/metrics-service/metrics/runningtolerance/stats",
+			{ query: { startDate: start, endDate: end, aggregation: "daily" } },
+		);
+		return data ?? [];
+	}
+
+	/* Current-state endpoints: one call each per sync, for the account file. */
+
+	async lactateThreshold(): Promise<Array<Record<string, unknown>>> {
+		return (await this.request<Array<Record<string, unknown>> | null>(
+			"/biometric-service/biometric/latestLactateThreshold",
+		)) ?? [];
+	}
+
+	async powerToWeight(date: string, sport: "Running" | "Cycling"): Promise<Array<Record<string, unknown>>> {
+		assertIsoDate(date);
+		return (await this.request<Array<Record<string, unknown>> | null>(
+			`/biometric-service/biometric/powerToWeight/latest/${date}`,
+			{ query: { sport } },
+		)) ?? [];
+	}
+
+	async runningEconomy(date: string): Promise<Record<string, unknown> | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/runningeconomy/latest/${date}`);
+	}
+
+	async cyclingAbility(date: string): Promise<Record<string, unknown> | null> {
+		assertIsoDate(date);
+		const data = await this.graphql<{ cyclingAbility?: { latest?: Record<string, unknown> | null } | null }>(
+			`query { cyclingAbility(startDate: "${date}", endDate: "${date}") { latest { calendarDate ` +
+				"aerobicEndurance aerobicCapacity anaerobicCapacity profileType profileTypeFeedback " +
+				"aerobicEnduranceFeedback aerobicCapacityFeedback anaerobicCapacityFeedback } } }",
+		);
+		return data.cyclingAbility?.latest ?? null;
+	}
+
+	async lastUsedDevice(): Promise<Record<string, unknown> | null> {
+		return this.request("/device-service/deviceservice/mylastused");
+	}
+
+	async trainingPlans(): Promise<Record<string, unknown> | null> {
+		return this.request("/trainingplan-service/trainingplan/plans", { query: { limit: "50" } });
+	}
+
+	/** Upcoming events and races, as the app's My Day card lists them. */
+	async upcomingEvents(date: string): Promise<Array<Record<string, unknown>>> {
+		assertIsoDate(date);
+		const data = await this.graphql<{ myDayCardEventsScalar?: { eventMyDay?: Array<Record<string, unknown>> } | null }>(
+			`query{myDayCardEventsScalar(timeZone:"GMT", date:"${date}")}`,
+		);
+		return data.myDayCardEventsScalar?.eventMyDay ?? [];
+	}
+
+	async personalRecords(): Promise<Array<Record<string, unknown>>> {
+		const who = await this.requireDisplayName();
+		return (await this.request<Array<Record<string, unknown>> | null>(
+			`/personalrecord-service/personalrecord/prs/${who}`,
+			{ query: { includeHistory: "false" } },
+		)) ?? [];
 	}
 
 	async activities(start = 0, limit = 20): Promise<Activity[]> {

@@ -241,10 +241,14 @@ describe("endpointsFor", () => {
 			training: false,
 			body: false,
 			fitnessAge: false,
+			health: false,
 			intraday: false,
 			maxMetrics: false,
 			races: false,
 			workouts: false,
+			hillScores: false,
+			runningTolerance: false,
+			healthSnapshots: false,
 		});
 	});
 
@@ -751,6 +755,14 @@ describe("mapDay — fitness extras", () => {
 		);
 		assert.equal(props.endurance_classification, 4);
 		assert.equal(props.endurance_feedback, "ENDURANCE_UP");
+
+		// What Garmin actually sends: a numeric phrase id and the class limits.
+		const live = mapDay(
+			{ endurance: { overallScore: 6415, feedbackPhrase: 55, classificationLowerLimitElite: 8800 } },
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(live.endurance_feedback, 55);
+		assert.equal(live.endurance_elite_from, 8800);
 	});
 });
 

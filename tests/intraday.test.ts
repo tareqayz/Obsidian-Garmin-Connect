@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
 	epochOf,
 	latestValue,
-	mapAccount,
 	mapSeries,
 	parseSeries,
 	serializeSeries,
@@ -95,21 +94,5 @@ describe("series file", () => {
 		assert.equal(text, serializeSeries("2026-09-12", series));
 		assert.deepEqual(parseSeries(text), series);
 		assert.equal(parseSeries("{not json"), null);
-	});
-});
-
-describe("mapAccount", () => {
-	it("keeps the name and avatar URLs and nothing else", () => {
-		assert.deepEqual(
-			mapAccount({
-				displayName: "abc",
-				fullName: "A Runner",
-				profileImageUrlLarge: "https://s3.example/large.png",
-				profileId: 42,
-				location: "somewhere",
-			}),
-			{ displayName: "abc", fullName: "A Runner", avatar: { large: "https://s3.example/large.png" } },
-		);
-		assert.equal(mapAccount(null), null);
 	});
 });

@@ -5,6 +5,10 @@ import type {
 	BodyComposition,
 	DailySummary,
 	FitnessAge,
+	HealthSnapshot,
+	HealthStatus,
+	HillScore,
+	RunningTolerance,
 	SleepData,
 	TrainingStatus,
 } from "../garmin/endpoints";
@@ -32,7 +36,9 @@ export type MetricGroup =
 	| "body"
 	| "training"
 	| "workouts"
-	| "intraday";
+	| "intraday"
+	| "health"
+	| "profile";
 
 /**
  * Display order, which is also the order properties land in a note and columns
@@ -55,6 +61,8 @@ export const ALL_GROUPS: MetricGroup[] = [
 	"training",
 	"workouts",
 	"intraday",
+	"health",
+	"profile",
 ];
 
 /** Groups that need a request of their own, for the budget note in settings. */
@@ -73,6 +81,12 @@ export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 	body: 1,
 	training: 1,
 	intraday: 4,
+	health: 1,
+};
+
+/** Groups billed per sync rather than per day, for the budget note in settings. */
+export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
+	profile: 10,
 };
 
 export type PropertyValue = number | string | Array<Record<string, unknown>>;
@@ -150,6 +164,10 @@ export interface DayData {
 	body?: BodyComposition | null;
 	workouts?: Activity[] | null;
 	fitnessAge?: FitnessAge | null;
+	health?: HealthStatus | null;
+	healthSnapshots?: HealthSnapshot[] | null;
+	hillScore?: HillScore | null;
+	runningTolerance?: RunningTolerance | null;
 	/** The intraday payloads, already reduced. Only a couple of scalars come out of these. */
 	series?: DaySeries | null;
 }
@@ -531,9 +549,21 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			set(`fitness_age_${snake(name)}`, round2(metric(asObject(component)?.value)));
 		}
 
-		set("endurance_score", metric(data.endurance?.overallScore));
-		set("endurance_classification", metric(data.endurance?.classification));
-		set("endurance_feedback", label(data.endurance?.feedbackPhrase));
+		const endurance = data.endurance;
+		set("endurance_score", metric(endurance?.overallScore));
+		set("endurance_classification", metric(endurance?.classification));
+		// A numeric phrase id (55), not an enum name — kept as sent.
+		set("endurance_feedback", metric(endurance?.feedbackPhrase) ?? label(endurance?.feedbackPhrase));
+		// The class boundaries the app draws the gauge with. They depend on age
+		// and sex, so they are per account rather than constants.
+		for (const [stem, field] of ENDURANCE_LIMITS) set(`endurance_${stem}`, metric(endurance?.[field]));
+
+		const hill = data.hillScore;
+		set("hill_score", metric(hill?.overallScore));
+		set("hill_score_strength", metric(hill?.strengthScore));
+		set("hill_score_endurance", metric(hill?.enduranceScore));
+		set("hill_score_classification", metric(hill?.hillScoreClassificationId));
+		set("hill_score_feedback", metric(hill?.hillScoreFeedbackPhraseId));
 
 		const acclimation =
 			data.maxMetrics?.heatAltitudeAcclimation ??
@@ -609,6 +639,46 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			}
 			set("load_focus", label(balance.trainingBalanceFeedbackPhrase));
 		}
+
+		const tolerance = data.runningTolerance;
+		if (tolerance) {
+			set("running_tolerance", metric(tolerance.acuteTolerance));
+			set("running_tolerance_load", metric(tolerance.acuteImpactLoad));
+			const d = distance(metric(tolerance.acuteDistance), opts.units);
+			if (d) set(`running_tolerance_${d.key}`, d.value);
+			set("running_tolerance_feedback", label(tolerance.runningToleranceFeedBackPhrase));
+		}
+	}
+
+	if (groups.has("health")) {
+		const health = data.health;
+		if (health) {
+			set("health_status_outliers", metric(health.outliersCount));
+			for (const m of health.metrics ?? []) {
+				const type = typeof m?.type === "string" ? m.type : "";
+				// Garmin sends skin temperature twice, once per unit. Keep the one
+				// the rest of the note is in.
+				if (type === "SKIN_TEMP_F" && opts.units !== "imperial") continue;
+				if (type === "SKIN_TEMP_C" && opts.units === "imperial") continue;
+				const stem = HEALTH_STEMS[type] ?? (type ? snake(type) : "");
+				if (!stem) continue;
+				// Skin temperature is a deviation from baseline, so it can be negative.
+				const signed = stem.startsWith("skin_temp");
+				set(`health_${stem}`, round2(metric(m.value, { allowNegative: signed })));
+				set(`health_${stem}_status`, label(m.status));
+				// A metric still ONBOARDING reports a 0–0 baseline, which is "none yet".
+				const low = metric(m.baselineLowerLimit, { allowNegative: signed });
+				const high = metric(m.baselineUpperLimit, { allowNegative: signed });
+				if (low !== 0 || high !== 0) {
+					set(`health_${stem}_baseline_low`, round2(low));
+					set(`health_${stem}_baseline_high`, round2(high));
+				}
+			}
+		}
+
+		// Health Snapshots: a short list, like workouts — a day has one or two.
+		const snapshots = (data.healthSnapshots ?? []).map(mapSnapshot).filter((row) => Object.keys(row).length);
+		if (snapshots.length) set("health_snapshots", snapshots);
 	}
 
 	if (groups.has("races")) {
@@ -632,6 +702,48 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 	}
 
 	return out;
+}
+
+const ENDURANCE_LIMITS: Array<[string, string]> = [
+	["gauge_low", "gaugeLowerLimit"],
+	["gauge_high", "gaugeUpperLimit"],
+	["intermediate_from", "classificationLowerLimitIntermediate"],
+	["trained_from", "classificationLowerLimitTrained"],
+	["well_trained_from", "classificationLowerLimitWellTrained"],
+	["expert_from", "classificationLowerLimitExpert"],
+	["superior_from", "classificationLowerLimitSuperior"],
+	["elite_from", "classificationLowerLimitElite"],
+];
+
+const HEALTH_STEMS: Record<string, string> = {
+	HRV: "hrv",
+	HR: "hr",
+	SPO2: "spo2",
+	RESPIRATION: "respiration",
+	SKIN_TEMP_C: "skin_temp_c",
+	SKIN_TEMP_F: "skin_temp_f",
+};
+
+const SNAPSHOT_KEYS: Record<string, string> = {
+	HEART_RATE: "hr",
+	RESPIRATION: "respiration",
+	STRESS: "stress",
+	SPO2: "spo2",
+	RMSSD_HRV: "hrv",
+	SDRR_HRV: "hrv_sdrr",
+};
+
+/** One Health Snapshot as a short list row: when, how long, and each average. */
+function mapSnapshot(snapshot: HealthSnapshot): Record<string, unknown> {
+	const row: Record<string, unknown> = {};
+	const start = snapshot.startTimestampLocal;
+	if (typeof start === "string" && start) row.start = start.replace(" ", "T").slice(0, 16);
+	for (const entry of snapshot.summaryTypeDataList ?? []) {
+		const key = SNAPSHOT_KEYS[entry?.summaryType ?? ""];
+		const avg = metric(entry?.avgValue);
+		if (key && avg !== undefined) row[key] = round(avg, 1);
+	}
+	return row;
 }
 
 const SLEEP_SCORE_PARTS: Array<[string, string]> = [
@@ -856,6 +968,19 @@ export const METRIC_LABELS: Record<string, string> = {
 	endurance_score: "Endurance score",
 	endurance_classification: "Endurance class",
 	endurance_feedback: "Endurance feedback",
+	endurance_gauge_low: "Endurance gauge low",
+	endurance_gauge_high: "Endurance gauge high",
+	endurance_intermediate_from: "Endurance: intermediate from",
+	endurance_trained_from: "Endurance: trained from",
+	endurance_well_trained_from: "Endurance: well trained from",
+	endurance_expert_from: "Endurance: expert from",
+	endurance_superior_from: "Endurance: superior from",
+	endurance_elite_from: "Endurance: elite from",
+	hill_score: "Hill score",
+	hill_score_strength: "Hill strength",
+	hill_score_endurance: "Hill endurance",
+	hill_score_classification: "Hill score class",
+	hill_score_feedback: "Hill score feedback",
 	heat_acclimation_pct: "Heat acclimation %",
 	heat_acclimation_trend: "Heat trend",
 	altitude_acclimation_m: "Altitude acclimation (m)",
@@ -903,6 +1028,37 @@ export const METRIC_LABELS: Record<string, string> = {
 	load_anaerobic_target_min: "Anaerobic target min",
 	load_anaerobic_target_max: "Anaerobic target max",
 	load_focus: "Load focus",
+	running_tolerance: "Running tolerance",
+	running_tolerance_load: "Running impact load",
+	running_tolerance_distance_km: "Running tolerance distance (km)",
+	running_tolerance_distance_mi: "Running tolerance distance (mi)",
+	running_tolerance_feedback: "Running tolerance feedback",
+	health_status_outliers: "Health status outliers",
+	health_hrv: "Health: HRV",
+	health_hrv_status: "Health: HRV status",
+	health_hrv_baseline_low: "Health: HRV baseline low",
+	health_hrv_baseline_high: "Health: HRV baseline high",
+	health_hr: "Health: HR",
+	health_hr_status: "Health: HR status",
+	health_hr_baseline_low: "Health: HR baseline low",
+	health_hr_baseline_high: "Health: HR baseline high",
+	health_spo2: "Health: SpO2",
+	health_spo2_status: "Health: SpO2 status",
+	health_spo2_baseline_low: "Health: SpO2 baseline low",
+	health_spo2_baseline_high: "Health: SpO2 baseline high",
+	health_respiration: "Health: respiration",
+	health_respiration_status: "Health: respiration status",
+	health_respiration_baseline_low: "Health: respiration baseline low",
+	health_respiration_baseline_high: "Health: respiration baseline high",
+	health_skin_temp_c: "Health: skin temp (°C)",
+	health_skin_temp_c_status: "Health: skin temp status",
+	health_skin_temp_c_baseline_low: "Health: skin temp baseline low (°C)",
+	health_skin_temp_c_baseline_high: "Health: skin temp baseline high (°C)",
+	health_skin_temp_f: "Health: skin temp (°F)",
+	health_skin_temp_f_status: "Health: skin temp status",
+	health_skin_temp_f_baseline_low: "Health: skin temp baseline low (°F)",
+	health_skin_temp_f_baseline_high: "Health: skin temp baseline high (°F)",
+	health_snapshots: "Health snapshots",
 	workouts: "Workouts",
 	hr_latest: "Latest HR",
 };
@@ -1042,6 +1198,19 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"endurance_score",
 			"endurance_classification",
 			"endurance_feedback",
+			"endurance_gauge_low",
+			"endurance_gauge_high",
+			"endurance_intermediate_from",
+			"endurance_trained_from",
+			"endurance_well_trained_from",
+			"endurance_expert_from",
+			"endurance_superior_from",
+			"endurance_elite_from",
+			"hill_score",
+			"hill_score_strength",
+			"hill_score_endurance",
+			"hill_score_classification",
+			"hill_score_feedback",
 			"heat_acclimation_pct",
 			"heat_acclimation_trend",
 			"altitude_acclimation_m",
@@ -1086,9 +1255,25 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"load_anaerobic_target_min",
 			"load_anaerobic_target_max",
 			"load_focus",
+			"running_tolerance",
+			"running_tolerance_load",
+			"running_tolerance_distance_km",
+			"running_tolerance_distance_mi",
+			"running_tolerance_feedback",
 		],
 		workouts: ["workouts"],
 		intraday: ["hr_latest"],
+		health: [
+			"health_status_outliers",
+			...["hrv", "hr", "spo2", "respiration", "skin_temp_c", "skin_temp_f"].flatMap((m) => [
+				`health_${m}`,
+				`health_${m}_status`,
+				`health_${m}_baseline_low`,
+				`health_${m}_baseline_high`,
+			]),
+			"health_snapshots",
+		],
+		profile: [],
 	};
 	const wanted = new Set(groups);
 	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => byGroup[g]);
@@ -1123,6 +1308,8 @@ const PRIMARY: Record<MetricGroup, string[]> = {
 	training: ["training_status", "training_load_ratio"],
 	workouts: ["workouts"],
 	intraday: [],
+	health: ["health_hrv_status", "health_hr_status"],
+	profile: [],
 };
 
 export function primaryKeysFor(groups: readonly MetricGroup[]): string[] {
@@ -1166,6 +1353,7 @@ export function endpointsFor(groups: readonly MetricGroup[]) {
 		training: set.has("training"),
 		body: set.has("body"),
 		fitnessAge: set.has("fitness"),
+		health: set.has("health"),
 		// Four requests between them, so the engine spends them only on the
 		// newest days of a run. See `INTRADAY_DAYS`.
 		intraday: set.has("intraday"),
@@ -1173,5 +1361,8 @@ export function endpointsFor(groups: readonly MetricGroup[]) {
 		maxMetrics: set.has("fitness"),
 		races: set.has("races"),
 		workouts: set.has("workouts"),
+		hillScores: set.has("fitness"),
+		runningTolerance: set.has("training"),
+		healthSnapshots: set.has("health"),
 	};
 }

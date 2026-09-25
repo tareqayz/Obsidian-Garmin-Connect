@@ -1,7 +1,8 @@
 import { App, TFile, normalizePath } from "obsidian";
 import type { SeriesTarget } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
-import { parseSeries, serializeSeries, type AccountInfo, type DaySeries } from "./intraday";
+import type { AccountInfo } from "./account";
+import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
 
 export const SERIES_FOLDER = "series";
 export const ACCOUNT_FILE = "account.json";

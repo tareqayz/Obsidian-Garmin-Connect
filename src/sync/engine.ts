@@ -7,9 +7,13 @@ import {
 	type DailySummary,
 	type EnduranceScore,
 	type FitnessAge,
+	type HealthSnapshot,
+	type HealthStatus,
 	type HeartRateData,
+	type HillScore,
 	type MaxMetrics,
 	type RacePrediction,
+	type RunningTolerance,
 	type SleepData,
 	type StepsChartEntry,
 	type TrainingStatus,
@@ -39,6 +43,7 @@ export interface SyncSource {
 	trainingStatus(date: string): Promise<TrainingStatus | null>;
 	bodyComposition(date: string): Promise<BodyComposition | null>;
 	fitnessAge(date: string): Promise<FitnessAge | null>;
+	healthStatus(date: string): Promise<HealthStatus | null>;
 	/** Intraday: several hundred points each, so only for the newest days of a run. */
 	stress(date: string): Promise<DailyStress | null>;
 	heartRate(date: string): Promise<HeartRateData>;
@@ -47,6 +52,9 @@ export interface SyncSource {
 	/** Range endpoints: one call covers the whole window. */
 	maxMetrics(start: string, end?: string): Promise<MaxMetrics[]>;
 	racePredictions(start: string, end?: string): Promise<RacePrediction[]>;
+	hillScores(start: string, end?: string): Promise<HillScore[]>;
+	runningTolerance(start: string, end?: string): Promise<RunningTolerance[]>;
+	healthSnapshots(start: string, end?: string): Promise<HealthSnapshot[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
 }
 
@@ -197,6 +205,13 @@ export const RANGE_CHUNK_DAYS = 365;
 /** See `SyncOptions.intradayDays`. A week covers the dashboard's today and yesterday with room to spare. */
 export const INTRADAY_DAYS = 7;
 
+/**
+ * Windows for the range calls whose limits nobody has published. The web app
+ * asks for 28 days of hill score and a week of snapshots; staying at or under
+ * what it asks for is the safe side of an unknown limit.
+ */
+const SHORT_RANGE_DAYS = 28;
+
 /** Splits an inclusive range into windows of at most `size` days, oldest first. */
 export function chunkRange(from: string, to: string, size = RANGE_CHUNK_DAYS): Array<{ from: string; to: string }> {
 	const start = utcOf(from);
@@ -305,6 +320,41 @@ export async function syncRange(
 		log.detail("race prediction days", racesByDate.size);
 	}
 
+	let hillByDate = new Map<string, HillScore>();
+	if (wanted.hillScores) {
+		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), SHORT_RANGE_DAYS);
+		report.requests += got.requests;
+		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.error) note(report, log, `hill score: ${got.error}`);
+		// Several devices can report the same day; the primary one wins.
+		hillByDate = byDate(
+			[...got.rows].sort((a, b) => Number(a.primaryTrainingDevice === true) - Number(b.primaryTrainingDevice === true)),
+			(row) => row?.calendarDate,
+		);
+	}
+
+	let toleranceByDate = new Map<string, RunningTolerance>();
+	if (wanted.runningTolerance) {
+		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), SHORT_RANGE_DAYS);
+		report.requests += got.requests;
+		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.error) note(report, log, `running tolerance: ${got.error}`);
+		toleranceByDate = byCalendarDate(got.rows);
+	}
+
+	const snapshotsByDate = new Map<string, HealthSnapshot[]>();
+	if (wanted.healthSnapshots) {
+		const got = await fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS);
+		report.requests += got.requests;
+		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.error) note(report, log, `health snapshots: ${got.error}`);
+		for (const row of got.rows) {
+			const date = row?.calendarDate;
+			if (typeof date !== "string") continue;
+			snapshotsByDate.set(date, [...(snapshotsByDate.get(date) ?? []), row]);
+		}
+	}
+
 	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
 	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
 	let emptyRun = 0;
@@ -333,6 +383,9 @@ export async function syncRange(
 			workouts: workoutsByDate.get(date) ?? [],
 			maxMetrics: maxMetricsByDate.get(date) ?? null,
 			races: racesByDate.get(date) ?? null,
+			hillScore: hillByDate.get(date) ?? null,
+			runningTolerance: toleranceByDate.get(date) ?? null,
+			healthSnapshots: snapshotsByDate.get(date) ?? null,
 			series,
 		};
 		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
@@ -421,6 +474,7 @@ async function fetchDay(
 	if (wanted.training) jobs.push({ name: "training", run: () => source.trainingStatus(date) });
 	if (wanted.body) jobs.push({ name: "body", run: () => source.bodyComposition(date) });
 	if (wanted.fitnessAge) jobs.push({ name: "fitnessAge", run: () => source.fitnessAge(date) });
+	if (wanted.health) jobs.push({ name: "health", run: () => source.healthStatus(date) });
 	if (wanted.intraday) {
 		jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
 		jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
@@ -473,6 +527,9 @@ function assign(data: DayData, name: keyof DayData, value: unknown): void {
 		case "fitnessAge":
 			data.fitnessAge = (value ?? null) as FitnessAge | null;
 			break;
+		case "health":
+			data.health = (value ?? null) as HealthStatus | null;
+			break;
 		default:
 			break;
 	}
@@ -507,14 +564,15 @@ function assignIntraday(out: IntradayPayloads, name: IntradayJob, value: unknown
  * A chunk that fails is reported rather than swallowed: a metric silently
  * missing from a year of notes is worse than a warning.
  */
-async function fetchRange<T extends { calendarDate?: string }>(
+async function fetchRange<T>(
 	from: string,
 	to: string,
 	fetch: (start: string, end: string) => Promise<T[]>,
+	chunkDays = RANGE_CHUNK_DAYS,
 ): Promise<{ rows: T[]; requests: number; error?: string; fatal?: unknown }> {
 	const rows: T[] = [];
 	let requests = 0;
-	for (const window of chunkRange(from, to)) {
+	for (const window of chunkRange(from, to, chunkDays)) {
 		try {
 			rows.push(...(await fetch(window.from, window.to)));
 			requests += 1;

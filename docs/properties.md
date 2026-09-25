@@ -225,7 +225,12 @@ endurance score.
 | `fitness_age_<component>` | number, 2 dp | varies | `components.<component>.value`, named after Garmin's key in snake case |
 | `endurance_score` | number | score | `endurance.overallScore` |
 | `endurance_classification` | integer | enum | `endurance.classification` |
-| `endurance_feedback` | string | — | `endurance.feedbackPhrase` |
+| `endurance_feedback` | integer | phrase id | `endurance.feedbackPhrase` — a number, not an enum name |
+| `endurance_gauge_low` / `_high` | integer | score | `gaugeLowerLimit` / `gaugeUpperLimit` |
+| `endurance_<class>_from` | integer | score | `classificationLowerLimit<Class>` for intermediate, trained, well_trained, expert, superior, elite |
+| `hill_score` | integer | score | GraphQL `hillScoreScalar` → `hillScoreDTOList[].overallScore` |
+| `hill_score_strength` / `_endurance` | integer | score | `strengthScore` / `enduranceScore` |
+| `hill_score_classification` / `_feedback` | integer | id | `hillScoreClassificationId` / `hillScoreFeedbackPhraseId` |
 | `heat_acclimation_pct` | integer | % | `heatAltitudeAcclimation.heatAcclimationPercentage` |
 | `heat_acclimation_trend` | string | — | `heatAltitudeAcclimation.heatTrend` |
 | `altitude_acclimation_m` / `_ft` | integer | m / ft | `heatAltitudeAcclimation.altitudeAcclimation` |
@@ -240,10 +245,9 @@ rather than on the row. When that call has nothing for a day and the `training`
 group is on, training status's `mostRecentVO2Max` fills in — but only if its own
 `calendarDate` is that day, so a backfill never smears one reading across a year.
 
-> **Known issue, likely fixed.** `vo2max` never populated before, because the
-> range rows were indexed by a top-level `calendarDate` Garmin does not send.
-> Unconfirmed until a live sync or `npm run api:record` shows it. See
-> [troubleshooting](troubleshooting.md#vo2-max-is-always-empty).
+> **Fixed.** `vo2max` never populated before, because the range rows were
+> indexed by a top-level `calendarDate` Garmin does not send. Confirmed on a
+> live account: rows appear on the days Garmin recorded a new value.
 
 ## respiration
 
@@ -314,6 +318,14 @@ From `/metrics-service/metrics/trainingstatus/aggregated/{date}`.
 | `load_<bucket>_target_min` / `_max` | integer | load | `<balance>.monthlyLoad<Bucket>TargetMin` / `TargetMax` |
 | `load_focus` | string | — | `<balance>.trainingBalanceFeedbackPhrase` |
 
+| `running_tolerance` | integer | load | `runningtolerance/stats` `acuteTolerance` |
+| `running_tolerance_load` | integer | load | `acuteImpactLoad` |
+| `running_tolerance_distance_km` / `_mi` | number, 2 dp | km / mi | `acuteDistance` (metres) |
+| `running_tolerance_feedback` | string | — | `runningToleranceFeedBackPhrase` |
+
+Hill score and running tolerance are range calls, in 28-day windows — one
+request per window, not per day.
+
 Where `<status>` is `mostRecentTrainingStatus.latestTrainingStatusData.<deviceId>`,
 `<acute>` is `acuteTrainingLoadDTO` inside that entry (or at the top level, if an
 account sends it there), and `<balance>` is
@@ -350,6 +362,41 @@ Dataview:
 const s = dv.current().race_5k;
 dv.paragraph(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
 ```
+
+## health
+
+Health Status, from the GraphQL gateway (`healthStatusSummary`), one request a
+day. Each metric Garmin judges against your baseline gets four keys:
+
+| Property | Type | Unit | Source field |
+| --- | --- | --- | --- |
+| `health_status_outliers` | integer | count | `outliersCount` |
+| `health_<m>` | number | varies | `metrics[type=<M>].value` |
+| `health_<m>_status` | string | — | `status` — `IN_RANGE`, `BELOW`, `ABOVE`, `ONBOARDING` |
+| `health_<m>_baseline_low` / `_high` | number | varies | `baselineLowerLimit` / `baselineUpperLimit` |
+| `health_snapshots` | list | — | GraphQL `healthSnapshotScalar`, one row per Health Snapshot |
+
+`<m>` is `hrv`, `hr`, `spo2`, `respiration`, and `skin_temp_c` or `skin_temp_f`
+(whichever matches the note's units; skin temperature is a signed deviation).
+Snapshot rows carry `start` (local) and the averages `hr`, `respiration`,
+`stress`, `spo2`, `hrv` (RMSSD) and `hrv_sdrr`.
+
+## profile — `account.json`
+
+Nothing in the notes; about ten requests per sync, written to
+`<dataFolder>/account.json`:
+
+| Key | Source |
+| --- | --- |
+| `displayName`, `fullName`, `avatar` | `socialProfile` (already fetched for the display name). Not `userName`, which is the sign-in email |
+| `device` — `name`, `imageUrl`, `lastUpload` | `deviceservice/mylastused` |
+| `lactateThreshold` — `date`, `heartRate`, `speed` (m/s), `pace` | `biometric/latestLactateThreshold`, user settings as a fallback. Garmin's `speed` is tenths of m/s |
+| `ftp.running` / `ftp.cycling` — `watts`, `wattsPerKg` | `biometric/powerToWeight/latest/{date}?sport=` |
+| `runningEconomy` — `score`, `classification` | `runningeconomy/latest/{date}` |
+| `cyclingAbility` | GraphQL `cyclingAbility.latest` |
+| `trainingPlans` | `trainingplan/plans`, completed plans left out |
+| `events` — `name`, `date`, `type`, `distanceMetres`, `goalSeconds` | GraphQL `myDayCardEventsScalar` |
+| `personalRecords` — `type` (`run_5k`, …), `value`, `date`, `activityId` | `personalrecord/prs/{displayName}` |
 
 ## intraday
 
@@ -391,9 +438,7 @@ of heart rate is hundreds of points and frontmatter is the wrong place for it:
 Every timestamp is epoch milliseconds, UTC. A key is left out when Garmin had
 nothing for it. The file is rewritten only when its content changes.
 
-`account.json` holds what belongs to no day: display name, full name and the
-avatar URLs from the social profile the sync already fetches. No tokens, no
-email.
+`account.json` belongs to the `profile` group — see above.
 
 ## workouts
 

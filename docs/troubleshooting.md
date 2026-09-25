@@ -100,7 +100,7 @@ later request would fail the same way.
 
 ## VO2 Max is always empty
 
-**Probable fix shipped, not yet confirmed live.** The range rows carry their day
+**Fixed, and confirmed on a live account.** The range rows carry their day
 on `generic.calendarDate`, not on the row, and the engine used to index them by
 a top-level `calendarDate` — so every row was dropped as dateless and the sync
 warned "Garmin returned no rows". It now reads the day from the sub-objects

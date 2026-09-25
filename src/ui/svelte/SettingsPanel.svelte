@@ -3,7 +3,7 @@
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
 	import { DAILY_NOTE_DEFAULTS, coreDailyNoteOptions } from "../../sync/daily-note";
-	import { ALL_GROUPS, FREE_GROUPS, REQUESTS_PER_DAY, type MetricGroup } from "../../sync/metrics";
+	import { ALL_GROUPS, FREE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
 	import type { StorageMode } from "../../sync/runner";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings";
@@ -36,15 +36,18 @@
 		stress: "Stress and Body Battery — averages, peaks, time in each band, charge and drain",
 		hrv: "HRV — overnight average, status and your personal baseline range",
 		readiness: "Training readiness — score, recovery time and the factors behind it",
-		fitness: "Fitness — VO2 Max, fitness age, endurance score, heat and altitude acclimation",
+		fitness: "Fitness — VO2 Max, fitness age, endurance and hill score, heat and altitude acclimation",
 		races: "Race predictions — 5K, 10K, half, marathon",
 		respiration: "Respiration — waking average, low and high",
 		spo2: "Pulse ox — average, lowest and latest SpO2",
 		body: "Body composition — weight, BMI, body fat, muscle and bone mass",
-		training: "Training load — status, acute and chronic load, load ratio, load focus",
+		training: "Training load — status, acute and chronic load, load ratio, load focus, running tolerance",
 		workouts: "Workouts — a list of the day's activities",
 		intraday:
 			"Intraday charts — heart rate, stress, Body Battery, steps and sleep stages, saved as a file per day",
+		health: "Health status — overnight HRV, heart rate, SpO2, respiration and skin temperature against your baseline, plus Health Snapshots",
+		profile:
+			"Profile — watch, avatar, lactate threshold, FTP, running economy, cycling ability, coach plan, upcoming events and personal records",
 	};
 
 	// Five of these ride along in the daily summary, so turning them on is free.
@@ -56,6 +59,8 @@
 		if (group === "intraday") {
 			return `${REQUESTS_PER_DAY.intraday} requests per day, for the newest ${INTRADAY_DAYS} days of a sync only`;
 		}
+		const perSync = REQUESTS_PER_SYNC[group];
+		if (perSync) return `About ${perSync} requests per sync, not per day — saved to account.json`;
 		const n = REQUESTS_PER_DAY[group] ?? 1;
 		return n === 1 ? "1 request per day" : `${n} requests per day`;
 	}

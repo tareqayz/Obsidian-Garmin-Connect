@@ -137,6 +137,7 @@ export class PluginData implements TokenStore {
 			const added: MetricGroup[] = [
 				...(from < 2 ? (["respiration", "spo2", "body", "training"] as const) : []),
 				...(from < 3 ? (["intraday"] as const) : []),
+				...(from < 4 ? (["health", "profile"] as const) : []),
 			];
 			this.settings.groups = [
 				...ALL_GROUPS.filter(

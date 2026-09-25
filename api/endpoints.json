@@ -983,7 +983,21 @@
 				"summary": "Return device last used.",
 				"args": [],
 				"line": 2359
-			}
+			},
+			"plugin": "GarminApi.lastUsedDevice",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/device-last-used.json",
+			"notes": "Watch name and image for the nav bar.",
+			"reads": [
+				"lastUsedDeviceName",
+				"imageUrl",
+				"lastUsedDeviceUploadTime"
+			]
 		},
 		{
 			"id": "device-settings",
@@ -1611,6 +1625,145 @@
 			}
 		},
 		{
+			"id": "graphql-cycling-ability",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.cyclingAbility",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-cycling-ability.json",
+			"notes": "cyclingAbility(startDate,endDate).latest \u2014 no REST route known."
+		},
+		{
+			"id": "graphql-health-snapshots",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthSnapshots",
+			"groups": [
+				"health"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-health-snapshots.json",
+			"notes": "healthSnapshotScalar(startDate,endDate), 28-day windows."
+		},
+		{
+			"id": "graphql-health-status",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthStatus",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-health-status.json",
+			"notes": "healthStatusSummary(calendarDate) \u2014 no REST route known.",
+			"reads": [
+				"healthStatusSummary.outliersCount",
+				"healthStatusSummary.metrics"
+			]
+		},
+		{
+			"id": "graphql-hill-scores",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.hillScores",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-hill-scores.json",
+			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation."
+		},
+		{
+			"id": "graphql-upcoming-events",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.upcomingEvents",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-upcoming-events.json",
+			"notes": "myDayCardEventsScalar(timeZone,date).eventMyDay."
+		},
+		{
 			"id": "heart-rate-zones",
 			"method": "GET",
 			"path": "/biometric-service/heartRateZones",
@@ -1854,7 +2007,21 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThreshold",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/lactate-threshold-biometric-latest.json",
+			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate.",
+			"reads": [
+				"[].calendarDate",
+				"[].speed",
+				"[].hearRate"
+			]
 		},
 		{
 			"id": "lactate-threshold-biometric-power-to-weight-latest",
@@ -1875,7 +2042,21 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.powerToWeight",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
+			"notes": "Called for sport=Running and sport=Cycling. Carries FTP watts and W/kg.",
+			"reads": [
+				"[].calendarDate",
+				"[].functionalThresholdPower",
+				"[].powerToWeight"
+			]
 		},
 		{
 			"id": "lactate-threshold-stats-heart-rate-range",
@@ -2162,7 +2343,21 @@
 				"summary": "Return personal records for current user.",
 				"args": [],
 				"line": 1799
-			}
+			},
+			"plugin": "GarminApi.personalRecords",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/personal-record.json",
+			"notes": "typeId is mapped to a name from personalrecordtype/prtypes (ids 1-20).",
+			"reads": [
+				"[].typeId",
+				"[].value",
+				"[].activityId"
+			]
 		},
 		{
 			"id": "power-zones",
@@ -2449,6 +2644,40 @@
 			"notes": "Typed and tested but not wired into the sync. `metricId=60` selects resting heart rate."
 		},
 		{
+			"id": "running-economy-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/runningeconomy/latest/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.runningEconomy",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/running-economy-latest.json",
+			"notes": "Latest running economy score and classification.",
+			"reads": [
+				"calendarDate",
+				"score",
+				"classification"
+			]
+		},
+		{
 			"id": "running-tolerance",
 			"method": "GET",
 			"path": "/metrics-service/metrics/runningtolerance/stats",
@@ -2471,7 +2700,23 @@
 					"aggregation"
 				],
 				"line": 2174
-			}
+			},
+			"plugin": "GarminApi.runningTolerance",
+			"groups": [
+				"training"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/running-tolerance.json",
+			"notes": "Called with aggregation=daily, in 28-day windows.",
+			"reads": [
+				"[].calendarDate",
+				"[].acuteImpactLoad",
+				"[].acuteDistance",
+				"[].acuteTolerance",
+				"[].runningToleranceFeedBackPhrase"
+			]
 		},
 		{
 			"id": "schedule-workout",
@@ -2917,7 +3162,19 @@
 				"summary": "Return all available training plans.",
 				"args": [],
 				"line": 3724
-			}
+			},
+			"plugin": "GarminApi.trainingPlans",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/training-plans.json",
+			"notes": "Completed plans are dropped; the rest go to account.json.",
+			"reads": [
+				"trainingPlanList"
+			]
 		},
 		{
 			"id": "training-readiness",

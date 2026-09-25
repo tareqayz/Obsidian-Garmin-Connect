@@ -106,6 +106,34 @@ class FakeSource implements SyncSource {
 		this.guard("bodyBatteryEvents", date);
 		return [];
 	}
+	async healthStatus(date: string) {
+		this.guard("healthStatus", date);
+		return {
+			outliersCount: 1,
+			metrics: [
+				{ type: "HRV", value: 65, status: "BELOW", baselineLowerLimit: 66, baselineUpperLimit: 92 },
+				{ type: "SPO2", value: null, status: "ONBOARDING", baselineLowerLimit: 0, baselineUpperLimit: 0 },
+			],
+		};
+	}
+	async hillScores(start: string, end = start) {
+		this.guard(`hillScores:${start}:${end}`);
+		return [{ calendarDate: end, overallScore: 29, primaryTrainingDevice: true }];
+	}
+	async runningTolerance(start: string, end = start) {
+		this.guard(`runningTolerance:${start}:${end}`);
+		return [{ calendarDate: end, acuteTolerance: 37561, acuteDistance: 23278 }];
+	}
+	async healthSnapshots(start: string, end = start) {
+		this.guard(`healthSnapshots:${start}:${end}`);
+		return [
+			{
+				calendarDate: end,
+				startTimestampLocal: `${end}T12:07:35.0`,
+				summaryTypeDataList: [{ summaryType: "HEART_RATE", avgValue: 76 }],
+			},
+		];
+	}
 	async maxMetrics(start: string, end = start) {
 		this.guard(`maxMetrics:${start}:${end}`);
 		this.rangeCalls += 1;
@@ -508,6 +536,27 @@ describe("syncRange — intraday", () => {
 		const target = new FakeTarget(new Set(["2026-09-12"]));
 		await syncRange(source, target, options({ from: "2026-09-12", groups: ["intraday"] }));
 		assert.deepEqual(source.calls, []);
+	});
+});
+
+describe("syncRange — health, hill score, running tolerance", () => {
+	it("maps Health Status per day and range metrics onto their own day", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11"]));
+		const report = await syncRange(source, target, options({ groups: ["health", "fitness", "training"] }));
+		const day = target.written.get("2026-09-12")!;
+		assert.equal(day.health_hrv, 65);
+		assert.equal(day.health_hrv_status, "BELOW");
+		assert.equal(day.health_spo2_status, "ONBOARDING");
+		assert.ok(!("health_spo2_baseline_low" in day), "a 0–0 baseline is no baseline");
+		assert.deepEqual(day.health_snapshots, [{ start: "2026-09-12T12:07", hr: 76 }]);
+		assert.equal(day.hill_score, 29);
+		assert.equal(day.running_tolerance, 37561);
+		assert.equal(day.running_tolerance_distance_km, 23.28);
+		assert.ok(!("hill_score" in target.written.get("2026-09-11")!));
+		// One call each for the three range metrics, whatever the day count.
+		assert.equal(source.calls.filter((c) => /^(hillScores|runningTolerance|healthSnapshots):/.test(c)).length, 3);
+		assert.equal(report.warnings.length > 0, true, "maxMetrics has no rows in this fake");
 	});
 });
 

@@ -3,7 +3,6 @@ import type {
 	DailyStress,
 	HeartRateData,
 	SleepData,
-	SocialProfile,
 	StepsChartEntry,
 	ValueDescriptor,
 } from "../garmin/endpoints";
@@ -189,31 +188,6 @@ export function parseSeries(text: string): DaySeries | null {
 	} catch {
 		return null;
 	}
-}
-
-/**
- * Account-level facts that belong to no particular day: who is signed in and
- * their avatar. Only what the nav bar needs — never tokens, never the email.
- */
-export interface AccountInfo {
-	displayName?: string;
-	fullName?: string;
-	userName?: string;
-	avatar?: { large?: string; medium?: string; small?: string };
-}
-
-export function mapAccount(profile: SocialProfile | null | undefined): AccountInfo | null {
-	if (!profile) return null;
-	const out: AccountInfo = {};
-	assignText(out, "displayName", profile.displayName);
-	assignText(out, "fullName", profile.fullName);
-	assignText(out, "userName", profile.userName);
-	const avatar: NonNullable<AccountInfo["avatar"]> = {};
-	assignText(avatar, "large", profile.profileImageUrlLarge);
-	assignText(avatar, "medium", profile.profileImageUrlMedium);
-	assignText(avatar, "small", profile.profileImageUrlSmall);
-	if (Object.keys(avatar).length) out.avatar = avatar;
-	return Object.keys(out).length ? out : null;
 }
 
 /* ------------------------------------------------------------------ */

@@ -31,11 +31,8 @@
   Fitness age now has one. The awkward part is that it is only meaningful for
   accounts that ride, so a card would be empty for most people — the availability
   filter already handles that, it just has not been written.
-- VERIFY: VO2 Max fix. Rows are now indexed by `generic.calendarDate` (see
-  docs/troubleshooting.md). The training-status paths were wrong the same way —
-  `mostRecentTrainingStatus.latestTrainingStatusData`, acute load nested per
-  device — and are now read there. Confirm both with one sync or
-  `npm run api:record`, then drop this item. History of the bug:
+- DONE 2026-09-25: VO2 Max and training status fixes confirmed live (vo2max in
+  153 of 420 notes, training_status in 419). History of the bug:
 - (was OPEN) VO2 Max never populates, and it is NOT the range-length bug.
   Evidence from a 407-day vault: endurance score in 393 notes, race predictions in
   exactly the 5 days of the recent-sync window (syncDays=5), VO2 Max in 0.

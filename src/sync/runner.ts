@@ -8,7 +8,7 @@ import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
 import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
-import { mapAccount } from "./intraday";
+import { fetchAccount } from "./account";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
@@ -112,14 +112,19 @@ export class SyncRunner {
 			});
 			notice.hide();
 
-			// The profile was fetched anyway, for the display name in the URLs.
-			// Nothing new to ask Garmin for — just somewhere to keep the avatar.
-			const account = mapAccount(this.api.profile);
-			if (account && settings.groups.includes("intraday")) {
-				try {
-					await series.writeAccount(account);
-				} catch (err) {
-					log?.warn(`account file failed: ${explain(err)}`);
+			// Once per sync, not per day: who you are, the watch, and the numbers
+			// Garmin only serves as "latest". Skipped after a 429 or a dead
+			// session, which every one of these calls would hit too.
+			if (settings.groups.includes("profile") && !report.stoppedEarly) {
+				const got = await fetchAccount(this.api, toIsoDate(), units, log);
+				report.requests += got.requests;
+				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
+				if (got.account) {
+					try {
+						await series.writeAccount(got.account);
+					} catch (err) {
+						log?.warn(`account file failed: ${explain(err)}`);
+					}
 				}
 			}
 

@@ -88,6 +88,29 @@ One request per day synced.
 | `bodyComposition(date)` | `/weight-service/weight/dayview/{date}?includeAll=true` | `body` |
 | `fitnessAge(date)` | `/fitnessage-service/fitnessage/{date}` | `fitness` |
 
+| `healthStatus(date)` | `POST /graphql-gateway/graphql` — `healthStatusSummary` | `health` |
+
+### GraphQL
+
+`graphql(query)` posts to `/graphql-gateway/graphql`, the gateway the web app
+uses, with the same Bearer token as everything else. Some metrics have no REST
+route at all: Health Status, Health Snapshots, cycling ability, the My Day event
+list. Queries are inline strings, as the web app sends them.
+
+### More range calls (28-day windows)
+
+| Method | Path | Group |
+| --- | --- | --- |
+| `hillScores(start, end)` | GraphQL `hillScoreScalar` | `fitness` |
+| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` |
+| `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` |
+
+### Once per sync (`profile`)
+
+`lastUsedDevice`, `lactateThreshold`, `powerToWeight` (×2), `runningEconomy`,
+`cyclingAbility`, `trainingPlans`, `upcomingEvents`, `personalRecords` and
+`userSettings` → `account.json`. See [properties → profile](properties.md#profile--accountjson).
+
 ### Intraday (newest seven days of a sync only)
 
 | Method | Path | Group |
