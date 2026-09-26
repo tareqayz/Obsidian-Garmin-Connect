@@ -67,8 +67,11 @@ src/dashboard/
   scales.ts              chart geometry, ticks, paths      — pure
   metrics.ts             what is shown and how it behaves  — pure
   collect.ts             reads days back out of the vault
-  view.ts                the Obsidian ItemView, mounts Svelte
+  home.ts                Home presets and every card's numbers — pure
+  home-view.ts           the Home ItemView: rows + series file + account.json
+  view.ts                the classic dashboard's ItemView, mounts Svelte
 src/ui/svelte/           components; none import Obsidian except via an action
+src/ui/svelte/home/      the Home screen, one component per Garmin card
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
 src/probe.ts             the four diagnostic probes
 src/main.ts              plugin entry, commands, ribbon

@@ -16,6 +16,8 @@ export interface DayRow {
 	text?: Record<string, string>;
 	/** The day's activities, as `mapWorkout` wrote them. */
 	workouts?: Array<Record<string, unknown>>;
+	/** The day's Health Snapshots, as `mapSnapshot` wrote them. */
+	snapshots?: Array<Record<string, unknown>>;
 }
 
 /** One activity, with the day it belongs to attached. */

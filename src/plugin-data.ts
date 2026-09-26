@@ -1,4 +1,5 @@
 import type { Plugin } from "obsidian";
+import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings";
@@ -30,7 +31,17 @@ interface Persisted {
 	settings: GarminSettings;
 	auth: PersistedAuth | null;
 	layouts: LayoutsState;
+	home: HomeState;
 }
+
+export interface HomeState {
+	/** Which of Garmin's three Home presets is on screen. */
+	preset: PresetId;
+	/** Sections hidden with their Hide link; Reset Home brings them back. */
+	hidden: MoreId[];
+}
+
+const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
 
 /**
  * Owns `data.json`.
@@ -51,6 +62,8 @@ export class PluginData implements TokenStore {
 	 * says how to read it, and the settings tab never touches these.
 	 */
 	layouts: LayoutsState = { ...DEFAULT_LAYOUTS };
+	/** The Home screen's own state, kept apart from the classic dashboard's layouts. */
+	home: HomeState = { preset: DEFAULT_PRESET, hidden: [] };
 
 	private plugin: Plugin;
 	private auth: PersistedAuth | null = null;
@@ -114,6 +127,13 @@ export class PluginData implements TokenStore {
 		// Same allowlist treatment as settings: a block this build cannot draw is
 		// dropped rather than rendered. See `readLayouts`.
 		this.layouts = readLayouts(raw.layouts);
+		const home = (raw.home ?? {}) as Record<string, unknown>;
+		this.home = {
+			preset: isPresetId(home.preset) ? home.preset : DEFAULT_PRESET,
+			hidden: Array.isArray(home.hidden)
+				? MORE_IDS.filter((id) => (home.hidden as unknown[]).includes(id))
+				: [],
+		};
 
 		const auth = raw.auth as PersistedAuth | null | undefined;
 		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
@@ -178,12 +198,24 @@ export class PluginData implements TokenStore {
 		await this.flush();
 	}
 
+	/* Home ----------------------------------------------------------- */
+
+	async saveHome(next: HomeState): Promise<void> {
+		this.home = next;
+		await this.flush();
+	}
+
 	get hasSession(): boolean {
 		return this.auth !== null;
 	}
 
 	private async flush(): Promise<void> {
-		const payload: Persisted = { settings: this.settings, auth: this.auth, layouts: this.layouts };
+		const payload: Persisted = {
+			settings: this.settings,
+			auth: this.auth,
+			layouts: this.layouts,
+			home: this.home,
+		};
 		await this.plugin.saveData(payload);
 	}
 }

@@ -15,11 +15,12 @@ Your password is used for one request and never written anywhere. If your accoun
 | **Sync recent days** | The last *N* days (default 3) |
 | **Sync today** | Just today |
 | **Sync a date range…** | Backfill. Shows a request estimate before you commit |
-| **Open dashboard** | The charts pane |
+| **Open dashboard** | Home, the Garmin Connect–style screen |
+| **Open classic dashboard** | The previous charts pane, kept until the rebuild is finished |
 | **Rebuild the Garmin table view** | Regenerates the Bases view from current settings |
 | **Run connectivity probe** | Diagnostics — see [Troubleshooting](troubleshooting.md) |
 
-The ribbon icon opens the dashboard, where **Sync** and **Backfill…** also live.
+The ribbon icon opens Home, which has its own **Sync** button. **Backfill…** lives on the classic dashboard.
 
 ## Where the data goes
 
@@ -56,9 +57,28 @@ Thirteen metric groups, each switchable in settings, writing around ninety prope
 
 Turning a group off stops its request **when it has one**. Five groups share the daily summary call, so respiration and pulse ox cost nothing at all. The settings screen marks which is which. With everything on, a day costs seven requests.
 
-## The dashboard
+## Home
 
-**Open dashboard** draws charts from whatever has been synced: goal rings, stat tiles with week-over-week deltas, then five collapsible sections — Activity, Sleep, Recovery, Fitness, Body — holding around thirty-six cards.
+**Open dashboard** opens Home: a copy of Garmin Connect's home screen, built so
+you can hold your phone next to it and check that every number arrived.
+
+- **Layout** in the header picks one of Garmin's three presets — **Be healthy**,
+  **Stay active** or **Track my training** — with the same In Focus and At a
+  Glance cards the app gives each one. **Reset Home** at the bottom opens the
+  same choice, and brings back any section you hid with **Hide**.
+- It shows today. Before today has synced, it shows the newest synced day and
+  says so.
+- A narrow pane gets the phone layout (In Focus swipes, with dots). From 640px
+  wide, In Focus and the bottom sections sit side by side and At a Glance runs
+  four across; from 1000px, three and six.
+- Charts come from the intraday series files and the header data from
+  `account.json`, so the **intraday** and **profile** groups need to be on.
+  Challenges are not synced yet, so that card only ever shows Garmin's empty
+  state.
+
+## The classic dashboard
+
+**Open classic dashboard** draws charts from whatever has been synced: goal rings, stat tiles with week-over-week deltas, then five collapsible sections — Activity, Sleep, Recovery, Fitness, Body — holding around thirty-six cards.
 
 A range row (30 days / 90 days / 1 year / custom) scopes everything below it, and a **Table** toggle swaps the whole view for the same numbers as text. Every card has an **i** button explaining the metric; every chart has an **⤢** to expand it.
 

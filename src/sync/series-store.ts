@@ -48,6 +48,22 @@ export class VaultSeriesStore implements SeriesTarget {
 		return this.put(this.accountPath, `${JSON.stringify(account, null, "\t")}\n`);
 	}
 
+	async readAccount(): Promise<AccountInfo | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.accountPath);
+		if (!(file instanceof TFile)) return null;
+		try {
+			const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as unknown;
+			return parsed && typeof parsed === "object" ? (parsed as AccountInfo) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Whether a vault path is one of the files this store writes. */
+	owns(path: string): boolean {
+		return path === this.accountPath || path.startsWith(this.join(`${SERIES_FOLDER}/`));
+	}
+
 	private async put(path: string, body: string): Promise<"written" | "unchanged"> {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) {

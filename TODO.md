@@ -1,3 +1,11 @@
+- Home (Garmin Connect rebuild), shipped 2026-09-25 on `feature/home-dashboard`:
+  - Not built yet: Edit Home (choosing cards per section), the See All page for
+    At a Glance, tapping a card through to its detail screen, and the other
+    26 At a Glance cards drawn in Figma.
+  - Challenges has no endpoint in the sync; the card is Garmin's empty state.
+  - The Find a Plan / Find a Challenge links point at connect.garmin.com pages
+    that have not been checked.
+  - Retire the classic dashboard once Home and the detail screens cover it.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to
