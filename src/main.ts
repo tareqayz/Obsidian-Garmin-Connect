@@ -1,4 +1,5 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
@@ -40,12 +41,21 @@ export default class GarminPlugin extends Plugin {
 			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),
 		);
 
-		this.addRibbonIcon(GARMIN_ICON, "Open Garmin dashboard", () => void this.openDashboard());
+		this.registerView(GARMIN_HOME_VIEW, (leaf: WorkspaceLeaf) => new GarminHomeView(leaf, this));
 
+		this.addRibbonIcon(GARMIN_ICON, "Open Garmin dashboard", () => void this.openView(GARMIN_HOME_VIEW));
+
+		// The dashboard is being rebuilt as a copy of Garmin Connect, Home first.
+		// The previous dashboard stays one command away until that is finished.
 		this.addCommand({
 			id: "open-dashboard",
 			name: "Open dashboard",
-			callback: () => void this.openDashboard(),
+			callback: () => void this.openView(GARMIN_HOME_VIEW),
+		});
+		this.addCommand({
+			id: "open-classic-dashboard",
+			name: "Open classic dashboard",
+			callback: () => void this.openView(GARMIN_DASHBOARD_VIEW),
 		});
 
 		this.addCommand({
@@ -93,15 +103,15 @@ export default class GarminPlugin extends Plugin {
 		}
 	}
 
-	/** Reuses an open dashboard rather than stacking duplicates. */
-	async openDashboard(): Promise<void> {
-		const existing = this.app.workspace.getLeavesOfType(GARMIN_DASHBOARD_VIEW);
+	/** Reuses an open view rather than stacking duplicates. */
+	async openView(type: string): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(type);
 		if (existing.length > 0) {
 			await this.app.workspace.revealLeaf(existing[0]!);
 			return;
 		}
 		const leaf = this.app.workspace.getLeaf("tab");
-		await leaf.setViewState({ type: GARMIN_DASHBOARD_VIEW, active: true });
+		await leaf.setViewState({ type, active: true });
 		await this.app.workspace.revealLeaf(leaf);
 	}
 

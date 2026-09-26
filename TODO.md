@@ -1,3 +1,26 @@
+- Home (Garmin Connect rebuild), shipped 2026-09-25 on `feature/home-dashboard`:
+  - Not built yet: Edit Home (choosing cards for Essentials and In Focus), and
+    tapping a card through to its detail screen.
+  - At a Glance's See All page, its edit mode and all 36 cards landed
+    2026-09-26. Garmin's own edit screen for At a Glance was not in the
+    reference screenshots, so it follows the app's other edit screens (Cancel /
+    Save, red remove badges, grips) plus the Add a Stat sheet that was
+    captured. Check it against the phone.
+  - Running Economy has no history in the sync (only `runningeconomy/latest`),
+    so its card leaves out the app's "Last 4w" trend line. The marker's place
+    inside its class comes from limits inferred from one reading (223–224,
+    Intermediate); more readings would confirm or correct them.
+  - Health Status only ever shows the onboarding prompt while any metric is
+    still ONBOARDING, as the app did on 2026-09-24. Its data state is designed
+    (Figma) but has not been seen on the phone.
+  - VO2 Max cards look back 28 days, matching the app hiding a cycling VO2 Max
+    from October 2025. The exact window Garmin uses is a guess.
+  - Challenges has no endpoint in the sync; the card is Garmin's empty state.
+  - These links point at connect.garmin.com pages that have not been checked:
+    Find a Plan, Find a Challenge, and At a Glance's Add a Reading
+    (`/modern/blood-pressure`), Track Hydration (`/modern/hydration`), Start
+    your Free Trial (`/modern/nutrition`) and the Weight card's + (`/modern/weight`).
+  - Retire the classic dashboard once Home and the detail screens cover it.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to
@@ -31,7 +54,9 @@
   Fitness age now has one. The awkward part is that it is only meaningful for
   accounts that ride, so a card would be empty for most people — the availability
   filter already handles that, it just has not been written.
-- OPEN: VO2 Max never populates, and it is NOT the range-length bug.
+- DONE 2026-09-25: VO2 Max and training status fixes confirmed live (vo2max in
+  153 of 420 notes, training_status in 419). History of the bug:
+- (was OPEN) VO2 Max never populates, and it is NOT the range-length bug.
   Evidence from a 407-day vault: endurance score in 393 notes, race predictions in
   exactly the 5 days of the recent-sync window (syncDays=5), VO2 Max in 0.
   So the same short window that successfully fetched race predictions got no VO2

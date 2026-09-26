@@ -1,0 +1,73 @@
+{
+	"endpoint": "graphql-health-status",
+	"path": "/graphql-gateway/graphql",
+	"plugin": "GarminApi.healthStatus",
+	"firstRecorded": "2026-09-26T07:59:19.347Z",
+	"updatedAt": "2026-09-26T07:59:19.347Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"metrics": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"baselineLowerLimit": {
+							"type": [
+								"number"
+							]
+						},
+						"baselineUpperLimit": {
+							"type": [
+								"number"
+							]
+						},
+						"feedbackKey": {
+							"type": [
+								"string"
+							]
+						},
+						"percentage": {
+							"type": [
+								"number"
+							]
+						},
+						"status": {
+							"type": [
+								"string"
+							]
+						},
+						"type": {
+							"type": [
+								"string"
+							]
+						},
+						"value": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"outliersCount": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

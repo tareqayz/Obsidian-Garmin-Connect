@@ -50,6 +50,7 @@ function rowFrom(app: App, file: TFile, prefix: string): DayRow | null {
 	const values: Record<string, number> = {};
 	const text: Record<string, string> = {};
 	let workouts: Array<Record<string, unknown>> | undefined;
+	let snapshots: Array<Record<string, unknown>> | undefined;
 
 	for (const [key, value] of Object.entries(frontmatter)) {
 		if (prefix && !key.startsWith(prefix)) continue;
@@ -61,13 +62,22 @@ function rowFrom(app: App, file: TFile, prefix: string): DayRow | null {
 		// day's activity list. Both were dropped before, which is why a workout
 		// could be synced into a note and still be invisible on the dashboard.
 		else if (typeof value === "string" && value) text[name] = value;
-		else if (name === "workouts" && Array.isArray(value)) {
-			workouts = value.filter(
-				(row): row is Record<string, unknown> =>
-					Boolean(row) && typeof row === "object" && !Array.isArray(row),
-			);
-		}
+		else if (name === "workouts" && Array.isArray(value)) workouts = objects(value);
+		else if (name === "health_snapshots" && Array.isArray(value)) snapshots = objects(value);
 	}
 
-	return { date, values, text, ...(workouts?.length ? { workouts } : {}) };
+	return {
+		date,
+		values,
+		text,
+		...(workouts?.length ? { workouts } : {}),
+		...(snapshots?.length ? { snapshots } : {}),
+	};
+}
+
+function objects(list: unknown[]): Array<Record<string, unknown>> {
+	return list.filter(
+		(row): row is Record<string, unknown> =>
+			Boolean(row) && typeof row === "object" && !Array.isArray(row),
+	);
 }

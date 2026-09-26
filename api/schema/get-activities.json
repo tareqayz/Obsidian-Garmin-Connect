@@ -1,0 +1,904 @@
+{
+	"endpoint": "get-activities",
+	"path": "/activitylist-service/activities/search/activities",
+	"plugin": "GarminApi.activities",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"activeLengths": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"activityId": {
+					"type": [
+						"number"
+					]
+				},
+				"activityName": {
+					"type": [
+						"string"
+					]
+				},
+				"activityTrainingLoad": {
+					"type": [
+						"number"
+					]
+				},
+				"activityType": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"isHidden": {
+							"type": [
+								"boolean"
+							]
+						},
+						"parentTypeId": {
+							"type": [
+								"number"
+							]
+						},
+						"restricted": {
+							"type": [
+								"boolean"
+							]
+						},
+						"trimmable": {
+							"type": [
+								"boolean"
+							]
+						},
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"activityUUID": {
+					"type": [
+						"string"
+					]
+				},
+				"aerobicTrainingEffect": {
+					"type": [
+						"number"
+					]
+				},
+				"aerobicTrainingEffectMessage": {
+					"type": [
+						"string"
+					]
+				},
+				"anaerobicTrainingEffect": {
+					"type": [
+						"number"
+					]
+				},
+				"anaerobicTrainingEffectMessage": {
+					"type": [
+						"string"
+					]
+				},
+				"atpActivity": {
+					"type": [
+						"boolean"
+					]
+				},
+				"autoCalcCalories": {
+					"type": [
+						"boolean"
+					]
+				},
+				"averageHR": {
+					"type": [
+						"number"
+					]
+				},
+				"averageRunningCadenceInStepsPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"averageSpeed": {
+					"type": [
+						"number"
+					]
+				},
+				"averageSwimCadenceInStrokesPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"averageSwolf": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgElevation": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgGradeAdjustedSpeed": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgGroundContactBalance": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgGroundContactTime": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgRespirationRate": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStepSpeedLoss": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStepSpeedLossPercent": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStrideLength": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStrokeDistance": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStrokes": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgVerticalOscillation": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgVerticalRatio": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"beginTimestamp": {
+					"type": [
+						"number"
+					]
+				},
+				"bmrCalories": {
+					"type": [
+						"number"
+					]
+				},
+				"calories": {
+					"type": [
+						"number"
+					]
+				},
+				"cloudPositioningStatus": {
+					"type": [
+						"string"
+					],
+					"optional": true
+				},
+				"decoDive": {
+					"type": [
+						"boolean"
+					]
+				},
+				"deviceId": {
+					"type": [
+						"number"
+					]
+				},
+				"differenceBodyBattery": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"distance": {
+					"type": [
+						"number"
+					]
+				},
+				"duration": {
+					"type": [
+						"number"
+					]
+				},
+				"elapsedDuration": {
+					"type": [
+						"number"
+					]
+				},
+				"elevationCorrected": {
+					"type": [
+						"boolean"
+					]
+				},
+				"elevationGain": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"elevationLoss": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"endLatitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"endLongitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"endTimeGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"eventType": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"sortOrder": {
+							"type": [
+								"number"
+							]
+						},
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"fastestSplit_100": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_1000": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_10000": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_1609": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_5000": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"favorite": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasHeatMap": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasImages": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasIntensityIntervals": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasPolyline": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasSplits": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hasVideo": {
+					"type": [
+						"boolean"
+					]
+				},
+				"hrTimeInZone_1": {
+					"type": [
+						"number"
+					]
+				},
+				"hrTimeInZone_2": {
+					"type": [
+						"number"
+					]
+				},
+				"hrTimeInZone_3": {
+					"type": [
+						"number"
+					]
+				},
+				"hrTimeInZone_4": {
+					"type": [
+						"number"
+					]
+				},
+				"hrTimeInZone_5": {
+					"type": [
+						"number"
+					]
+				},
+				"isAtpActivity": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isAutoCalcCalories": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isDecoDive": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isElevationCorrected": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isFavorite": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isManualActivity": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isPR": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isParent": {
+					"type": [
+						"boolean"
+					]
+				},
+				"isPurposeful": {
+					"type": [
+						"boolean"
+					]
+				},
+				"lapCount": {
+					"type": [
+						"number"
+					]
+				},
+				"locationName": {
+					"type": [
+						"string"
+					],
+					"optional": true
+				},
+				"manualActivity": {
+					"type": [
+						"boolean"
+					]
+				},
+				"manufacturer": {
+					"type": [
+						"string"
+					]
+				},
+				"maxDoubleCadence": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxElevation": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxHR": {
+					"type": [
+						"number"
+					]
+				},
+				"maxPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxRespirationRate": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxRunningCadenceInStepsPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxSpeed": {
+					"type": [
+						"number"
+					]
+				},
+				"maxVerticalSpeed": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"minActivityLapDuration": {
+					"type": [
+						"number"
+					]
+				},
+				"minElevation": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"minRespirationRate": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"moderateIntensityMinutes": {
+					"type": [
+						"number"
+					]
+				},
+				"movingDuration": {
+					"type": [
+						"number"
+					]
+				},
+				"normPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"ownerDisplayName": {
+					"type": [
+						"string"
+					]
+				},
+				"ownerFullName": {
+					"type": [
+						"string"
+					]
+				},
+				"ownerId": {
+					"type": [
+						"number"
+					]
+				},
+				"ownerProfileImageUrlLarge": {
+					"type": [
+						"string"
+					]
+				},
+				"ownerProfileImageUrlMedium": {
+					"type": [
+						"string"
+					]
+				},
+				"ownerProfileImageUrlSmall": {
+					"type": [
+						"string"
+					]
+				},
+				"parent": {
+					"type": [
+						"boolean"
+					]
+				},
+				"poolLength": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_1": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_2": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_3": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_4": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_5": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"pr": {
+					"type": [
+						"boolean"
+					]
+				},
+				"privacy": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"purposeful": {
+					"type": [
+						"boolean"
+					]
+				},
+				"qualifyingDive": {
+					"type": [
+						"boolean"
+					]
+				},
+				"splitSummaries": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"averageElevationGain": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"averageSpeed": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"avgGroundContactBalanceLeft": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"avgGroundContactTime": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"avgStepFrequency": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"avgStepLength": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"distance": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"duration": {
+								"type": [
+									"number"
+								]
+							},
+							"elevationLoss": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"maxDistance": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"maxDistanceWithPrecision": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"maxElevationGain": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"maxSpeed": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"noOfSplits": {
+								"type": [
+									"number"
+								]
+							},
+							"splitType": {
+								"type": [
+									"string"
+								]
+							},
+							"totalAscent": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"verticalOscillation": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"verticalRatio": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							}
+						}
+					}
+				},
+				"sportTypeId": {
+					"type": [
+						"number"
+					]
+				},
+				"startLatitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"startLongitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"startTimeGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimeLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"steps": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"strokes": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"summarizedDiveInfo": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"summarizedDiveGases": {
+							"type": [
+								"array"
+							]
+						}
+					}
+				},
+				"timeZoneId": {
+					"type": [
+						"number"
+					]
+				},
+				"trainingEffectLabel": {
+					"type": [
+						"string"
+					]
+				},
+				"unitOfPoolLength": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"factor": {
+							"type": [
+								"number"
+							]
+						},
+						"unitId": {
+							"type": [
+								"number"
+							]
+						},
+						"unitKey": {
+							"type": [
+								"string"
+							]
+						}
+					},
+					"optional": true
+				},
+				"userPro": {
+					"type": [
+						"boolean"
+					]
+				},
+				"userRoles": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"string"
+						]
+					}
+				},
+				"vO2MaxValue": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"vigorousIntensityMinutes": {
+					"type": [
+						"number"
+					]
+				},
+				"waterEstimated": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"workoutId": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				}
+			}
+		}
+	}
+}

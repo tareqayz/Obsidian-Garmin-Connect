@@ -515,7 +515,16 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/all-day-stress.json",
-			"notes": "Typed and tested but not wired into the sync. The plugin returns it untyped, so the recorded shape is the only contract."
+			"notes": "Intraday stress and Body Battery in one payload. Column positions are looked up from the descriptor lists. Series file only; newest days of a run only.",
+			"groups": [
+				"intraday"
+			],
+			"reads": [
+				"stressValuesArray",
+				"stressValueDescriptorsDTOList",
+				"bodyBatteryValuesArray",
+				"bodyBatteryValueDescriptorsDTOList"
+			]
 		},
 		{
 			"id": "available-badge-challenges",
@@ -655,7 +664,27 @@
 					"cdate"
 				],
 				"line": 1403
-			}
+			},
+			"plugin": "GarminApi.bodyBatteryEvents",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].event.eventType",
+				"[].event.eventStartTimeGmt",
+				"[].event.durationInMilliseconds",
+				"[].event.bodyBatteryImpact",
+				"[].event.shortFeedback",
+				"[].activityName",
+				"[].activityType",
+				"[].activityId",
+				"[].averageStress"
+			],
+			"schema": "schema/body-battery-events.json",
+			"notes": "Sleep / activity / stress markers for the Body Battery chart. Series file only."
 		},
 		{
 			"id": "body-composition",
@@ -954,7 +983,21 @@
 				"summary": "Return device last used.",
 				"args": [],
 				"line": 2359
-			}
+			},
+			"plugin": "GarminApi.lastUsedDevice",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/device-last-used.json",
+			"notes": "Watch name and image for the nav bar.",
+			"reads": [
+				"lastUsedDeviceName",
+				"imageUrl",
+				"lastUsedDeviceUploadTime"
+			]
 		},
 		{
 			"id": "device-settings",
@@ -1221,7 +1264,11 @@
 				"overallScore"
 			],
 			"schema": "schema/endurance-score.json",
-			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values."
+			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values.",
+			"reads": [
+				"classification",
+				"feedbackPhrase"
+			]
 		},
 		{
 			"id": "fitnessage-data",
@@ -1242,7 +1289,24 @@
 					"cdate"
 				],
 				"line": 2266
-			}
+			},
+			"plugin": "GarminApi.fitnessAge",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"fitnessAge",
+				"chronologicalAge",
+				"achievableFitnessAge",
+				"previousFitnessAge",
+				"components",
+				"lastUpdated"
+			],
+			"schema": "schema/fitnessage-data.json",
+			"notes": "Source of record for fitness_age; each component becomes fitness_age_<component>, named after whatever keys Garmin sends."
 		},
 		{
 			"id": "floors",
@@ -1562,6 +1626,145 @@
 			}
 		},
 		{
+			"id": "graphql-cycling-ability",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.cyclingAbility",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-cycling-ability.json",
+			"notes": "cyclingAbility(startDate,endDate).latest \u2014 no REST route known."
+		},
+		{
+			"id": "graphql-health-snapshots",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthSnapshots",
+			"groups": [
+				"health"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-health-snapshots.json",
+			"notes": "healthSnapshotScalar(startDate,endDate), 28-day windows."
+		},
+		{
+			"id": "graphql-health-status",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthStatus",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-health-status.json",
+			"notes": "healthStatusSummary(calendarDate) \u2014 no REST route known.",
+			"reads": [
+				"healthStatusSummary.outliersCount",
+				"healthStatusSummary.metrics"
+			]
+		},
+		{
+			"id": "graphql-hill-scores",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.hillScores",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-hill-scores.json",
+			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation."
+		},
+		{
+			"id": "graphql-upcoming-events",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.upcomingEvents",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/graphql-upcoming-events.json",
+			"notes": "myDayCardEventsScalar(timeZone,date).eventMyDay."
+		},
+		{
 			"id": "heart-rate-zones",
 			"method": "GET",
 			"path": "/biometric-service/heartRateZones",
@@ -1605,13 +1808,19 @@
 			"check": true,
 			"critical": [
 				"calendarDate",
-				"restingHeartRate",
-				"maxHeartRate",
-				"minHeartRate",
 				"heartRateValues"
 			],
 			"schema": "schema/heart-rates.json",
-			"notes": "Typed and tested but not wired into the sync \u2014 intraday series where the daily summary gives one number."
+			"notes": "Intraday heart rate for the series file; the last non-null reading becomes hr_latest.",
+			"groups": [
+				"intraday"
+			],
+			"reads": [
+				"restingHeartRate",
+				"maxHeartRate",
+				"minHeartRate",
+				"heartRateValueDescriptors"
+			]
 		},
 		{
 			"id": "hill-score",
@@ -1799,7 +2008,21 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThreshold",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/lactate-threshold-biometric-latest.json",
+			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate.",
+			"reads": [
+				"[].calendarDate",
+				"[].speed",
+				"[].hearRate"
+			]
 		},
 		{
 			"id": "lactate-threshold-biometric-power-to-weight-latest",
@@ -1820,7 +2043,22 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.powerToWeight",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
+			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg.",
+			"reads": [
+				"[].sport",
+				"[].calendarDate",
+				"[].functionalThresholdPower",
+				"[].powerToWeight"
+			]
 		},
 		{
 			"id": "lactate-threshold-stats-heart-rate-range",
@@ -1941,17 +2179,23 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [
-				"[].calendarDate",
+			"critical": [],
+			"schema": "schema/max-metrics-range.json",
+			"notes": "VO2 Max, fitness age and acclimation. The day is read from generic/cycling/heatAltitudeAcclimation.calendarDate (not the row, which is believed to have none \u2014 why VO2 Max never populated). Nothing is critical until a recording confirms the shape.",
+			"reads": [
+				"[].generic.calendarDate",
 				"[].generic.vo2MaxPreciseValue",
 				"[].generic.vo2MaxValue",
-				"[].generic.fitnessAge"
-			],
-			"schema": "schema/max-metrics-range.json",
-			"notes": "VO2 Max and fitness age. `[].cycling.*` only appears for accounts with cycling VO2 Max, so it is not critical.",
-			"reads": [
+				"[].generic.fitnessAge",
+				"[].cycling.calendarDate",
 				"[].cycling.vo2MaxPreciseValue",
-				"[].cycling.vo2MaxValue"
+				"[].cycling.vo2MaxValue",
+				"[].heatAltitudeAcclimation.calendarDate",
+				"[].heatAltitudeAcclimation.heatAcclimationPercentage",
+				"[].heatAltitudeAcclimation.heatTrend",
+				"[].heatAltitudeAcclimation.altitudeAcclimation",
+				"[].heatAltitudeAcclimation.altitudeTrend",
+				"[].calendarDate"
 			]
 		},
 		{
@@ -2101,7 +2345,21 @@
 				"summary": "Return personal records for current user.",
 				"args": [],
 				"line": 1799
-			}
+			},
+			"plugin": "GarminApi.personalRecords",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/personal-record.json",
+			"notes": "typeId is mapped to a name from personalrecordtype/prtypes (ids 1-20).",
+			"reads": [
+				"[].typeId",
+				"[].value",
+				"[].activityId"
+			]
 		},
 		{
 			"id": "power-zones",
@@ -2388,6 +2646,40 @@
 			"notes": "Typed and tested but not wired into the sync. `metricId=60` selects resting heart rate."
 		},
 		{
+			"id": "running-economy-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/runningeconomy/latest/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-09-25 (ref/home/api-finding-gaps.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.runningEconomy",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/running-economy-latest.json",
+			"notes": "Latest running economy score and classification.",
+			"reads": [
+				"calendarDate",
+				"score",
+				"classification"
+			]
+		},
+		{
 			"id": "running-tolerance",
 			"method": "GET",
 			"path": "/metrics-service/metrics/runningtolerance/stats",
@@ -2410,7 +2702,23 @@
 					"aggregation"
 				],
 				"line": 2174
-			}
+			},
+			"plugin": "GarminApi.runningTolerance",
+			"groups": [
+				"training"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"schema": "schema/running-tolerance.json",
+			"notes": "Called with aggregation=daily, in 28-day windows.",
+			"reads": [
+				"[].calendarDate",
+				"[].acuteImpactLoad",
+				"[].acuteDistance",
+				"[].acuteTolerance",
+				"[].runningToleranceFeedBackPhrase"
+			]
 		},
 		{
 			"id": "schedule-workout",
@@ -2691,8 +2999,21 @@
 				"dailySleepDTO.averageSpO2Value",
 				"dailySleepDTO.lowestSpO2Value",
 				"dailySleepDTO.bodyBatteryChange",
-				"dailySleepDTO.napTimeSeconds"
-			]
+				"dailySleepDTO.napTimeSeconds",
+				"dailySleepDTO.sleepNeed",
+				"dailySleepDTO.nextSleepNeed",
+				"dailySleepDTO.sleepScoreFeedback",
+				"dailySleepDTO.sleepScoreInsight",
+				"dailySleepDTO.sleepScores.totalDuration.qualifierKey",
+				"dailySleepDTO.sleepScores.stress.qualifierKey",
+				"dailySleepDTO.sleepScores.awakeCount.qualifierKey",
+				"dailySleepDTO.sleepScores.remPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.lightPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.deepPercentage.qualifierKey",
+				"dailySleepDTO.sleepScores.restlessness.qualifierKey",
+				"sleepLevels"
+			],
+			"notes": "sleepLevels (the hypnogram) goes to the series file when the intraday group is on; sleepNeed.* are minutes and are written as hours."
 		},
 		{
 			"id": "social-profile",
@@ -2719,7 +3040,13 @@
 				"fullName"
 			],
 			"schema": "schema/social-profile.json",
-			"notes": "displayName is interpolated into most wellness paths; the plugin URL-encodes it first."
+			"notes": "displayName is interpolated into most wellness paths; the plugin URL-encodes it first. Name and avatar URLs are also written to <dataFolder>/account.json.",
+			"reads": [
+				"profileImageUrlLarge",
+				"profileImageUrlMedium",
+				"profileImageUrlSmall",
+				"userName"
+			]
 		},
 		{
 			"id": "spo2-data",
@@ -2763,7 +3090,22 @@
 					"cdate"
 				],
 				"line": 990
-			}
+			},
+			"plugin": "GarminApi.stepsChart",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].startGMT",
+				"[].endGMT",
+				"[].steps",
+				"[].primaryActivityLevel"
+			],
+			"schema": "schema/steps-data.json",
+			"notes": "Intraday steps in 15-minute buckets. Written to the day's series file, not frontmatter; fetched only for the newest days of a run."
 		},
 		{
 			"id": "stress-data",
@@ -2822,7 +3164,19 @@
 				"summary": "Return all available training plans.",
 				"args": [],
 				"line": 3724
-			}
+			},
+			"plugin": "GarminApi.trainingPlans",
+			"groups": [
+				"profile"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [],
+			"schema": "schema/training-plans.json",
+			"notes": "Completed plans are dropped; the rest go to account.json.",
+			"reads": [
+				"trainingPlanList"
+			]
 		},
 		{
 			"id": "training-readiness",
@@ -2860,7 +3214,22 @@
 				"[].sleepScore",
 				"[].hrvFactorPercent",
 				"[].recoveryTime",
-				"[].acuteLoad"
+				"[].acuteLoad",
+				"[].feedbackShort",
+				"[].feedbackLong",
+				"[].inputContext",
+				"[].sleepScoreFactorPercent",
+				"[].sleepScoreFactorFeedback",
+				"[].recoveryTimeFactorPercent",
+				"[].recoveryTimeFactorFeedback",
+				"[].hrvFactorFeedback",
+				"[].acwrFactorPercent",
+				"[].acwrFactorFeedback",
+				"[].sleepHistoryFactorPercent",
+				"[].sleepHistoryFactorFeedback",
+				"[].stressHistoryFactorPercent",
+				"[].stressHistoryFactorFeedback",
+				"[].hrvWeeklyAverage"
 			]
 		},
 		{
@@ -2891,6 +3260,12 @@
 			"check": true,
 			"critical": [],
 			"reads": [
+				"mostRecentTrainingStatus.latestTrainingStatusData",
+				"mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap",
+				"mostRecentVO2Max.generic.calendarDate",
+				"mostRecentVO2Max.generic.vo2MaxPreciseValue",
+				"mostRecentVO2Max.heatAltitudeAcclimation",
+				"latestTrainingStatusData",
 				"acuteTrainingLoadDTO.dailyTrainingLoadAcute",
 				"acuteTrainingLoadDTO.dailyTrainingLoadChronic",
 				"acuteTrainingLoadDTO.dailyAcuteChronicWorkloadRatio",
@@ -2898,7 +3273,7 @@
 				"acuteTrainingLoadDTO.acwrStatus"
 			],
 			"schema": "schema/training-status.json",
-			"notes": "latestTrainingStatusData is keyed by device id, so the mapper takes whichever entry is there rather than naming one. Nothing here is critical: an account with no training load simply gets no training properties."
+			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced."
 		},
 		{
 			"id": "unschedule-workout",
@@ -3004,7 +3379,12 @@
 				"userData.measurementSystem"
 			],
 			"schema": "schema/user-profile.json",
-			"notes": "Only read to resolve the `auto` unit setting (src/sync/runner.ts)."
+			"notes": "Read to resolve the `auto` unit setting (src/sync/runner.ts), and by the account file for the lactate threshold fallback and the sex Garmin grades VO2 Max and FTP by.",
+			"reads": [
+				"userData.gender",
+				"userData.lactateThresholdHeartRate",
+				"userData.lactateThresholdSpeed"
+			]
 		},
 		{
 			"id": "user-summary",
@@ -3078,7 +3458,9 @@
 				"highestRespirationValue",
 				"averageSpo2",
 				"lowestSpo2",
-				"latestSpo2"
+				"latestSpo2",
+				"consumedKilocalories",
+				"latestRespirationValue"
 			]
 		},
 		{

@@ -189,6 +189,22 @@ describe("loginWithMfa", () => {
 		assert.equal(asked, 1);
 	});
 
+	it("stops at SESSION_EXPIRED instead of asking for another code", async () => {
+		const { ctx } = contextWith([
+			mfaDemanded,
+			{ url: "verifyCode", json: { responseStatus: { type: "SESSION_EXPIRED" } } },
+		]);
+		let asked = 0;
+
+		const outcome = await loginWithMfa(ctx, "u", "p", async () => {
+			asked++;
+			return "123456";
+		});
+
+		assert.equal(outcome.kind, "unexpected");
+		assert.equal(asked, 1);
+	});
+
 	it("treats a cancelled prompt, and an empty answer, as the same quiet stop", async () => {
 		for (const answer of [null, "", "   "]) {
 			const { ctx, http } = contextWith([mfaDemanded]);

@@ -1,0 +1,60 @@
+{
+	"endpoint": "graphql-cycling-ability",
+	"path": "/graphql-gateway/graphql",
+	"plugin": "GarminApi.cyclingAbility",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"aerobicCapacity": {
+				"type": [
+					"number"
+				]
+			},
+			"aerobicCapacityFeedback": {
+				"type": [
+					"string"
+				]
+			},
+			"aerobicEndurance": {
+				"type": [
+					"number"
+				]
+			},
+			"aerobicEnduranceFeedback": {
+				"type": [
+					"string"
+				]
+			},
+			"anaerobicCapacity": {
+				"type": [
+					"number"
+				]
+			},
+			"anaerobicCapacityFeedback": {
+				"type": [
+					"string"
+				]
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"profileType": {
+				"type": [
+					"string"
+				]
+			},
+			"profileTypeFeedback": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

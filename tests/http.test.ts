@@ -74,3 +74,26 @@ describe("parseJson", () => {
 		assert.equal(parseJson("<html>Just a moment…</html>"), null);
 	});
 });
+
+describe("FetchHttpClient", () => {
+	it("keeps every Set-Cookie, not just the last one", async () => {
+		const { createServer } = await import("node:http");
+		const { FetchHttpClient } = await import("../src/fetch-http");
+		const server = createServer((_req, res) => {
+			res.setHeader("Set-Cookie", [
+				"SESSION=s-9; Path=/",
+				"GARMIN-SSO=1; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/",
+			]);
+			res.end("{}");
+		});
+		await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+		try {
+			const { port } = server.address() as { port: number };
+			const res = await new FetchHttpClient().request({ url: `http://127.0.0.1:${port}/` });
+			const jar = new CookieJar();
+			assert.deepEqual(jar.ingest(res.headers), ["SESSION", "GARMIN-SSO"]);
+		} finally {
+			server.close();
+		}
+	});
+});

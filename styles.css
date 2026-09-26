@@ -1,4 +1,6 @@
 .gcp-modal { max-width: 46rem; }
+/* Home's Add a Stat picker: Garmin's sheet, as a narrow list. */
+.gch-add-stat { width: 420px; max-width: 100%; }
 
 /* ==================================================================
    Garmin dashboard

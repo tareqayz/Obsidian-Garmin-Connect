@@ -8,9 +8,11 @@ import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
 import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
+import { fetchAccount } from "./account";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
+import { VaultSeriesStore } from "./series-store";
 
 export type StorageMode = "dataFolder" | "dailyNotes" | "both";
 
@@ -87,11 +89,13 @@ export class SyncRunner {
 		this.running = true;
 		try {
 			const units = await this.resolveUnits(settings.units);
+			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			const report = await syncRange(this.api, this.buildTarget(settings), {
 				from,
 				to,
 				groups: settings.groups,
 				units,
+				series,
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -107,6 +111,22 @@ export class SyncRunner {
 				},
 			});
 			notice.hide();
+
+			// Once per sync, not per day: who you are, the watch, and the numbers
+			// Garmin only serves as "latest". Skipped after a 429 or a dead
+			// session, which every one of these calls would hit too.
+			if (settings.groups.includes("profile") && !report.stoppedEarly) {
+				const got = await fetchAccount(this.api, toIsoDate(), units, log);
+				report.requests += got.requests;
+				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
+				if (got.account) {
+					try {
+						await series.writeAccount(got.account);
+					} catch (err) {
+						log?.warn(`account file failed: ${explain(err)}`);
+					}
+				}
+			}
 
 			// Only worth creating once there is something for it to show.
 			if (report.written > 0) await this.ensureBasesView(settings, units);

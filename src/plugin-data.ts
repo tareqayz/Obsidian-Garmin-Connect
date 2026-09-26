@@ -1,4 +1,6 @@
 import type { Plugin } from "obsidian";
+import { readGlance, type GlanceId } from "./dashboard/glance";
+import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings";
@@ -30,7 +32,22 @@ interface Persisted {
 	settings: GarminSettings;
 	auth: PersistedAuth | null;
 	layouts: LayoutsState;
+	home: HomeState;
 }
+
+export interface HomeState {
+	/** Which of Garmin's three Home presets is on screen. */
+	preset: PresetId;
+	/** Sections hidden with their Hide link; Reset Home brings them back. */
+	hidden: MoreId[];
+	/**
+	 * The At a Glance cards, in order, once they have been edited on See All.
+	 * Absent means the preset's own list; Reset Home goes back to that.
+	 */
+	glance?: GlanceId[];
+}
+
+const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
 
 /**
  * Owns `data.json`.
@@ -51,6 +68,8 @@ export class PluginData implements TokenStore {
 	 * says how to read it, and the settings tab never touches these.
 	 */
 	layouts: LayoutsState = { ...DEFAULT_LAYOUTS };
+	/** The Home screen's own state, kept apart from the classic dashboard's layouts. */
+	home: HomeState = { preset: DEFAULT_PRESET, hidden: [] };
 
 	private plugin: Plugin;
 	private auth: PersistedAuth | null = null;
@@ -114,6 +133,15 @@ export class PluginData implements TokenStore {
 		// Same allowlist treatment as settings: a block this build cannot draw is
 		// dropped rather than rendered. See `readLayouts`.
 		this.layouts = readLayouts(raw.layouts);
+		const home = (raw.home ?? {}) as Record<string, unknown>;
+		const glance = readGlance(home.glance);
+		this.home = {
+			preset: isPresetId(home.preset) ? home.preset : DEFAULT_PRESET,
+			hidden: Array.isArray(home.hidden)
+				? MORE_IDS.filter((id) => (home.hidden as unknown[]).includes(id))
+				: [],
+			...(glance ? { glance } : {}),
+		};
 
 		const auth = raw.auth as PersistedAuth | null | undefined;
 		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
@@ -133,7 +161,12 @@ export class PluginData implements TokenStore {
 	private migrate(): boolean {
 		if (this.settings.settingsVersion >= SETTINGS_VERSION) return false;
 		if (this.settings.groups.length > 0) {
-			const added: MetricGroup[] = ["respiration", "spo2", "body", "training"];
+			const from = this.settings.settingsVersion;
+			const added: MetricGroup[] = [
+				...(from < 2 ? (["respiration", "spo2", "body", "training"] as const) : []),
+				...(from < 3 ? (["intraday"] as const) : []),
+				...(from < 4 ? (["health", "profile"] as const) : []),
+			];
 			this.settings.groups = [
 				...ALL_GROUPS.filter(
 					(g) => this.settings.groups.includes(g) || added.includes(g),
@@ -173,12 +206,24 @@ export class PluginData implements TokenStore {
 		await this.flush();
 	}
 
+	/* Home ----------------------------------------------------------- */
+
+	async saveHome(next: HomeState): Promise<void> {
+		this.home = next;
+		await this.flush();
+	}
+
 	get hasSession(): boolean {
 		return this.auth !== null;
 	}
 
 	private async flush(): Promise<void> {
-		const payload: Persisted = { settings: this.settings, auth: this.auth, layouts: this.layouts };
+		const payload: Persisted = {
+			settings: this.settings,
+			auth: this.auth,
+			layouts: this.layouts,
+			home: this.home,
+		};
 		await this.plugin.saveData(payload);
 	}
 }

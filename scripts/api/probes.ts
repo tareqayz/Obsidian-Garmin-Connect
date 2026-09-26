@@ -74,6 +74,21 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"race-predictions": async (api, w) => [await api.racePredictions(w.rangeStart, w.rangeEnd)],
 	"body-battery": async (api, w) => [await api.bodyBattery(w.rangeStart, w.rangeEnd)],
 	"get-activities": async (api) => [await api.activities(0, 20)],
+	"steps-data": async (api, w) => [await api.stepsChart(w.days[0]!)],
+	"body-battery-events": async (api, w) => [await api.bodyBatteryEvents(w.days[0]!)],
+	"fitnessage-data": async (api, w) => [await api.fitnessAge(w.days[0]!)],
+	"running-tolerance": async (api, w) => [await api.runningTolerance(w.days.at(-1)!, w.days[0]!)],
+	"lactate-threshold-biometric-latest": async (api) => [await api.lactateThreshold()],
+	"lactate-threshold-biometric-power-to-weight-latest": async (api, w) => [await api.powerToWeight(w.days[0]!)],
+	"device-last-used": async (api) => [await api.lastUsedDevice()],
+	"training-plans": async (api) => [await api.trainingPlans()],
+	"personal-record": async (api) => [await api.personalRecords()],
+	"running-economy-latest": async (api, w) => [await api.runningEconomy(w.days[0]!)],
+	"graphql-health-status": (api, w) => perDay(w, (d) => api.healthStatus(d)),
+	"graphql-health-snapshots": async (api, w) => [await api.healthSnapshots(w.days.at(-1)!, w.days[0]!)],
+	"graphql-hill-scores": async (api, w) => [await api.hillScores(w.days.at(-1)!, w.days[0]!)],
+	"graphql-cycling-ability": async (api, w) => [await api.cyclingAbility(w.days[0]!)],
+	"graphql-upcoming-events": async (api, w) => [await api.upcomingEvents(w.days[0]!)],
 };
 
 /**

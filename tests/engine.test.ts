@@ -10,9 +10,11 @@ import {
 	syncRange,
 	type NoteTarget,
 	type SyncOptions,
+	type SeriesTarget,
 	type SyncSource,
 	type WriteOutcome,
 } from "../src/sync/engine";
+import type { DaySeries } from "../src/sync/intraday";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { Activity } from "../src/garmin/endpoints";
 
@@ -27,7 +29,10 @@ class FakeSource implements SyncSource {
 	activityList: Activity[] = [];
 	activityPages = 0;
 	rangeCalls = 0;
-	maxMetricsRows: Array<{ calendarDate: string; generic: { vo2MaxPreciseValue: number } }> = [];
+	maxMetricsRows: Array<{
+		calendarDate?: string;
+		generic: { calendarDate?: string; vo2MaxPreciseValue: number };
+	}> = [];
 	raceRows: Array<{ calendarDate: string; time5K: number }> = [];
 
 	private guard(name: string, date?: string) {
@@ -68,6 +73,66 @@ class FakeSource implements SyncSource {
 	async enduranceScore(date: string) {
 		this.guard("enduranceScore", date);
 		return { calendarDate: date, overallScore: 7100 };
+	}
+	async fitnessAge(date: string) {
+		this.guard("fitnessAge", date);
+		return { fitnessAge: 34.6, chronologicalAge: 40 };
+	}
+	async stress(date: string) {
+		this.guard("stress", date);
+		return {
+			stressValuesArray: [
+				[1_000, 20],
+				[2_000, -1],
+			],
+			bodyBatteryValuesArray: [[1_000, "MEASURED", 60, 2.0]],
+		};
+	}
+	async heartRate(date: string) {
+		this.guard("heartRate", date);
+		return {
+			heartRateValues: [
+				[1_000, 58],
+				[2_000, 61],
+				[3_000, null],
+			] as Array<[number, number | null]>,
+		};
+	}
+	async stepsChart(date: string) {
+		this.guard("stepsChart", date);
+		return [{ startGMT: "2026-09-12T08:00:00.0", endGMT: "2026-09-12T08:15:00.0", steps: 412 }];
+	}
+	async bodyBatteryEvents(date: string) {
+		this.guard("bodyBatteryEvents", date);
+		return [];
+	}
+	async healthStatus(date: string) {
+		this.guard("healthStatus", date);
+		return {
+			outliersCount: 1,
+			metrics: [
+				{ type: "HRV", value: 65, status: "BELOW", baselineLowerLimit: 66, baselineUpperLimit: 92 },
+				{ type: "SPO2", value: null, status: "ONBOARDING", baselineLowerLimit: 0, baselineUpperLimit: 0 },
+			],
+		};
+	}
+	async hillScores(start: string, end = start) {
+		this.guard(`hillScores:${start}:${end}`);
+		return [{ calendarDate: end, overallScore: 29, primaryTrainingDevice: true }];
+	}
+	async runningTolerance(start: string, end = start) {
+		this.guard(`runningTolerance:${start}:${end}`);
+		return [{ calendarDate: end, acuteTolerance: 37561, acuteDistance: 23278 }];
+	}
+	async healthSnapshots(start: string, end = start) {
+		this.guard(`healthSnapshots:${start}:${end}`);
+		return [
+			{
+				calendarDate: end,
+				startTimestampLocal: `${end}T12:07:35.0`,
+				summaryTypeDataList: [{ summaryType: "HEART_RATE", avgValue: 76 }],
+			},
+		];
 	}
 	async maxMetrics(start: string, end = start) {
 		this.guard(`maxMetrics:${start}:${end}`);
@@ -414,6 +479,95 @@ describe("syncRange — a target that creates its own notes", () => {
 		const report = await syncRange(source, target, options());
 		assert.deepEqual(written.sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
 		assert.equal(report.skipped, 0);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Intraday series                                                    */
+/* ------------------------------------------------------------------ */
+
+class FakeSeries implements SeriesTarget {
+	written = new Map<string, DaySeries>();
+	async write(date: string, series: DaySeries) {
+		this.written.set(date, series);
+		return "written" as const;
+	}
+}
+
+describe("syncRange — intraday", () => {
+	it("writes series to their own target and only the latest HR to the note", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const series = new FakeSeries();
+		const report = await syncRange(
+			source,
+			target,
+			options({ from: "2026-09-12", groups: ["intraday"], series }),
+		);
+
+		assert.deepEqual(target.written.get("2026-09-12"), { hr_latest: 61 });
+		const day = series.written.get("2026-09-12")!;
+		assert.deepEqual(day.stress, [
+			[1_000, 20],
+			[2_000, null],
+		]);
+		assert.deepEqual(day.bodyBattery, [[1_000, 60]]);
+		assert.equal(day.steps![0]!.steps, 412);
+		assert.equal(report.seriesWritten, 1);
+		assert.equal(report.requests, 4);
+	});
+
+	it("spends intraday requests only on the newest days of a run", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+		await syncRange(
+			source,
+			target,
+			options({ groups: ["activity", "intraday"], series: new FakeSeries(), intradayDays: 2 }),
+		);
+		assert.deepEqual(
+			source.calls.filter((c) => c.startsWith("stress")),
+			["stress:2026-09-12", "stress:2026-09-11"],
+		);
+	});
+
+	it("fetches nothing intraday without somewhere to put it", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		await syncRange(source, target, options({ from: "2026-09-12", groups: ["intraday"] }));
+		assert.deepEqual(source.calls, []);
+	});
+});
+
+describe("syncRange — health, hill score, running tolerance", () => {
+	it("maps Health Status per day and range metrics onto their own day", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11"]));
+		const report = await syncRange(source, target, options({ groups: ["health", "fitness", "training"] }));
+		const day = target.written.get("2026-09-12")!;
+		assert.equal(day.health_hrv, 65);
+		assert.equal(day.health_hrv_status, "BELOW");
+		assert.equal(day.health_spo2_status, "ONBOARDING");
+		assert.ok(!("health_spo2_baseline_low" in day), "a 0–0 baseline is no baseline");
+		assert.deepEqual(day.health_snapshots, [{ start: "2026-09-12T12:07", hr: 76 }]);
+		assert.equal(day.hill_score, 29);
+		assert.equal(day.running_tolerance, 37561);
+		assert.equal(day.running_tolerance_distance_km, 23.28);
+		assert.ok(!("hill_score" in target.written.get("2026-09-11")!));
+		// One call each for the three range metrics, whatever the day count.
+		assert.equal(source.calls.filter((c) => /^(hillScores|runningTolerance|healthSnapshots):/.test(c)).length, 3);
+		assert.equal(report.warnings.length > 0, true, "maxMetrics has no rows in this fake");
+	});
+});
+
+describe("syncRange — max metrics", () => {
+	it("finds the day on the generic sub-object, where Garmin puts it", async () => {
+		const source = new FakeSource();
+		source.maxMetricsRows = [{ generic: { calendarDate: "2026-09-12", vo2MaxPreciseValue: 52.3 } }];
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const report = await syncRange(source, target, options({ from: "2026-09-12", groups: ["fitness"] }));
+		assert.equal(target.written.get("2026-09-12")!.vo2max, 52.3);
+		assert.deepEqual(report.warnings, []);
 	});
 });
 

@@ -8,6 +8,7 @@ import {
 	keysFor,
 	localDateOf,
 	mapDay,
+	METRIC_LABELS,
 	toLocalDateTime,
 	type DayData,
 	type MapOptions,
@@ -145,6 +146,7 @@ describe("mapDay — workouts", () => {
 				type: "running",
 				start: "2026-09-12T07:31",
 				minutes: 31,
+				duration_s: 1830,
 				distance_km: 5.12,
 				calories: 413,
 				avg_hr: 148,
@@ -239,9 +241,15 @@ describe("endpointsFor", () => {
 			endurance: false,
 			training: false,
 			body: false,
+			fitnessAge: false,
+			health: false,
+			intraday: false,
 			maxMetrics: false,
 			races: false,
 			workouts: false,
+			hillScores: false,
+			runningTolerance: false,
+			healthSnapshots: false,
 		});
 	});
 
@@ -412,6 +420,10 @@ describe("mapDay — metrics that cost nothing extra", () => {
 
 	it("reads respiration and pulse ox out of the same summary", () => {
 		assert.equal(mapDay({ summary }, opts({ groups: ["respiration"] })).respiration_avg, 14.6);
+		assert.equal(
+			mapDay({ summary: { ...summary, latestRespirationValue: 13 } }, opts({ groups: ["respiration"] })).respiration_latest,
+			13,
+		);
 		assert.equal(mapDay({ summary }, opts({ groups: ["spo2"] })).spo2_low, 89);
 		// Neither group costs a request, so neither may leak into the other's keys.
 		assert.ok(!("spo2_avg" in mapDay({ summary }, opts({ groups: ["respiration"] }))));
@@ -567,5 +579,204 @@ describe("mapDay — training load", () => {
 
 	it("writes nothing for an account Garmin has no training status for", () => {
 		assert.deepEqual(mapDay({ training: {} }, opts({ groups: ["training"] })), {});
+	});
+});
+
+describe("mapDay — training status, as Garmin actually nests it", () => {
+	const training = {
+		mostRecentTrainingStatus: {
+			latestTrainingStatusData: {
+				"111": { trainingStatusFeedbackPhrase: "RECOVERY_1", primaryTrainingDevice: false },
+				"222": {
+					trainingStatusFeedbackPhrase: "PRODUCTIVE_3",
+					primaryTrainingDevice: true,
+					weeklyTrainingLoad: 712.4,
+					sinceDate: "2026-09-01",
+					fitnessTrend: 2,
+					loadTunnelMin: 400.2,
+					loadTunnelMax: 900.7,
+					acuteTrainingLoadDTO: {
+						dailyTrainingLoadAcute: 612.2,
+						dailyTrainingLoadChronic: 540.9,
+						minTrainingLoadChronic: 432.7,
+						maxTrainingLoadChronic: 811.3,
+						acwrStatus: "OPTIMAL",
+						acwrStatusFeedback: "FEEDBACK_2",
+						dailyAcuteChronicWorkloadRatio: 1.1,
+					},
+				},
+			},
+		},
+		mostRecentTrainingLoadBalance: {
+			metricsTrainingLoadBalanceDTOMap: {
+				"222": {
+					primaryTrainingDevice: true,
+					monthlyLoadAerobicLow: 520.4,
+					monthlyLoadAerobicLowTargetMin: 300,
+					monthlyLoadAerobicLowTargetMax: 700,
+					monthlyLoadAnaerobic: 80,
+					monthlyLoadAnaerobicTargetMin: 150,
+					monthlyLoadAnaerobicTargetMax: 400,
+					trainingBalanceFeedbackPhrase: "ANAEROBIC_SHORTAGE",
+				},
+			},
+		},
+	};
+
+	it("reads the primary device under mostRecentTrainingStatus", () => {
+		const props = mapDay({ training }, opts({ groups: ["training"] }));
+		assert.equal(props.training_status, "PRODUCTIVE_3");
+		assert.equal(props.training_load_weekly, 712);
+		assert.equal(props.training_status_since, "2026-09-01");
+		assert.equal(props.fitness_trend, 2);
+		assert.equal(props.training_load_tunnel_min, 400);
+		assert.equal(props.training_load_tunnel_max, 901);
+	});
+
+	it("reads the acute load nested in the device entry", () => {
+		const props = mapDay({ training }, opts({ groups: ["training"] }));
+		assert.equal(props.training_load_acute, 612);
+		assert.equal(props.training_load_optimal_min, 433);
+		assert.equal(props.training_load_optimal_max, 811);
+		assert.equal(props.training_load_ratio, 1.1);
+		assert.equal(props.training_load_feedback, "FEEDBACK_2");
+	});
+
+	it("maps load focus buckets with their target bands", () => {
+		const props = mapDay({ training }, opts({ groups: ["training"] }));
+		assert.equal(props.load_aerobic_low, 520);
+		assert.equal(props.load_aerobic_low_target_min, 300);
+		assert.equal(props.load_anaerobic, 80);
+		assert.equal(props.load_anaerobic_target_max, 400);
+		assert.equal(props.load_focus, "ANAEROBIC_SHORTAGE");
+		assert.ok(!("load_aerobic_high" in props));
+	});
+});
+
+describe("mapDay — readiness factors", () => {
+	it("maps each factor's percentage and verdict, plus the headline", () => {
+		const props = mapDay(
+			{
+				readiness: [
+					{
+						score: 71,
+						feedbackShort: "WELL_RECOVERED",
+						sleepScoreFactorPercent: 90,
+						sleepScoreFactorFeedback: "GOOD",
+						acwrFactorPercent: 81,
+						acwrFactorFeedback: "GOOD",
+						stressHistoryFactorPercent: 60,
+						stressHistoryFactorFeedback: "MODERATE",
+						hrvWeeklyAverage: 71,
+						inputContext: "AFTER_WAKEUP_RESET",
+					},
+				],
+			},
+			opts({ groups: ["readiness"] }),
+		);
+		assert.equal(props.readiness_feedback, "WELL_RECOVERED");
+		assert.equal(props.readiness_sleep_factor, 90);
+		assert.equal(props.readiness_sleep_feedback, "GOOD");
+		assert.equal(props.readiness_load_factor, 81);
+		assert.equal(props.readiness_stress_history_feedback, "MODERATE");
+		assert.equal(props.readiness_hrv_weekly_avg, 71);
+		assert.equal(props.readiness_context, "AFTER_WAKEUP_RESET");
+	});
+});
+
+describe("mapDay — Sleep Coach and sub-scores", () => {
+	it("maps the need in hours and each part's verdict", () => {
+		const props = mapDay(
+			{
+				sleep: {
+					dailySleepDTO: {
+						sleepScores: { totalDuration: { qualifierKey: "GOOD" }, stress: { qualifierKey: "FAIR" } },
+						sleepNeed: { actual: 480, baseline: 450, feedback: "INCREASED", hrvAdjustment: "INCREASING" },
+						nextSleepNeed: { actual: 465 },
+						sleepScoreFeedback: "POSITIVE_LONG_AND_DEEP",
+					},
+				},
+			},
+			opts({ groups: ["sleep"] }),
+		);
+		assert.equal(props.sleep_quality_duration, "GOOD");
+		assert.equal(props.sleep_quality_stress, "FAIR");
+		assert.equal(props.sleep_need_hours, 8);
+		assert.equal(props.sleep_need_baseline_hours, 7.5);
+		assert.equal(props.sleep_need_next_hours, 7.75);
+		assert.equal(props.sleep_need_feedback, "INCREASED");
+		assert.equal(props.sleep_need_hrv_adjustment, "INCREASING");
+		assert.equal(props.sleep_feedback, "POSITIVE_LONG_AND_DEEP");
+	});
+});
+
+describe("mapDay — fitness extras", () => {
+	it("prefers the fitness-age service and names its components", () => {
+		const props = mapDay(
+			{
+				maxMetrics: { generic: { fitnessAge: 39 } },
+				fitnessAge: {
+					fitnessAge: 34.567,
+					chronologicalAge: 40,
+					achievableFitnessAge: 31.2,
+					components: { vigorousDaysAvg: { value: 2.5 }, rhr: { value: 49 }, bmi: null },
+					lastUpdated: "2026-09-23T05:12:44.0",
+				},
+			},
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(props.fitness_age, 34.57);
+		assert.equal(props.fitness_age_updated, "2026-09-23");
+		assert.equal(props.chronological_age, 40);
+		assert.equal(props.fitness_age_achievable, 31.2);
+		assert.equal(props.fitness_age_vigorous_days_avg, 2.5);
+		assert.equal(props.fitness_age_rhr, 49);
+		assert.ok(!("fitness_age_bmi" in props));
+	});
+
+	it("falls back to training status's VO2 Max only for its own day", () => {
+		const training = {
+			mostRecentVO2Max: {
+				generic: { calendarDate: "2026-09-12", vo2MaxPreciseValue: 52.4 },
+				heatAltitudeAcclimation: {
+					calendarDate: "2026-09-12",
+					heatAcclimationPercentage: 40,
+					altitudeAcclimation: 1200,
+				},
+			},
+		};
+		const today = mapDay({ training }, opts({ groups: ["fitness"], date: "2026-09-12" }));
+		assert.equal(today.vo2max, 52.4);
+		assert.equal(today.heat_acclimation_pct, 40);
+		assert.equal(today.altitude_acclimation_m, 1200);
+
+		const earlier = mapDay({ training }, opts({ groups: ["fitness"], date: "2026-09-01" }));
+		assert.ok(!("vo2max" in earlier));
+		assert.ok(!("heat_acclimation_pct" in earlier));
+	});
+
+	it("maps the endurance classification and feedback", () => {
+		const props = mapDay(
+			{ endurance: { overallScore: 6381, classification: 4, feedbackPhrase: "ENDURANCE_UP" } },
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(props.endurance_classification, 4);
+		assert.equal(props.endurance_feedback, "ENDURANCE_UP");
+
+		// What Garmin actually sends: a numeric phrase id and the class limits.
+		const live = mapDay(
+			{ endurance: { overallScore: 6415, feedbackPhrase: 55, classificationLowerLimitElite: 8800 } },
+			opts({ groups: ["fitness"] }),
+		);
+		assert.equal(live.endurance_feedback, 55);
+		assert.equal(live.endurance_elite_from, 8800);
+	});
+});
+
+describe("keysFor — new keys have labels", () => {
+	it("labels every fixed key", () => {
+		for (const key of keysFor(ALL_GROUPS)) {
+			assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
+		}
 	});
 });

@@ -67,8 +67,15 @@ src/dashboard/
   scales.ts              chart geometry, ticks, paths      — pure
   metrics.ts             what is shown and how it behaves  — pure
   collect.ts             reads days back out of the vault
-  view.ts                the Obsidian ItemView, mounts Svelte
+  day.ts                 day-row lookups and date/number wording — pure
+  home.ts                Home presets and the In Focus / Today numbers — pure
+  glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
+  home-view.ts           the Home ItemView: rows + series file + account.json
+  view.ts                the classic dashboard's ItemView, mounts Svelte
 src/ui/svelte/           components; none import Obsidian except via an action
+src/ui/svelte/home/      the Home screen, one component per Garmin card; SeeAll.svelte is
+                         At a Glance's See All page and its edit mode
+src/ui/add-stat-modal.ts Add a Stat, the picker the edit mode opens
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
 src/probe.ts             the four diagnostic probes
 src/main.ts              plugin entry, commands, ribbon

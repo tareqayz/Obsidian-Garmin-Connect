@@ -1,0 +1,363 @@
+{
+	"endpoint": "training-plans",
+	"path": "/trainingplan-service/trainingplan/plans",
+	"plugin": "GarminApi.trainingPlans",
+	"firstRecorded": "2026-09-26T07:59:19.350Z",
+	"updatedAt": "2026-09-26T07:59:19.350Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"searchFilter": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"allowedPrivacyList": {
+						"type": [
+							"null"
+						]
+					},
+					"limit": {
+						"type": [
+							"number"
+						]
+					},
+					"locale": {
+						"type": [
+							"null"
+						]
+					},
+					"ownerDisplayName": {
+						"type": [
+							"null"
+						]
+					},
+					"ownerId": {
+						"type": [
+							"number"
+						]
+					},
+					"planKey": {
+						"type": [
+							"boolean"
+						]
+					},
+					"start": {
+						"type": [
+							"number"
+						]
+					},
+					"trainingLevels": {
+						"type": [
+							"null"
+						]
+					},
+					"trainingStatusList": {
+						"type": [
+							"array"
+						]
+					},
+					"trainingSubTypes": {
+						"type": [
+							"null"
+						]
+					},
+					"trainingTypes": {
+						"type": [
+							"null"
+						]
+					},
+					"trainingVersions": {
+						"type": [
+							"null"
+						]
+					}
+				}
+			},
+			"trainingPlanList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"adaptivePlanPhases": {
+							"type": [
+								"null"
+							]
+						},
+						"avgWeeklyWorkouts": {
+							"type": [
+								"number"
+							]
+						},
+						"createDate": {
+							"type": [
+								"string"
+							]
+						},
+						"daysInLastWeek": {
+							"type": [
+								"null"
+							]
+						},
+						"description": {
+							"type": [
+								"string"
+							]
+						},
+						"descriptionI18nKey": {
+							"type": [
+								"string"
+							]
+						},
+						"durationInWeeks": {
+							"type": [
+								"number"
+							]
+						},
+						"endDate": {
+							"type": [
+								"string"
+							]
+						},
+						"expireDate": {
+							"type": [
+								"null"
+							]
+						},
+						"formatLocale": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"id": {
+									"type": [
+										"number"
+									]
+								},
+								"isSupported": {
+									"type": [
+										"boolean"
+									]
+								},
+								"key": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"name": {
+							"type": [
+								"string"
+							]
+						},
+						"nameI18nKey": {
+							"type": [
+								"string"
+							]
+						},
+						"originalPreferredSwimDays": {
+							"type": [
+								"array"
+							],
+							"items": {
+								"type": [
+									"string"
+								]
+							}
+						},
+						"ownerDisplayName": {
+							"type": [
+								"null"
+							]
+						},
+						"ownerId": {
+							"type": [
+								"number"
+							]
+						},
+						"parentPlanId": {
+							"type": [
+								"number"
+							]
+						},
+						"pausedDate": {
+							"type": [
+								"null"
+							]
+						},
+						"planKey": {
+							"type": [
+								"string"
+							]
+						},
+						"planPhases": {
+							"type": [
+								"null"
+							]
+						},
+						"privacyRule": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"typeId": {
+									"type": [
+										"number"
+									]
+								},
+								"typeKey": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"publishDate": {
+							"type": [
+								"null"
+							]
+						},
+						"resumedDate": {
+							"type": [
+								"null"
+							]
+						},
+						"seriesIndex": {
+							"type": [
+								"null"
+							]
+						},
+						"startDate": {
+							"type": [
+								"string"
+							]
+						},
+						"supplementalSports": {
+							"type": [
+								"array"
+							],
+							"items": {
+								"type": [
+									"string"
+								]
+							}
+						},
+						"swimAbility": {
+							"type": [
+								"string"
+							]
+						},
+						"taskList": {
+							"type": [
+								"null"
+							]
+						},
+						"trainingLevel": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"levelId": {
+									"type": [
+										"number"
+									]
+								},
+								"levelKey": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"trainingPlanCategory": {
+							"type": [
+								"string"
+							]
+						},
+						"trainingPlanId": {
+							"type": [
+								"number"
+							]
+						},
+						"trainingStatus": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"statusId": {
+									"type": [
+										"number"
+									]
+								},
+								"statusKey": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"trainingSubType": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"subTypeId": {
+									"type": [
+										"number"
+									]
+								},
+								"subTypeKey": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"trainingType": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"typeId": {
+									"type": [
+										"number"
+									]
+								},
+								"typeKey": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						},
+						"trainingVersion": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"versionId": {
+									"type": [
+										"number"
+									]
+								},
+								"versionName": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

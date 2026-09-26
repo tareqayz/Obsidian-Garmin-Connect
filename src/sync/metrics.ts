@@ -1,10 +1,18 @@
 import type {
+	AcuteTrainingLoad,
+	Acclimation,
 	Activity,
 	BodyComposition,
 	DailySummary,
+	FitnessAge,
+	HealthSnapshot,
+	HealthStatus,
+	HillScore,
+	RunningTolerance,
 	SleepData,
 	TrainingStatus,
 } from "../garmin/endpoints";
+import { latestValue, type DaySeries } from "./intraday";
 
 /**
  * Garmin payloads → frontmatter properties.
@@ -27,7 +35,10 @@ export type MetricGroup =
 	| "spo2"
 	| "body"
 	| "training"
-	| "workouts";
+	| "workouts"
+	| "intraday"
+	| "health"
+	| "profile";
 
 /**
  * Display order, which is also the order properties land in a note and columns
@@ -49,10 +60,34 @@ export const ALL_GROUPS: MetricGroup[] = [
 	"body",
 	"training",
 	"workouts",
+	"intraday",
+	"health",
+	"profile",
 ];
 
 /** Groups that need a request of their own, for the budget note in settings. */
 export const FREE_GROUPS: MetricGroup[] = ["activity", "heart", "stress", "respiration", "spo2"];
+
+/**
+ * Per-day requests a group adds on its own, for the budget note in settings.
+ * `intraday` is the expensive one, which is why the engine only spends it on
+ * the newest few days of a run (`INTRADAY_DAYS`).
+ */
+export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
+	sleep: 1,
+	hrv: 1,
+	readiness: 1,
+	fitness: 2,
+	body: 1,
+	training: 1,
+	intraday: 4,
+	health: 1,
+};
+
+/** Groups billed per sync rather than per day, for the budget note in settings. */
+export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
+	profile: 9,
+};
 
 export type PropertyValue = number | string | Array<Record<string, unknown>>;
 export type Properties = Record<string, PropertyValue>;
@@ -86,12 +121,21 @@ export interface ReadinessEntry {
 	sleepHistoryFactorPercent?: number | null;
 	stressHistoryFactorPercent?: number | null;
 	acuteLoad?: number | null;
+	feedbackShort?: string | null;
+	feedbackLong?: string | null;
+	inputContext?: string | null;
 	[key: string]: unknown;
 }
 
 export interface MaxMetricsData {
-	generic?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null; fitnessAge?: number | null };
-	cycling?: { vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null };
+	generic?: {
+		calendarDate?: string;
+		vo2MaxPreciseValue?: number | null;
+		vo2MaxValue?: number | null;
+		fitnessAge?: number | null;
+	} | null;
+	cycling?: { calendarDate?: string; vo2MaxPreciseValue?: number | null; vo2MaxValue?: number | null } | null;
+	heatAltitudeAcclimation?: Acclimation | null;
 }
 
 export interface RaceData {
@@ -103,6 +147,9 @@ export interface RaceData {
 
 export interface EnduranceData {
 	overallScore?: number | null;
+	classification?: number | null;
+	feedbackPhrase?: string | number | null;
+	[key: string]: unknown;
 }
 
 export interface DayData {
@@ -116,11 +163,23 @@ export interface DayData {
 	training?: TrainingStatus | null;
 	body?: BodyComposition | null;
 	workouts?: Activity[] | null;
+	fitnessAge?: FitnessAge | null;
+	health?: HealthStatus | null;
+	healthSnapshots?: HealthSnapshot[] | null;
+	hillScore?: HillScore | null;
+	runningTolerance?: RunningTolerance | null;
+	/** The intraday payloads, already reduced. Only a couple of scalars come out of these. */
+	series?: DaySeries | null;
 }
 
 export interface MapOptions {
 	groups: readonly MetricGroup[];
 	units: "metric" | "imperial";
+	/**
+	 * The day being mapped. Only needed to tell whether a "most recent"
+	 * reading belongs to this day; without it those fallbacks stay off.
+	 */
+	date?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -203,6 +262,37 @@ function firstEntry(map: unknown): Record<string, unknown> | undefined {
 	return undefined;
 }
 
+/**
+ * The entry for the primary training device, or the first there is.
+ *
+ * Load balance and status both carry `primaryTrainingDevice`; honouring it is
+ * what keeps a bike computer's numbers from standing in for the watch's.
+ */
+function primaryEntry(map: unknown): Record<string, unknown> | undefined {
+	if (!map || typeof map !== "object" || Array.isArray(map)) return undefined;
+	for (const value of Object.values(map as Record<string, unknown>)) {
+		if (value && typeof value === "object" && (value as Record<string, unknown>).primaryTrainingDevice === true) {
+			return value as Record<string, unknown>;
+		}
+	}
+	return firstEntry(map);
+}
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+/** `vigorousDaysAvg` → `vigorous_days_avg`, for keys built from Garmin's own names. */
+function snake(name: string): string {
+	return name
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.replace(/[^A-Za-z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.toLowerCase();
+}
+
 /** Seconds → minutes, for the several duration buckets Garmin reports that way. */
 function minutesOf(seconds: unknown): number | undefined {
 	return minutes(metric(seconds));
@@ -266,6 +356,8 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		// What the body burns at rest. The gap between this and `calories` is the
 		// part of the day you actually moved for.
 		set("calories_bmr", metric(summary.bmrKilocalories));
+		// Only there for accounts that log food. Absent, not zero, otherwise.
+		set("calories_consumed", metric(summary.consumedKilocalories));
 		set("floors", metric(summary.floorsAscended));
 		set("floors_descended", metric(summary.floorsDescended));
 		set("floors_goal", metric(summary.userFloorsAscendedGoal));
@@ -319,6 +411,8 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		set("respiration_avg", metric(summary.avgWakingRespirationValue));
 		set("respiration_min", metric(summary.lowestRespirationValue));
 		set("respiration_max", metric(summary.highestRespirationValue));
+		// The big number on the app's Respiration card.
+		set("respiration_latest", metric(summary.latestRespirationValue));
 	}
 
 	if (groups.has("spo2") && summary) {
@@ -345,6 +439,30 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			)?.overall;
 			set("sleep_score", metric(overall?.value));
 			set("sleep_quality", label(overall?.qualifierKey));
+
+			// Each part of the score gets its own verdict. These are what the
+			// app lists under the score, and what say *why* a night scored low.
+			const scores = asObject(dto.sleepScores) ?? {};
+			for (const [part, key] of SLEEP_SCORE_PARTS) {
+				set(key, label(asObject(scores[part])?.qualifierKey));
+			}
+			set("sleep_feedback", label(dto.sleepScoreFeedback));
+			set("sleep_insight", label(dto.sleepScoreInsight));
+
+			// Sleep Coach. Garmin counts the need in minutes; hours is what
+			// sits next to `sleep_hours` without a conversion in the reader's head.
+			const need = asObject(dto.sleepNeed);
+			if (need) {
+				set("sleep_need_hours", hoursOfMinutes(metric(need.actual)));
+				set("sleep_need_baseline_hours", hoursOfMinutes(metric(need.baseline)));
+				set("sleep_need_feedback", label(need.feedback));
+				set("sleep_need_training_feedback", label(need.trainingFeedback));
+				set("sleep_need_history_adjustment", label(need.sleepHistoryAdjustment));
+				set("sleep_need_hrv_adjustment", label(need.hrvAdjustment));
+				set("sleep_need_nap_adjustment", label(need.napAdjustment));
+			}
+			const next = asObject(dto.nextSleepNeed) ?? asObject(data.sleep?.nextSleepNeed);
+			if (next) set("sleep_need_next_hours", hoursOfMinutes(metric(next.actual)));
 
 			// The night's own physiology, which is where a bad night shows up
 			// before the score does.
@@ -391,20 +509,79 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			const recovery = metric(entry.recoveryTime);
 			set("recovery_time_hours", recovery === undefined ? undefined : round(recovery / 60, 1));
 			set("acute_load", metric(entry.acuteLoad));
+
+			// The headline sentence and the six factors the app lists under the
+			// score, each as Garmin's contribution percentage plus its verdict.
+			set("readiness_feedback", label(entry.feedbackShort));
+			set("readiness_feedback_long", label(entry.feedbackLong));
+			set("readiness_context", label(entry.inputContext));
+			for (const [stem, factor] of READINESS_FACTORS) {
+				set(`readiness_${stem}_factor`, metric(entry[`${factor}FactorPercent`]));
+				set(`readiness_${stem}_feedback`, label(entry[`${factor}FactorFeedback`]));
+			}
+			set("readiness_hrv_weekly_avg", metric(entry.hrvWeeklyAverage));
 		}
 	}
 
 	if (groups.has("fitness")) {
-		const generic = data.maxMetrics?.generic;
+		// Training status carries the latest VO2 Max too. It stands in only
+		// when it is *this* day's reading, or every day of a backfill would
+		// inherit one value.
+		const latest = data.training?.mostRecentVO2Max;
+		const fallback = latest && sameDay(latest.generic?.calendarDate, opts.date) ? latest : undefined;
+		const generic = data.maxMetrics?.generic ?? fallback?.generic;
+		const cycling =
+			data.maxMetrics?.cycling ??
+			(latest && sameDay(latest.cycling?.calendarDate, opts.date) ? latest.cycling : undefined);
 		// Garmin sends both a rounded and a precise VO2 Max; the precise one is
 		// what makes a trend line readable.
 		set("vo2max", metric(generic?.vo2MaxPreciseValue ?? generic?.vo2MaxValue));
-		set(
-			"vo2max_cycling",
-			metric(data.maxMetrics?.cycling?.vo2MaxPreciseValue ?? data.maxMetrics?.cycling?.vo2MaxValue),
-		);
-		set("fitness_age", metric(generic?.fitnessAge));
-		set("endurance_score", metric(data.endurance?.overallScore));
+		set("vo2max_cycling", metric(cycling?.vo2MaxPreciseValue ?? cycling?.vo2MaxValue));
+
+		// The fitness-age service is the source of record; max metrics only
+		// sometimes carries the number and never the parts.
+		const age = data.fitnessAge;
+		set("fitness_age", round2(metric(age?.fitnessAge) ?? metric(generic?.fitnessAge)));
+		set("fitness_age_achievable", round2(metric(age?.achievableFitnessAge)));
+		set("fitness_age_previous", round2(metric(age?.previousFitnessAge)));
+		set("chronological_age", metric(age?.chronologicalAge));
+		// When Garmin last recalculated it, which is not every day: the app's
+		// "Updated Sep 23" can sit a day or more behind the note it is in.
+		set("fitness_age_updated", localDateOf(age?.lastUpdated ?? undefined));
+		// Named after Garmin's own component keys, whatever they turn out to be
+		// — a fixed list would silently drop a factor Garmin adds.
+		for (const [name, component] of Object.entries(asObject(age?.components) ?? {})) {
+			set(`fitness_age_${snake(name)}`, round2(metric(asObject(component)?.value)));
+		}
+
+		const endurance = data.endurance;
+		set("endurance_score", metric(endurance?.overallScore));
+		set("endurance_classification", metric(endurance?.classification));
+		// A numeric phrase id (55), not an enum name — kept as sent.
+		set("endurance_feedback", metric(endurance?.feedbackPhrase) ?? label(endurance?.feedbackPhrase));
+		// The class boundaries the app draws the gauge with. They depend on age
+		// and sex, so they are per account rather than constants.
+		for (const [stem, field] of ENDURANCE_LIMITS) set(`endurance_${stem}`, metric(endurance?.[field]));
+
+		const hill = data.hillScore;
+		set("hill_score", metric(hill?.overallScore));
+		set("hill_score_strength", metric(hill?.strengthScore));
+		set("hill_score_endurance", metric(hill?.enduranceScore));
+		set("hill_score_classification", metric(hill?.hillScoreClassificationId));
+		set("hill_score_feedback", metric(hill?.hillScoreFeedbackPhraseId));
+
+		const acclimation =
+			data.maxMetrics?.heatAltitudeAcclimation ??
+			(latest && sameDay(latest.heatAltitudeAcclimation?.calendarDate, opts.date)
+				? latest.heatAltitudeAcclimation
+				: undefined);
+		if (acclimation) {
+			set("heat_acclimation_pct", metric(acclimation.heatAcclimationPercentage));
+			set("heat_acclimation_trend", label(acclimation.heatTrend));
+			const altitude = height("altitude_acclimation", metric(acclimation.altitudeAcclimation), opts.units);
+			if (altitude) set(altitude.key, altitude.value);
+			set("altitude_acclimation_trend", label(acclimation.altitudeTrend));
+		}
 	}
 
 	if (groups.has("body")) {
@@ -425,15 +602,24 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 	}
 
 	if (groups.has("training")) {
-		const status = firstEntry(data.training?.latestTrainingStatusData);
+		const training = data.training;
+		const status = primaryEntry(
+			training?.mostRecentTrainingStatus?.latestTrainingStatusData ?? training?.latestTrainingStatusData,
+		);
 		if (status) {
 			set("training_status", label(status.trainingStatusFeedbackPhrase));
-			set("training_load_weekly", metric(status.weeklyTrainingLoad));
+			set("training_load_weekly", roundOrUndefined(metric(status.weeklyTrainingLoad)));
+			set("training_status_since", label(status.sinceDate));
+			set("fitness_trend", metric(status.fitnessTrend));
+			set("training_load_tunnel_min", roundOrUndefined(metric(status.loadTunnelMin)));
+			set("training_load_tunnel_max", roundOrUndefined(metric(status.loadTunnelMax)));
 		}
-		const load = data.training?.acuteTrainingLoadDTO;
+		const load = (training?.acuteTrainingLoadDTO ?? asObject(status?.acuteTrainingLoadDTO)) as
+			| AcuteTrainingLoad
+			| undefined;
 		if (load) {
-			set("training_load_acute", metric(load.dailyTrainingLoadAcute));
-			set("training_load_chronic", metric(load.dailyTrainingLoadChronic));
+			set("training_load_acute", roundOrUndefined(metric(load.dailyTrainingLoadAcute)));
+			set("training_load_chronic", roundOrUndefined(metric(load.dailyTrainingLoadChronic)));
 			// Acute over chronic. Garmin sends the ratio on some accounts and the
 			// same thing as a percentage on others; either is worth having.
 			const ratio =
@@ -441,7 +627,63 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 				(metric(load.acwrPercent) !== undefined ? metric(load.acwrPercent)! / 100 : undefined);
 			set("training_load_ratio", round2(ratio));
 			set("training_load_status", label(load.acwrStatus));
+			set("training_load_feedback", label(load.acwrStatusFeedback));
+			// The optimal band the app draws the acute load against.
+			set("training_load_optimal_min", roundOrUndefined(metric(load.minTrainingLoadChronic)));
+			set("training_load_optimal_max", roundOrUndefined(metric(load.maxTrainingLoadChronic)));
 		}
+
+		// Load Focus: four weeks of load split three ways, each with its
+		// target band, and one phrase naming the shortfall.
+		const balance = primaryEntry(training?.mostRecentTrainingLoadBalance?.metricsTrainingLoadBalanceDTOMap);
+		if (balance) {
+			for (const [stem, field] of LOAD_FOCUS_BUCKETS) {
+				set(`load_${stem}`, roundOrUndefined(metric(balance[field])));
+				set(`load_${stem}_target_min`, roundOrUndefined(metric(balance[`${field}TargetMin`])));
+				set(`load_${stem}_target_max`, roundOrUndefined(metric(balance[`${field}TargetMax`])));
+			}
+			set("load_focus", label(balance.trainingBalanceFeedbackPhrase));
+		}
+
+		const tolerance = data.runningTolerance;
+		if (tolerance) {
+			set("running_tolerance", metric(tolerance.acuteTolerance));
+			set("running_tolerance_load", metric(tolerance.acuteImpactLoad));
+			const d = distance(metric(tolerance.acuteDistance), opts.units);
+			if (d) set(`running_tolerance_${d.key}`, d.value);
+			set("running_tolerance_feedback", label(tolerance.runningToleranceFeedBackPhrase));
+		}
+	}
+
+	if (groups.has("health")) {
+		const health = data.health;
+		if (health) {
+			set("health_status_outliers", metric(health.outliersCount));
+			for (const m of health.metrics ?? []) {
+				const type = typeof m?.type === "string" ? m.type : "";
+				// Garmin sends skin temperature twice, once per unit. Keep the one
+				// the rest of the note is in.
+				if (type === "SKIN_TEMP_F" && opts.units !== "imperial") continue;
+				if (type === "SKIN_TEMP_C" && opts.units === "imperial") continue;
+				const stem = HEALTH_STEMS[type] ?? (type ? snake(type) : "");
+				if (!stem) continue;
+				// Skin temperature is a deviation from baseline, so it can be negative.
+				const signed = stem.startsWith("skin_temp");
+				set(`health_${stem}`, round2(metric(m.value, { allowNegative: signed })));
+				set(`health_${stem}_status`, label(m.status));
+				// A metric still ONBOARDING reports a 0–0 baseline, which is "none yet".
+				const low = metric(m.baselineLowerLimit, { allowNegative: signed });
+				const high = metric(m.baselineUpperLimit, { allowNegative: signed });
+				if (low !== 0 || high !== 0) {
+					set(`health_${stem}_baseline_low`, round2(low));
+					set(`health_${stem}_baseline_high`, round2(high));
+				}
+			}
+		}
+
+		// Health Snapshots: a short list, like workouts — a day has one or two.
+		const snapshots = (data.healthSnapshots ?? []).map(mapSnapshot).filter((row) => Object.keys(row).length);
+		if (snapshots.length) set("health_snapshots", snapshots);
 	}
 
 	if (groups.has("races")) {
@@ -458,7 +700,100 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		if (workouts.length) set("workouts", workouts);
 	}
 
+	if (groups.has("intraday") && data.series) {
+		// The series themselves go to the sidecar file; the note gets the one
+		// number the app shows off them, the most recent heart rate.
+		set("hr_latest", latestValue(data.series.heartRate));
+	}
+
 	return out;
+}
+
+const ENDURANCE_LIMITS: Array<[string, string]> = [
+	["gauge_low", "gaugeLowerLimit"],
+	["gauge_high", "gaugeUpperLimit"],
+	["intermediate_from", "classificationLowerLimitIntermediate"],
+	["trained_from", "classificationLowerLimitTrained"],
+	["well_trained_from", "classificationLowerLimitWellTrained"],
+	["expert_from", "classificationLowerLimitExpert"],
+	["superior_from", "classificationLowerLimitSuperior"],
+	["elite_from", "classificationLowerLimitElite"],
+];
+
+const HEALTH_STEMS: Record<string, string> = {
+	HRV: "hrv",
+	HR: "hr",
+	SPO2: "spo2",
+	RESPIRATION: "respiration",
+	SKIN_TEMP_C: "skin_temp_c",
+	SKIN_TEMP_F: "skin_temp_f",
+};
+
+const SNAPSHOT_KEYS: Record<string, string> = {
+	HEART_RATE: "hr",
+	RESPIRATION: "respiration",
+	STRESS: "stress",
+	SPO2: "spo2",
+	RMSSD_HRV: "hrv",
+	SDRR_HRV: "hrv_sdrr",
+};
+
+/** One Health Snapshot as a short list row: when, how long, and each average. */
+function mapSnapshot(snapshot: HealthSnapshot): Record<string, unknown> {
+	const row: Record<string, unknown> = {};
+	const start = snapshot.startTimestampLocal;
+	if (typeof start === "string" && start) row.start = start.replace(" ", "T").slice(0, 16);
+	for (const entry of snapshot.summaryTypeDataList ?? []) {
+		const key = SNAPSHOT_KEYS[entry?.summaryType ?? ""];
+		const avg = metric(entry?.avgValue);
+		if (key && avg !== undefined) row[key] = round(avg, 1);
+	}
+	return row;
+}
+
+const SLEEP_SCORE_PARTS: Array<[string, string]> = [
+	["totalDuration", "sleep_quality_duration"],
+	["stress", "sleep_quality_stress"],
+	["awakeCount", "sleep_quality_awakenings"],
+	["remPercentage", "sleep_quality_rem"],
+	["lightPercentage", "sleep_quality_light"],
+	["deepPercentage", "sleep_quality_deep"],
+	["restlessness", "sleep_quality_restlessness"],
+];
+
+/** Property stem → the prefix Garmin uses for `…FactorPercent` / `…FactorFeedback`. */
+const READINESS_FACTORS: Array<[string, string]> = [
+	["sleep", "sleepScore"],
+	["recovery", "recoveryTime"],
+	["hrv", "hrv"],
+	["load", "acwr"],
+	["sleep_history", "sleepHistory"],
+	["stress_history", "stressHistory"],
+];
+
+const LOAD_FOCUS_BUCKETS: Array<[string, string]> = [
+	["aerobic_low", "monthlyLoadAerobicLow"],
+	["aerobic_high", "monthlyLoadAerobicHigh"],
+	["anaerobic", "monthlyLoadAnaerobic"],
+];
+
+function sameDay(value: unknown, date: string | undefined): boolean {
+	return typeof value === "string" && date !== undefined && value.slice(0, 10) === date;
+}
+
+function roundOrUndefined(value: number | undefined): number | undefined {
+	return value === undefined ? undefined : Math.round(value);
+}
+
+function hoursOfMinutes(value: number | undefined): number | undefined {
+	return value === undefined ? undefined : round(value / 60, 2);
+}
+
+function height(stem: string, metres: number | undefined, units: MapOptions["units"]) {
+	if (metres === undefined) return undefined;
+	return units === "imperial"
+		? { key: `${stem}_ft`, value: Math.round(metres / METRES_PER_FOOT) }
+		: { key: `${stem}_m`, value: Math.round(metres) };
 }
 
 /**
@@ -474,8 +809,11 @@ function mapWorkout(activity: Activity, units: MapOptions["units"]): Record<stri
 	if (activity.activityType?.typeKey) row.type = activity.activityType.typeKey;
 	if (activity.startTimeLocal) row.start = activity.startTimeLocal.replace(" ", "T").slice(0, 16);
 
-	const mins = minutes(metric(activity.duration));
+	const seconds = metric(activity.duration);
+	const mins = minutes(seconds);
 	if (mins !== undefined) row.minutes = mins;
+	// Whole minutes lose the "42:13" the app shows as an activity's total time.
+	if (seconds !== undefined) row.duration_s = Math.round(seconds);
 
 	const metres = metric(activity.distance);
 	const d = distance(metres, units);
@@ -540,6 +878,7 @@ export const METRIC_LABELS: Record<string, string> = {
 	calories: "Calories",
 	calories_active: "Active calories",
 	calories_bmr: "Resting calories",
+	calories_consumed: "Calories eaten",
 	floors: "Floors",
 	floors_descended: "Floors down",
 	floors_goal: "Floor goal",
@@ -563,6 +902,23 @@ export const METRIC_LABELS: Record<string, string> = {
 	sleep_start: "Sleep start",
 	sleep_end: "Sleep end",
 	sleep_quality: "Sleep quality",
+	sleep_quality_duration: "Sleep duration verdict",
+	sleep_quality_stress: "Sleep stress verdict",
+	sleep_quality_awakenings: "Awakenings verdict",
+	sleep_quality_rem: "REM verdict",
+	sleep_quality_light: "Light sleep verdict",
+	sleep_quality_deep: "Deep sleep verdict",
+	sleep_quality_restlessness: "Restlessness verdict",
+	sleep_feedback: "Sleep feedback",
+	sleep_insight: "Sleep insight",
+	sleep_need_hours: "Sleep need (h)",
+	sleep_need_baseline_hours: "Sleep need baseline (h)",
+	sleep_need_next_hours: "Sleep need tonight (h)",
+	sleep_need_feedback: "Sleep need feedback",
+	sleep_need_training_feedback: "Sleep need training",
+	sleep_need_history_adjustment: "Sleep need: history",
+	sleep_need_hrv_adjustment: "Sleep need: HRV",
+	sleep_need_nap_adjustment: "Sleep need: naps",
 	sleep_resting_hr: "Sleep resting HR",
 	sleep_avg_stress: "Sleep stress",
 	sleep_awake_count: "Awakenings",
@@ -596,10 +952,49 @@ export const METRIC_LABELS: Record<string, string> = {
 	readiness_hrv_factor: "Readiness HRV factor",
 	recovery_time_hours: "Recovery (h)",
 	acute_load: "Acute load",
+	readiness_feedback: "Readiness feedback",
+	readiness_feedback_long: "Readiness detail",
+	readiness_context: "Readiness context",
+	readiness_sleep_factor: "Readiness sleep factor",
+	readiness_sleep_feedback: "Readiness sleep",
+	readiness_recovery_factor: "Readiness recovery factor",
+	readiness_recovery_feedback: "Readiness recovery",
+	readiness_hrv_feedback: "Readiness HRV",
+	readiness_load_factor: "Readiness load factor",
+	readiness_load_feedback: "Readiness load",
+	readiness_sleep_history_factor: "Readiness sleep history factor",
+	readiness_sleep_history_feedback: "Readiness sleep history",
+	readiness_stress_history_factor: "Readiness stress history factor",
+	readiness_stress_history_feedback: "Readiness stress history",
+	readiness_hrv_weekly_avg: "Readiness HRV weekly",
 	vo2max: "VO2 Max",
 	vo2max_cycling: "VO2 Max (cycling)",
 	fitness_age: "Fitness age",
+	fitness_age_achievable: "Achievable fitness age",
+	fitness_age_previous: "Previous fitness age",
+	fitness_age_updated: "Fitness age updated",
+	chronological_age: "Age",
 	endurance_score: "Endurance score",
+	endurance_classification: "Endurance class",
+	endurance_feedback: "Endurance feedback",
+	endurance_gauge_low: "Endurance gauge low",
+	endurance_gauge_high: "Endurance gauge high",
+	endurance_intermediate_from: "Endurance: intermediate from",
+	endurance_trained_from: "Endurance: trained from",
+	endurance_well_trained_from: "Endurance: well trained from",
+	endurance_expert_from: "Endurance: expert from",
+	endurance_superior_from: "Endurance: superior from",
+	endurance_elite_from: "Endurance: elite from",
+	hill_score: "Hill score",
+	hill_score_strength: "Hill strength",
+	hill_score_endurance: "Hill endurance",
+	hill_score_classification: "Hill score class",
+	hill_score_feedback: "Hill score feedback",
+	heat_acclimation_pct: "Heat acclimation %",
+	heat_acclimation_trend: "Heat trend",
+	altitude_acclimation_m: "Altitude acclimation (m)",
+	altitude_acclimation_ft: "Altitude acclimation (ft)",
+	altitude_acclimation_trend: "Altitude trend",
 	race_5k: "5K prediction",
 	race_10k: "10K prediction",
 	race_half: "Half marathon",
@@ -607,6 +1002,7 @@ export const METRIC_LABELS: Record<string, string> = {
 	respiration_avg: "Respiration",
 	respiration_min: "Respiration min",
 	respiration_max: "Respiration max",
+	respiration_latest: "Respiration latest",
 	spo2_avg: "SpO2",
 	spo2_low: "SpO2 low",
 	spo2_latest: "SpO2 latest",
@@ -625,7 +1021,56 @@ export const METRIC_LABELS: Record<string, string> = {
 	training_load_chronic: "Chronic load (28d)",
 	training_load_ratio: "Load ratio",
 	training_load_status: "Load status",
+	training_load_feedback: "Load feedback",
+	training_load_optimal_min: "Optimal load min",
+	training_load_optimal_max: "Optimal load max",
+	training_load_tunnel_min: "Load tunnel min",
+	training_load_tunnel_max: "Load tunnel max",
+	training_status_since: "Status since",
+	fitness_trend: "Fitness trend",
+	load_aerobic_low: "Low aerobic load",
+	load_aerobic_low_target_min: "Low aerobic target min",
+	load_aerobic_low_target_max: "Low aerobic target max",
+	load_aerobic_high: "High aerobic load",
+	load_aerobic_high_target_min: "High aerobic target min",
+	load_aerobic_high_target_max: "High aerobic target max",
+	load_anaerobic: "Anaerobic load",
+	load_anaerobic_target_min: "Anaerobic target min",
+	load_anaerobic_target_max: "Anaerobic target max",
+	load_focus: "Load focus",
+	running_tolerance: "Running tolerance",
+	running_tolerance_load: "Running impact load",
+	running_tolerance_distance_km: "Running tolerance distance (km)",
+	running_tolerance_distance_mi: "Running tolerance distance (mi)",
+	running_tolerance_feedback: "Running tolerance feedback",
+	health_status_outliers: "Health status outliers",
+	health_hrv: "Health: HRV",
+	health_hrv_status: "Health: HRV status",
+	health_hrv_baseline_low: "Health: HRV baseline low",
+	health_hrv_baseline_high: "Health: HRV baseline high",
+	health_hr: "Health: HR",
+	health_hr_status: "Health: HR status",
+	health_hr_baseline_low: "Health: HR baseline low",
+	health_hr_baseline_high: "Health: HR baseline high",
+	health_spo2: "Health: SpO2",
+	health_spo2_status: "Health: SpO2 status",
+	health_spo2_baseline_low: "Health: SpO2 baseline low",
+	health_spo2_baseline_high: "Health: SpO2 baseline high",
+	health_respiration: "Health: respiration",
+	health_respiration_status: "Health: respiration status",
+	health_respiration_baseline_low: "Health: respiration baseline low",
+	health_respiration_baseline_high: "Health: respiration baseline high",
+	health_skin_temp_c: "Health: skin temp (°C)",
+	health_skin_temp_c_status: "Health: skin temp status",
+	health_skin_temp_c_baseline_low: "Health: skin temp baseline low (°C)",
+	health_skin_temp_c_baseline_high: "Health: skin temp baseline high (°C)",
+	health_skin_temp_f: "Health: skin temp (°F)",
+	health_skin_temp_f_status: "Health: skin temp status",
+	health_skin_temp_f_baseline_low: "Health: skin temp baseline low (°F)",
+	health_skin_temp_f_baseline_high: "Health: skin temp baseline high (°F)",
+	health_snapshots: "Health snapshots",
 	workouts: "Workouts",
+	hr_latest: "Latest HR",
 };
 
 /**
@@ -656,6 +1101,7 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"calories",
 			"calories_active",
 			"calories_bmr",
+			"calories_consumed",
 			"floors",
 			"floors_descended",
 			"floors_goal",
@@ -687,6 +1133,23 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"sleep_spo2_low",
 			"sleep_body_battery_change",
 			"nap_hours",
+			"sleep_quality_duration",
+			"sleep_quality_stress",
+			"sleep_quality_awakenings",
+			"sleep_quality_rem",
+			"sleep_quality_light",
+			"sleep_quality_deep",
+			"sleep_quality_restlessness",
+			"sleep_feedback",
+			"sleep_insight",
+			"sleep_need_hours",
+			"sleep_need_baseline_hours",
+			"sleep_need_next_hours",
+			"sleep_need_feedback",
+			"sleep_need_training_feedback",
+			"sleep_need_history_adjustment",
+			"sleep_need_hrv_adjustment",
+			"sleep_need_nap_adjustment",
 		],
 		stress: [
 			"stress_avg",
@@ -717,10 +1180,56 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"readiness_hrv_factor",
 			"recovery_time_hours",
 			"acute_load",
+			"readiness_feedback",
+			"readiness_feedback_long",
+			"readiness_context",
+			"readiness_sleep_factor",
+			"readiness_sleep_feedback",
+			"readiness_recovery_factor",
+			"readiness_recovery_feedback",
+			"readiness_hrv_feedback",
+			"readiness_load_factor",
+			"readiness_load_feedback",
+			"readiness_sleep_history_factor",
+			"readiness_sleep_history_feedback",
+			"readiness_stress_history_factor",
+			"readiness_stress_history_feedback",
+			"readiness_hrv_weekly_avg",
 		],
-		fitness: ["vo2max", "vo2max_cycling", "fitness_age", "endurance_score"],
+		// `fitness_age_<component>` keys are left out: they are named after
+		// whatever Garmin sends, so there is no fixed list to put here.
+		fitness: [
+			"vo2max",
+			"vo2max_cycling",
+			"fitness_age",
+			"fitness_age_achievable",
+			"fitness_age_previous",
+			"fitness_age_updated",
+			"chronological_age",
+			"endurance_score",
+			"endurance_classification",
+			"endurance_feedback",
+			"endurance_gauge_low",
+			"endurance_gauge_high",
+			"endurance_intermediate_from",
+			"endurance_trained_from",
+			"endurance_well_trained_from",
+			"endurance_expert_from",
+			"endurance_superior_from",
+			"endurance_elite_from",
+			"hill_score",
+			"hill_score_strength",
+			"hill_score_endurance",
+			"hill_score_classification",
+			"hill_score_feedback",
+			"heat_acclimation_pct",
+			"heat_acclimation_trend",
+			"altitude_acclimation_m",
+			"altitude_acclimation_ft",
+			"altitude_acclimation_trend",
+		],
 		races: ["race_5k", "race_10k", "race_half", "race_marathon"],
-		respiration: ["respiration_avg", "respiration_min", "respiration_max"],
+		respiration: ["respiration_avg", "respiration_min", "respiration_max", "respiration_latest"],
 		spo2: ["spo2_avg", "spo2_low", "spo2_latest"],
 		body: [
 			"weight_kg",
@@ -740,8 +1249,42 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"training_load_chronic",
 			"training_load_ratio",
 			"training_load_status",
+			"training_load_feedback",
+			"training_load_optimal_min",
+			"training_load_optimal_max",
+			"training_load_tunnel_min",
+			"training_load_tunnel_max",
+			"training_status_since",
+			"fitness_trend",
+			"load_aerobic_low",
+			"load_aerobic_low_target_min",
+			"load_aerobic_low_target_max",
+			"load_aerobic_high",
+			"load_aerobic_high_target_min",
+			"load_aerobic_high_target_max",
+			"load_anaerobic",
+			"load_anaerobic_target_min",
+			"load_anaerobic_target_max",
+			"load_focus",
+			"running_tolerance",
+			"running_tolerance_load",
+			"running_tolerance_distance_km",
+			"running_tolerance_distance_mi",
+			"running_tolerance_feedback",
 		],
 		workouts: ["workouts"],
+		intraday: ["hr_latest"],
+		health: [
+			"health_status_outliers",
+			...["hrv", "hr", "spo2", "respiration", "skin_temp_c", "skin_temp_f"].flatMap((m) => [
+				`health_${m}`,
+				`health_${m}_status`,
+				`health_${m}_baseline_low`,
+				`health_${m}_baseline_high`,
+			]),
+			"health_snapshots",
+		],
+		profile: [],
 	};
 	const wanted = new Set(groups);
 	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => byGroup[g]);
@@ -775,6 +1318,9 @@ const PRIMARY: Record<MetricGroup, string[]> = {
 	body: ["weight_kg", "weight_lb", "body_fat_pct"],
 	training: ["training_status", "training_load_ratio"],
 	workouts: ["workouts"],
+	intraday: [],
+	health: ["health_hrv_status", "health_hr_status"],
+	profile: [],
 };
 
 export function primaryKeysFor(groups: readonly MetricGroup[]): string[] {
@@ -817,9 +1363,17 @@ export function endpointsFor(groups: readonly MetricGroup[]) {
 		endurance: set.has("fitness"),
 		training: set.has("training"),
 		body: set.has("body"),
+		fitnessAge: set.has("fitness"),
+		health: set.has("health"),
+		// Four requests between them, so the engine spends them only on the
+		// newest days of a run. See `INTRADAY_DAYS`.
+		intraday: set.has("intraday"),
 		// Range endpoints: one request each for the whole window, however long.
 		maxMetrics: set.has("fitness"),
 		races: set.has("races"),
 		workouts: set.has("workouts"),
+		hillScores: set.has("fitness"),
+		runningTolerance: set.has("training"),
+		healthSnapshots: set.has("health"),
 	};
 }

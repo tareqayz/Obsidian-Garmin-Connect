@@ -1,0 +1,150 @@
+{
+	"endpoint": "fitnessage-data",
+	"path": "/fitnessage-service/fitnessage/{date}",
+	"plugin": "GarminApi.fitnessAge",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"achievableFitnessAge": {
+				"type": [
+					"number"
+				]
+			},
+			"chronologicalAge": {
+				"type": [
+					"number"
+				]
+			},
+			"components": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"bmi": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"improvementValue": {
+								"type": [
+									"number"
+								]
+							},
+							"lastMeasurementDate": {
+								"type": [
+									"string"
+								]
+							},
+							"potentialAge": {
+								"type": [
+									"number"
+								]
+							},
+							"priority": {
+								"type": [
+									"number"
+								]
+							},
+							"stale": {
+								"type": [
+									"boolean"
+								]
+							},
+							"targetValue": {
+								"type": [
+									"number"
+								]
+							},
+							"value": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"rhr": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"stale": {
+								"type": [
+									"boolean"
+								]
+							},
+							"value": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"vigorousDaysAvg": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"numOfWeeksForIm": {
+								"type": [
+									"number"
+								]
+							},
+							"stale": {
+								"type": [
+									"boolean"
+								]
+							},
+							"value": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"vigorousMinutesAvg": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"numOfWeeksForIm": {
+								"type": [
+									"number"
+								]
+							},
+							"stale": {
+								"type": [
+									"boolean"
+								]
+							},
+							"value": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					}
+				}
+			},
+			"fitnessAge": {
+				"type": [
+					"number"
+				]
+			},
+			"lastUpdated": {
+				"type": [
+					"string"
+				]
+			},
+			"previousFitnessAge": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,156 @@
+{
+	"endpoint": "hrv-data",
+	"path": "/hrv-service/hrv/{date}",
+	"plugin": "GarminApi.hrv",
+	"firstRecorded": "2026-09-26T07:59:19.348Z",
+	"updatedAt": "2026-09-26T07:59:19.348Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"hrvReadings": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"hrvValue": {
+							"type": [
+								"number"
+							]
+						},
+						"readingTimeGMT": {
+							"type": [
+								"string"
+							]
+						},
+						"readingTimeLocal": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"hrvSummary": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"baseline": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"balancedLow": {
+								"type": [
+									"number"
+								]
+							},
+							"balancedUpper": {
+								"type": [
+									"number"
+								]
+							},
+							"lowUpper": {
+								"type": [
+									"number"
+								]
+							},
+							"markerValue": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"calendarDate": {
+						"type": [
+							"string"
+						]
+					},
+					"createTimeStamp": {
+						"type": [
+							"string"
+						]
+					},
+					"feedbackPhrase": {
+						"type": [
+							"string"
+						]
+					},
+					"lastNight5MinHigh": {
+						"type": [
+							"number"
+						]
+					},
+					"lastNightAvg": {
+						"type": [
+							"number"
+						]
+					},
+					"status": {
+						"type": [
+							"string"
+						]
+					},
+					"weeklyAvg": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"sleepEndTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"sleepEndTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"sleepStartTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"sleepStartTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"userProfilePk": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"endpoint": "lactate-threshold-biometric-latest",
+	"path": "/biometric-service/biometric/latestLactateThreshold",
+	"plugin": "GarminApi.lactateThreshold",
+	"firstRecorded": "2026-09-26T07:59:19.348Z",
+	"updatedAt": "2026-09-26T07:59:19.348Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"hearRate": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"heartRateCycling": {
+					"type": [
+						"null"
+					]
+				},
+				"heartRateRowing": {
+					"type": [
+						"null"
+					]
+				},
+				"rowSpeed": {
+					"type": [
+						"null"
+					]
+				},
+				"sequence": {
+					"type": [
+						"number"
+					]
+				},
+				"speed": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"userProfilePK": {
+					"type": [
+						"number"
+					]
+				},
+				"version": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,119 @@
+{
+	"endpoint": "endurance-score",
+	"path": "/metrics-service/metrics/endurancescore",
+	"plugin": "GarminApi.enduranceScore",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"classification": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitElite": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitExpert": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitIntermediate": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitSuperior": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitTrained": {
+				"type": [
+					"number"
+				]
+			},
+			"classificationLowerLimitWellTrained": {
+				"type": [
+					"number"
+				]
+			},
+			"contributors": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"activityTypeId": {
+							"type": [
+								"null",
+								"number"
+							]
+						},
+						"contribution": {
+							"type": [
+								"number"
+							]
+						},
+						"group": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"deviceId": {
+				"type": [
+					"number"
+				]
+			},
+			"feedbackPhrase": {
+				"type": [
+					"number"
+				]
+			},
+			"gaugeLowerLimit": {
+				"type": [
+					"number"
+				]
+			},
+			"gaugeUpperLimit": {
+				"type": [
+					"number"
+				]
+			},
+			"overallScore": {
+				"type": [
+					"number"
+				]
+			},
+			"primaryTrainingDevice": {
+				"type": [
+					"boolean"
+				]
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

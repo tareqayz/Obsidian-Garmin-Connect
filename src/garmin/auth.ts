@@ -302,6 +302,18 @@ export async function verifyMfa(
 		return { kind: "ticket", ticket: body.serviceTicketId };
 	}
 
+	// The SSO session behind the challenge is gone — it timed out, or the
+	// cookies from the login POST never made it here. No code can fix that,
+	// so say so instead of asking for another one.
+	if (type === "SESSION_EXPIRED") {
+		ctx.log.fail("SSO session expired before the code was checked — sign in again");
+		return {
+			kind: "unexpected",
+			status: res.status,
+			detail: "SESSION_EXPIRED: the sign-in session ended before the code was checked. Sign in again.",
+		};
+	}
+
 	// Anything else here is Garmin refusing the code. The credentials were
 	// accepted at step 1 and the code is the only new input, so a refusal is a
 	// wrong or expired code far more often than it is anything else — and calling

@@ -1,0 +1,131 @@
+{
+	"endpoint": "personal-record",
+	"path": "/personalrecord-service/personalrecord/prs/{displayName}",
+	"plugin": "GarminApi.personalRecords",
+	"firstRecorded": "2026-09-26T07:59:19.348Z",
+	"updatedAt": "2026-09-26T07:59:19.348Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"actStartDateTimeInGMTFormatted": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"activityId": {
+					"type": [
+						"number"
+					]
+				},
+				"activityName": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"activityStartDateTimeInGMT": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"activityStartDateTimeLocal": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"activityStartDateTimeLocalFormatted": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"activityType": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"id": {
+					"type": [
+						"number"
+					]
+				},
+				"poolLengthUnit": {
+					"type": [
+						"null",
+						"object"
+					],
+					"fields": {
+						"factor": {
+							"type": [
+								"number"
+							]
+						},
+						"id": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"prStartTimeGmt": {
+					"type": [
+						"number"
+					]
+				},
+				"prStartTimeGmtFormatted": {
+					"type": [
+						"string"
+					]
+				},
+				"prStartTimeLocal": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"prStartTimeLocalFormatted": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"prTypeLabelKey": {
+					"type": [
+						"null"
+					]
+				},
+				"status": {
+					"type": [
+						"string"
+					]
+				},
+				"typeId": {
+					"type": [
+						"number"
+					]
+				},
+				"value": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

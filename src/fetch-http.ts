@@ -17,6 +17,12 @@ export class FetchHttpClient implements HttpClient {
 			res.headers.forEach((v, k) => {
 				headers[k.toLowerCase()] = v;
 			});
+			// `forEach` yields each Set-Cookie on its own, so the loop above keeps
+			// only the last one — which dropped the SSO `SESSION` cookie and made
+			// Garmin answer the MFA verify with SESSION_EXPIRED. Join them the way
+			// Obsidian's `requestUrl` does; `splitSetCookie` takes them apart again.
+			const cookies = res.headers.getSetCookie?.() ?? [];
+			if (cookies.length) headers["set-cookie"] = cookies.join(", ");
 			return { status: res.status, headers, text: await res.text() };
 		} catch (err) {
 			return {

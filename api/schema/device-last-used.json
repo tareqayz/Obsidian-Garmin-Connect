@@ -1,0 +1,55 @@
+{
+	"endpoint": "device-last-used",
+	"path": "/device-service/deviceservice/mylastused",
+	"plugin": "GarminApi.lastUsedDevice",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"applicationNumber": {
+				"type": [
+					"number"
+				]
+			},
+			"imageUrl": {
+				"type": [
+					"string"
+				]
+			},
+			"lastUsedDeviceApplicationKey": {
+				"type": [
+					"string"
+				]
+			},
+			"lastUsedDeviceName": {
+				"type": [
+					"string"
+				]
+			},
+			"lastUsedDeviceUploadTime": {
+				"type": [
+					"number"
+				]
+			},
+			"released": {
+				"type": [
+					"boolean"
+				]
+			},
+			"userDeviceId": {
+				"type": [
+					"number"
+				]
+			},
+			"userProfileNumber": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

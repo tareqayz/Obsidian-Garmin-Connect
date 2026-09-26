@@ -1,0 +1,75 @@
+{
+	"endpoint": "graphql-hill-scores",
+	"path": "/graphql-gateway/graphql",
+	"plugin": "GarminApi.hillScores",
+	"firstRecorded": "2026-09-26T07:59:19.347Z",
+	"updatedAt": "2026-09-26T07:59:19.347Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"deviceId": {
+					"type": [
+						"number"
+					]
+				},
+				"enduranceScore": {
+					"type": [
+						"number"
+					]
+				},
+				"hillScoreClassificationId": {
+					"type": [
+						"number"
+					]
+				},
+				"hillScoreFeedbackPhraseId": {
+					"type": [
+						"number"
+					]
+				},
+				"overallScore": {
+					"type": [
+						"number"
+					]
+				},
+				"primaryTrainingDevice": {
+					"type": [
+						"boolean"
+					]
+				},
+				"strengthScore": {
+					"type": [
+						"number"
+					]
+				},
+				"userProfilePK": {
+					"type": [
+						"number"
+					]
+				},
+				"vo2Max": {
+					"type": [
+						"null"
+					]
+				},
+				"vo2MaxPreciseValue": {
+					"type": [
+						"null"
+					]
+				}
+			}
+		}
+	}
+}

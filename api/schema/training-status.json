@@ -1,0 +1,484 @@
+{
+	"endpoint": "training-status",
+	"path": "/metrics-service/metrics/trainingstatus/aggregated/{date}",
+	"plugin": "GarminApi.trainingStatus",
+	"firstRecorded": "2026-09-26T07:59:19.350Z",
+	"updatedAt": "2026-09-26T07:59:19.350Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"heatAltitudeAcclimationDTO": {
+				"type": [
+					"null"
+				]
+			},
+			"mostRecentTrainingLoadBalance": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"metricsTrainingLoadBalanceDTOMap": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"3611994638": {
+								"type": [
+									"object"
+								],
+								"fields": {
+									"calendarDate": {
+										"type": [
+											"string"
+										]
+									},
+									"deviceId": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicHigh": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicHighTargetMax": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicHighTargetMin": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicLow": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicLowTargetMax": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAerobicLowTargetMin": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAnaerobic": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAnaerobicTargetMax": {
+										"type": [
+											"number"
+										]
+									},
+									"monthlyLoadAnaerobicTargetMin": {
+										"type": [
+											"number"
+										]
+									},
+									"primaryTrainingDevice": {
+										"type": [
+											"boolean"
+										]
+									},
+									"trainingBalanceFeedbackPhrase": {
+										"type": [
+											"string"
+										]
+									}
+								}
+							}
+						}
+					},
+					"recordedDevices": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"category": {
+									"type": [
+										"number"
+									]
+								},
+								"deviceId": {
+									"type": [
+										"number"
+									]
+								},
+								"deviceName": {
+									"type": [
+										"string"
+									]
+								},
+								"imageURL": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						}
+					},
+					"userId": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"mostRecentTrainingStatus": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"lastPrimarySyncDate": {
+						"type": [
+							"string"
+						]
+					},
+					"latestTrainingStatusData": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"3611994638": {
+								"type": [
+									"object"
+								],
+								"fields": {
+									"acuteTrainingLoadDTO": {
+										"type": [
+											"object"
+										],
+										"fields": {
+											"acwrPercent": {
+												"type": [
+													"number"
+												]
+											},
+											"acwrStatus": {
+												"type": [
+													"string"
+												]
+											},
+											"acwrStatusFeedback": {
+												"type": [
+													"string"
+												]
+											},
+											"dailyAcuteChronicWorkloadRatio": {
+												"type": [
+													"number"
+												]
+											},
+											"dailyTrainingLoadAcute": {
+												"type": [
+													"number"
+												]
+											},
+											"dailyTrainingLoadChronic": {
+												"type": [
+													"number"
+												]
+											},
+											"maxTrainingLoadChronic": {
+												"type": [
+													"number"
+												]
+											},
+											"minTrainingLoadChronic": {
+												"type": [
+													"number"
+												]
+											}
+										}
+									},
+									"calendarDate": {
+										"type": [
+											"string"
+										]
+									},
+									"deviceId": {
+										"type": [
+											"number"
+										]
+									},
+									"fitnessTrend": {
+										"type": [
+											"number"
+										]
+									},
+									"fitnessTrendSport": {
+										"type": [
+											"string"
+										]
+									},
+									"loadLevelTrend": {
+										"type": [
+											"null"
+										]
+									},
+									"loadTunnelMax": {
+										"type": [
+											"null"
+										]
+									},
+									"loadTunnelMin": {
+										"type": [
+											"null"
+										]
+									},
+									"primaryTrainingDevice": {
+										"type": [
+											"boolean"
+										]
+									},
+									"sinceDate": {
+										"type": [
+											"string"
+										]
+									},
+									"sport": {
+										"type": [
+											"string"
+										]
+									},
+									"subSport": {
+										"type": [
+											"string"
+										]
+									},
+									"timestamp": {
+										"type": [
+											"number"
+										]
+									},
+									"trainingPaused": {
+										"type": [
+											"boolean"
+										]
+									},
+									"trainingStatus": {
+										"type": [
+											"number"
+										]
+									},
+									"trainingStatusFeedbackPhrase": {
+										"type": [
+											"string"
+										]
+									},
+									"weeklyTrainingLoad": {
+										"type": [
+											"null"
+										]
+									}
+								}
+							}
+						}
+					},
+					"recordedDevices": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"category": {
+									"type": [
+										"number"
+									]
+								},
+								"deviceId": {
+									"type": [
+										"number"
+									]
+								},
+								"deviceName": {
+									"type": [
+										"string"
+									]
+								},
+								"imageURL": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						}
+					},
+					"showSelector": {
+						"type": [
+							"boolean"
+						]
+					},
+					"userId": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"mostRecentVO2Max": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"cycling": {
+						"type": [
+							"null"
+						]
+					},
+					"generic": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"calendarDate": {
+								"type": [
+									"string"
+								]
+							},
+							"fitnessAge": {
+								"type": [
+									"null"
+								]
+							},
+							"fitnessAgeDescription": {
+								"type": [
+									"null"
+								]
+							},
+							"maxMetCategory": {
+								"type": [
+									"number"
+								]
+							},
+							"vo2MaxPreciseValue": {
+								"type": [
+									"number"
+								]
+							},
+							"vo2MaxValue": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"heatAltitudeAcclimation": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"acclimationPercentage": {
+								"type": [
+									"number"
+								]
+							},
+							"altitudeAcclimation": {
+								"type": [
+									"number"
+								]
+							},
+							"altitudeAcclimationDate": {
+								"type": [
+									"string"
+								]
+							},
+							"altitudeAcclimationLocalTimestamp": {
+								"type": [
+									"string"
+								]
+							},
+							"altitudeTrend": {
+								"type": [
+									"null"
+								]
+							},
+							"calendarDate": {
+								"type": [
+									"string"
+								]
+							},
+							"currentAltitude": {
+								"type": [
+									"number"
+								]
+							},
+							"heatAcclimationDate": {
+								"type": [
+									"string"
+								]
+							},
+							"heatAcclimationPercentage": {
+								"type": [
+									"number"
+								]
+							},
+							"heatTrend": {
+								"type": [
+									"string"
+								]
+							},
+							"previousAcclimationPercentage": {
+								"type": [
+									"number"
+								]
+							},
+							"previousAltitude": {
+								"type": [
+									"number"
+								]
+							},
+							"previousAltitudeAcclimation": {
+								"type": [
+									"number"
+								]
+							},
+							"previousAltitudeAcclimationDate": {
+								"type": [
+									"string"
+								]
+							},
+							"previousHeatAcclimationDate": {
+								"type": [
+									"string"
+								]
+							},
+							"previousHeatAcclimationPercentage": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"userId": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"userId": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

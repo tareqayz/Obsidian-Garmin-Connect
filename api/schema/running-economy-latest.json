@@ -1,0 +1,30 @@
+{
+	"endpoint": "running-economy-latest",
+	"path": "/metrics-service/metrics/runningeconomy/latest/{date}",
+	"plugin": "GarminApi.runningEconomy",
+	"firstRecorded": "2026-09-26T07:59:19.349Z",
+	"updatedAt": "2026-09-26T07:59:19.349Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"classification": {
+				"type": [
+					"string"
+				]
+			},
+			"score": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}
