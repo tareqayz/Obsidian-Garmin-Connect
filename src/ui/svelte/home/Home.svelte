@@ -402,7 +402,7 @@
 	.glance {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 10px var(--gch-gap);
+		gap: var(--gch-gap);
 	}
 	.footer {
 		display: flex;

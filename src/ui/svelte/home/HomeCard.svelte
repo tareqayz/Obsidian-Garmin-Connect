@@ -38,6 +38,9 @@
 		background: var(--background-secondary);
 		border-radius: var(--radius-m, 8px);
 		padding: 16px;
+		/* Obsidian styles bare <article> with a side margin, which would widen
+		   the grid's column gap past its row gap. */
+		margin: 0;
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
