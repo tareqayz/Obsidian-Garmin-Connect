@@ -1,0 +1,92 @@
+{
+	"endpoint": "daily-weigh-ins",
+	"path": "/weight-service/weight/dayview/{date}",
+	"plugin": "GarminApi.bodyComposition",
+	"firstRecorded": "2026-09-26T07:59:19.346Z",
+	"updatedAt": "2026-09-26T07:59:19.346Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"dateWeightList": {
+				"type": [
+					"array"
+				]
+			},
+			"endDate": {
+				"type": [
+					"string"
+				]
+			},
+			"startDate": {
+				"type": [
+					"string"
+				]
+			},
+			"totalAverage": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"bmi": {
+						"type": [
+							"null"
+						]
+					},
+					"bodyFat": {
+						"type": [
+							"null"
+						]
+					},
+					"bodyWater": {
+						"type": [
+							"null"
+						]
+					},
+					"boneMass": {
+						"type": [
+							"null"
+						]
+					},
+					"from": {
+						"type": [
+							"number"
+						]
+					},
+					"metabolicAge": {
+						"type": [
+							"null"
+						]
+					},
+					"muscleMass": {
+						"type": [
+							"null"
+						]
+					},
+					"physiqueRating": {
+						"type": [
+							"null"
+						]
+					},
+					"until": {
+						"type": [
+							"number"
+						]
+					},
+					"visceralFat": {
+						"type": [
+							"null"
+						]
+					},
+					"weight": {
+						"type": [
+							"null"
+						]
+					}
+				}
+			}
+		}
+	}
+}

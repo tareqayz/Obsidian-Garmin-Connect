@@ -222,6 +222,7 @@ endurance score.
 | `fitness_age` | number, 2 dp | years | `fitnessage-service` `fitnessAge`, falling back to `maxMetrics.generic.fitnessAge` |
 | `fitness_age_achievable` / `fitness_age_previous` | number, 2 dp | years | `achievableFitnessAge` / `previousFitnessAge` |
 | `chronological_age` | integer | years | `chronologicalAge` |
+| `fitness_age_updated` | date | — | `lastUpdated`: when Garmin last recalculated it, which can be a day or more before the note |
 | `fitness_age_<component>` | number, 2 dp | varies | `components.<component>.value`, named after Garmin's key in snake case |
 | `endurance_score` | number | score | `endurance.overallScore` |
 | `endurance_classification` | integer | enum | `endurance.classification` |
@@ -258,6 +259,7 @@ From the daily summary call — no extra request.
 | `respiration_avg` | number | breaths/min | `avgWakingRespirationValue` |
 | `respiration_min` | number | breaths/min | `lowestRespirationValue` |
 | `respiration_max` | number | breaths/min | `highestRespirationValue` |
+| `respiration_latest` | number | breaths/min | `latestRespirationValue` — the big number on the app's Respiration card |
 
 Breathing rate is very stable for a given person, so a few breaths above your own
 normal is worth noticing. It tends to rise with illness, alcohol and altitude.
@@ -383,15 +385,16 @@ Snapshot rows carry `start` (local) and the averages `hr`, `respiration`,
 
 ## profile — `account.json`
 
-Nothing in the notes; about ten requests per sync, written to
+Nothing in the notes; about nine requests per sync, written to
 `<dataFolder>/account.json`:
 
 | Key | Source |
 | --- | --- |
 | `displayName`, `fullName`, `avatar` | `socialProfile` (already fetched for the display name). Not `userName`, which is the sign-in email |
+| `sex` — `male` / `female` | user settings `userData.gender`. Garmin grades VO2 Max and FTP against tables that differ by sex |
 | `device` — `name`, `imageUrl`, `lastUpload` | `deviceservice/mylastused` |
 | `lactateThreshold` — `date`, `heartRate`, `speed` (m/s), `pace` | `biometric/latestLactateThreshold`, user settings as a fallback. Garmin's `speed` is tenths of m/s |
-| `ftp.running` / `ftp.cycling` — `watts`, `wattsPerKg` | `biometric/powerToWeight/latest/{date}?sport=` |
+| `ftp.running` / `ftp.cycling` / `ftp.xcSkiing` — `date`, `watts`, `wattsPerKg` | `biometric/powerToWeight/latest/{date}`, one call with no `sport` filter, which returns a row per sport |
 | `runningEconomy` — `score`, `classification` | `runningeconomy/latest/{date}` |
 | `cyclingAbility` | GraphQL `cyclingAbility.latest` |
 | `trainingPlans` | `trainingplan/plans`, completed plans left out |
@@ -452,6 +455,7 @@ scalar, so it renders as a nested list in Obsidian's property editor.
 | `type` | string | — | `activityType.typeKey` |
 | `start` | datetime | local | `startTimeLocal` |
 | `minutes` | integer | minutes | `duration` ÷ 60 |
+| `duration_s` | integer | seconds | `duration` — the app's "42:13" total time, which `minutes` rounds away |
 | `distance_km` / `distance_mi` | number, 2 dp | km / miles | `distance` |
 | `calories` | integer | kcal | `calories` |
 | `avg_hr` | integer | bpm | `averageHR` |
@@ -467,6 +471,7 @@ workouts:
     type: running
     start: 2026-09-12T07:31
     minutes: 31
+    duration_s: 1830
     distance_km: 5.12
     calories: 412
     avg_hr: 148

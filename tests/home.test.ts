@@ -1,17 +1,14 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { addDays, clockText, hoursText, humanize } from "../src/dashboard/day";
+import { intensityView } from "../src/dashboard/glance";
 import {
 	PRESETS,
 	activitiesView,
-	addDays,
-	clockText,
 	countdown,
 	dayToShow,
 	eventsView,
 	homeModel,
-	hoursText,
-	humanize,
-	intensityView,
 	presetFor,
 	readinessView,
 	sleepCoach,

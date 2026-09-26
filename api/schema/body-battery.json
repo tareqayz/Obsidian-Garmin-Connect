@@ -1,0 +1,193 @@
+{
+	"endpoint": "body-battery",
+	"path": "/wellness-service/wellness/bodyBattery/reports/daily",
+	"plugin": "GarminApi.bodyBattery",
+	"firstRecorded": "2026-09-26T07:59:19.345Z",
+	"updatedAt": "2026-09-26T07:59:19.345Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"bodyBatteryActivityEvent": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"bodyBatteryImpact": {
+								"type": [
+									"number"
+								]
+							},
+							"durationInMilliseconds": {
+								"type": [
+									"number"
+								]
+							},
+							"eventStartTimeGmt": {
+								"type": [
+									"string"
+								]
+							},
+							"eventType": {
+								"type": [
+									"string"
+								]
+							},
+							"feedbackType": {
+								"type": [
+									"string"
+								]
+							},
+							"shortFeedback": {
+								"type": [
+									"string"
+								]
+							},
+							"timezoneOffset": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					}
+				},
+				"bodyBatteryDynamicFeedbackEvent": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"bodyBatteryLevel": {
+							"type": [
+								"string"
+							]
+						},
+						"eventTimestampGmt": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackLongType": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackShortType": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"bodyBatteryValueDescriptorDTOList": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"bodyBatteryValueDescriptorIndex": {
+								"type": [
+									"number"
+								]
+							},
+							"bodyBatteryValueDescriptorKey": {
+								"type": [
+									"string"
+								]
+							}
+						}
+					}
+				},
+				"bodyBatteryValuesArray": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"charged": {
+					"type": [
+						"number"
+					]
+				},
+				"date": {
+					"type": [
+						"string"
+					]
+				},
+				"drained": {
+					"type": [
+						"number"
+					]
+				},
+				"endOfDayBodyBatteryDynamicFeedbackEvent": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"bodyBatteryLevel": {
+							"type": [
+								"string"
+							]
+						},
+						"eventTimestampGmt": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackLongType": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackShortType": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"endTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"endTimestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimestampLocal": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

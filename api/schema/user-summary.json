@@ -1,0 +1,612 @@
+{
+	"endpoint": "user-summary",
+	"path": "/usersummary-service/usersummary/daily/{displayName}",
+	"plugin": "GarminApi.dailySummary",
+	"firstRecorded": "2026-09-26T07:59:19.351Z",
+	"updatedAt": "2026-09-26T07:59:19.351Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"abnormalHeartRateAlertsCount": {
+				"type": [
+					"null"
+				]
+			},
+			"activeKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"activeSeconds": {
+				"type": [
+					"number"
+				]
+			},
+			"activityStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"activityStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"averageMonitoringEnvironmentAltitude": {
+				"type": [
+					"number"
+				]
+			},
+			"averageSpo2": {
+				"type": [
+					"null"
+				]
+			},
+			"averageStressLevel": {
+				"type": [
+					"number"
+				]
+			},
+			"avgWakingRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bmrKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryActivityEventList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"activityId": {
+							"type": [
+								"null",
+								"number"
+							]
+						},
+						"activityName": {
+							"type": [
+								"null",
+								"string"
+							]
+						},
+						"activityType": {
+							"type": [
+								"null",
+								"string"
+							]
+						},
+						"bodyBatteryImpact": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceId": {
+							"type": [
+								"number"
+							]
+						},
+						"durationInMilliseconds": {
+							"type": [
+								"number"
+							]
+						},
+						"eventStartTimeGmt": {
+							"type": [
+								"string"
+							]
+						},
+						"eventType": {
+							"type": [
+								"string"
+							]
+						},
+						"eventUpdateTimeGmt": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackType": {
+							"type": [
+								"string"
+							]
+						},
+						"shortFeedback": {
+							"type": [
+								"string"
+							]
+						},
+						"timezoneOffset": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"bodyBatteryAtWakeTime": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryChargedValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryDrainedValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryDuringSleep": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryDynamicFeedbackEvent": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"bodyBatteryLevel": {
+						"type": [
+							"string"
+						]
+					},
+					"eventTimestampGmt": {
+						"type": [
+							"string"
+						]
+					},
+					"feedbackLongType": {
+						"type": [
+							"string"
+						]
+					},
+					"feedbackShortType": {
+						"type": [
+							"string"
+						]
+					}
+				}
+			},
+			"bodyBatteryHighestValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryLowestValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryMostRecentValue": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"burnedKilocalories": {
+				"type": [
+					"null"
+				]
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"consumedKilocalories": {
+				"type": [
+					"null"
+				]
+			},
+			"dailyStepGoal": {
+				"type": [
+					"number"
+				]
+			},
+			"durationInMilliseconds": {
+				"type": [
+					"number"
+				]
+			},
+			"endOfDayBodyBatteryDynamicFeedbackEvent": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"bodyBatteryLevel": {
+						"type": [
+							"string"
+						]
+					},
+					"eventTimestampGmt": {
+						"type": [
+							"string"
+						]
+					},
+					"feedbackLongType": {
+						"type": [
+							"string"
+						]
+					},
+					"feedbackShortType": {
+						"type": [
+							"string"
+						]
+					}
+				}
+			},
+			"floorsAscended": {
+				"type": [
+					"number"
+				]
+			},
+			"floorsAscendedInMeters": {
+				"type": [
+					"number"
+				]
+			},
+			"floorsDescended": {
+				"type": [
+					"number"
+				]
+			},
+			"floorsDescendedInMeters": {
+				"type": [
+					"number"
+				]
+			},
+			"highStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"highStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"highestRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"highlyActiveSeconds": {
+				"type": [
+					"number"
+				]
+			},
+			"includesActivityData": {
+				"type": [
+					"boolean"
+				]
+			},
+			"includesCalorieConsumedData": {
+				"type": [
+					"boolean"
+				]
+			},
+			"includesWellnessData": {
+				"type": [
+					"boolean"
+				]
+			},
+			"intensityMinutesGoal": {
+				"type": [
+					"number"
+				]
+			},
+			"lastSevenDaysAvgRestingHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"lastSyncTimestampGMT": {
+				"type": [
+					"null"
+				]
+			},
+			"latestRespirationTimeGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"latestRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"latestSpo2": {
+				"type": [
+					"null"
+				]
+			},
+			"latestSpo2ReadingTimeGmt": {
+				"type": [
+					"null"
+				]
+			},
+			"latestSpo2ReadingTimeLocal": {
+				"type": [
+					"null"
+				]
+			},
+			"lowStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"lowStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"lowestRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"lowestSpo2": {
+				"type": [
+					"null"
+				]
+			},
+			"maxAvgHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"maxHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"maxStressLevel": {
+				"type": [
+					"number"
+				]
+			},
+			"measurableAsleepDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"measurableAwakeDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"mediumStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"mediumStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"minAvgHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"minHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"moderateIntensityMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"netCalorieGoal": {
+				"type": [
+					"null"
+				]
+			},
+			"netRemainingKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"privacyProtected": {
+				"type": [
+					"boolean"
+				]
+			},
+			"remainingKilocalories": {
+				"type": [
+					"null"
+				]
+			},
+			"respirationAlgorithmVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"restStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"restStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"restingCaloriesFromActivity": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"restingHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"rule": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"typeId": {
+						"type": [
+							"number"
+						]
+					},
+					"typeKey": {
+						"type": [
+							"string"
+						]
+					}
+				}
+			},
+			"sedentarySeconds": {
+				"type": [
+					"number"
+				]
+			},
+			"sleepingSeconds": {
+				"type": [
+					"number"
+				]
+			},
+			"source": {
+				"type": [
+					"string"
+				]
+			},
+			"stressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"stressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"stressQualifier": {
+				"type": [
+					"string"
+				]
+			},
+			"totalDistanceMeters": {
+				"type": [
+					"number"
+				]
+			},
+			"totalKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"totalSteps": {
+				"type": [
+					"number"
+				]
+			},
+			"totalStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"uncategorizedStressDuration": {
+				"type": [
+					"number"
+				]
+			},
+			"uncategorizedStressPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"userDailySummaryId": {
+				"type": [
+					"number"
+				]
+			},
+			"userFloorsAscendedGoal": {
+				"type": [
+					"number"
+				]
+			},
+			"userProfileId": {
+				"type": [
+					"number"
+				]
+			},
+			"uuid": {
+				"type": [
+					"string"
+				]
+			},
+			"vigorousIntensityMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"wellnessActiveKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"wellnessDescription": {
+				"type": [
+					"null"
+				]
+			},
+			"wellnessDistanceMeters": {
+				"type": [
+					"number"
+				]
+			},
+			"wellnessEndTimeGmt": {
+				"type": [
+					"string"
+				]
+			},
+			"wellnessEndTimeLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"wellnessKilocalories": {
+				"type": [
+					"number"
+				]
+			},
+			"wellnessStartTimeGmt": {
+				"type": [
+					"string"
+				]
+			},
+			"wellnessStartTimeLocal": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

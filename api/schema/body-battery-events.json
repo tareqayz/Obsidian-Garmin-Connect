@@ -1,0 +1,163 @@
+{
+	"endpoint": "body-battery-events",
+	"path": "/wellness-service/wellness/bodyBattery/events/{date}",
+	"plugin": "GarminApi.bodyBatteryEvents",
+	"firstRecorded": "2026-09-26T07:59:19.345Z",
+	"updatedAt": "2026-09-26T07:59:19.345Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"activityId": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"activityName": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"activityType": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"averageStress": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"bodyBatteryValueDescriptorsDTOList": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"bodyBatteryValueDescriptorIndex": {
+								"type": [
+									"number"
+								]
+							},
+							"bodyBatteryValueDescriptorKey": {
+								"type": [
+									"string"
+								]
+							}
+						}
+					}
+				},
+				"bodyBatteryValuesArray": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"number",
+								"string"
+							]
+						}
+					}
+				},
+				"event": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"bodyBatteryImpact": {
+							"type": [
+								"number"
+							]
+						},
+						"durationInMilliseconds": {
+							"type": [
+								"number"
+							]
+						},
+						"eventStartTimeGmt": {
+							"type": [
+								"string"
+							]
+						},
+						"eventType": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackType": {
+							"type": [
+								"string"
+							]
+						},
+						"shortFeedback": {
+							"type": [
+								"string"
+							]
+						},
+						"timezoneOffset": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"stressValueDescriptorsDTOList": {
+					"type": [
+						"array",
+						"null"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"index": {
+								"type": [
+									"number"
+								]
+							},
+							"key": {
+								"type": [
+									"string"
+								]
+							}
+						}
+					}
+				},
+				"stressValuesArray": {
+					"type": [
+						"array",
+						"null"
+					],
+					"items": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

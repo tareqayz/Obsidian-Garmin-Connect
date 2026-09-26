@@ -79,10 +79,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"fitnessage-data": async (api, w) => [await api.fitnessAge(w.days[0]!)],
 	"running-tolerance": async (api, w) => [await api.runningTolerance(w.days.at(-1)!, w.days[0]!)],
 	"lactate-threshold-biometric-latest": async (api) => [await api.lactateThreshold()],
-	"lactate-threshold-biometric-power-to-weight-latest": async (api, w) => [
-		await api.powerToWeight(w.days[0]!, "Running"),
-		await api.powerToWeight(w.days[0]!, "Cycling"),
-	],
+	"lactate-threshold-biometric-power-to-weight-latest": async (api, w) => [await api.powerToWeight(w.days[0]!)],
 	"device-last-used": async (api) => [await api.lastUsedDevice()],
 	"training-plans": async (api) => [await api.trainingPlans()],
 	"personal-record": async (api) => [await api.personalRecords()],

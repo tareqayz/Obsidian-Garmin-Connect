@@ -1,0 +1,50 @@
+{
+	"endpoint": "running-tolerance",
+	"path": "/metrics-service/metrics/runningtolerance/stats",
+	"plugin": "GarminApi.runningTolerance",
+	"firstRecorded": "2026-09-26T07:59:19.349Z",
+	"updatedAt": "2026-09-26T07:59:19.349Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"acuteDistance": {
+					"type": [
+						"number"
+					]
+				},
+				"acuteImpactLoad": {
+					"type": [
+						"number"
+					]
+				},
+				"acuteTolerance": {
+					"type": [
+						"number"
+					]
+				},
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"runningToleranceFeedBackPhrase": {
+					"type": [
+						"string"
+					]
+				},
+				"userProfilePK": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

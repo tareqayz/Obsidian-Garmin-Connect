@@ -1,0 +1,102 @@
+{
+	"endpoint": "heart-rates",
+	"path": "/wellness-service/wellness/dailyHeartRate/{displayName}",
+	"plugin": "GarminApi.heartRate",
+	"firstRecorded": "2026-09-26T07:59:19.347Z",
+	"updatedAt": "2026-09-26T07:59:19.347Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"heartRateValueDescriptors": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"index": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"heartRateValues": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"lastSevenDaysAvgRestingHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"maxHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"minHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"restingHeartRate": {
+				"type": [
+					"number"
+				]
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

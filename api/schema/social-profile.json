@@ -1,0 +1,345 @@
+{
+	"endpoint": "social-profile",
+	"path": "/userprofile-service/socialProfile",
+	"plugin": "GarminApi.socialProfile",
+	"firstRecorded": "2026-09-26T07:59:19.349Z",
+	"updatedAt": "2026-09-26T07:59:19.349Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"activityHeartRateVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"activityMapVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"activityPowerVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"activityStartVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"allowGolfLiveScoring": {
+				"type": [
+					"boolean"
+				]
+			},
+			"allowGolfScoringByConnections": {
+				"type": [
+					"boolean"
+				]
+			},
+			"badgeVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"bio": {
+				"type": [
+					"null"
+				]
+			},
+			"courseVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"cyclingClassification": {
+				"type": [
+					"null"
+				]
+			},
+			"cyclingMaxAvgPower": {
+				"type": [
+					"number"
+				]
+			},
+			"cyclingTrainingSpeed": {
+				"type": [
+					"number"
+				]
+			},
+			"displayName": {
+				"type": [
+					"string"
+				]
+			},
+			"facebookUrl": {
+				"type": [
+					"null"
+				]
+			},
+			"favoriteActivityTypes": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"string"
+					]
+				}
+			},
+			"favoriteCyclingActivityTypes": {
+				"type": [
+					"array"
+				]
+			},
+			"fullName": {
+				"type": [
+					"string"
+				]
+			},
+			"garminGUID": {
+				"type": [
+					"string"
+				]
+			},
+			"hasPremiumSocialIcon": {
+				"type": [
+					"boolean"
+				]
+			},
+			"id": {
+				"type": [
+					"number"
+				]
+			},
+			"levelIsViewed": {
+				"type": [
+					"boolean"
+				]
+			},
+			"levelPointThreshold": {
+				"type": [
+					"number"
+				]
+			},
+			"levelUpdateDate": {
+				"type": [
+					"string"
+				]
+			},
+			"location": {
+				"type": [
+					"string"
+				]
+			},
+			"makeGolfScorecardsPrivate": {
+				"type": [
+					"boolean"
+				]
+			},
+			"motivation": {
+				"type": [
+					"null"
+				]
+			},
+			"nameApproved": {
+				"type": [
+					"boolean"
+				]
+			},
+			"otherActivity": {
+				"type": [
+					"null"
+				]
+			},
+			"otherMotivation": {
+				"type": [
+					"null"
+				]
+			},
+			"otherPrimaryActivity": {
+				"type": [
+					"null"
+				]
+			},
+			"personalWebsite": {
+				"type": [
+					"null"
+				]
+			},
+			"primaryActivity": {
+				"type": [
+					"null"
+				]
+			},
+			"profileId": {
+				"type": [
+					"number"
+				]
+			},
+			"profileImageType": {
+				"type": [
+					"string"
+				]
+			},
+			"profileImageUrlLarge": {
+				"type": [
+					"string"
+				]
+			},
+			"profileImageUrlMedium": {
+				"type": [
+					"string"
+				]
+			},
+			"profileImageUrlSmall": {
+				"type": [
+					"string"
+				]
+			},
+			"profileVisibility": {
+				"type": [
+					"string"
+				]
+			},
+			"runningTrainingSpeed": {
+				"type": [
+					"number"
+				]
+			},
+			"showActivityClass": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showAge": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showAgeRange": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showBadges": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showGender": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showHeight": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showLast12Months": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showLifetimeTotals": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showPersonalRecords": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showRecentDevice": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showRecentFavorites": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showRecentGear": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showUpcomingEvents": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showVO2Max": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showWeight": {
+				"type": [
+					"boolean"
+				]
+			},
+			"showWeightClass": {
+				"type": [
+					"boolean"
+				]
+			},
+			"swimmingTrainingSpeed": {
+				"type": [
+					"number"
+				]
+			},
+			"twitterUrl": {
+				"type": [
+					"null"
+				]
+			},
+			"userLevel": {
+				"type": [
+					"number"
+				]
+			},
+			"userName": {
+				"type": [
+					"string"
+				]
+			},
+			"userPoint": {
+				"type": [
+					"number"
+				]
+			},
+			"userPointOffset": {
+				"type": [
+					"number"
+				]
+			},
+			"userPro": {
+				"type": [
+					"boolean"
+				]
+			},
+			"userProfileFullName": {
+				"type": [
+					"string"
+				]
+			},
+			"userRoles": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

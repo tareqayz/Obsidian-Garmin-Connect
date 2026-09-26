@@ -1,0 +1,434 @@
+{
+	"endpoint": "user-profile",
+	"path": "/userprofile-service/userprofile/user-settings",
+	"plugin": "GarminApi.userSettings",
+	"firstRecorded": "2026-09-26T07:59:19.351Z",
+	"updatedAt": "2026-09-26T07:59:19.351Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"connectDate": {
+				"type": [
+					"null"
+				]
+			},
+			"id": {
+				"type": [
+					"number"
+				]
+			},
+			"sourceType": {
+				"type": [
+					"null"
+				]
+			},
+			"userData": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"activityLevel": {
+						"type": [
+							"null"
+						]
+					},
+					"availableTrainingDays": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"string"
+							]
+						}
+					},
+					"birthDate": {
+						"type": [
+							"string"
+						]
+					},
+					"diveNumber": {
+						"type": [
+							"null"
+						]
+					},
+					"externalBottomTime": {
+						"type": [
+							"null"
+						]
+					},
+					"firstDayOfWeek": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"dayId": {
+								"type": [
+									"number"
+								]
+							},
+							"dayName": {
+								"type": [
+									"string"
+								]
+							},
+							"isPossibleFirstDay": {
+								"type": [
+									"boolean"
+								]
+							},
+							"sortOrder": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"firstbeatCyclingLtTimestamp": {
+						"type": [
+							"number"
+						]
+					},
+					"firstbeatMaxStressScore": {
+						"type": [
+							"null"
+						]
+					},
+					"firstbeatRowingLtTimestamp": {
+						"type": [
+							"null"
+						]
+					},
+					"firstbeatRunningLtTimestamp": {
+						"type": [
+							"number"
+						]
+					},
+					"ftpAutoDetected": {
+						"type": [
+							"boolean"
+						]
+					},
+					"gender": {
+						"type": [
+							"string"
+						]
+					},
+					"golfDistanceUnit": {
+						"type": [
+							"string"
+						]
+					},
+					"golfElevationUnit": {
+						"type": [
+							"null"
+						]
+					},
+					"golfSpeedUnit": {
+						"type": [
+							"null"
+						]
+					},
+					"handedness": {
+						"type": [
+							"string"
+						]
+					},
+					"heartRateFormat": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"displayFormat": {
+								"type": [
+									"null"
+								]
+							},
+							"formatId": {
+								"type": [
+									"number"
+								]
+							},
+							"formatKey": {
+								"type": [
+									"string"
+								]
+							},
+							"groupingUsed": {
+								"type": [
+									"boolean"
+								]
+							},
+							"maxFraction": {
+								"type": [
+									"number"
+								]
+							},
+							"minFraction": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"height": {
+						"type": [
+							"number"
+						]
+					},
+					"hydrationAutoGoalEnabled": {
+						"type": [
+							"boolean"
+						]
+					},
+					"hydrationContainers": {
+						"type": [
+							"array"
+						]
+					},
+					"hydrationMeasurementUnit": {
+						"type": [
+							"string"
+						]
+					},
+					"intensityMinutesCalcMethod": {
+						"type": [
+							"string"
+						]
+					},
+					"lactateThresholdHeartRate": {
+						"type": [
+							"number"
+						]
+					},
+					"lactateThresholdHeartRateCycling": {
+						"type": [
+							"null"
+						]
+					},
+					"lactateThresholdHeartRateRowing": {
+						"type": [
+							"null"
+						]
+					},
+					"lactateThresholdRowingPace": {
+						"type": [
+							"null"
+						]
+					},
+					"lactateThresholdSpeed": {
+						"type": [
+							"number"
+						]
+					},
+					"measurementSystem": {
+						"type": [
+							"string"
+						]
+					},
+					"moderateIntensityMinutesHrZone": {
+						"type": [
+							"number"
+						]
+					},
+					"numberDivesAutomatically": {
+						"type": [
+							"null"
+						]
+					},
+					"powerFormat": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"displayFormat": {
+								"type": [
+									"null"
+								]
+							},
+							"formatId": {
+								"type": [
+									"number"
+								]
+							},
+							"formatKey": {
+								"type": [
+									"string"
+								]
+							},
+							"groupingUsed": {
+								"type": [
+									"boolean"
+								]
+							},
+							"maxFraction": {
+								"type": [
+									"number"
+								]
+							},
+							"minFraction": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					},
+					"preferredLongTrainingDays": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"string"
+							]
+						}
+					},
+					"thresholdHeartRateAutoDetected": {
+						"type": [
+							"boolean"
+						]
+					},
+					"timeFormat": {
+						"type": [
+							"string"
+						]
+					},
+					"trainingStatusPausedDate": {
+						"type": [
+							"null"
+						]
+					},
+					"vigorousIntensityMinutesHrZone": {
+						"type": [
+							"number"
+						]
+					},
+					"virtualCaddieDataSource": {
+						"type": [
+							"null"
+						]
+					},
+					"vo2MaxCycling": {
+						"type": [
+							"null"
+						]
+					},
+					"vo2MaxRunning": {
+						"type": [
+							"number"
+						]
+					},
+					"weatherLocation": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"isoCountryCode": {
+								"type": [
+									"null"
+								]
+							},
+							"latitude": {
+								"type": [
+									"null"
+								]
+							},
+							"locationName": {
+								"type": [
+									"null"
+								]
+							},
+							"longitude": {
+								"type": [
+									"null"
+								]
+							},
+							"postalCode": {
+								"type": [
+									"null"
+								]
+							},
+							"useFixedLocation": {
+								"type": [
+									"null"
+								]
+							}
+						}
+					},
+					"weeklyTrainingReportEnabled": {
+						"type": [
+							"boolean"
+						]
+					},
+					"weight": {
+						"type": [
+							"number"
+						]
+					},
+					"wtrPrimaryActivityType": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"userSleep": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"defaultSleepTime": {
+						"type": [
+							"boolean"
+						]
+					},
+					"defaultWakeTime": {
+						"type": [
+							"boolean"
+						]
+					},
+					"sleepTime": {
+						"type": [
+							"number"
+						]
+					},
+					"wakeTime": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"userSleepWindows": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"endSleepTimeSecondsFromMidnight": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepWindowFrequency": {
+							"type": [
+								"string"
+							]
+						},
+						"startSleepTimeSecondsFromMidnight": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

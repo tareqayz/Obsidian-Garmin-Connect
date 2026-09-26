@@ -25,6 +25,10 @@
 		segments?: Segment[];
 		/** A dot on the track, like the heart-rate gauge's marker. */
 		marker?: number;
+		/** The dot's fill; the banded gauges colour it by the band it sits in. */
+		markerColor?: string;
+		/** The dot's radius; the stroke width when unset. */
+		markerRadius?: number;
 		label?: string;
 		/** Gap in degrees between segments. */
 		gap?: number;
@@ -40,6 +44,8 @@
 		color = "var(--color-blue)",
 		segments = [],
 		marker,
+		markerColor,
+		markerRadius,
 		label,
 		gap = 0,
 	}: Props = $props();
@@ -65,7 +71,7 @@
 			<path d={arcPath(c, c, r, start, angle(value))} stroke={color} stroke-width={stroke} fill="none" />
 		{/if}
 		{#if markerAt}
-			<circle class="marker" cx={markerAt[0]} cy={markerAt[1]} r={stroke} />
+			<circle class="marker" cx={markerAt[0]} cy={markerAt[1]} r={markerRadius ?? stroke} style:fill={markerColor} />
 		{/if}
 	</svg>
 	{#if label !== undefined}<span class="label">{label}</span>{/if}
@@ -95,8 +101,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 22px;
-		line-height: 26px;
+		font-size: var(--arc-label-size, 22px);
+		line-height: var(--arc-label-line, 26px);
 		font-variant-numeric: tabular-nums;
 	}
 </style>

@@ -86,7 +86,7 @@ export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 
 /** Groups billed per sync rather than per day, for the budget note in settings. */
 export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
-	profile: 10,
+	profile: 9,
 };
 
 export type PropertyValue = number | string | Array<Record<string, unknown>>;
@@ -411,6 +411,8 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		set("respiration_avg", metric(summary.avgWakingRespirationValue));
 		set("respiration_min", metric(summary.lowestRespirationValue));
 		set("respiration_max", metric(summary.highestRespirationValue));
+		// The big number on the app's Respiration card.
+		set("respiration_latest", metric(summary.latestRespirationValue));
 	}
 
 	if (groups.has("spo2") && summary) {
@@ -543,6 +545,9 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 		set("fitness_age_achievable", round2(metric(age?.achievableFitnessAge)));
 		set("fitness_age_previous", round2(metric(age?.previousFitnessAge)));
 		set("chronological_age", metric(age?.chronologicalAge));
+		// When Garmin last recalculated it, which is not every day: the app's
+		// "Updated Sep 23" can sit a day or more behind the note it is in.
+		set("fitness_age_updated", localDateOf(age?.lastUpdated ?? undefined));
 		// Named after Garmin's own component keys, whatever they turn out to be
 		// — a fixed list would silently drop a factor Garmin adds.
 		for (const [name, component] of Object.entries(asObject(age?.components) ?? {})) {
@@ -804,8 +809,11 @@ function mapWorkout(activity: Activity, units: MapOptions["units"]): Record<stri
 	if (activity.activityType?.typeKey) row.type = activity.activityType.typeKey;
 	if (activity.startTimeLocal) row.start = activity.startTimeLocal.replace(" ", "T").slice(0, 16);
 
-	const mins = minutes(metric(activity.duration));
+	const seconds = metric(activity.duration);
+	const mins = minutes(seconds);
 	if (mins !== undefined) row.minutes = mins;
+	// Whole minutes lose the "42:13" the app shows as an activity's total time.
+	if (seconds !== undefined) row.duration_s = Math.round(seconds);
 
 	const metres = metric(activity.distance);
 	const d = distance(metres, units);
@@ -964,6 +972,7 @@ export const METRIC_LABELS: Record<string, string> = {
 	fitness_age: "Fitness age",
 	fitness_age_achievable: "Achievable fitness age",
 	fitness_age_previous: "Previous fitness age",
+	fitness_age_updated: "Fitness age updated",
 	chronological_age: "Age",
 	endurance_score: "Endurance score",
 	endurance_classification: "Endurance class",
@@ -993,6 +1002,7 @@ export const METRIC_LABELS: Record<string, string> = {
 	respiration_avg: "Respiration",
 	respiration_min: "Respiration min",
 	respiration_max: "Respiration max",
+	respiration_latest: "Respiration latest",
 	spo2_avg: "SpO2",
 	spo2_low: "SpO2 low",
 	spo2_latest: "SpO2 latest",
@@ -1194,6 +1204,7 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"fitness_age",
 			"fitness_age_achievable",
 			"fitness_age_previous",
+			"fitness_age_updated",
 			"chronological_age",
 			"endurance_score",
 			"endurance_classification",
@@ -1218,7 +1229,7 @@ export function keysFor(groups: readonly MetricGroup[]): string[] {
 			"altitude_acclimation_trend",
 		],
 		races: ["race_5k", "race_10k", "race_half", "race_marathon"],
-		respiration: ["respiration_avg", "respiration_min", "respiration_max"],
+		respiration: ["respiration_avg", "respiration_min", "respiration_max", "respiration_latest"],
 		spo2: ["spo2_avg", "spo2_low", "spo2_latest"],
 		body: [
 			"weight_kg",

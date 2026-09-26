@@ -1,0 +1,154 @@
+{
+	"endpoint": "max-metrics-range",
+	"path": "/metrics-service/metrics/maxmet/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.maxMetrics",
+	"firstRecorded": "2026-09-26T07:59:19.348Z",
+	"updatedAt": "2026-09-26T07:59:19.348Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"cycling": {
+					"type": [
+						"null"
+					]
+				},
+				"generic": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"calendarDate": {
+							"type": [
+								"string"
+							]
+						},
+						"fitnessAge": {
+							"type": [
+								"null"
+							]
+						},
+						"fitnessAgeDescription": {
+							"type": [
+								"null"
+							]
+						},
+						"maxMetCategory": {
+							"type": [
+								"number"
+							]
+						},
+						"vo2MaxPreciseValue": {
+							"type": [
+								"number"
+							]
+						},
+						"vo2MaxValue": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"heatAltitudeAcclimation": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"acclimationPercentage": {
+							"type": [
+								"number"
+							]
+						},
+						"altitudeAcclimation": {
+							"type": [
+								"number"
+							]
+						},
+						"altitudeAcclimationDate": {
+							"type": [
+								"string"
+							]
+						},
+						"altitudeAcclimationLocalTimestamp": {
+							"type": [
+								"string"
+							]
+						},
+						"altitudeTrend": {
+							"type": [
+								"null"
+							]
+						},
+						"calendarDate": {
+							"type": [
+								"string"
+							]
+						},
+						"currentAltitude": {
+							"type": [
+								"number"
+							]
+						},
+						"heatAcclimationDate": {
+							"type": [
+								"string"
+							]
+						},
+						"heatAcclimationPercentage": {
+							"type": [
+								"number"
+							]
+						},
+						"heatTrend": {
+							"type": [
+								"string"
+							]
+						},
+						"previousAcclimationPercentage": {
+							"type": [
+								"number"
+							]
+						},
+						"previousAltitude": {
+							"type": [
+								"number"
+							]
+						},
+						"previousAltitudeAcclimation": {
+							"type": [
+								"number"
+							]
+						},
+						"previousAltitudeAcclimationDate": {
+							"type": [
+								"string"
+							]
+						},
+						"previousHeatAcclimationDate": {
+							"type": [
+								"string"
+							]
+						},
+						"previousHeatAcclimationPercentage": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"userId": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

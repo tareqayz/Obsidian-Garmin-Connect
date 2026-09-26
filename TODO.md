@@ -1,10 +1,25 @@
 - Home (Garmin Connect rebuild), shipped 2026-09-25 on `feature/home-dashboard`:
-  - Not built yet: Edit Home (choosing cards per section), the See All page for
-    At a Glance, tapping a card through to its detail screen, and the other
-    26 At a Glance cards drawn in Figma.
+  - Not built yet: Edit Home (choosing cards for Essentials and In Focus), and
+    tapping a card through to its detail screen.
+  - At a Glance's See All page, its edit mode and all 36 cards landed
+    2026-09-26. Garmin's own edit screen for At a Glance was not in the
+    reference screenshots, so it follows the app's other edit screens (Cancel /
+    Save, red remove badges, grips) plus the Add a Stat sheet that was
+    captured. Check it against the phone.
+  - Running Economy has no history in the sync (only `runningeconomy/latest`),
+    so its card leaves out the app's "Last 4w" trend line. The marker's place
+    inside its class comes from limits inferred from one reading (223–224,
+    Intermediate); more readings would confirm or correct them.
+  - Health Status only ever shows the onboarding prompt while any metric is
+    still ONBOARDING, as the app did on 2026-09-24. Its data state is designed
+    (Figma) but has not been seen on the phone.
+  - VO2 Max cards look back 28 days, matching the app hiding a cycling VO2 Max
+    from October 2025. The exact window Garmin uses is a guess.
   - Challenges has no endpoint in the sync; the card is Garmin's empty state.
-  - The Find a Plan / Find a Challenge links point at connect.garmin.com pages
-    that have not been checked.
+  - These links point at connect.garmin.com pages that have not been checked:
+    Find a Plan, Find a Challenge, and At a Glance's Add a Reading
+    (`/modern/blood-pressure`), Track Hydration (`/modern/hydration`), Start
+    your Free Trial (`/modern/nutrition`) and the Weight card's + (`/modern/weight`).
   - Retire the classic dashboard once Home and the detail screens cover it.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks

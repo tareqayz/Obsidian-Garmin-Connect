@@ -68,6 +68,15 @@ you can hold your phone next to it and check that every number arrived.
   same choice, and brings back any section you hid with **Hide**.
 - It shows today. Before today has synced, it shows the newest synced day and
   says so.
+- **See All** beside At a Glance opens its full page. Home shows the first eight
+  stats; See All holds up to twenty. **Edit** there lets you remove a stat with
+  its red badge, move one (drag the card, drag its grip on a touch screen, or
+  focus the grip and use the arrow keys), and pick more from **Add a Stat**,
+  which lists all 36 of Garmin's stats that aren't on the page yet. **Save**
+  keeps the order; **Cancel** throws the edit away. Choosing a preset again
+  puts the preset's own stats back.
+- Stats Garmin has nothing for yet — blood pressure, hydration, nutrition and
+  the like — show Garmin's own prompt card, as the app does.
 - A narrow pane gets the phone layout (In Focus swipes, with dots). From 640px
   wide, In Focus and the bottom sections sit side by side and At a Glance runs
   four across; from 1000px, three and six.

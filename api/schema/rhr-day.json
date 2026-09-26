@@ -1,0 +1,71 @@
+{
+	"endpoint": "rhr-day",
+	"path": "/userstats-service/wellness/daily/{displayName}",
+	"plugin": "GarminApi.restingHeartRate",
+	"firstRecorded": "2026-09-26T07:59:19.349Z",
+	"updatedAt": "2026-09-26T07:59:19.349Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"allMetrics": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"metricsMap": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"WELLNESS_RESTING_HEART_RATE": {
+								"type": [
+									"array"
+								],
+								"items": {
+									"type": [
+										"object"
+									],
+									"fields": {
+										"calendarDate": {
+											"type": [
+												"string"
+											]
+										},
+										"value": {
+											"type": [
+												"number"
+											]
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"groupedMetrics": {
+				"type": [
+					"null"
+				]
+			},
+			"statisticsEndDate": {
+				"type": [
+					"string"
+				]
+			},
+			"statisticsStartDate": {
+				"type": [
+					"string"
+				]
+			},
+			"userProfileId": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

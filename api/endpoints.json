@@ -1302,7 +1302,8 @@
 				"chronologicalAge",
 				"achievableFitnessAge",
 				"previousFitnessAge",
-				"components"
+				"components",
+				"lastUpdated"
 			],
 			"schema": "schema/fitnessage-data.json",
 			"notes": "Source of record for fitness_age; each component becomes fitness_age_<component>, named after whatever keys Garmin sends."
@@ -2051,8 +2052,9 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
-			"notes": "Called for sport=Running and sport=Cycling. Carries FTP watts and W/kg.",
+			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg.",
 			"reads": [
+				"[].sport",
 				"[].calendarDate",
 				"[].functionalThresholdPower",
 				"[].powerToWeight"
@@ -3377,7 +3379,12 @@
 				"userData.measurementSystem"
 			],
 			"schema": "schema/user-profile.json",
-			"notes": "Only read to resolve the `auto` unit setting (src/sync/runner.ts)."
+			"notes": "Read to resolve the `auto` unit setting (src/sync/runner.ts), and by the account file for the lactate threshold fallback and the sex Garmin grades VO2 Max and FTP by.",
+			"reads": [
+				"userData.gender",
+				"userData.lactateThresholdHeartRate",
+				"userData.lactateThresholdSpeed"
+			]
 		},
 		{
 			"id": "user-summary",
@@ -3452,7 +3459,8 @@
 				"averageSpo2",
 				"lowestSpo2",
 				"latestSpo2",
-				"consumedKilocalories"
+				"consumedKilocalories",
+				"latestRespirationValue"
 			]
 		},
 		{

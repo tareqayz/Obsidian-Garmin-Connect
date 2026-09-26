@@ -1,4 +1,5 @@
 import type { Plugin } from "obsidian";
+import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
@@ -39,6 +40,11 @@ export interface HomeState {
 	preset: PresetId;
 	/** Sections hidden with their Hide link; Reset Home brings them back. */
 	hidden: MoreId[];
+	/**
+	 * The At a Glance cards, in order, once they have been edited on See All.
+	 * Absent means the preset's own list; Reset Home goes back to that.
+	 */
+	glance?: GlanceId[];
 }
 
 const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
@@ -128,11 +134,13 @@ export class PluginData implements TokenStore {
 		// dropped rather than rendered. See `readLayouts`.
 		this.layouts = readLayouts(raw.layouts);
 		const home = (raw.home ?? {}) as Record<string, unknown>;
+		const glance = readGlance(home.glance);
 		this.home = {
 			preset: isPresetId(home.preset) ? home.preset : DEFAULT_PRESET,
 			hidden: Array.isArray(home.hidden)
 				? MORE_IDS.filter((id) => (home.hidden as unknown[]).includes(id))
 				: [],
+			...(glance ? { glance } : {}),
 		};
 
 		const auth = raw.auth as PersistedAuth | null | undefined;

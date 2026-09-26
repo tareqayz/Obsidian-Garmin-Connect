@@ -19,6 +19,11 @@ export interface AccountInfo {
 	displayName?: string;
 	fullName?: string;
 	avatar?: { large?: string; medium?: string; small?: string };
+	/**
+	 * Garmin grades VO2 Max and FTP against tables that differ by sex, so the
+	 * At a Glance gauges need it to say "Excellent" where the app does.
+	 */
+	sex?: "male" | "female";
 	device?: { name?: string; imageUrl?: string; lastUpload?: string };
 	lactateThreshold?: {
 		date?: string;
@@ -27,7 +32,7 @@ export interface AccountInfo {
 		speed?: number;
 		pace?: string;
 	};
-	ftp?: Partial<Record<"running" | "cycling", { date?: string; watts?: number; wattsPerKg?: number }>>;
+	ftp?: Partial<Record<FtpSport, { date?: string; watts?: number; wattsPerKg?: number }>>;
 	runningEconomy?: { date?: string; score?: number; classification?: string };
 	cyclingAbility?: Record<string, string | number>;
 	trainingPlans?: Array<{ name?: string; type?: string; status?: string; start?: string; end?: string; weeks?: number }>;
@@ -49,6 +54,15 @@ export interface AccountInfo {
 	}>;
 }
 
+export type FtpSport = "running" | "cycling" | "xcSkiing";
+
+/** Garmin's `sport` on a power-to-weight row → the key it is kept under. */
+const FTP_SPORTS: Record<string, FtpSport> = {
+	RUNNING: "running",
+	CYCLING: "cycling",
+	CROSS_COUNTRY_SKIING: "xcSkiing",
+};
+
 /** The slice of GarminApi this needs. */
 export interface AccountSource {
 	readonly profile: SocialProfile | null;
@@ -56,7 +70,7 @@ export interface AccountSource {
 	userSettings(): Promise<Record<string, unknown>>;
 	lastUsedDevice(): Promise<Record<string, unknown> | null>;
 	lactateThreshold(): Promise<Array<Record<string, unknown>>>;
-	powerToWeight(date: string, sport: "Running" | "Cycling"): Promise<Array<Record<string, unknown>>>;
+	powerToWeight(date: string): Promise<Array<Record<string, unknown>>>;
 	runningEconomy(date: string): Promise<Record<string, unknown> | null>;
 	cyclingAbility(date: string): Promise<Record<string, unknown> | null>;
 	trainingPlans(): Promise<Record<string, unknown> | null>;
@@ -69,8 +83,8 @@ export interface AccountPayloads {
 	settings?: Record<string, unknown> | null;
 	device?: Record<string, unknown> | null;
 	lactate?: Array<Record<string, unknown>> | null;
-	ftpRunning?: Array<Record<string, unknown>> | null;
-	ftpCycling?: Array<Record<string, unknown>> | null;
+	/** One row per sport, from a single unfiltered request. */
+	ftp?: Array<Record<string, unknown>> | null;
 	runningEconomy?: Record<string, unknown> | null;
 	cyclingAbility?: Record<string, unknown> | null;
 	plans?: Record<string, unknown> | null;
@@ -106,8 +120,7 @@ export async function fetchAccount(
 		["settings", () => source.userSettings()],
 		["device", () => source.lastUsedDevice()],
 		["lactate", () => source.lactateThreshold()],
-		["ftpRunning", () => source.powerToWeight(today, "Running")],
-		["ftpCycling", () => source.powerToWeight(today, "Cycling")],
+		["ftp", () => source.powerToWeight(today)],
 		["runningEconomy", () => source.runningEconomy(today)],
 		["cyclingAbility", () => source.cyclingAbility(today)],
 		["plans", () => source.trainingPlans()],
@@ -147,6 +160,9 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 		if (Object.keys(avatar).length) out.avatar = avatar;
 	}
 
+	const gender = obj(p.settings?.userData)?.gender;
+	if (gender === "MALE" || gender === "FEMALE") out.sex = gender === "MALE" ? "male" : "female";
+
 	if (p.device) {
 		const device: NonNullable<AccountInfo["device"]> = {};
 		text(device, "name", p.device.lastUsedDeviceName);
@@ -160,9 +176,9 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 	if (lactate) out.lactateThreshold = lactate;
 
 	const ftp: NonNullable<AccountInfo["ftp"]> = {};
-	for (const [sport, rows] of [["running", p.ftpRunning], ["cycling", p.ftpCycling]] as const) {
-		const row = (rows ?? [])[0];
-		if (!row) continue;
+	for (const row of p.ftp ?? []) {
+		const sport = FTP_SPORTS[String(row.sport)];
+		if (!sport || ftp[sport]) continue;
 		const entry: { date?: string; watts?: number; wattsPerKg?: number } = {};
 		const date = dayOf(row.calendarDate);
 		if (date) entry.date = date;

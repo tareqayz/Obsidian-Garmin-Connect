@@ -4,9 +4,11 @@ import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
 import { describe } from "../sync/runner";
 import { VaultSeriesStore } from "../sync/series-store";
+import { pickStat } from "../ui/add-stat-modal";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import { collectRows } from "./collect";
+import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
@@ -49,13 +51,16 @@ export class GarminHomeView extends ItemView {
 				initialModel: await this.build(today),
 				initialPreset: this.plugin.data.home.preset,
 				initialHidden: [...this.plugin.data.home.hidden],
+				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
 				today,
 				canSync: this.plugin.garmin.isAuthenticated,
 				onSync: async () => {
 					const report = await this.plugin.sync.syncRecent();
 					return report ? describe(report).replace(/^Garmin sync: /, "") : null;
 				},
-				onChange: (preset: PresetId, hidden: MoreId[]) => void this.plugin.data.saveHome({ preset, hidden }),
+				onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) =>
+					void this.plugin.data.saveHome({ preset, hidden, ...(glance ? { glance } : {}) }),
+				onPick: (current: GlanceId[]) => pickStat(this.app, availableStats(current)),
 			},
 		});
 

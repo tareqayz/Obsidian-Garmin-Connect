@@ -146,6 +146,7 @@ describe("mapDay — workouts", () => {
 				type: "running",
 				start: "2026-09-12T07:31",
 				minutes: 31,
+				duration_s: 1830,
 				distance_km: 5.12,
 				calories: 413,
 				avg_hr: 148,
@@ -419,6 +420,10 @@ describe("mapDay — metrics that cost nothing extra", () => {
 
 	it("reads respiration and pulse ox out of the same summary", () => {
 		assert.equal(mapDay({ summary }, opts({ groups: ["respiration"] })).respiration_avg, 14.6);
+		assert.equal(
+			mapDay({ summary: { ...summary, latestRespirationValue: 13 } }, opts({ groups: ["respiration"] })).respiration_latest,
+			13,
+		);
 		assert.equal(mapDay({ summary }, opts({ groups: ["spo2"] })).spo2_low, 89);
 		// Neither group costs a request, so neither may leak into the other's keys.
 		assert.ok(!("spo2_avg" in mapDay({ summary }, opts({ groups: ["respiration"] }))));
@@ -715,11 +720,13 @@ describe("mapDay — fitness extras", () => {
 					chronologicalAge: 40,
 					achievableFitnessAge: 31.2,
 					components: { vigorousDaysAvg: { value: 2.5 }, rhr: { value: 49 }, bmi: null },
+					lastUpdated: "2026-09-23T05:12:44.0",
 				},
 			},
 			opts({ groups: ["fitness"] }),
 		);
 		assert.equal(props.fitness_age, 34.57);
+		assert.equal(props.fitness_age_updated, "2026-09-23");
 		assert.equal(props.chronological_age, 40);
 		assert.equal(props.fitness_age_achievable, 31.2);
 		assert.equal(props.fitness_age_vigorous_days_avg, 2.5);

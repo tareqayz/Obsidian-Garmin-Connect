@@ -1,0 +1,158 @@
+{
+	"endpoint": "graphql-upcoming-events",
+	"path": "/graphql-gateway/graphql",
+	"plugin": "GarminApi.upcomingEvents",
+	"firstRecorded": "2026-09-26T07:59:19.347Z",
+	"updatedAt": "2026-09-26T07:59:19.347Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"completionTarget": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"unit": {
+							"type": [
+								"string"
+							]
+						},
+						"unitType": {
+							"type": [
+								"string"
+							]
+						},
+						"value": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"date": {
+					"type": [
+						"string"
+					]
+				},
+				"eventCustomization": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"associatedWithActivityId": {
+							"type": [
+								"null"
+							]
+						},
+						"customGoal": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"unit": {
+									"type": [
+										"string"
+									]
+								},
+								"unitType": {
+									"type": [
+										"string"
+									]
+								},
+								"value": {
+									"type": [
+										"number"
+									]
+								}
+							}
+						},
+						"isGoalMet": {
+							"type": [
+								"boolean"
+							]
+						},
+						"isPrimaryEvent": {
+							"type": [
+								"boolean"
+							]
+						},
+						"isTrainingEvent": {
+							"type": [
+								"boolean"
+							]
+						},
+						"trainingPlanId": {
+							"type": [
+								"null"
+							]
+						},
+						"trainingPlanType": {
+							"type": [
+								"null"
+							]
+						}
+					}
+				},
+				"eventImageUUID": {
+					"type": [
+						"null"
+					]
+				},
+				"eventName": {
+					"type": [
+						"string"
+					]
+				},
+				"eventOrganizer": {
+					"type": [
+						"boolean"
+					]
+				},
+				"eventTimeLocal": {
+					"type": [
+						"null"
+					]
+				},
+				"eventType": {
+					"type": [
+						"string"
+					]
+				},
+				"id": {
+					"type": [
+						"number"
+					]
+				},
+				"locationStartPoint": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"lat": {
+							"type": [
+								"number"
+							]
+						},
+						"lon": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"shareableEventUuid": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

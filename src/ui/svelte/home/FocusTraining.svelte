@@ -1,21 +1,11 @@
 <script lang="ts">
-	import type { StatusTone, TrainingStatusView } from "../../../dashboard/home";
+	import type { TrainingStatusView } from "../../../dashboard/home";
 	import HomeCard from "./HomeCard.svelte";
 	import Stat from "./Stat.svelte";
 	import { lucide } from "./lucide";
+	import { STATUS_TONE as TONE } from "./tones";
 
 	let { status }: { status: TrainingStatusView | null } = $props();
-
-	const TONE: Record<StatusTone, string> = {
-		productive: "var(--color-green)",
-		peaking: "var(--color-purple)",
-		maintaining: "var(--color-yellow)",
-		recovery: "var(--color-blue)",
-		unproductive: "var(--color-orange)",
-		strained: "var(--color-red)",
-		detraining: "var(--text-faint)",
-		none: "var(--background-modifier-border)",
-	};
 </script>
 
 <HomeCard kind="focus" title="Training Status" icon="trending-up" accent="var(--color-purple)" empty={!status}>

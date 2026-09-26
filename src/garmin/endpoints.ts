@@ -634,11 +634,16 @@ export class GarminApi extends GarminClient {
 		)) ?? [];
 	}
 
-	async powerToWeight(date: string, sport: "Running" | "Cycling"): Promise<Array<Record<string, unknown>>> {
+	/**
+	 * FTP and W/kg. Without a sport Garmin returns one row per sport it has a
+	 * threshold for — running, cycling and cross-country skiing — which is how
+	 * the web app asks for it.
+	 */
+	async powerToWeight(date: string, sport?: "Running" | "Cycling"): Promise<Array<Record<string, unknown>>> {
 		assertIsoDate(date);
 		return (await this.request<Array<Record<string, unknown>> | null>(
 			`/biometric-service/biometric/powerToWeight/latest/${date}`,
-			{ query: { sport } },
+			sport ? { query: { sport } } : {},
 		)) ?? [];
 	}
 

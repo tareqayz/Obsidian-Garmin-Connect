@@ -1,5 +1,23 @@
 import type { AccountInfo } from "../sync/account";
 import type { DaySeries, SeriesPoint, SleepLevel } from "../sync/intraday";
+import {
+	DAY_MS,
+	addDays,
+	clockText,
+	dayStart,
+	distanceOf,
+	hoursText,
+	humanize,
+	lastDays,
+	num,
+	rowOn,
+	shortDate,
+	str,
+	titleCase,
+	unitsOf,
+	weekdayLetter,
+} from "./day";
+import { glanceModel, type GlanceId, type GlanceModel } from "./glance";
 import type { DayRow } from "./series";
 
 /**
@@ -13,15 +31,6 @@ import type { DayRow } from "./series";
 
 export type PresetId = "be-healthy" | "stay-active" | "track-my-training";
 export type FocusId = "sleep" | "bodyBattery" | "steps" | "activities" | "readiness" | "trainingStatus";
-export type GlanceId =
-	| "heartRate"
-	| "intensity"
-	| "calories"
-	| "stress"
-	| "steps"
-	| "bodyBattery"
-	| "sleep"
-	| "hrv";
 export type MoreId = "events" | "coachPlans" | "challenges";
 
 export interface Preset {
@@ -89,109 +98,6 @@ export interface HomeInput {
 	/** That day's series file, if one was written. */
 	series: DaySeries | null;
 	account: AccountInfo | null;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Small helpers                                                      */
-/* ------------------------------------------------------------------ */
-
-const DAY_MS = 86_400_000;
-
-/** Local midnight of a `YYYY-MM-DD` day, as epoch ms. */
-export function dayStart(date: string): number {
-	const [y, m, d] = date.split("-").map(Number);
-	return new Date(y!, m! - 1, d!).getTime();
-}
-
-export function addDays(date: string, days: number): string {
-	const [y, m, d] = date.split("-").map(Number);
-	const next = new Date(y!, m! - 1, d! + days);
-	return isoOf(next);
-}
-
-function isoOf(d: Date): string {
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** Garmin's enum spellings → words: `VERY_GOOD` → "Very good". */
-export function humanize(value: string | undefined): string | undefined {
-	if (!value) return undefined;
-	const words = value
-		.replace(/_\d+$/, "")
-		.toLowerCase()
-		.split(/[_\s]+/)
-		.filter(Boolean);
-	if (!words.length) return undefined;
-	const text = words.join(" ");
-	return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Every word capitalised, the way Garmin labels a status: "Low Need". */
-export function titleCase(value: string | undefined): string | undefined {
-	const text = humanize(value);
-	return text?.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** `7.5` → "7h 30m". */
-export function hoursText(hours: number | undefined): string | undefined {
-	if (hours === undefined || !Number.isFinite(hours)) return undefined;
-	const total = Math.round(hours * 60);
-	const h = Math.floor(total / 60);
-	const m = total % 60;
-	return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-/** Minutes → "1:20:23"-style, the way Garmin totals activity time. */
-export function clockText(minutes: number): string {
-	const total = Math.round(minutes * 60);
-	const h = Math.floor(total / 3600);
-	const m = Math.floor((total % 3600) / 60);
-	const s = total % 60;
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
-
-function rowOn(rows: readonly DayRow[], date: string): DayRow | undefined {
-	for (let i = rows.length - 1; i >= 0; i--) {
-		if (rows[i]!.date === date) return rows[i];
-		if (rows[i]!.date < date) break;
-	}
-	return undefined;
-}
-
-function num(row: DayRow | undefined, key: string): number | undefined {
-	const v = row?.values[key];
-	return typeof v === "number" && Number.isFinite(v) ? v : undefined;
-}
-
-function str(row: DayRow | undefined, key: string): string | undefined {
-	const v = row?.text?.[key];
-	return typeof v === "string" && v ? v : undefined;
-}
-
-function lastDays(rows: readonly DayRow[], date: string, days: number): Array<{ date: string; row?: DayRow }> {
-	const out: Array<{ date: string; row?: DayRow }> = [];
-	for (let i = days - 1; i >= 0; i--) {
-		const d = addDays(date, -i);
-		out.push({ date: d, row: rowOn(rows, d) });
-	}
-	return out;
-}
-
-const WEEKDAY = ["S", "M", "T", "W", "T", "F", "S"];
-
-function weekdayLetter(date: string): string {
-	return WEEKDAY[new Date(dayStart(date)).getDay()]!;
-}
-
-/** Distance in the unit the note was written in. */
-function distanceOf(row: DayRow | undefined): { value: number; unit: "km" | "mi" } | undefined {
-	const km = num(row, "distance_km");
-	if (km !== undefined) return { value: km, unit: "km" };
-	const mi = num(row, "distance_mi");
-	if (mi !== undefined) return { value: mi, unit: "mi" };
-	return undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,12 +359,6 @@ function workoutMinutes(row: DayRow | undefined): number {
 	return total;
 }
 
-const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function shortDate(date: string): string {
-	return `${MONTH[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`;
-}
-
 export function activitiesView(input: HomeInput): ActivitiesView {
 	const week = lastDays(input.rows, input.date, 7);
 	const first = week[0]!.date;
@@ -575,123 +475,6 @@ export function trainingStatusView(input: HomeInput, row: DayRow | undefined): T
 }
 
 /* ------------------------------------------------------------------ */
-/*  At a Glance                                                        */
-/* ------------------------------------------------------------------ */
-
-export interface HeartRateView {
-	current?: number;
-	resting?: number;
-	min?: number;
-	max?: number;
-}
-
-export function heartRateView(row: DayRow | undefined, series: DaySeries | null): HeartRateView | null {
-	const points = series?.heartRate ?? [];
-	let current = num(row, "hr_latest");
-	for (let i = points.length - 1; i >= 0 && current === undefined; i--) {
-		const v = points[i]![1];
-		if (v !== null) current = v;
-	}
-	const resting = num(row, "resting_hr");
-	if (current === undefined && resting === undefined) return null;
-	return { current, resting, min: num(row, "min_hr"), max: num(row, "max_hr") };
-}
-
-export interface IntensityView {
-	total: number;
-	goal: number;
-	/** Monday first: running total for each day of this week so far. */
-	week: Array<{ label: string; total: number | null; today: boolean }>;
-}
-
-/** Garmin's intensity week runs Monday to Sunday. */
-export function intensityView(input: HomeInput): IntensityView | null {
-	const today = new Date(dayStart(input.date)).getDay();
-	const back = (today + 6) % 7;
-	const monday = addDays(input.date, -back);
-	let running = 0;
-	let seen = false;
-	const week: IntensityView["week"] = [];
-	for (let i = 0; i < 7; i++) {
-		const date = addDays(monday, i);
-		const label = "MTWTFSS"[i]!;
-		if (date > input.date) {
-			week.push({ label, total: null, today: false });
-			continue;
-		}
-		const v = num(rowOn(input.rows, date), "intensity_minutes");
-		if (v !== undefined) seen = true;
-		running += v ?? 0;
-		week.push({ label, total: running, today: date === input.date });
-	}
-	if (!seen) return null;
-	const goal = num(rowOn(input.rows, input.date), "intensity_goal") ?? 150;
-	return { total: running, goal, week };
-}
-
-export interface CaloriesView {
-	total: number;
-	active?: number;
-	resting?: number;
-}
-
-export function caloriesView(row: DayRow | undefined): CaloriesView | null {
-	const total = num(row, "calories");
-	if (total === undefined) return null;
-	return { total, active: num(row, "calories_active"), resting: num(row, "calories_bmr") };
-}
-
-export interface StressView {
-	average?: number;
-	/** Minutes in each band: rest, low, medium, high. */
-	bands: [number, number, number, number];
-	points: SeriesPoint[];
-	from: number;
-	to: number;
-}
-
-export function stressView(input: HomeInput, row: DayRow | undefined): StressView | null {
-	const average = num(row, "stress_avg");
-	const points = input.series?.stress ?? [];
-	if (average === undefined && !points.length) return null;
-	const from = dayStart(input.date);
-	return {
-		average,
-		bands: [
-			num(row, "stress_rest_minutes") ?? 0,
-			num(row, "stress_low_minutes") ?? 0,
-			num(row, "stress_medium_minutes") ?? 0,
-			num(row, "stress_high_minutes") ?? 0,
-		],
-		points,
-		from,
-		to: from + DAY_MS,
-	};
-}
-
-export interface HrvView {
-	status?: string;
-	weekly?: number;
-	low?: number;
-	high?: number;
-	/** Nightly averages for four weeks, oldest first. */
-	nights: Array<number | null>;
-}
-
-export function hrvView(input: HomeInput, row: DayRow | undefined): HrvView | null {
-	const status = titleCase(str(row, "hrv_status"));
-	const weekly = num(row, "hrv_weekly_avg");
-	if (!status && weekly === undefined) return null;
-	return {
-		status,
-		weekly,
-		low: num(row, "hrv_baseline_low"),
-		high: num(row, "hrv_baseline_high"),
-		nights: lastDays(input.rows, input.date, 28).map(({ row: r }) => num(r, "hrv_avg") ?? null),
-	};
-}
-
-/* ------------------------------------------------------------------ */
 /*  Events and plans                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -758,11 +541,8 @@ export interface HomeModel {
 	activities: ActivitiesView;
 	readiness: ReadinessView | null;
 	trainingStatus: TrainingStatusView | null;
-	heartRate: HeartRateView | null;
-	intensity: IntensityView | null;
-	calories: CaloriesView | null;
-	stress: StressView | null;
-	hrv: HrvView | null;
+	/** Everything only the At a Glance cards draw. The views above are shared with In Focus. */
+	glance: GlanceModel;
 	events: EventView[];
 	plans: PlanView[];
 	/** When the watch last uploaded, for the header. */
@@ -789,11 +569,7 @@ export function homeModel(input: HomeInput): HomeModel {
 		activities: activitiesView(input),
 		readiness: readinessView(row),
 		trainingStatus: trainingStatusView(input, row),
-		heartRate: heartRateView(row, input.series),
-		intensity: intensityView(input),
-		calories: caloriesView(row),
-		stress: stressView(input, row),
-		hrv: hrvView(input, row),
+		glance: glanceModel(input, row, unitsOf(input.rows)),
 		events: eventsView(input.account, input.date),
 		plans: plansView(input.account),
 		device: input.account?.device?.name,

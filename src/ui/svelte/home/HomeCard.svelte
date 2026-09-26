@@ -11,14 +11,17 @@
 		kind?: "plain" | "focus" | "glance";
 		/** Shown instead of the body when there is nothing synced for this card. */
 		empty?: boolean;
+		/** What the empty state says; not every card's data is per day. */
+		emptyText?: string;
 		children?: Snippet;
 		aside?: Snippet;
 	}
 
-	let { title, icon, accent, kind = "plain", empty = false, children, aside }: Props = $props();
+	let { title, icon, accent, kind = "plain", empty = false, emptyText = "No data synced for today yet.", children, aside }: Props =
+		$props();
 </script>
 
-<article class="card {kind}">
+<article class="gch-card {kind}">
 	{#if title}
 		<header>
 			{#if icon}<span class="icon" style:color={accent} use:lucide={icon}></span>{/if}
@@ -27,19 +30,20 @@
 		</header>
 	{/if}
 	{#if empty}
-		<div class="none">No data synced for today yet.</div>
+		<div class="none">{emptyText}</div>
 	{:else if children}
 		{@render children()}
 	{/if}
 </article>
 
 <style>
-	.card {
+	/* Not ".card": Obsidian styles that class globally, with a 10px side
+	   margin that widened the grid's column gap past its row gap, and a border
+	   the Figma cards do not have. */
+	.gch-card {
 		background: var(--background-secondary);
 		border-radius: var(--radius-m, 8px);
 		padding: 16px;
-		/* Obsidian styles bare <article> with a side margin, which would widen
-		   the grid's column gap past its row gap. */
 		margin: 0;
 		display: flex;
 		flex-direction: column;

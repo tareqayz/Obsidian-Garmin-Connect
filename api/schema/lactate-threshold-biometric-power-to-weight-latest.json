@@ -1,0 +1,70 @@
+{
+	"endpoint": "lactate-threshold-biometric-power-to-weight-latest",
+	"path": "/biometric-service/biometric/powerToWeight/latest/{today}",
+	"plugin": "GarminApi.powerToWeight",
+	"firstRecorded": "2026-09-26T07:59:19.348Z",
+	"updatedAt": "2026-09-26T07:59:19.348Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"ftpCreateTime": {
+					"type": [
+						"string"
+					]
+				},
+				"functionalThresholdPower": {
+					"type": [
+						"number"
+					]
+				},
+				"isStale": {
+					"type": [
+						"boolean"
+					]
+				},
+				"origin": {
+					"type": [
+						"string"
+					]
+				},
+				"powerToWeight": {
+					"type": [
+						"number"
+					]
+				},
+				"sport": {
+					"type": [
+						"string"
+					]
+				},
+				"userProfilePk": {
+					"type": [
+						"number"
+					]
+				},
+				"weight": {
+					"type": [
+						"number"
+					]
+				},
+				"weightCreateTime": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

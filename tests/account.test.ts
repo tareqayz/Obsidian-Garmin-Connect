@@ -44,10 +44,34 @@ describe("mapAccount", () => {
 		assert.equal(account.lactateThreshold?.heartRate, 180);
 	});
 
+	it("reads the sex Garmin grades VO2 Max and FTP by, and nothing else from settings", () => {
+		assert.deepEqual(mapAccount({ settings: { userData: { gender: "MALE", birthDate: "2003-01-01", height: 169 } } }), {
+			sex: "male",
+		});
+		assert.equal(mapAccount({ settings: { userData: { gender: "FEMALE" } } })?.sex, "female");
+		assert.equal(mapAccount({ settings: { userData: { gender: "OTHER" } } }), null);
+	});
+
+	it("files each power-to-weight row under its sport, cross-country skiing included", () => {
+		const account = mapAccount({
+			ftp: [
+				{ sport: "CYCLING", calendarDate: "2025-11-02T23:00:11.5", functionalThresholdPower: 274, powerToWeight: 4.0294 },
+				{ sport: "CROSS_COUNTRY_SKIING", calendarDate: "2025-11-02T23:00:11.5", functionalThresholdPower: 111, powerToWeight: 1.6324, isStale: true },
+				{ sport: "RUNNING", calendarDate: "2026-09-19T11:22:14.0", functionalThresholdPower: 354, powerToWeight: 5.2059 },
+				{ sport: "ROWING", functionalThresholdPower: 200 },
+			],
+		})!;
+		assert.deepEqual(account.ftp, {
+			cycling: { date: "2025-11-02", watts: 274, wattsPerKg: 4.03 },
+			xcSkiing: { date: "2025-11-02", watts: 111, wattsPerKg: 1.63 },
+			running: { date: "2026-09-19", watts: 354, wattsPerKg: 5.21 },
+		});
+	});
+
 	it("maps FTP, economy, ability, device, events and records", () => {
 		const account = mapAccount({
 			device: { lastUsedDeviceName: "Forerunner 970", imageUrl: "https://res/x.png", lastUsedDeviceUploadTime: 0 },
-			ftpRunning: [{ calendarDate: "2026-09-19T11:22:14.0", functionalThresholdPower: 354, powerToWeight: 5.2058 }],
+			ftp: [{ sport: "RUNNING", calendarDate: "2026-09-19T11:22:14.0", functionalThresholdPower: 354, powerToWeight: 5.2058 }],
 			runningEconomy: { calendarDate: "2026-09-25", score: 223, classification: "INTERMEDIATE" },
 			cyclingAbility: { calendarDate: "2026-09-25", aerobicEndurance: 18, profileType: "NOT_AVAILABLE", deviceId: null },
 			plans: {
@@ -112,8 +136,9 @@ describe("fetchAccount", () => {
 	it("reuses the session's profile and counts only real requests", async () => {
 		const src = source();
 		const got = await fetchAccount(src, "2026-09-25", "metric");
-		assert.equal(got.requests, 10);
-		assert.equal(src.calls, 10);
+		// One unfiltered power-to-weight call serves every sport's FTP.
+		assert.equal(got.requests, 9);
+		assert.equal(src.calls, 9);
 		assert.equal(got.account?.lactateThreshold?.heartRate, 182);
 	});
 

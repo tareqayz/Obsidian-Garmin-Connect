@@ -1,0 +1,140 @@
+{
+	"endpoint": "all-day-stress",
+	"path": "/wellness-service/wellness/dailyStress/{date}",
+	"plugin": "GarminApi.stress",
+	"firstRecorded": "2026-09-26T07:59:19.344Z",
+	"updatedAt": "2026-09-26T07:59:19.344Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"avgStressLevel": {
+				"type": [
+					"number"
+				]
+			},
+			"bodyBatteryValueDescriptorsDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"bodyBatteryValueDescriptorIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"bodyBatteryValueDescriptorKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"bodyBatteryValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number",
+							"string"
+						]
+					}
+				}
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"maxStressLevel": {
+				"type": [
+					"number"
+				]
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"stressChartValueOffset": {
+				"type": [
+					"number"
+				]
+			},
+			"stressChartYAxisOrigin": {
+				"type": [
+					"number"
+				]
+			},
+			"stressValueDescriptorsDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"index": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"stressValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}
