@@ -15,7 +15,9 @@ Your password is used for one request and never written anywhere. If your accoun
 | **Sync recent days** | The last *N* days (default 3) |
 | **Sync today** | Just today |
 | **Sync a date range…** | Backfill. Shows a request estimate before you commit |
+| **Sync activity history** | Every activity on the account, for the Activities pages: about one request per hundred activities |
 | **Open dashboard** | Home, the Garmin Connect–style screen |
+| **Open activities** | Home, opened on the Activities pages |
 | **Open classic dashboard** | The previous charts pane, kept until the rebuild is finished |
 | **Rebuild the Garmin table view** | Regenerates the Bases view from current settings |
 | **Run connectivity probe** | Diagnostics — see [Troubleshooting](troubleshooting.md) |
@@ -84,6 +86,38 @@ you can hold your phone next to it and check that every number arrived.
   `account.json`, so the **intraday** and **profile** groups need to be on.
   Challenges are not synced yet, so that card only ever shows Garmin's empty
   state.
+- **⋯** in the header opens **More**, which holds **Activities** (the rest of the
+  app's More tab comes later). On the Stay active and Track my training presets,
+  the All Activities card in In Focus opens All Activities too.
+
+## Activities
+
+Garmin Connect's Activities section, for checking against the phone the same
+way as Home.
+
+- The hub lists Running, Cycling, Gym & Fitness Equipment, Swimming, Hiking,
+  Multisport and Other, each sorted the way Garmin sorts them (yoga, stair
+  climbing and mobility are Gym; walking and meditation are Other), then All
+  Activities.
+- A sport's page has the sub-type picker in its title (All Running, Treadmill
+  Running, Trail Running… — only the ones you have recorded), **7d / 4w / 1y**,
+  **‹ ›** to step back and forward a whole period, and a tab per measure the app
+  shows for that sport: Distance, Time, Ascent and Calories for running, cycling,
+  hiking and multisport; Time and Calories for the gym; Distance and Time for
+  swimming; Time for Other. Under the chart are the total and the daily, weekly
+  or monthly averages, then the activities — or, over a year, one row a month,
+  which opens that month.
+- **View Personal Records** opens the records for that sport: Steps, Running,
+  Cycling, Swimming and Strength, with every distance Garmin keeps a record for,
+  whether you have one or not.
+- Activity rows don't open anything yet: there is no activity screen to open.
+- The pages read the **activity index**, which the sync keeps beside the notes
+  (see the [property reference](properties.md#the-activity-index--activities)).
+  Until it holds your whole history, the sport pages say so and offer **Sync
+  history**; it also runs by itself after the first sync of a session. After
+  that, routine syncs keep it current with the request they already make.
+- Panes from 1000px wide put the controls on one row, the totals beside the
+  chart and the lists three across.
 
 ## The classic dashboard
 

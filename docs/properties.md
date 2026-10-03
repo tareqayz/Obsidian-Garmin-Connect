@@ -399,7 +399,7 @@ Nothing in the notes; about nine requests per sync, written to
 | `cyclingAbility` | GraphQL `cyclingAbility.latest` |
 | `trainingPlans` | `trainingplan/plans`, completed plans left out |
 | `events` — `name`, `date`, `type`, `distanceMetres`, `goalSeconds` | GraphQL `myDayCardEventsScalar` |
-| `personalRecords` — `type` (`run_5k`, …), `value`, `date`, `activityId` | `personalrecord/prs/{displayName}` |
+| `personalRecords` — `type` (`run_5k`, …), `typeId`, `value`, `date`, `activityId` | `personalrecord/prs/{displayName}`. `typeId` is Garmin's prtypes id (running 1–7, cycling 8–11, steps 12–16, swimming 17–26, strength 28–32 and 45–51). `date` is the activity's **local** day, as the app shows it |
 
 ## intraday
 
@@ -494,6 +494,63 @@ person and slow for the metadata cache.
 
 The `workouts` key is omitted entirely on a day with no activities, rather than
 written as an empty list.
+
+### The activity index — `activities/`
+
+The Activities pages (Home → ⋯ → Activities) read neither the notes nor their
+`workouts` rows. A note only covers days a sync has reached, and its row rounds
+for reading: a year of runs summed from rows rounded to 10 m reads 1,169 km
+where the app says 1,168.9. So the same activity list also fills an index of
+every activity on the account, with Garmin's raw numbers:
+
+```
+<dataFolder>/activities/index.json
+<dataFolder>/activities/2025.json
+<dataFolder>/activities/2026.json
+```
+
+```jsonc
+// 2026.json — newest first, one activity per line, keys always in this order.
+{
+	"version": 1,
+	"year": 2026,
+	"activities": [
+		{"id":20460000001,"name":"Morning Run","type":"running","typeId":1,"parentTypeId":17,"start":"2026-10-03T14:59:19","begin":1791025159000,"distance":8008.75,"duration":2493.64,"ascent":52,"calories":543}
+	]
+}
+```
+
+| Key | Unit | Source field |
+| --- | --- | --- |
+| `id` | — | `activityId` |
+| `name` | — | `activityName` |
+| `type`, `typeId`, `parentTypeId` | — | `activityType`. The parent decides the page: treadmill_running (18) sits under running (1), yoga under fitness equipment (29) |
+| `start` | local time | `startTimeLocal`. The year in the file name is this one's |
+| `begin` | epoch ms | `beginTimestamp`, which orders the list |
+| `distance` | metres | `distance` |
+| `duration` | seconds | `duration`, the app's total time |
+| `ascent` | metres | `elevationGain` |
+| `calories` | kcal | `calories` |
+
+Numbers are rounded to two decimals, past anything a page shows; a key is left
+out when the activity has nothing for it. `index.json` holds `complete` (the
+index has the whole history), `units` (the account's, at the last sync) and
+`total` (how long the list was when last counted).
+
+How it fills:
+
+- **Every sync** merges the first page of the list it already fetches for the
+  notes: new activities are added, edited ones updated, and one Garmin no longer
+  lists is dropped, but only more than a day inside the stretch that page covers.
+- **The whole history** comes once, about one request per hundred activities:
+  automatically after the first sync of a session while `complete` is false, or
+  with the **Sync activity history** command. It stops on a 429 and leaves
+  `complete` false, so the next session finishes it.
+- A year file is rewritten only when its text changes, so a routine sync touches
+  at most the current year, and only when an activity was added or edited.
+
+Multisport legs are not in the list, so they are not in the index either: a
+triathlon counts once, under Multisport.
 
 ## Querying
 

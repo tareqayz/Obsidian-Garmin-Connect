@@ -92,6 +92,14 @@ describe("mapAccount", () => {
 			records: [
 				{ typeId: 3, value: 1180.4, actStartDateTimeInGMTFormatted: "2026-03-09T16:16:11.0", activityId: 7 },
 				{ typeId: 12, value: 44502, actStartDateTimeInGMTFormatted: "2025-09-16T00:00:00.0", activityId: 0 },
+				{
+					typeId: 5,
+					value: 6333.795,
+					activityStartDateTimeLocalFormatted: "2025-08-17T17:10:02.0",
+					actStartDateTimeInGMTFormatted: "2025-08-18T00:10:02.0",
+					activityId: 9,
+				},
+				{ typeId: 30, value: 100, prStartTimeLocalFormatted: "2026-01-02T08:00:00.0", activityId: 11 },
 			],
 		})!;
 		assert.deepEqual(account.device, {
@@ -107,8 +115,11 @@ describe("mapAccount", () => {
 			{ name: "70.3", date: "2026-10-24", type: "multi_sport_triathlon", primary: false, distanceMetres: 113000, goalSeconds: 20700 },
 		]);
 		assert.deepEqual(account.personalRecords, [
-			{ type: "run_5k", value: 1180.4, date: "2026-03-09", activityId: 7 },
-			{ type: "steps_best_day", value: 44502, date: "2025-09-16" },
+			{ type: "run_5k", typeId: 3, value: 1180.4, date: "2026-03-09", activityId: 7 },
+			{ type: "steps_best_day", typeId: 12, value: 44502, date: "2025-09-16" },
+			// The local day, not the GMT one: the app shows the 17th.
+			{ type: "run_half_marathon", typeId: 5, value: 6333.795, date: "2025-08-17", activityId: 9 },
+			{ type: "strength_squat", typeId: 30, value: 100, date: "2026-01-02", activityId: 11 },
 		]);
 	});
 });

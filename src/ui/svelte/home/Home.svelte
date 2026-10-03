@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { tick } from "svelte";
+	import type { ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
+	import { pop, push, replace, top, type Route } from "../../../dashboard/routes";
+	import type { HistoryProgress } from "../../../sync/runner";
+	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
+	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
+	import CategoryPage from "../activities/CategoryPage.svelte";
+	import MonthPage from "../activities/MonthPage.svelte";
+	import MorePage from "../activities/MorePage.svelte";
+	import RecordsPage from "../activities/RecordsPage.svelte";
 	import EmptyCard from "./EmptyCard.svelte";
 	import FocusActivities from "./FocusActivities.svelte";
 	import FocusBattery from "./FocusBattery.svelte";
@@ -23,9 +32,16 @@
 	 * In Focus carousel into a row and run At a Glance several cards across.
 	 * Which layout is decided by the pane's own width (a container query), not
 	 * the device, since an Obsidian leaf can be narrow on a desktop.
+	 *
+	 * The other pages — See All, More, Activities — open on top of Home inside
+	 * the same view, as a stack that Back walks down.
 	 */
 	interface Props {
 		initialModel: HomeModel;
+		initialActivities: ActivitiesData;
+		/** Home at the bottom, then whatever was open when the view was last saved. */
+		initialStack: Route[];
+		initialHistory: HistoryProgress | null;
 		initialPreset: PresetId;
 		initialHidden: MoreId[];
 		/** The At a Glance list once it has been edited; absent means the preset's. */
@@ -37,9 +53,27 @@
 		onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) => void;
 		/** Add a Stat, from See All's edit mode. */
 		onPick: (current: GlanceId[]) => Promise<GlanceId | null>;
+		/** Every page change, so the view can save where it is. */
+		onRoute: (stack: Route[]) => void;
+		onSyncHistory: () => void;
 	}
 
-	let { initialModel, initialPreset, initialHidden, initialGlance, today, canSync, onSync, onChange, onPick }: Props = $props();
+	let {
+		initialModel,
+		initialActivities,
+		initialStack,
+		initialHistory,
+		initialPreset,
+		initialHidden,
+		initialGlance,
+		today: initialToday,
+		canSync,
+		onSync,
+		onChange,
+		onPick,
+		onRoute,
+		onSyncHistory,
+	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
 	// svelte-ignore state_referenced_locally
@@ -50,9 +84,30 @@
 	let hidden = $state<MoreId[]>(initialHidden);
 	// svelte-ignore state_referenced_locally
 	let glance = $state<GlanceId[] | undefined>(initialGlance);
+	// svelte-ignore state_referenced_locally
+	let today = $state(initialToday);
+	// svelte-ignore state_referenced_locally
+	let activities = $state(initialActivities);
+	// svelte-ignore state_referenced_locally
+	let history = $state<HistoryProgress | null>(initialHistory);
 
-	export function setModel(next: HomeModel) {
+	/** A view left open past midnight moves on to the new day with its next refresh. */
+	export function setModel(next: HomeModel, nextToday?: string) {
 		model = next;
+		if (nextToday) today = nextToday;
+	}
+
+	export function setActivities(next: ActivitiesData) {
+		activities = next;
+	}
+
+	export function setHistory(next: HistoryProgress | null) {
+		history = next;
+	}
+
+	/** Opens a stack of pages from outside, as a command does. */
+	export function navigate(next: Route[]) {
+		void show(next, false);
 	}
 
 	let preset = $derived(presetFor(presetId));
@@ -84,18 +139,43 @@
 		onChange(presetId, hidden, glance);
 	}
 
-	/* See All is a page of its own inside the view; Home's scroll position is
-	   kept for the way back. */
-	let page = $state<"home" | "glance">("home");
+	/* Pages open on top of Home and Back returns to where each one was
+	   scrolled; a new page starts at the top. */
+	// svelte-ignore state_referenced_locally
+	let stack = $state<Route[]>(initialStack);
+	let current = $derived(top(stack));
 	let root = $state<HTMLElement | null>(null);
-	let homeScroll = 0;
+	const scrolls: number[] = [];
 
-	async function openPage(next: "home" | "glance") {
+	async function show(next: Route[], restore: boolean) {
 		const scroller = root?.closest<HTMLElement>(".view-content");
-		if (next === "glance") homeScroll = scroller?.scrollTop ?? 0;
-		page = next;
+		stack = next;
+		onRoute(next);
 		await tick();
-		if (scroller) scroller.scrollTop = next === "home" ? homeScroll : 0;
+		if (scroller) scroller.scrollTop = restore ? (scrolls[next.length - 1] ?? 0) : 0;
+	}
+
+	function go(route: Route) {
+		scrolls[stack.length - 1] = root?.closest<HTMLElement>(".view-content")?.scrollTop ?? 0;
+		void show(push(stack, route), false);
+	}
+
+	function back() {
+		void show(pop(stack), true);
+	}
+
+	/** A filter or a tab: the same page with other settings, staying where it is scrolled. */
+	function swap(route: Route) {
+		stack = replace(stack, route);
+		onRoute(stack);
+	}
+
+	function openAll(e: KeyboardEvent | MouseEvent) {
+		if (e instanceof KeyboardEvent) {
+			if (e.key !== "Enter" && e.key !== " ") return;
+			e.preventDefault();
+		}
+		go({ page: "all" });
 	}
 
 	async function sync() {
@@ -140,7 +220,8 @@
 	{#if id === "sleep"}<FocusSleep sleep={model.sleep} />
 	{:else if id === "bodyBattery"}<FocusBattery battery={model.battery} />
 	{:else if id === "steps"}<FocusSteps steps={model.steps} />
-	{:else if id === "activities"}<FocusActivities activities={model.activities} />
+	{:else if id === "activities"}
+		<div class="tap" role="button" tabindex="0" onclick={openAll} onkeydown={openAll}><FocusActivities activities={model.activities} /></div>
 	{:else if id === "readiness"}<FocusReadiness readiness={model.readiness} />
 	{:else if id === "trainingStatus"}<FocusTraining status={model.trainingStatus} />
 	{/if}
@@ -153,8 +234,20 @@
 {/snippet}
 
 <div class="gch-root" bind:this={root}>
-	{#if page === "glance"}
-		<SeeAll {model} list={glanceList} onBack={() => void openPage("home")} onSave={saveGlance} {onPick} />
+	{#if current.page === "glance"}
+		<SeeAll {model} list={glanceList} onBack={back} onSave={saveGlance} {onPick} />
+	{:else if current.page === "more"}
+		<MorePage onBack={back} {go} />
+	{:else if current.page === "activities"}
+		<ActivitiesHub onBack={back} {go} />
+	{:else if current.page === "category"}
+		<CategoryPage route={current} data={activities} {today} {history} {canSync} onBack={back} {go} {swap} {onSyncHistory} />
+	{:else if current.page === "month"}
+		<MonthPage route={current} data={activities} onBack={back} />
+	{:else if current.page === "records"}
+		<RecordsPage route={current} data={activities} onBack={back} {swap} />
+	{:else if current.page === "all"}
+		<AllActivitiesPage data={activities} onBack={back} />
 	{:else}
 		<header class="pane-header">
 			<div class="title">
@@ -171,6 +264,9 @@
 				<button class="clickable-icon" aria-label="Sync recent days" disabled={!canSync || syncing} onclick={sync}>
 					<span class:spin={syncing} use:lucide={"refresh-cw"}></span>
 				</button>
+				<button class="clickable-icon" aria-label="More" onclick={() => go({ page: "more" })}>
+					<span use:lucide={"ellipsis"}></span>
+				</button>
 			</div>
 		</header>
 
@@ -181,7 +277,7 @@
 		{:else}
 			<div class="content">
 				{#if model.date !== today}
-					<div class="notice">Today isn’t synced yet. Showing {dateLabel}.</div>
+					<div class="stale">Today isn’t synced yet. Showing {dateLabel}.</div>
 				{/if}
 
 				<div class="top-row">
@@ -243,7 +339,7 @@
 				<div class="narrow-only">{@render coach()}</div>
 
 				<section>
-					<SectionHeader title="At a Glance" action="See All" onAction={() => void openPage("glance")} />
+					<SectionHeader title="At a Glance" action="See All" onAction={() => go({ page: "glance" })} />
 					<div class="glance">
 						{#each glanceList.slice(0, HOME_GLANCE) as id (id)}<Glance {id} {model} />{:else}
 							<div class="glance-none">
@@ -371,7 +467,8 @@
 		margin: 0 auto;
 		box-sizing: content-box;
 	}
-	.notice {
+	/* Not ".notice": Obsidian styles that class as its toast. */
+	.stale {
 		color: var(--text-muted);
 		font-size: 13px;
 	}
@@ -418,6 +515,20 @@
 	}
 	.slide > :global(*) {
 		flex: 1;
+	}
+	/* The All Activities card opens All Activities, as it does in the app. */
+	.tap {
+		display: flex;
+		flex-direction: column;
+		cursor: pointer;
+		border-radius: var(--radius-m, 8px);
+	}
+	.tap > :global(*) {
+		flex: 1;
+	}
+	.tap:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
 	}
 	.dots {
 		display: flex;

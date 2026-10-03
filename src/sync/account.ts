@@ -46,6 +46,8 @@ export interface AccountInfo {
 	}>;
 	personalRecords?: Array<{
 		type: string;
+		/** Garmin's prtypes id. Files written before it was kept have only `type`. */
+		typeId?: number;
 		value?: number;
 		date?: string;
 		activityId?: number;
@@ -257,9 +259,17 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 		const row: NonNullable<AccountInfo["personalRecords"]>[number] = {
 			type: (typeId !== undefined && PR_TYPES[typeId]) || `type_${typeId ?? "unknown"}`,
 		};
+		if (typeId !== undefined) row.typeId = typeId;
 		const value = num(pr.value);
 		if (value !== undefined) row.value = value;
-		const date = dayOf(pr.actStartDateTimeInGMTFormatted ?? pr.prStartTimeGmtFormatted);
+		// The local day, as the app shows it: a half marathon run on the evening
+		// of the 17th in California is the 18th in GMT.
+		const date = dayOf(
+			pr.activityStartDateTimeLocalFormatted ??
+				pr.prStartTimeLocalFormatted ??
+				pr.actStartDateTimeInGMTFormatted ??
+				pr.prStartTimeGmtFormatted,
+		);
 		if (date) row.date = date;
 		// Step records have no activity and say so with 0.
 		const activityId = num(pr.activityId);
@@ -274,10 +284,12 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 }
 
 /**
- * Garmin's `prtypes` ids, from `personalrecordtype/prtypes`. Values are seconds
- * for the timed ones, metres for distances, steps for the step ones.
+ * Garmin's `prtypes` ids, from `personalrecordtype/prtypes/{displayName}`.
+ * Values are seconds for the timed ones, metres for distances, steps for the
+ * step ones, days for streaks, watts for power. 27 is a hidden step type and
+ * 33-44 are wheelchair records, which no tab shows.
  */
-const PR_TYPES: Record<number, string> = {
+export const PR_TYPES: Record<number, string> = {
 	1: "run_1k",
 	2: "run_1mile",
 	3: "run_5k",
@@ -298,6 +310,24 @@ const PR_TYPES: Record<number, string> = {
 	18: "swim_100m_pool",
 	19: "swim_100yd_pool",
 	20: "swim_400m_pool",
+	21: "swim_500yd_pool",
+	22: "swim_750m_pool",
+	23: "swim_1000m_pool",
+	24: "swim_1000yd_pool",
+	25: "swim_1500m_pool",
+	26: "swim_1650yd_pool",
+	28: "strength_bench_press",
+	29: "strength_overhead_press",
+	30: "strength_squat",
+	31: "strength_deadlift",
+	32: "strength_row",
+	45: "strength_barbell_biceps_curl",
+	46: "strength_dumbbell_squat",
+	47: "strength_dumbbell_row",
+	48: "strength_dumbbell_deadlift",
+	49: "strength_dumbbell_biceps_curl",
+	50: "strength_dumbbell_bench_press",
+	51: "strength_overhead_dumbbell_press",
 };
 
 /**

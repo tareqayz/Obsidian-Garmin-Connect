@@ -750,7 +750,20 @@
 				"summary": "Return total number of activities for the current user account.",
 				"args": [],
 				"line": 2366
-			}
+			},
+			"plugin": "GarminApi.activityCount",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "session",
+			"check": true,
+			"critical": [],
+			"schema": "schema/count-activities.json",
+			"notes": "Sizes the activity history backfill. The activity list leaves multisport legs out, so its length is totalCount - multisportChildCount.",
+			"reads": [
+				"totalCount",
+				"multisportChildCount"
+			]
 		},
 		{
 			"id": "create-gear",
@@ -1490,8 +1503,13 @@
 				"[].steps",
 				"[].elevationGain",
 				"[].movingDuration",
-				"[].aerobicTrainingEffect"
-			]
+				"[].aerobicTrainingEffect",
+				"[].beginTimestamp",
+				"[].activityType.typeId",
+				"[].activityType.parentTypeId",
+				"[].isParent"
+			],
+			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time."
 		},
 		{
 			"id": "goals",
@@ -2354,11 +2372,15 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/personal-record.json",
-			"notes": "typeId is mapped to a name from personalrecordtype/prtypes (ids 1-20).",
+			"notes": "typeId is mapped to a name from personalrecordtype/prtypes/{displayName}: running 1-7, cycling 8-11, steps 12-16, swimming 17-26, strength 28-32 and 45-51. The date is the activity's local day, as the app shows it.",
 			"reads": [
 				"[].typeId",
 				"[].value",
-				"[].activityId"
+				"[].activityId",
+				"[].activityStartDateTimeLocalFormatted",
+				"[].prStartTimeLocalFormatted",
+				"[].actStartDateTimeInGMTFormatted",
+				"[].prStartTimeGmtFormatted"
 			]
 		},
 		{
