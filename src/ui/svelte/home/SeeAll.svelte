@@ -12,6 +12,7 @@
 	import type { HomeModel } from "../../../dashboard/home";
 	import Glance from "./Glance.svelte";
 	import HomeCard from "./HomeCard.svelte";
+	import PageBar from "./PageBar.svelte";
 	import { lucide } from "./lucide";
 
 	/**
@@ -148,17 +149,16 @@
 	}
 </script>
 
-<header class="page-bar">
-	{#if editing}
-		<button class="link" onclick={cancel}>Cancel</button>
-		<strong>Edit At a Glance</strong>
-		<button class="link" disabled={!changed} onclick={save}>Save</button>
-	{:else}
-		<button class="clickable-icon back" aria-label="Back to Home" onclick={onBack}><span use:lucide={"chevron-left"}></span></button>
-		<strong>At a Glance</strong>
-		<button class="link" onclick={edit}>Edit</button>
-	{/if}
-</header>
+{#if editing}
+	<PageBar title="Edit At a Glance">
+		{#snippet left()}<button class="link" onclick={cancel}>Cancel</button>{/snippet}
+		{#snippet right()}<button class="link" disabled={!changed} onclick={save}>Save</button>{/snippet}
+	</PageBar>
+{:else}
+	<PageBar title="At a Glance" {onBack} backLabel="Back to Home">
+		{#snippet right()}<button class="link" onclick={edit}>Edit</button>{/snippet}
+	</PageBar>
+{/if}
 
 <div class="content">
 	{#if editing}
@@ -212,28 +212,6 @@
 </div>
 
 <style>
-	.page-bar {
-		display: grid;
-		grid-template-columns: 1fr auto 1fr;
-		align-items: center;
-		gap: 12px;
-		min-height: 44px;
-		padding: 0 16px 0 12px;
-		border-bottom: 1px solid var(--background-modifier-border);
-		background: var(--background-primary);
-	}
-	.page-bar strong {
-		font-size: 15px;
-		font-weight: 600;
-		text-align: center;
-		white-space: nowrap;
-	}
-	.page-bar > :first-child {
-		justify-self: start;
-	}
-	.page-bar > :last-child {
-		justify-self: end;
-	}
 	.link {
 		color: var(--text-accent);
 		font-size: 15px;
@@ -247,9 +225,6 @@
 	.link:disabled {
 		color: var(--text-faint);
 		cursor: default;
-	}
-	.back {
-		color: var(--text-muted);
 	}
 	.content {
 		padding: 16px 16px 32px;
@@ -407,9 +382,6 @@
 		.content {
 			--gch-gap: 16px;
 			padding: 16px 32px 32px;
-		}
-		.page-bar {
-			padding: 0 24px 0 20px;
 		}
 		.glance {
 			grid-template-columns: repeat(4, minmax(0, 1fr));

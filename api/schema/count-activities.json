@@ -1,0 +1,35 @@
+{
+	"endpoint": "count-activities",
+	"path": "/activitylist-service/activities/count",
+	"plugin": "GarminApi.activityCount",
+	"firstRecorded": "2026-10-03T17:59:57.007Z",
+	"updatedAt": "2026-10-03T17:59:57.007Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"multisportChildCount": {
+				"type": [
+					"number"
+				]
+			},
+			"multisportParentCount": {
+				"type": [
+					"number"
+				]
+			},
+			"nonMultisportCount": {
+				"type": [
+					"number"
+				]
+			},
+			"totalCount": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

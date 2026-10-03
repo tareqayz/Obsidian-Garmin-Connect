@@ -215,7 +215,28 @@ export interface Activity {
 	anaerobicTrainingEffect?: number | null;
 	vO2MaxValue?: number | null;
 	averageRunningCadenceInStepsPerMinute?: number | null;
-	activityType?: { typeKey?: string; [key: string]: unknown };
+	/** Epoch ms of the start; the list is ordered by it, newest first. */
+	beginTimestamp?: number | null;
+	/**
+	 * `parentTypeId` is the next type up Garmin's tree: treadmill_running (18)
+	 * sits under running (1), which sits under "all" (17).
+	 */
+	activityType?: { typeId?: number; typeKey?: string; parentTypeId?: number; [key: string]: unknown };
+	/** A multisport activity. Its legs are separate activities that the list leaves out. */
+	isParent?: boolean;
+	/** On a multisport leg: the multisport activity it belongs to. */
+	parentId?: number | null;
+	[key: string]: unknown;
+}
+
+/** `/activitylist-service/activities/count`. */
+export interface ActivityCount {
+	/** Every activity, multisport legs included. */
+	totalCount?: number;
+	/** The legs, which the activity list leaves out. */
+	multisportChildCount?: number;
+	multisportParentCount?: number;
+	nonMultisportCount?: number;
 	[key: string]: unknown;
 }
 
@@ -685,6 +706,11 @@ export class GarminApi extends GarminClient {
 			`/personalrecord-service/personalrecord/prs/${who}`,
 			{ query: { includeHistory: "false" } },
 		)) ?? [];
+	}
+
+	/** How many activities the account has. The list's length is `totalCount - multisportChildCount`. */
+	async activityCount(): Promise<ActivityCount> {
+		return (await this.request<ActivityCount | null>("/activitylist-service/activities/count")) ?? {};
 	}
 
 	async activities(start = 0, limit = 20): Promise<Activity[]> {

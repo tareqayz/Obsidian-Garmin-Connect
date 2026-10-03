@@ -75,6 +75,19 @@ export interface NoteTarget {
 	write(date: string, properties: Properties): Promise<WriteOutcome>;
 }
 
+/**
+ * Where the activity list ends up besides the day notes: the activity index
+ * the Activities pages read (`activity-index.ts`).
+ */
+export interface ActivitySink {
+	/**
+	 * Folds in what the list returned, newest first from its first page.
+	 * `complete` says it reached the end of the list: the whole history.
+	 * Resolves with how many files changed.
+	 */
+	merge(listing: readonly Activity[], complete: boolean): Promise<number>;
+}
+
 export interface SyncOptions {
 	/** Inclusive ISO dates. */
 	from: string;
@@ -83,6 +96,11 @@ export interface SyncOptions {
 	units: "metric" | "imperial";
 	/** Where intraday series go. Without one the `intraday` group fetches nothing. */
 	series?: SeriesTarget;
+	/**
+	 * Where the activity list goes for the activity index. Fed whenever the
+	 * `workouts` group is on, even when no day in the range can be written.
+	 */
+	activities?: ActivitySink;
 	/**
 	 * How many of the newest days in a run get intraday series. They cost four
 	 * requests a day, and a year's backfill of them would be 1,460 requests for
@@ -136,6 +154,8 @@ export interface SyncReport {
 	requests: number;
 	/** Days whose series file was created or changed. */
 	seriesWritten: number;
+	/** Activity index files created or changed. */
+	activityFilesWritten: number;
 }
 
 /**
@@ -257,6 +277,7 @@ export async function syncRange(
 		failed: 0,
 		requests: 0,
 		seriesWritten: 0,
+		activityFilesWritten: 0,
 	};
 	if (dates.length === 0) return report;
 
@@ -271,7 +292,10 @@ export async function syncRange(
 			report.skipped += 1;
 		}
 	}
-	if (due.length === 0) {
+	// The activity index wants the list even when no note does: it is how a
+	// new activity reaches the Activities pages.
+	const indexing = Boolean(wanted.workouts && opts.activities);
+	if (due.length === 0 && !indexing) {
 		log.warn("nothing in this range can be written to — nothing fetched");
 		return finish(report, log);
 	}
@@ -279,14 +303,25 @@ export async function syncRange(
 	let workoutsByDate = new Map<string, Activity[]>();
 	if (wanted.workouts) {
 		try {
-			const { activities, requests } = await fetchActivitiesFor(source, opts.from);
+			const { activities, requests, reachedEnd } = await fetchActivitiesFor(source, opts.from);
 			report.requests += requests;
 			workoutsByDate = bucketWorkoutsByDate(activities);
 			log.detail("workouts found", activities.length);
+			if (opts.activities) {
+				try {
+					report.activityFilesWritten += await opts.activities.merge(activities, reachedEnd);
+				} catch (err) {
+					note(report, log, `activity index: ${message(err)}`);
+				}
+			}
 		} catch (err) {
 			if (isFatal(err)) return stop(report, err, log);
 			log.warn(`activity list failed: ${message(err)}`);
 		}
+	}
+	if (due.length === 0) {
+		log.warn("nothing in this range can be written to");
+		return finish(report, log);
 	}
 
 	// VO2 Max and race predictions come back for a whole range in one request,
@@ -610,29 +645,95 @@ const MAX_ACTIVITY_PAGES = 5;
 /**
  * Walks the activity list back to `from` rather than asking per day — one paged
  * call covers the whole range, where per-day queries would be one request each.
+ * `reachedEnd` says a short page came back: there is nothing older at all.
  */
 async function fetchActivitiesFor(
 	source: SyncSource,
 	from: string,
-): Promise<{ activities: Activity[]; requests: number }> {
+): Promise<{ activities: Activity[]; requests: number; reachedEnd: boolean }> {
 	const activities: Activity[] = [];
 	let requests = 0;
 
 	for (let page = 0; page < MAX_ACTIVITY_PAGES; page++) {
 		const batch = await source.activities(page * ACTIVITY_PAGE, ACTIVITY_PAGE);
 		requests += 1;
-		if (!batch.length) break;
 		activities.push(...batch);
+		if (batch.length < ACTIVITY_PAGE) return { activities, requests, reachedEnd: true };
 
 		const oldest = batch
 			.map((a) => localDateOf(a.startTimeLocal))
 			.filter((d): d is string => Boolean(d))
 			.sort()[0];
 		if (oldest && oldest < from) break;
-		if (batch.length < ACTIVITY_PAGE) break;
 	}
 
-	return { activities, requests };
+	return { activities, requests, reachedEnd: false };
+}
+
+export interface HistoryOptions {
+	/** Activities per request. The list honours 100. */
+	pageSize?: number;
+	/** Courtesy pause between pages, in ms. */
+	pause?: number;
+	onPage?: (fetched: number) => void;
+	shouldStop?: () => boolean;
+	/** Injectable for tests. */
+	wait?: (ms: number) => Promise<void>;
+}
+
+export interface HistoryFetch {
+	/** Newest first, from the first page down, with nothing missing in between. */
+	activities: Activity[];
+	requests: number;
+	/** The list ran out: this is the whole history. */
+	complete: boolean;
+	/** A 429 or a dead session. What came before it is still a usable listing. */
+	fatal?: unknown;
+	error?: string;
+}
+
+/**
+ * Pages through the whole activity list, for the activity index. About one
+ * request per hundred activities, once; routine syncs only read the first page.
+ */
+export async function fetchAllActivities(
+	source: Pick<SyncSource, "activities">,
+	opts: HistoryOptions = {},
+): Promise<HistoryFetch> {
+	const size = Math.max(1, opts.pageSize ?? 100);
+	const wait = opts.wait ?? defaultWait;
+	const out: HistoryFetch = { activities: [], requests: 0, complete: false };
+	const seen = new Set<unknown>();
+
+	for (let page = 0; ; page++) {
+		if (opts.shouldStop?.()) return out;
+		let batch: Activity[];
+		try {
+			batch = await source.activities(page * size, size);
+		} catch (err) {
+			out.requests += 1;
+			if (isFatal(err)) out.fatal = err;
+			else out.error = message(err);
+			return out;
+		}
+		out.requests += 1;
+
+		// A list that ignored `start` would hand back the same page forever.
+		const fresh = batch.filter((a) => !seen.has(a.activityId));
+		if (batch.length && !fresh.length) {
+			out.error = "the activity list stopped advancing";
+			return out;
+		}
+		for (const a of fresh) seen.add(a.activityId);
+		out.activities.push(...fresh);
+		opts.onPage?.(out.activities.length);
+
+		if (batch.length < size) {
+			out.complete = true;
+			return out;
+		}
+		if (opts.pause) await wait(opts.pause);
+	}
 }
 
 /* ------------------------------------------------------------------ */

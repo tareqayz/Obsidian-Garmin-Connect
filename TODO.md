@@ -21,6 +21,28 @@
     (`/modern/blood-pressure`), Track Hydration (`/modern/hydration`), Start
     your Free Trial (`/modern/nutrition`) and the Weight card's + (`/modern/weight`).
   - Retire the classic dashboard once Home and the detail screens cover it.
+- Activities (Garmin Connect rebuild), built 2026-10-03 on `feature/activites`:
+  - Next: the activity detail screen (activity and record rows are not
+    clickable until it exists), then the Steps, Floors and Intensity Minutes
+    pages the hub leaves out, and Create Manual Activity, Epics and Golf.
+  - Inferred, with no phone screenshot to check against: the Time, Ascent and
+    Calories tabs, the 1y list and month page, the sub-type picker, and every
+    sport but Running. In particular: the Time chart's minutes for a day and
+    hours for a month, the period label's year once a period is not this
+    year's, Gym's records opening on Strength, and Multisport getting the
+    running tabs. Check them against the phone.
+  - Check on the phone that yoga, stair climbing and mobility appear under Gym &
+    Fitness Equipment and meditation under Other, and whether October 2025's
+    running total is about 161 km (the index leaves the 70.3's legs out, as
+    the list does) or about 182 km.
+  - Strength records are formatted as kilograms on a guess (grams above
+    1000): no account here has one to check.
+  - The Cycling records tab's "2" badge in the app is not built; its source
+    is unknown.
+  - Sub-type names come from Garmin's type keys, with a few of the app's own
+    names (Road Cycling, Pool Swimming); others may differ from the app.
+  - On macOS the sub-type picker is Obsidian's menu, which follows the
+    "Native menus" setting, so it can look nothing like the Figma sheet.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to

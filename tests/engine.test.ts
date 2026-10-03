@@ -6,8 +6,10 @@ import {
 	RANGE_CHUNK_DAYS,
 	chunkRange,
 	dateRange,
+	fetchAllActivities,
 	lastNDays,
 	syncRange,
+	type ActivitySink,
 	type NoteTarget,
 	type SyncOptions,
 	type SeriesTarget,
@@ -379,6 +381,119 @@ describe("syncRange — workouts", () => {
 		const report = await syncRange(source, target, options({ groups: ALL_GROUPS }));
 		assert.match(report.stoppedEarly!, /rate limited/);
 		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 0);
+	});
+});
+
+describe("syncRange — activity index", () => {
+	class Sink implements ActivitySink {
+		calls: Array<{ count: number; complete: boolean }> = [];
+		fail = false;
+		async merge(listing: readonly Activity[], complete: boolean): Promise<number> {
+			if (this.fail) throw new Error("vault is read-only");
+			this.calls.push({ count: listing.length, complete });
+			return 1;
+		}
+	}
+
+	it("feeds the index even when no day in the range can be written", async () => {
+		const source = new FakeSource();
+		source.activityList = [{ activityId: 1, startTimeLocal: "2026-09-12 07:00:00" }];
+		const sink = new Sink();
+
+		const report = await syncRange(source, new FakeTarget(), options({ groups: ["workouts"], activities: sink }));
+
+		assert.deepEqual(source.calls, ["activities:0:50"], "the list, and nothing per day");
+		assert.deepEqual(sink.calls, [{ count: 1, complete: true }], "a short first page is the whole history");
+		assert.equal(report.activityFilesWritten, 1);
+		assert.equal(report.requests, 1);
+	});
+
+	it("says the listing is partial when the list goes on past the range", async () => {
+		const source = new FakeSource();
+		source.activityList = Array.from({ length: 50 }, (_, i) => ({ activityId: i, startTimeLocal: "2026-08-01 07:00:00" }));
+		const sink = new Sink();
+
+		await syncRange(source, new FakeTarget(new Set(["2026-09-12"])), options({ groups: ["workouts"], activities: sink }));
+
+		assert.equal(source.activityPages, 1, "the first page already reached back past the range");
+		assert.deepEqual(sink.calls, [{ count: 50, complete: false }]);
+	});
+
+	it("keeps syncing the days when the index cannot be written", async () => {
+		const source = new FakeSource();
+		source.activityList = [{ activityId: 1, startTimeLocal: "2026-09-12 07:00:00", activityName: "Run" }];
+		const sink = new Sink();
+		sink.fail = true;
+		const target = new FakeTarget(new Set(["2026-09-12"]));
+
+		const report = await syncRange(source, target, options({ groups: ["workouts"], activities: sink }));
+
+		assert.equal(report.written, 1);
+		assert.match(report.warnings.join("\n"), /activity index: vault is read-only/);
+	});
+
+	it("still fetches nothing without the workouts group", async () => {
+		const source = new FakeSource();
+		await syncRange(source, new FakeTarget(), options({ groups: ["activity"], activities: new Sink() }));
+		assert.deepEqual(source.calls, []);
+	});
+});
+
+describe("fetchAllActivities", () => {
+	const history = Array.from({ length: 250 }, (_, i) => ({ activityId: 1000 - i, startTimeLocal: "2026-01-01 07:00:00" }));
+	const paged = (failAt?: number, err: unknown = new GarminRateLimitError("rate limited")) => {
+		const calls: string[] = [];
+		return {
+			calls,
+			async activities(start = 0, limit = 20) {
+				calls.push(`${start}:${limit}`);
+				if (start === failAt) throw err;
+				return history.slice(start, start + limit);
+			},
+		};
+	};
+
+	it("pages to the end, a hundred at a time, pausing between pages", async () => {
+		const source = paged();
+		const waits: number[] = [];
+		const seen: number[] = [];
+		const got = await fetchAllActivities(source, { pause: 250, wait: async (ms) => void waits.push(ms), onPage: (n) => seen.push(n) });
+
+		assert.deepEqual(source.calls, ["0:100", "100:100", "200:100"]);
+		assert.equal(got.activities.length, 250);
+		assert.equal(got.complete, true);
+		assert.equal(got.requests, 3);
+		assert.deepEqual(seen, [100, 200, 250]);
+		assert.deepEqual(waits, [250, 250], "no pause after the last page");
+	});
+
+	it("stops on a 429 and keeps what came before it", async () => {
+		const got = await fetchAllActivities(paged(100), { wait: async () => {} });
+		assert.equal(got.activities.length, 100);
+		assert.equal(got.complete, false);
+		assert.ok(got.fatal instanceof GarminRateLimitError);
+	});
+
+	it("reports any other failure without calling it fatal", async () => {
+		const got = await fetchAllActivities(paged(200, new GarminApiError("HTTP 500", 500, "")), { wait: async () => {} });
+		assert.equal(got.activities.length, 200);
+		assert.equal(got.fatal, undefined);
+		assert.match(got.error!, /500/);
+	});
+
+	it("gives up on a list that ignores the page it was asked for", async () => {
+		const stuck = { async activities() { return history.slice(0, 100); } };
+		const got = await fetchAllActivities(stuck, { wait: async () => {} });
+		assert.equal(got.activities.length, 100);
+		assert.equal(got.complete, false);
+		assert.match(got.error!, /stopped advancing/);
+	});
+
+	it("can be stopped between pages", async () => {
+		let pages = 0;
+		const got = await fetchAllActivities(paged(), { wait: async () => {}, onPage: () => void pages++, shouldStop: () => pages >= 1 });
+		assert.equal(got.requests, 1);
+		assert.equal(got.complete, false);
 	});
 });
 

@@ -7,6 +7,7 @@ import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { SyncRunner } from "./sync/runner";
 import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
+import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
@@ -21,6 +22,7 @@ export default class GarminPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		registerGarminIcon();
+		registerSportIcons();
 
 		this.data = new PluginData(this);
 		await this.data.init();
@@ -53,6 +55,11 @@ export default class GarminPlugin extends Plugin {
 			callback: () => void this.openView(GARMIN_HOME_VIEW),
 		});
 		this.addCommand({
+			id: "open-activities",
+			name: "Open activities",
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, { page: "activities" }] }),
+		});
+		this.addCommand({
 			id: "open-classic-dashboard",
 			name: "Open classic dashboard",
 			callback: () => void this.openView(GARMIN_DASHBOARD_VIEW),
@@ -67,6 +74,11 @@ export default class GarminPlugin extends Plugin {
 			id: "sync-today",
 			name: "Sync today",
 			callback: () => void this.sync.syncToday(),
+		});
+		this.addCommand({
+			id: "sync-activity-history",
+			name: "Sync activity history",
+			callback: () => void this.sync.syncActivityHistory(),
 		});
 		this.addCommand({
 			id: "sync-range",
@@ -103,15 +115,18 @@ export default class GarminPlugin extends Plugin {
 		}
 	}
 
-	/** Reuses an open view rather than stacking duplicates. */
-	async openView(type: string): Promise<void> {
-		const existing = this.app.workspace.getLeavesOfType(type);
-		if (existing.length > 0) {
-			await this.app.workspace.revealLeaf(existing[0]!);
+	/**
+	 * Reuses an open view rather than stacking duplicates. `state` opens it on
+	 * a particular page, in a view that is already up as much as a new one.
+	 */
+	async openView(type: string, state?: Record<string, unknown>): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(type)[0];
+		if (existing && !state) {
+			await this.app.workspace.revealLeaf(existing);
 			return;
 		}
-		const leaf = this.app.workspace.getLeaf("tab");
-		await leaf.setViewState({ type, active: true });
+		const leaf = existing ?? this.app.workspace.getLeaf("tab");
+		await leaf.setViewState({ type, active: true, ...(state ? { state } : {}) });
 		await this.app.workspace.revealLeaf(leaf);
 	}
 

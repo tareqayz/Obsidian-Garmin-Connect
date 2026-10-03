@@ -6,7 +6,7 @@ import type { Log } from "../log";
 import { basesView } from "./bases-view";
 import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
-import { MultiTarget, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
+import { MultiTarget, fetchAllActivities, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
 import { linkTargetFor, type LinkOption } from "./link";
@@ -41,6 +41,23 @@ export interface RunnerSettings {
 
 const BASES_FILE = "Garmin Health.base";
 
+/** Activities per request when paging the whole history. The list honours 100. */
+const HISTORY_PAGE = 100;
+
+/** A history sync in progress, for the Activities pages' banner. */
+export interface HistoryProgress {
+	fetched: number;
+	/** How many the list holds, when the count came back. */
+	total?: number;
+}
+
+export interface HistoryReport {
+	fetched: number;
+	complete: boolean;
+	requests: number;
+	stoppedEarly?: string;
+}
+
 /**
  * Turns settings into a sync run and reports it.
  *
@@ -52,6 +69,10 @@ export class SyncRunner {
 	private settings: () => RunnerSettings;
 	private unitsCache: "metric" | "imperial" | null = null;
 	private running = false;
+	/** The history sync starts itself once a session, after the first sync, until it has finished once. */
+	private historyTried = false;
+	private historyState: HistoryProgress | null = null;
+	private historyListeners = new Set<(progress: HistoryProgress | null) => void>();
 
 	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
 		this.app = app;
@@ -73,7 +94,29 @@ export class SyncRunner {
 		return this.run(today, today, log);
 	}
 
+	/** The history sync in progress, or null. */
+	get historyProgress(): HistoryProgress | null {
+		return this.historyState;
+	}
+
+	/** Called with each step of a history sync, and with null when it ends. Returns the unsubscribe. */
+	onHistory(listener: (progress: HistoryProgress | null) => void): () => void {
+		this.historyListeners.add(listener);
+		return () => this.historyListeners.delete(listener);
+	}
+
 	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
+		const report = await this.runDays(from, to, log);
+		// Not awaited: Home's sync button should not spin through four more
+		// requests. Skipped after a 429 or a dead session, as the account is.
+		if (report && !report.stoppedEarly && !this.historyTried && this.settings().groups.includes("workouts")) {
+			this.historyTried = true;
+			void this.syncActivityHistory({ auto: true, log });
+		}
+		return report;
+	}
+
+	private async runDays(from: string, to: string, log?: Log): Promise<SyncReport | null> {
 		if (this.running) {
 			new Notice("A Garmin sync is already running.");
 			return null;
@@ -96,6 +139,7 @@ export class SyncRunner {
 				groups: settings.groups,
 				units,
 				series,
+				activities: { merge: (listing, complete) => series.mergeActivities(listing, { complete, units }) },
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -140,6 +184,93 @@ export class SyncRunner {
 		} finally {
 			this.running = false;
 		}
+	}
+
+	/**
+	 * Fills the activity index with the whole history: about one request per
+	 * hundred activities, paged with the usual pause. Routine syncs keep it
+	 * current from then on with the one page they already fetch.
+	 *
+	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * already complete or another sync is running.
+	 */
+	async syncActivityHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
+		const { auto = false, log } = opts;
+		if (this.running) {
+			if (!auto) new Notice("A Garmin sync is already running.");
+			return null;
+		}
+		if (!this.api.isAuthenticated) {
+			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		this.running = true;
+		const notice = auto ? null : new Notice(historyBody({ fetched: 0 }), 0);
+		try {
+			if (auto && (await store.readActivities()).meta?.complete) return null;
+			this.setHistory({ fetched: 0 });
+			const units = await this.resolveUnits(settings.units);
+			let requests = 0;
+
+			// Only to say "n of N" while it runs; the list itself decides when it ends.
+			let total: number | undefined;
+			try {
+				requests += 1;
+				const count = await this.api.activityCount();
+				if (typeof count.totalCount === "number") total = Math.max(0, count.totalCount - (count.multisportChildCount ?? 0));
+			} catch (err) {
+				if (err instanceof GarminRateLimitError || err instanceof GarminAuthError) throw err;
+				log?.warn(`activity count failed: ${explain(err)}`);
+			}
+			this.setHistory({ fetched: 0, total });
+			notice?.setMessage(historyBody({ fetched: 0, total }));
+
+			const got = await fetchAllActivities(this.api, {
+				pageSize: HISTORY_PAGE,
+				pause: settings.pauseBetweenDays,
+				onPage: (fetched) => {
+					this.setHistory({ fetched, total });
+					notice?.setMessage(historyBody({ fetched, total }));
+				},
+			});
+			requests += got.requests;
+
+			// Even cut short, what came back is the newest stretch with no gaps,
+			// which is what a routine sync merges too.
+			await store.mergeActivities(got.activities, {
+				complete: got.complete,
+				units,
+				...(total !== undefined ? { total } : got.complete ? { total: got.activities.length } : {}),
+			});
+			notice?.hide();
+
+			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
+			log?.detail("activity history", `${got.activities.length} activities, ${requests} requests`);
+			if (!auto || stoppedEarly) {
+				new Notice(
+					stoppedEarly
+						? `Garmin activity history: ${got.activities.length} fetched — stopped: ${stoppedEarly}`
+						: `Garmin activity history: ${got.activities.length} activities`,
+					stoppedEarly ? 10000 : 5000,
+				);
+			}
+			return { fetched: got.activities.length, complete: got.complete, requests, ...(stoppedEarly ? { stoppedEarly } : {}) };
+		} catch (err) {
+			notice?.hide();
+			new Notice(`Garmin activity history failed: ${explain(err)}`, 10000);
+			return null;
+		} finally {
+			this.running = false;
+			this.setHistory(null);
+		}
+	}
+
+	private setHistory(progress: HistoryProgress | null): void {
+		this.historyState = progress;
+		for (const listener of this.historyListeners) listener(progress);
 	}
 
 	private buildTarget(settings: RunnerSettings): NoteTarget {
@@ -264,6 +395,7 @@ export class SyncRunner {
 	/** Called on sign-out, so a second account does not inherit the first's units. */
 	reset(): void {
 		this.unitsCache = null;
+		this.historyTried = false;
 	}
 }
 
@@ -322,6 +454,39 @@ function noticeBody(progress: SyncProgress): DocumentFragment {
 		wrap.append(el);
 	}
 
+	fragment.append(wrap);
+	return fragment;
+}
+
+/** The history sync's Notice: the same bar as a day sync's, counting activities. */
+function historyBody(progress: HistoryProgress): DocumentFragment {
+	const fragment = document.createDocumentFragment();
+	const wrap = document.createElement("div");
+	wrap.className = "gcn-sync";
+
+	const line = document.createElement("div");
+	line.className = "gcn-line";
+	const title = document.createElement("span");
+	title.textContent = "Garmin activity history";
+	const count = document.createElement("span");
+	count.className = "gcn-count";
+	count.textContent =
+		progress.total !== undefined
+			? `${progress.fetched} of ${progress.total}`
+			: progress.fetched > 0
+				? `${progress.fetched} so far`
+				: "starting…";
+	line.append(title, count);
+
+	const rail = document.createElement("div");
+	const known = progress.total !== undefined && progress.total > 0;
+	rail.className = known ? "gcn-rail" : "gcn-rail is-indeterminate";
+	const fill = document.createElement("div");
+	fill.className = "gcn-fill";
+	if (known) fill.style.width = `${Math.min(100, Math.round((progress.fetched / progress.total!) * 100))}%`;
+	rail.append(fill);
+
+	wrap.append(line, rail);
 	fragment.append(wrap);
 	return fragment;
 }

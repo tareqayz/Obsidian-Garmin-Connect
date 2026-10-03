@@ -57,7 +57,9 @@ src/sync/
   diff.ts                the dirty check                  — pure
   bases-view.ts          generates the Bases table view   — pure
   link.ts                the graph hub link               — pure
-  engine.ts              orchestration, MultiTarget       — pure
+  engine.ts              orchestration, MultiTarget, the history pager — pure
+  activity-index.ts      the activity index: rows, merging, year files — pure
+  series-store.ts        series files, account.json, the activity index on disk
   daily-note.ts          NoteTarget: your daily notes
   data-folder.ts         NoteTarget: one note per day
   frontmatter.ts         shared dirty-checked write
@@ -70,11 +72,18 @@ src/dashboard/
   day.ts                 day-row lookups and date/number wording — pure
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
-  home-view.ts           the Home ItemView: rows + series file + account.json
+  activities.ts          the Activities pages: categories, periods, totals, records — pure
+  totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
+  routes.ts              the page stack inside the Home view, and reading it back — pure
+  home-view.ts           the Home ItemView: rows + series file + account.json + activity index
   view.ts                the classic dashboard's ItemView, mounts Svelte
 src/ui/svelte/           components; none import Obsidian except via an action
 src/ui/svelte/home/      the Home screen, one component per Garmin card; SeeAll.svelte is
-                         At a Glance's See All page and its edit mode
+                         At a Glance's See All page and its edit mode; PageBar.svelte is the
+                         back / title / action bar every page inside the view shares
+src/ui/svelte/activities/ More, the Activities hub, a sport's page, a month, Personal Records
+                         and All Activities, with their parts
+src/ui/sport-icons.ts    sport figures (Tabler, MIT) registered as Obsidian icons
 src/ui/add-stat-modal.ts Add a Stat, the picker the edit mode opens
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
 src/probe.ts             the four diagnostic probes
@@ -96,6 +105,8 @@ engine.ts        walks the range NEWEST → OLDEST
    │               ├─ per-day calls: summary, sleep, hrv, readiness, endurance
    │               └─ range calls (once for the whole window): maxMetrics,
    │                  racePredictions, activities
+   │                     └─ the same listing is merged into the activity index
+   │                        (series-store.ts), even when no note in the range is due
    │
 metrics.ts       mapDay(payloads) → canonical properties     (pure)
    │
@@ -115,6 +126,39 @@ Two details in there carry real weight:
   `maxMetrics`, `racePredictions` and the activity list all take a range or page,
   so the request budget is roughly *groups needed × days with notes*, plus a
   small constant.
+
+## The activity index and the pages inside Home
+
+The Activities pages need every activity with Garmin's raw numbers, which the
+day notes cannot give them (see `docs/properties.md`, "The activity index"). So
+the activity list feeds a second store, `<dataFolder>/activities/`:
+
+```
+engine.ts       fetchActivitiesFor → listing ──┐
+                fetchAllActivities → listing ──┤   (the history: ~1 request / 100 activities)
+                                               ▼
+activity-index.ts   rowOf · mergeListing · serializeYear       (pure)
+                                               ▼
+series-store.ts     mergeActivities: one file per local year, rewritten only on change
+                                               ▼
+home-view.ts        readActivities → activities.ts → the pages
+```
+
+`mergeListing` trusts a listing only for what it covers. The list is newest
+first, so a listing from its first page is a stretch with nothing missing: rows
+in that stretch that Garmin no longer returns were deleted, while rows older
+than it are left alone. A listing that reached the list's end replaces the index.
+
+The runner starts the history sync by itself once per session, after the first
+sync, until the index says `complete`; `SyncRunner.onHistory` reports its
+progress to the banner on the sport pages.
+
+Home is a stack of pages (`routes.ts`): Home at the bottom, then See All, More,
+Activities, a sport, a month, Personal Records or All Activities. Back pops one;
+a filter or a tab replaces the top rather than adding a step. The stack is the
+view's state (`getState` / `setState`), so a reload comes back to the same page,
+and the **Open activities** command opens the view on the hub through the same
+`setState`.
 
 ## Error taxonomy
 
