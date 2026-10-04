@@ -1,0 +1,47 @@
+{
+	"endpoint": "daily-floors-stats",
+	"path": "/usersummary-service/stats/floors/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.dailyFloorStats",
+	"firstRecorded": "2026-10-04T12:55:00.341Z",
+	"updatedAt": "2026-10-04T12:55:00.341Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"wellnessFloorsAscended": {
+							"type": [
+								"number"
+							]
+						},
+						"wellnessFloorsDescended": {
+							"type": [
+								"number"
+							]
+						},
+						"wellnessUserFloorsAscendedGoal": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

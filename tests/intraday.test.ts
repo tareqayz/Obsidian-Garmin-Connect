@@ -96,3 +96,32 @@ describe("series file", () => {
 		assert.equal(parseSeries("{not json"), null);
 	});
 });
+
+describe("mapSeries — floors and intensity minutes", () => {
+	it("keeps the stretches with floors, the minutes, and when the watch's day began", () => {
+		const series = mapSeries({
+			floors: {
+				startTimestampGMT: "2026-10-02T20:00:00.0",
+				floorsValueDescriptorDTOList: [
+					{ index: 0, key: "startTimeGMT" },
+					{ index: 1, key: "endTimeGMT" },
+					{ index: 2, key: "floorsAscended" },
+					{ index: 3, key: "floorsDescended" },
+				],
+				floorValuesArray: [
+					["2026-10-02T20:00:00.0", "2026-10-02T20:15:00.0", 0, 0],
+					["2026-10-03T05:00:00.0", "2026-10-03T05:15:00.0", 3, 1],
+				],
+			},
+			intensity: { imValuesArray: [[1_791_025_199_999, 1], [1_791_026_099_999, 0]] },
+		});
+		assert.deepEqual(series.floors, [{ start: Date.parse("2026-10-03T05:00:00Z"), end: Date.parse("2026-10-03T05:15:00Z"), up: 3, down: 1 }]);
+		assert.deepEqual(series.intensity, [[1_791_025_199_999, 1]]);
+		assert.equal(series.dayStart, Date.parse("2026-10-02T20:00:00Z"));
+	});
+
+	it("records no day start on a day with nothing charted against it", () => {
+		const series = mapSeries({ floors: { startTimestampGMT: "2026-10-02T20:00:00.0", floorValuesArray: [] }, intensity: { imValuesArray: null } });
+		assert.deepEqual(series, {});
+	});
+});

@@ -14,6 +14,19 @@ import {
 	type ActivityRow,
 	type IndexMeta,
 } from "./activity-index";
+import {
+	DAILY_STATS_VERSION,
+	byYear as daysByYear,
+	extendCoverage,
+	mergeDays,
+	parseMeta as parseDailyMeta,
+	parseYear as parseDailyYear,
+	serializeMeta as serializeDailyMeta,
+	serializeYear as serializeDailyYear,
+	type DailyStatsBatch,
+	type DailyStatsMeta,
+	type DailyStatsRow,
+} from "./daily-stats";
 import type { SeriesTarget } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import type { AccountInfo } from "./account";
@@ -23,6 +36,22 @@ export const SERIES_FOLDER = "series";
 export const ACCOUNT_FILE = "account.json";
 export const ACTIVITIES_FOLDER = "activities";
 export const ACTIVITY_META_FILE = "index.json";
+export const DAILY_STATS_FOLDER = "daily-stats";
+export const DAILY_STATS_META_FILE = "index.json";
+
+export interface DailyStatsIndex {
+	/** Oldest first. */
+	rows: DailyStatsRow[];
+	/** Null until a sync has written the index. */
+	meta: DailyStatsMeta | null;
+}
+
+export interface DailyStatsMergeOptions {
+	/** The days the batch fetched end to end, when it fetched every one of them. */
+	covered?: { from: string; to: string } | null;
+	/** Fetching back past the batch found nothing: the index now holds the whole history. */
+	complete?: boolean;
+}
 
 export interface ActivityIndex {
 	/** Newest first. */
@@ -42,8 +71,9 @@ export interface MergeOptions {
 /**
  * Intraday series, one JSON file per day, beside the day notes:
  * `<dataFolder>/series/<date>.json`. Plus `<dataFolder>/account.json` for the
- * few facts that belong to no day, and the activity index in
- * `<dataFolder>/activities/` (see `activity-index.ts`).
+ * few facts that belong to no day, the activity index in
+ * `<dataFolder>/activities/` (see `activity-index.ts`) and the daily stats
+ * index in `<dataFolder>/daily-stats/` (see `daily-stats.ts`).
  *
  * Files rather than frontmatter because a day of heart rate is hundreds of
  * points (see `intraday.ts`). Written through the vault API so Obsidian Sync and
@@ -129,13 +159,70 @@ export class VaultSeriesStore implements SeriesTarget {
 		return written;
 	}
 
+	get dailyStatsFolder(): string {
+		return this.join(DAILY_STATS_FOLDER);
+	}
+
+	/** Only what the daily stats index knows about itself: one small file. */
+	async readDailyStatsMeta(): Promise<DailyStatsMeta | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.join(`${DAILY_STATS_FOLDER}/${DAILY_STATS_META_FILE}`));
+		return file instanceof TFile ? parseDailyMeta(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	/** Every day the daily stats index holds, oldest first, and what it knows about itself. */
+	async readDailyStats(): Promise<DailyStatsIndex> {
+		const { rows, meta } = await this.readDailyIndex();
+		return { rows: dedupeByDate(rows), meta };
+	}
+
+	/**
+	 * Folds a batch of days into the daily stats index. Returns how many files
+	 * changed: a routine sync touches this year's file and the index, and only
+	 * when a number moved.
+	 */
+	async mergeDailyStats(batch: DailyStatsBatch, opts: DailyStatsMergeOptions = {}): Promise<number> {
+		const current = await this.readDailyIndex();
+		const rows = mergeDays(dedupeByDate(current.rows), batch);
+
+		const meta: DailyStatsMeta = { version: DAILY_STATS_VERSION, complete: opts.complete === true || current.meta?.complete === true };
+		const span = opts.covered ? extendCoverage(current.meta, opts.covered.from, opts.covered.to) : current.meta;
+		if (span?.from) meta.from = span.from;
+		if (span?.to) meta.to = span.to;
+
+		let written = 0;
+		const years = daysByYear(rows);
+		for (const year of current.years) if (!years.has(year)) years.set(year, []);
+		for (const [year, list] of years) {
+			if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${year}.json`), serializeDailyYear(year, list))) === "written") written += 1;
+		}
+		if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${DAILY_STATS_META_FILE}`), serializeDailyMeta(meta))) === "written") written += 1;
+		return written;
+	}
+
 	/** Whether a vault path is one of the files this store writes. */
 	owns(path: string): boolean {
 		return (
 			path === this.accountPath ||
 			path.startsWith(`${this.join(SERIES_FOLDER)}/`) ||
-			path.startsWith(`${this.activitiesFolder}/`)
+			path.startsWith(`${this.activitiesFolder}/`) ||
+			path.startsWith(`${this.dailyStatsFolder}/`)
 		);
+	}
+
+	private async readDailyIndex(): Promise<DailyStatsIndex & { years: string[] }> {
+		const folder = this.app.vault.getAbstractFileByPath(this.dailyStatsFolder);
+		const out: DailyStatsIndex & { years: string[] } = { rows: [], meta: null, years: [] };
+		if (!(folder instanceof TFolder)) return out;
+		for (const child of folder.children) {
+			if (!(child instanceof TFile)) continue;
+			if (child.name === DAILY_STATS_META_FILE) {
+				out.meta = parseDailyMeta(await this.app.vault.cachedRead(child));
+			} else if (isYearFile(child.name)) {
+				out.years.push(child.basename);
+				out.rows.push(...parseDailyYear(await this.app.vault.cachedRead(child)));
+			}
+		}
+		return out;
 	}
 
 	private async readIndex(): Promise<ActivityIndex & { years: string[] }> {
@@ -170,6 +257,13 @@ export class VaultSeriesStore implements SeriesTarget {
 	private join(rest: string): string {
 		return normalizePath(this.folder ? `${this.folder}/${rest}` : rest);
 	}
+}
+
+/** One row a day, oldest first, whatever order the year files were read in. */
+function dedupeByDate(rows: readonly DailyStatsRow[]): DailyStatsRow[] {
+	const byDate = new Map<string, DailyStatsRow>();
+	for (const row of rows) byDate.set(row.date, row);
+	return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 /** One row per activity, even if an edit moved it across a year boundary between two files. */

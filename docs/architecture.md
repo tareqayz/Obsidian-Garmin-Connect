@@ -59,7 +59,8 @@ src/sync/
   link.ts                the graph hub link               — pure
   engine.ts              orchestration, MultiTarget, the history pager — pure
   activity-index.ts      the activity index: rows, merging, year files — pure
-  series-store.ts        series files, account.json, the activity index on disk
+  daily-stats.ts         the daily stats index: rows, merging, year files — pure
+  series-store.ts        series files, account.json, both indexes on disk
   daily-note.ts          NoteTarget: your daily notes
   data-folder.ts         NoteTarget: one note per day
   frontmatter.ts         shared dirty-checked write
@@ -74,8 +75,10 @@ src/dashboard/
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
   totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
+  stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
+  stats-charts.ts        their charts' geometry, measured off the app — pure
   routes.ts              the page stack inside the Home view, and reading it back — pure
-  home-view.ts           the Home ItemView: rows + series file + account.json + activity index
+  home-view.ts           the Home ItemView: rows + series files + account.json + both indexes
   view.ts                the classic dashboard's ItemView, mounts Svelte
 src/ui/svelte/           components; none import Obsidian except via an action
 src/ui/svelte/home/      the Home screen, one component per Garmin card; SeeAll.svelte is
@@ -83,6 +86,8 @@ src/ui/svelte/home/      the Home screen, one component per Garmin card; SeeAll.
                          back / title / action bar every page inside the view shares
 src/ui/svelte/activities/ More, the Activities hub, a sport's page, a month, Personal Records
                          and All Activities, with their parts
+src/ui/svelte/stats/     the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
+                         parts: the ring, the chart, the day cards
 src/ui/sport-icons.ts    sport figures (Tabler, MIT) registered as Obsidian icons
 src/ui/add-stat-modal.ts Add a Stat, the picker the edit mode opens
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
@@ -107,6 +112,9 @@ engine.ts        walks the range NEWEST → OLDEST
    │                  racePredictions, activities
    │                     └─ the same listing is merged into the activity index
    │                        (series-store.ts), even when no note in the range is due
+   │               └─ after the days: the summaries' steps, floors and minutes go to
+   │                  the daily stats index; days without a note come from the range
+   │                  endpoints (3 requests per 28 days)
    │
 metrics.ts       mapDay(payloads) → canonical properties     (pure)
    │
@@ -153,12 +161,34 @@ The runner starts the history sync by itself once per session, after the first
 sync, until the index says `complete`; `SyncRunner.onHistory` reports its
 progress to the banner on the sport pages.
 
+The Steps, Floors and Intensity Minutes pages work the same way from their own
+store, `<dataFolder>/daily-stats/` (see `docs/properties.md`, "The daily stats
+index"):
+
+```
+engine.ts       rowFromSummary ← each day's summary, at no cost ──┐
+                feedDailyStats → the range endpoints, for days  ──┤
+                                 without a note and any gap         │
+                fetchDailyStatsHistory → 28 days a window, back ──┤   (the history: ~40 requests / year)
+                                                                    ▼
+daily-stats.ts      mergeDays · extendCoverage · serializeYear     (pure)
+                                                                    ▼
+series-store.ts     mergeDailyStats: one file per year, rewritten only on change
+                                                                    ▼
+home-view.ts        readDailyStats + the notes' calories → stats-pages.ts → the pages
+```
+
+A day's chart reads that day's series file, read when the page asks for it; the
+file's `dayStart` puts the chart on the watch's clock, which need not be this
+computer's. `SyncRunner.onStatsHistory` reports the history sync to their banner.
+
 Home is a stack of pages (`routes.ts`): Home at the bottom, then See All, More,
-Activities, a sport, a month, Personal Records or All Activities. Back pops one;
+Activities, a sport, a month, Personal Records, All Activities, or Steps, Floors
+or Intensity Minutes. Back pops one;
 a filter or a tab replaces the top rather than adding a step. The stack is the
 view's state (`getState` / `setState`), so a reload comes back to the same page,
-and the **Open activities** command opens the view on the hub through the same
-`setState`.
+and the **Open activities**, **Open steps**, **Open floors** and **Open intensity
+minutes** commands open the view through the same `setState`.
 
 ## Error taxonomy
 

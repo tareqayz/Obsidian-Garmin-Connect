@@ -1,5 +1,7 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
+import { statsRoute } from "./dashboard/routes";
+import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
@@ -59,6 +61,13 @@ export default class GarminPlugin extends Plugin {
 			name: "Open activities",
 			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, { page: "activities" }] }),
 		});
+		for (const stat of STAT_IDS) {
+			this.addCommand({
+				id: `open-${stat === "intensity" ? "intensity-minutes" : stat}`,
+				name: `Open ${STAT_TITLE[stat].toLowerCase()}`,
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, statsRoute(stat)] }),
+			});
+		}
 		this.addCommand({
 			id: "open-classic-dashboard",
 			name: "Open classic dashboard",
@@ -79,6 +88,11 @@ export default class GarminPlugin extends Plugin {
 			id: "sync-activity-history",
 			name: "Sync activity history",
 			callback: () => void this.sync.syncActivityHistory(),
+		});
+		this.addCommand({
+			id: "sync-daily-stats-history",
+			name: "Sync step, floor and intensity history",
+			callback: () => void this.sync.syncDailyStatsHistory(),
 		});
 		this.addCommand({
 			id: "sync-range",

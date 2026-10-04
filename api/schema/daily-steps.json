@@ -1,0 +1,40 @@
+{
+	"endpoint": "daily-steps",
+	"path": "/usersummary-service/stats/steps/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.dailyStepStats",
+	"firstRecorded": "2026-10-04T12:55:00.341Z",
+	"updatedAt": "2026-10-04T12:55:00.341Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"stepGoal": {
+					"type": [
+						"number"
+					]
+				},
+				"totalDistance": {
+					"type": [
+						"number"
+					]
+				},
+				"totalSteps": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

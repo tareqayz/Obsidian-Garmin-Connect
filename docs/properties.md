@@ -66,6 +66,63 @@ Only one distance key is ever written — whichever the unit setting selects.
 counts double; it is written whenever either component exists, treating the
 missing one as zero.
 
+`distance_km` is the day's whole distance, rides and swims included. The Steps
+page shows only what was walked or run (`wellnessDistanceMeters`), which is why
+it reads the daily stats index below rather than the notes.
+
+### The daily stats index — `daily-stats/`
+
+The Steps, Floors and Intensity Minutes pages (Home → ⋯ → Activities, or the
+Steps card) read neither the notes nor their properties. A year of the app's
+charts needs a year of days, which the notes only have once a sync has reached
+each one, and the notes' distance includes rides. So the `activity` group also
+keeps an index of every day on the account, with Garmin's own daily figures:
+
+```
+<dataFolder>/daily-stats/index.json
+<dataFolder>/daily-stats/2025.json
+<dataFolder>/daily-stats/2026.json
+```
+
+```jsonc
+// 2026.json — oldest first, one day per line, keys always in this order.
+{
+	"version": 1,
+	"year": 2026,
+	"days": [
+		{"date":"2026-10-03","steps":11710,"stepGoal":6770,"distance":11465,"calories":2606,"floorsUp":32,"floorsDown":18,"floorsGoal":10,"moderate":13,"vigorous":45,"intensityGoal":150}
+	]
+}
+```
+
+| Key | Unit | Source field |
+| --- | --- | --- |
+| `steps`, `stepGoal` | count | `totalSteps`, `dailyStepGoal` / `stepGoal` |
+| `distance` | metres, on foot | `wellnessDistanceMeters` / `totalDistance` |
+| `calories` | kcal | `totalKilocalories`. Only the daily summary has it; the pages fall back to the note's `calories` |
+| `floorsUp`, `floorsDown`, `floorsGoal` | whole floors | `floorsAscended`, `floorsDescended` rounded down / `wellnessFloorsAscended`… |
+| `moderate`, `vigorous` | minutes | `moderateIntensityMinutes`, `vigorousIntensityMinutes` / `moderateValue`, `vigorousValue` |
+| `intensityGoal` | minutes a week | `intensityMinutesGoal` / `weeklyGoal` |
+
+A day the watch recorded nothing has no row, which is what a year's "Avg Daily"
+divides by. `index.json` holds `from` and `to`, the stretch fetched end to end,
+and `complete`, whether fetching further back found nothing.
+
+How it fills:
+
+- **Every sync** takes the days it writes from the daily summaries it fetches
+  anyway: no extra requests. A day it could not write (no note to put it in, a
+  summary that failed) is asked of the range endpoints instead —
+  `/usersummary-service/stats/{steps,floors,im}/daily/{start}/{end}`, three
+  requests for up to 28 days — and so is any stretch between the index's newest
+  day and the sync, so a vault left closed for a fortnight has no hole.
+- **The whole history** comes once, walking back 28 days at a time until four
+  windows in a row have no steps, past the oldest activity: about 40 requests a
+  year. It starts by itself after the first sync of a session while `complete`
+  is false, or with the **Sync step, floor and intensity history** command, and
+  a run cut short by a 429 carries on from where it stopped next time.
+- A year file is rewritten only when its text changes.
+
 ## heart
 
 From the same daily summary call as `activity`.
@@ -403,11 +460,12 @@ Nothing in the notes; about nine requests per sync, written to
 
 ## intraday
 
-Heart rate, stress, Body Battery, steps and sleep stages across the day. Four
-requests a day — `dailyStress` (stress *and* Body Battery), `dailyHeartRate`,
-`dailySummaryChart` (steps) and `bodyBattery/events` — spent only on the
-**newest seven days** of any sync. The sleep hypnogram costs nothing: it is in
-the sleep payload, so every day with sleep gets it.
+Heart rate, stress, Body Battery, steps, floors, intensity minutes and sleep
+stages across the day. Six requests a day — `dailyStress` (stress *and* Body
+Battery), `dailyHeartRate`, `dailySummaryChart` (steps), `floorsChartData`,
+`daily/im` and `bodyBattery/events` — spent only on the **newest seven days** of
+any sync. The sleep hypnogram costs nothing: it is in the sleep payload, so every
+day with sleep gets it.
 
 One property reaches the note:
 
@@ -432,6 +490,12 @@ of heart rate is hundreds of points and frontmatter is the wrong place for it:
   "bodyBattery": [[1789884000000, 64]],
   "heartRate":   [[1789884000000, 52]],
   "steps":       [{ "start": 1789884000000, "end": 1789884900000, "steps": 412, "level": "active" }],
+  // Only the 15-minute stretches with any floors in them.
+  "floors":      [{ "start": 1789898400000, "end": 1789899300000, "up": 3, "down": 1 }],
+  // [bucketEndMs, minutes], vigorous counted twice.
+  "intensity":   [[1789925399999, 30]],
+  // Midnight on the watch's clock: the day's charts run from here.
+  "dayStart":    1789848000000,
   // level: Garmin's stage code, believed 0 deep, 1 light, 2 REM, 3 awake.
   "sleepLevels": [{ "start": 1789855080000, "end": 1789856880000, "level": 1 }],
   "bodyBatteryEvents": [{ "type": "SLEEP", "start": 1789855080000, "minutes": 464, "impact": 52, "feedback": "…" }]

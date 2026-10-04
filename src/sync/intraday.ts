@@ -1,7 +1,9 @@
 import type {
 	BodyBatteryEvent,
 	DailyStress,
+	FloorsChart,
 	HeartRateData,
+	IntensityChart,
 	SleepData,
 	StepsChartEntry,
 	ValueDescriptor,
@@ -32,6 +34,14 @@ export interface StepsBucket {
 	level?: string;
 }
 
+/** A 15-minute stretch with any floors in it. Quiet stretches are left out. */
+export interface FloorsBucket {
+	start: number;
+	end: number;
+	up: number;
+	down: number;
+}
+
 export interface SleepLevel {
 	start: number;
 	end: number;
@@ -53,10 +63,21 @@ export interface BodyBatteryMarker {
 }
 
 export interface DaySeries {
+	/**
+	 * When the day began on the watch's clock. The day's charts run from here,
+	 * which need not be midnight on this computer's clock.
+	 */
+	dayStart?: number;
 	stress?: SeriesPoint[];
 	bodyBattery?: SeriesPoint[];
 	heartRate?: SeriesPoint[];
 	steps?: StepsBucket[];
+	floors?: FloorsBucket[];
+	/**
+	 * `[bucketEndMs, minutes]` for each 15 minutes with any, vigorous counted
+	 * twice, the way the week's total adds them up.
+	 */
+	intensity?: SeriesPoint[];
 	sleepLevels?: SleepLevel[];
 	bodyBatteryEvents?: BodyBatteryMarker[];
 }
@@ -65,6 +86,8 @@ export interface IntradayPayloads {
 	stress?: DailyStress | null;
 	heartRate?: HeartRateData | null;
 	steps?: StepsChartEntry[] | null;
+	floors?: FloorsChart | null;
+	intensity?: IntensityChart | null;
 	bodyBatteryEvents?: BodyBatteryEvent[] | null;
 	sleep?: SleepData | null;
 }
@@ -117,6 +140,41 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 		steps.push(bucket);
 	}
 	if (steps.length) out.steps = steps;
+
+	const floors = payloads.floors;
+	if (floors) {
+		const d = floors.floorsValueDescriptorDTOList;
+		const at = {
+			start: indexOf(d, "startTimeGMT", 0),
+			end: indexOf(d, "endTimeGMT", 1),
+			up: indexOf(d, "floorsAscended", 2),
+			down: indexOf(d, "floorsDescended", 3),
+		};
+		const buckets: FloorsBucket[] = [];
+		for (const row of floors.floorValuesArray ?? []) {
+			if (!Array.isArray(row)) continue;
+			const start = epochOf(row[at.start]);
+			const end = epochOf(row[at.end]);
+			const up = finite(row[at.up]) ?? 0;
+			const down = finite(row[at.down]) ?? 0;
+			if (start === undefined || end === undefined || (up <= 0 && down <= 0)) continue;
+			buckets.push({ start, end, up: Math.max(0, up), down: Math.max(0, down) });
+		}
+		if (buckets.length) out.floors = buckets;
+	}
+
+	const im = payloads.intensity;
+	if (im) {
+		const d = im.imValueDescriptorsDTOList;
+		const points = column(im.imValuesArray, indexOf(d, "value", 1), { negativeIsGap: true }, indexOf(d, "timestamp", 0)).filter(
+			(p): p is [number, number] => p[1] !== null && p[1] > 0,
+		);
+		if (points.length) out.intensity = points;
+	}
+
+	// Only beside something that is charted against it.
+	const dayStart = epochOf(payloads.floors?.startTimestampGMT ?? payloads.intensity?.startTimestampGMT);
+	if (dayStart !== undefined && (out.steps || out.floors || out.intensity)) out.dayStart = dayStart;
 
 	const levels: SleepLevel[] = [];
 	const rawLevels = payloads.sleep?.sleepLevels;
@@ -196,12 +254,13 @@ function column(
 	rows: unknown,
 	index: number,
 	{ negativeIsGap }: { negativeIsGap: boolean },
+	timeIndex = 0,
 ): SeriesPoint[] {
 	if (!Array.isArray(rows)) return [];
 	const points: SeriesPoint[] = [];
 	for (const row of rows) {
 		if (!Array.isArray(row)) continue;
-		const ts = finite(row[0]);
+		const ts = finite(row[timeIndex]);
 		if (ts === undefined) continue;
 		const value = finite(row[index]);
 		points.push([ts, value === undefined || (negativeIsGap && value < 0) ? null : value]);

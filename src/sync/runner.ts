@@ -6,7 +6,16 @@ import type { Log } from "../log";
 import { basesView } from "./bases-view";
 import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
-import { MultiTarget, fetchAllActivities, lastNDays, syncRange, type NoteTarget, type SyncReport } from "./engine";
+import {
+	MultiTarget,
+	fetchAllActivities,
+	fetchDailyStatsHistory,
+	lastNDays,
+	syncRange,
+	type DailyStatsSink,
+	type NoteTarget,
+	type SyncReport,
+} from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
 import { linkTargetFor, type LinkOption } from "./link";
@@ -58,6 +67,12 @@ export interface HistoryReport {
 	stoppedEarly?: string;
 }
 
+/** A daily stats history sync in progress, for the Steps, Floors and Intensity Minutes pages' banner. */
+export interface StatsHistoryProgress {
+	/** The oldest day fetched so far, once the first window is in. */
+	reached?: string;
+}
+
 /**
  * Turns settings into a sync run and reports it.
  *
@@ -73,6 +88,8 @@ export class SyncRunner {
 	private historyTried = false;
 	private historyState: HistoryProgress | null = null;
 	private historyListeners = new Set<(progress: HistoryProgress | null) => void>();
+	private statsHistoryState: StatsHistoryProgress | null = null;
+	private statsHistoryListeners = new Set<(progress: StatsHistoryProgress | null) => void>();
 
 	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
 		this.app = app;
@@ -105,13 +122,29 @@ export class SyncRunner {
 		return () => this.historyListeners.delete(listener);
 	}
 
+	/** The daily stats history sync in progress, or null. */
+	get statsHistoryProgress(): StatsHistoryProgress | null {
+		return this.statsHistoryState;
+	}
+
+	/** Called with each window of a daily stats history sync, and with null when it ends. Returns the unsubscribe. */
+	onStatsHistory(listener: (progress: StatsHistoryProgress | null) => void): () => void {
+		this.statsHistoryListeners.add(listener);
+		return () => this.statsHistoryListeners.delete(listener);
+	}
+
 	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
 		const report = await this.runDays(from, to, log);
-		// Not awaited: Home's sync button should not spin through four more
+		// Not awaited: Home's sync button should not spin through the history
 		// requests. Skipped after a 429 or a dead session, as the account is.
-		if (report && !report.stoppedEarly && !this.historyTried && this.settings().groups.includes("workouts")) {
+		// One after the other, since a sync refuses to start while one runs.
+		if (report && !report.stoppedEarly && !this.historyTried) {
 			this.historyTried = true;
-			void this.syncActivityHistory({ auto: true, log });
+			const groups = this.settings().groups;
+			void (async () => {
+				if (groups.includes("workouts")) await this.syncActivityHistory({ auto: true, log });
+				if (groups.includes("activity")) await this.syncDailyStatsHistory({ auto: true, log });
+			})();
 		}
 		return report;
 	}
@@ -140,6 +173,7 @@ export class SyncRunner {
 				units,
 				series,
 				activities: { merge: (listing, complete) => series.mergeActivities(listing, { complete, units }) },
+				dailyStats: dailyStatsSink(series),
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -271,6 +305,84 @@ export class SyncRunner {
 	private setHistory(progress: HistoryProgress | null): void {
 		this.historyState = progress;
 		for (const listener of this.historyListeners) listener(progress);
+	}
+
+	/**
+	 * Fills the daily stats index — steps, floors and intensity minutes — back
+	 * to the start of the account's history: three requests per 28 days, about
+	 * 40 for a year. Routine syncs keep it current from then on with the daily
+	 * summaries they already fetch. A run cut short keeps what it fetched and
+	 * carries on from there next time.
+	 *
+	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * already complete or another sync is running.
+	 */
+	async syncDailyStatsHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
+		const { auto = false, log } = opts;
+		if (this.running) {
+			if (!auto) new Notice("A Garmin sync is already running.");
+			return null;
+		}
+		if (!this.api.isAuthenticated) {
+			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		this.running = true;
+		const notice = auto ? null : new Notice(statsHistoryBody({}), 0);
+		try {
+			const meta = await store.readDailyStatsMeta();
+			if (meta?.complete) {
+				notice?.hide();
+				if (!auto) new Notice("Garmin step, floor and intensity history is already complete.");
+				return null;
+			}
+			this.setStatsHistory({});
+
+			// Carry on below what the index already holds; routine syncs keep its top current.
+			const until = meta?.from ? shiftDay(meta.from, -1) : toIsoDate();
+			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
+			const got = await fetchDailyStatsHistory(this.api, {
+				until,
+				...(oldestActivity ? { notBefore: oldestActivity } : {}),
+				pause: settings.pauseBetweenDays,
+				onWindow: (reached) => {
+					this.setStatsHistory({ reached });
+					notice?.setMessage(statsHistoryBody({ reached }));
+				},
+			});
+
+			// Even cut short, what came back runs unbroken from where it started.
+			if (got.batch.dates.length) await store.mergeDailyStats(got.batch, { covered: got.covered, complete: got.complete });
+			notice?.hide();
+
+			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
+			const days = got.batch.rows.length;
+			log?.detail("daily stats history", `${days} days, ${got.requests} requests`);
+			if (!auto || stoppedEarly) {
+				new Notice(
+					stoppedEarly
+						? `Garmin step, floor and intensity history: ${days} days fetched — stopped: ${stoppedEarly}`
+						: `Garmin step, floor and intensity history: ${days} days`,
+					stoppedEarly ? 10000 : 5000,
+				);
+			}
+			return { fetched: days, complete: got.complete, requests: got.requests, ...(stoppedEarly ? { stoppedEarly } : {}) };
+		} catch (err) {
+			notice?.hide();
+			new Notice(`Garmin step, floor and intensity history failed: ${explain(err)}`, 10000);
+			return null;
+		} finally {
+			this.running = false;
+			this.setStatsHistory(null);
+		}
+	}
+
+	private setStatsHistory(progress: StatsHistoryProgress | null): void {
+		this.statsHistoryState = progress;
+		for (const listener of this.statsHistoryListeners) listener(progress);
 	}
 
 	private buildTarget(settings: RunnerSettings): NoteTarget {
@@ -489,6 +601,51 @@ function historyBody(progress: HistoryProgress): DocumentFragment {
 	wrap.append(line, rail);
 	fragment.append(wrap);
 	return fragment;
+}
+
+/** The daily stats history sync's Notice: how far back it has reached. */
+function statsHistoryBody(progress: StatsHistoryProgress): DocumentFragment {
+	const fragment = document.createDocumentFragment();
+	const wrap = document.createElement("div");
+	wrap.className = "gcn-sync";
+
+	const line = document.createElement("div");
+	line.className = "gcn-line";
+	const title = document.createElement("span");
+	title.textContent = "Garmin step, floor and intensity history";
+	const count = document.createElement("span");
+	count.className = "gcn-count";
+	count.textContent = progress.reached ? `back to ${monthOf(progress.reached)}` : "starting…";
+	line.append(title, count);
+
+	// How far back the account goes is unknown until the walk finds its start.
+	const rail = document.createElement("div");
+	rail.className = "gcn-rail is-indeterminate";
+	const fill = document.createElement("div");
+	fill.className = "gcn-fill";
+	rail.append(fill);
+
+	wrap.append(line, rail);
+	fragment.append(wrap);
+	return fragment;
+}
+
+/** `2026-03-08` → "March 2026". */
+export function monthOf(date: string): string {
+	return new Date(`${date.slice(0, 7)}-15T12:00:00Z`).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+function shiftDay(date: string, days: number): string {
+	const [y, m, d] = date.split("-").map(Number);
+	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+/** The engine's view of the daily stats index on disk. */
+function dailyStatsSink(store: VaultSeriesStore): DailyStatsSink {
+	return {
+		coverage: () => store.readDailyStatsMeta(),
+		merge: (batch, covered) => store.mergeDailyStats(batch, { covered }),
+	};
 }
 
 function explain(err: unknown): string {

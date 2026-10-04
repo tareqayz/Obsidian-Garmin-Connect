@@ -51,6 +51,27 @@
 
 	const RANGES: RangeId[] = ["7d", "4w", "1y"];
 
+	let banner = $derived.by(() => {
+		if (history) {
+			return {
+				title: "Fetching activity history…",
+				detail:
+					history.total !== undefined
+						? `${history.fetched.toLocaleString()} of ${history.total.toLocaleString()} activities`
+						: `${history.fetched.toLocaleString()} activities so far`,
+			};
+		}
+		const title = "Activity history isn’t synced";
+		if (data.total === undefined) {
+			return { title, detail: "Charts cover only what’s synced. The whole history takes about one request per hundred activities." };
+		}
+		const requests = Math.max(1, Math.ceil(data.total / 100));
+		return {
+			title,
+			detail: `Charts cover only what’s synced. All ${data.total.toLocaleString()} activities take about ${requests} ${requests === 1 ? "request" : "requests"}.`,
+		};
+	});
+
 	function set(change: Partial<CategoryRoute>) {
 		swap({ ...route, ...change });
 	}
@@ -103,7 +124,7 @@
 
 	<div class="body">
 		{#if history || !data.complete}
-			<div class="banner"><HistoryBanner progress={history} total={data.total} {canSync} onSync={onSyncHistory} /></div>
+			<div class="banner"><HistoryBanner title={banner.title} detail={banner.detail} busy={history !== null} {canSync} onSync={onSyncHistory} /></div>
 		{/if}
 
 		<div class="overview">

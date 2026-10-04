@@ -3,14 +3,17 @@
 	import type { ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
-	import { pop, push, replace, top, type Route } from "../../../dashboard/routes";
-	import type { HistoryProgress } from "../../../sync/runner";
+	import { pop, push, replace, statsRoute, top, type Route } from "../../../dashboard/routes";
+	import type { StatId, StatsData } from "../../../dashboard/stats-pages";
+	import type { DaySeries } from "../../../sync/intraday";
+	import type { HistoryProgress, StatsHistoryProgress } from "../../../sync/runner";
 	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
 	import CategoryPage from "../activities/CategoryPage.svelte";
 	import MonthPage from "../activities/MonthPage.svelte";
 	import MorePage from "../activities/MorePage.svelte";
 	import RecordsPage from "../activities/RecordsPage.svelte";
+	import StatsPage from "../stats/StatsPage.svelte";
 	import EmptyCard from "./EmptyCard.svelte";
 	import FocusActivities from "./FocusActivities.svelte";
 	import FocusBattery from "./FocusBattery.svelte";
@@ -33,15 +36,18 @@
 	 * Which layout is decided by the pane's own width (a container query), not
 	 * the device, since an Obsidian leaf can be narrow on a desktop.
 	 *
-	 * The other pages — See All, More, Activities — open on top of Home inside
-	 * the same view, as a stack that Back walks down.
+	 * The other pages — See All, More, Activities, Steps, Floors, Intensity
+	 * Minutes — open on top of Home inside the same view, as a stack that Back
+	 * walks down.
 	 */
 	interface Props {
 		initialModel: HomeModel;
 		initialActivities: ActivitiesData;
+		initialStats: StatsData;
 		/** Home at the bottom, then whatever was open when the view was last saved. */
 		initialStack: Route[];
 		initialHistory: HistoryProgress | null;
+		initialStatsHistory: StatsHistoryProgress | null;
 		initialPreset: PresetId;
 		initialHidden: MoreId[];
 		/** The At a Glance list once it has been edited; absent means the preset's. */
@@ -56,13 +62,18 @@
 		/** Every page change, so the view can save where it is. */
 		onRoute: (stack: Route[]) => void;
 		onSyncHistory: () => void;
+		onSyncStatsHistory: () => void;
+		/** Series files for the Steps, Floors and Intensity Minutes day charts. */
+		readSeries: (days: string[]) => Promise<Map<string, DaySeries | null>>;
 	}
 
 	let {
 		initialModel,
 		initialActivities,
+		initialStats,
 		initialStack,
 		initialHistory,
+		initialStatsHistory,
 		initialPreset,
 		initialHidden,
 		initialGlance,
@@ -73,6 +84,8 @@
 		onPick,
 		onRoute,
 		onSyncHistory,
+		onSyncStatsHistory,
+		readSeries,
 	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
@@ -90,6 +103,10 @@
 	let activities = $state(initialActivities);
 	// svelte-ignore state_referenced_locally
 	let history = $state<HistoryProgress | null>(initialHistory);
+	// svelte-ignore state_referenced_locally
+	let stats = $state(initialStats);
+	// svelte-ignore state_referenced_locally
+	let statsHistory = $state<StatsHistoryProgress | null>(initialStatsHistory);
 
 	/** A view left open past midnight moves on to the new day with its next refresh. */
 	export function setModel(next: HomeModel, nextToday?: string) {
@@ -103,6 +120,14 @@
 
 	export function setHistory(next: HistoryProgress | null) {
 		history = next;
+	}
+
+	export function setStats(next: StatsData) {
+		stats = next;
+	}
+
+	export function setStatsHistory(next: StatsHistoryProgress | null) {
+		statsHistory = next;
 	}
 
 	/** Opens a stack of pages from outside, as a command does. */
@@ -170,13 +195,20 @@
 		onRoute(stack);
 	}
 
-	function openAll(e: KeyboardEvent | MouseEvent) {
-		if (e instanceof KeyboardEvent) {
-			if (e.key !== "Enter" && e.key !== " ") return;
-			e.preventDefault();
-		}
-		go({ page: "all" });
+	/** A card that opens a page, by click or by Enter / Space. */
+	function opener(route: Route) {
+		return (e: KeyboardEvent | MouseEvent) => {
+			if (e instanceof KeyboardEvent) {
+				if (e.key !== "Enter" && e.key !== " ") return;
+				e.preventDefault();
+			}
+			go(route);
+		};
 	}
+	const openAll = opener({ page: "all" });
+
+	/** At a Glance cards with a page behind them, as in the app. */
+	const GLANCE_PAGE: Partial<Record<GlanceId, StatId>> = { steps: "steps", floors: "floors", intensity: "intensity" };
 
 	async function sync() {
 		if (syncing) return;
@@ -219,7 +251,9 @@
 {#snippet focus(id: FocusId)}
 	{#if id === "sleep"}<FocusSleep sleep={model.sleep} />
 	{:else if id === "bodyBattery"}<FocusBattery battery={model.battery} />
-	{:else if id === "steps"}<FocusSteps steps={model.steps} />
+	{:else if id === "steps"}
+		{@const open = opener(statsRoute("steps"))}
+		<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusSteps steps={model.steps} /></div>
 	{:else if id === "activities"}
 		<div class="tap" role="button" tabindex="0" onclick={openAll} onkeydown={openAll}><FocusActivities activities={model.activities} /></div>
 	{:else if id === "readiness"}<FocusReadiness readiness={model.readiness} />
@@ -248,6 +282,19 @@
 		<RecordsPage route={current} data={activities} onBack={back} {swap} />
 	{:else if current.page === "all"}
 		<AllActivitiesPage data={activities} onBack={back} />
+	{:else if current.page === "stats"}
+		<StatsPage
+			route={current}
+			data={stats}
+			{today}
+			history={statsHistory}
+			{canSync}
+			onBack={back}
+			{go}
+			{swap}
+			onSyncHistory={onSyncStatsHistory}
+			{readSeries}
+		/>
 	{:else}
 		<header class="pane-header">
 			<div class="title">
@@ -341,7 +388,13 @@
 				<section>
 					<SectionHeader title="At a Glance" action="See All" onAction={() => go({ page: "glance" })} />
 					<div class="glance">
-						{#each glanceList.slice(0, HOME_GLANCE) as id (id)}<Glance {id} {model} />{:else}
+						{#each glanceList.slice(0, HOME_GLANCE) as id (id)}
+							{@const page = GLANCE_PAGE[id]}
+							{#if page}
+								{@const open = opener(statsRoute(page))}
+								<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><Glance {id} {model} /></div>
+							{:else}<Glance {id} {model} />{/if}
+						{:else}
 							<div class="glance-none">
 								<HomeCard><div class="quiet">No stats here yet. Choose See All, then Edit, to add some.</div></HomeCard>
 							</div>
@@ -516,7 +569,8 @@
 	.slide > :global(*) {
 		flex: 1;
 	}
-	/* The All Activities card opens All Activities, as it does in the app. */
+	/* The All Activities card opens All Activities, and the Steps, Floors and
+	   Intensity Minutes cards their pages, as they do in the app. */
 	.tap {
 		display: flex;
 		flex-direction: column;

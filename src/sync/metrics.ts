@@ -80,7 +80,7 @@ export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 	fitness: 2,
 	body: 1,
 	training: 1,
-	intraday: 4,
+	intraday: 6,
 	health: 1,
 };
 
@@ -1365,7 +1365,7 @@ export function endpointsFor(groups: readonly MetricGroup[]) {
 		body: set.has("body"),
 		fitnessAge: set.has("fitness"),
 		health: set.has("health"),
-		// Four requests between them, so the engine spends them only on the
+		// Six requests between them, so the engine spends them only on the
 		// newest days of a run. See `INTRADAY_DAYS`.
 		intraday: set.has("intraday"),
 		// Range endpoints: one request each for the whole window, however long.
