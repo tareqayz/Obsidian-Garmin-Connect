@@ -1,4 +1,5 @@
 import { CATEGORIES, RECORD_TABS, type CategoryId, type MetricId, type RangeId, type RecordTab } from "./activities";
+import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } from "./stats-pages";
 
 /**
  * Where the Home view is, as a stack: Home, then whatever was opened on top
@@ -16,7 +17,8 @@ export type Route =
 	| { page: "category"; category: CategoryId; sub: number | null; range: RangeId; offset: number; metric: MetricId }
 	| { page: "month"; category: CategoryId; sub: number | null; month: string; metric: MetricId }
 	| { page: "records"; tab: RecordTab }
-	| { page: "all" };
+	| { page: "all" }
+	| { page: "stats"; stat: StatId; range: StatRange; offset: number; totals: StatTotals };
 
 export const HOME: Route = { page: "home" };
 
@@ -81,6 +83,17 @@ export function readRoute(value: unknown): Route | null {
 				metric: metricId(raw.metric, category),
 			};
 		}
+		case "stats": {
+			const stat = STAT_IDS.find((id) => id === raw.stat);
+			if (!stat) return null;
+			return {
+				page: "stats",
+				stat,
+				range: STAT_RANGES.includes(raw.range as StatRange) ? (raw.range as StatRange) : "1d",
+				offset: Number.isInteger(raw.offset) ? Math.min(0, raw.offset as number) : 0,
+				totals: raw.totals === "weekly" ? "weekly" : "monthly",
+			};
+		}
 		case "month": {
 			const category = categoryId(raw.category);
 			if (!category || typeof raw.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month)) return null;
@@ -102,6 +115,11 @@ function subId(value: unknown): number | null {
 function metricId(value: unknown, category: CategoryId): MetricId {
 	const allowed = CATEGORIES.find((c) => c.id === category)!.metrics;
 	return METRICS.includes(value as MetricId) && allowed.includes(value as MetricId) ? (value as MetricId) : allowed[0]!;
+}
+
+/** Steps, Floors or Intensity Minutes as the hub and Home open them: today. */
+export function statsRoute(stat: StatId): Route {
+	return { page: "stats", stat, range: "1d", offset: 0, totals: "monthly" };
 }
 
 /** A category page as the hub opens it: everything, this week, the first tab. */

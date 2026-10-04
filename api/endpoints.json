@@ -830,6 +830,78 @@
 			}
 		},
 		{
+			"id": "daily-floors-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/floors/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in the Garmin Connect app's Floors page, 2026-10-04 (ref/activities/README.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.dailyFloorStats",
+			"groups": [
+				"activity"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].calendarDate",
+				"[].values.wellnessFloorsAscended",
+				"[].values.wellnessFloorsDescended",
+				"[].values.wellnessUserFloorsAscendedGoal"
+			],
+			"schema": "schema/daily-floors-stats.json",
+			"notes": "Whole floors a day, 28 days a call at most. The same figures as the daily summary's fractional floorsAscended / floorsDescended rounded down. Fills the daily stats index beside daily-steps."
+		},
+		{
+			"id": "daily-intensity-minutes-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/im/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in the Garmin Connect app's Intensity Minutes page, 2026-10-04 (ref/activities/README.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.dailyIntensityStats",
+			"groups": [
+				"activity"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].calendarDate",
+				"[].moderateValue",
+				"[].vigorousValue",
+				"[].weeklyGoal"
+			],
+			"schema": "schema/daily-intensity-minutes-stats.json",
+			"notes": "Moderate and vigorous minutes a day and the week's goal, 28 days a call at most. Fills the daily stats index beside daily-steps."
+		},
+		{
 			"id": "daily-steps",
 			"method": "GET",
 			"path": "/usersummary-service/stats/steps/daily/{startDate}/{endDate}",
@@ -850,7 +922,22 @@
 					"end"
 				],
 				"line": 1022
-			}
+			},
+			"plugin": "GarminApi.dailyStepStats",
+			"groups": [
+				"activity"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].calendarDate",
+				"[].totalSteps",
+				"[].totalDistance",
+				"[].stepGoal"
+			],
+			"schema": "schema/daily-steps.json",
+			"notes": "28 days a call at most (29 is HTTP 400); days without watch data are left out. Fills the daily stats index (<dataFolder>/daily-stats/) the Steps, Floors and Intensity Minutes pages read: once back to the start of the history, then for any day a routine sync could not write. totalDistance is metres on foot, as the Steps page shows it."
 		},
 		{
 			"id": "daily-weigh-ins",
@@ -1340,7 +1427,20 @@
 					"cdate"
 				],
 				"line": 1007
-			}
+			},
+			"plugin": "GarminApi.floorsChart",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"floorsValueDescriptorDTOList",
+				"floorValuesArray"
+			],
+			"schema": "schema/floors.json",
+			"notes": "Floors in 15-minute buckets, [startGMT, endGMT, ascended, descended] per the descriptor list; whole floors per bucket, so a day's buckets can add up to a little less than its total. Written to the day's series file for the Floors day chart; fetched only for the newest days of a run."
 		},
 		{
 			"id": "functional-threshold-power-range",
@@ -2009,7 +2109,23 @@
 					"cdate"
 				],
 				"line": 1773
-			}
+			},
+			"plugin": "GarminApi.intensityMinutesChart",
+			"groups": [
+				"intraday"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"imValueDescriptorsDTOList",
+				"imValuesArray",
+				"startDayMinutes",
+				"endDayMinutes",
+				"weekGoal"
+			],
+			"schema": "schema/intensity-minutes-data.json",
+			"notes": "Intensity minutes in 15-minute buckets, [bucketEndMs, minutes] with vigorous already doubled; imValuesArray is null on a day with none. Written to the day's series file for the Intensity Minutes charts; fetched only for the newest days of a run."
 		},
 		{
 			"id": "lactate-threshold-biometric-latest",
@@ -3456,7 +3572,7 @@
 				"bodyBatteryLowestValue"
 			],
 			"schema": "schema/user-summary.json",
-			"notes": "Serves three metric groups from one request. A `privacyProtected: true` body means the session is not fully authorised.",
+			"notes": "Serves three metric groups from one request, and the daily stats index for the days a sync writes. A `privacyProtected: true` body means the session is not fully authorised; `includesWellnessData: false`, with every count null, is a day the watch recorded nothing.",
 			"reads": [
 				"bmrKilocalories",
 				"floorsDescended",
@@ -3482,7 +3598,9 @@
 				"lowestSpo2",
 				"latestSpo2",
 				"consumedKilocalories",
-				"latestRespirationValue"
+				"latestRespirationValue",
+				"wellnessDistanceMeters",
+				"includesWellnessData"
 			]
 		},
 		{

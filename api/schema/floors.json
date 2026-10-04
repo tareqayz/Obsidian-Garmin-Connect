@@ -1,0 +1,73 @@
+{
+	"endpoint": "floors",
+	"path": "/wellness-service/wellness/floorsChartData/daily/{date}",
+	"plugin": "GarminApi.floorsChart",
+	"firstRecorded": "2026-10-04T12:55:00.341Z",
+	"updatedAt": "2026-10-04T12:55:00.341Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"floorValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number",
+							"string"
+						]
+					}
+				}
+			},
+			"floorsValueDescriptorDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"index": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

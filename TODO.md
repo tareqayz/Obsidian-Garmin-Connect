@@ -23,8 +23,7 @@
   - Retire the classic dashboard once Home and the detail screens cover it.
 - Activities (Garmin Connect rebuild), built 2026-10-03 on `feature/activites`:
   - Next: the activity detail screen (activity and record rows are not
-    clickable until it exists), then the Steps, Floors and Intensity Minutes
-    pages the hub leaves out, and Create Manual Activity, Epics and Golf.
+    clickable until it exists), then Create Manual Activity, Epics and Golf.
   - Inferred, with no phone screenshot to check against: the Time, Ascent and
     Calories tabs, the 1y list and month page, the sub-type picker, and every
     sport but Running. In particular: the Time chart's minutes for a day and
@@ -43,6 +42,28 @@
     names (Road Cycling, Pool Swimming); others may differ from the app.
   - On macOS the sub-type picker is Obsidian's menu, which follows the
     "Native menus" setting, so it can look nothing like the Figma sheet.
+- Steps, Floors and Intensity Minutes (Garmin Connect rebuild), built
+  2026-10-04 on `feature/activites`. Every number on the 18 phone screenshots
+  reproduces from the daily stats index; these are inferred and need checking
+  on the phone:
+  - Steps 1y by the week, a past day that met its goal (green ring and check),
+    an Intensity day that crosses the goal, and a week short of it (blue ring,
+    no message, the message's line left empty).
+  - Steps and Floors 7d / 4w are taken to be the days ending today, and
+    Intensity's to be calendar weeks: the screenshots were taken on a Sunday,
+    when the two agree. Check on a weekday.
+  - The day label for older days ("Thu, Oct 1"), and a same-month range
+    written "Jan 12 - 18".
+  - Floors' axis keeps the goal off its top edge (one floor with a goal of 10
+    draws 20/10/0, as the app did): one screenshot's worth of evidence.
+  - Tapping a day in a list opens its 1d page. Unchecked in the app.
+  - Intensity weeks run Monday to Sunday although this account's
+    `firstDayOfWeek` is Sunday; check with an account set to start on Monday
+    whether anything moves.
+  - Series files written before 2026-10-04 have no floors, minutes or
+    `dayStart`: their day charts sit on this computer's clock, and Intensity's
+    week falls back to a step at each day's start. They fill in as days sync.
+  - Steps' Help, the ⋮ menu and Edit Goal are not built.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to

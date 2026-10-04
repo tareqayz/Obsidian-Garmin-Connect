@@ -5,7 +5,7 @@ rulebook; this file is the short version that matters while making changes.
 
 ## UI
 
-Any updated to UI should be managed in the relevant figma file : https://www.figma.com/design/vlk7D6Cmjry8fhUuDQMT2H/Obsidian-Garmin-Connect-%E2%80%94-Dashboard-UI?m=auto&t=gA6vYah7LKnBRSY6-6
+Any updated to UI should be managed in the relevant figma file : https://www.figma.com/design/8D338zFIJ1a2zrsuligjva/Obsidian-Garmin?m=auto&t=8zZKo7uGo4sDw9Sv-6
 
 This is relevant for:
 - Designing new components

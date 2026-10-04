@@ -14,6 +14,8 @@ import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
 import { HOME, readStack, type Route } from "./routes";
 import type { DayRow } from "./series";
+import type { StatsData } from "./stats-pages";
+import type { DaySeries } from "../sync/intraday";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
 
@@ -21,9 +23,10 @@ export const GARMIN_HOME_VIEW = "garmin-home";
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
  * the pages that open from it.
  *
- * Reads the day notes' frontmatter, that day's series file, `account.json`
- * and the activity index, and rebuilds whenever any of them changes. Which
- * page is open is part of the view's state, so a reload returns to it.
+ * Reads the day notes' frontmatter, that day's series file, `account.json`,
+ * the activity index and the daily stats index, and rebuilds whenever any of
+ * them changes. Which page is open is part of the view's state, so a reload
+ * returns to it.
  */
 export class GarminHomeView extends ItemView {
 	private plugin: GarminPlugin;
@@ -68,13 +71,16 @@ export class GarminHomeView extends ItemView {
 		const today = toIsoDate();
 		const rows = this.rows();
 		const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
+		const stats = await this.buildStats(rows, activities.units);
 		this.component = mount(Home, {
 			target: this.contentEl,
 			props: {
 				initialModel: model,
 				initialActivities: activities,
+				initialStats: stats,
 				initialStack: this.stack,
 				initialHistory: this.plugin.sync.historyProgress,
+				initialStatsHistory: this.plugin.sync.statsHistoryProgress,
 				initialPreset: this.plugin.data.home.preset,
 				initialHidden: [...this.plugin.data.home.hidden],
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
@@ -92,10 +98,13 @@ export class GarminHomeView extends ItemView {
 					this.app.workspace.requestSaveLayout();
 				},
 				onSyncHistory: () => void this.plugin.sync.syncActivityHistory(),
+				onSyncStatsHistory: () => void this.plugin.sync.syncDailyStatsHistory(),
+				readSeries: (days: string[]) => this.readSeries(days),
 			},
 		});
 
 		this.register(this.plugin.sync.onHistory((progress) => this.component?.setHistory(progress)));
+		this.register(this.plugin.sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)));
 
 		// Frontmatter lands through the metadata cache; the JSON files do not,
 		// so watch those directly.
@@ -146,14 +155,46 @@ export class GarminHomeView extends ItemView {
 		return data;
 	}
 
+	/**
+	 * What the Steps, Floors and Intensity Minutes pages read. The index has
+	 * no calories for the days only a history sync reached, so the notes fill
+	 * those in: the same daily summary figure.
+	 */
+	private async buildStats(rows: DayRow[], units: StatsData["units"]): Promise<StatsData> {
+		const store = this.store();
+		const index = await store.readDailyStats();
+		const calories: Record<string, number> = {};
+		for (const row of rows) {
+			const kcal = row.values.calories;
+			if (typeof kcal === "number" && Number.isFinite(kcal)) calories[row.date] = kcal;
+		}
+		return {
+			rows: index.rows,
+			complete: index.meta?.complete === true,
+			units,
+			// Monday, whatever the account's first day of the week: the app's
+			// Intensity Minutes weeks and Garmin's weekly totals both run Monday
+			// to Sunday on an account set to start its weeks on Sunday.
+			weekStart: 1,
+			calories,
+		};
+	}
+
+	private async readSeries(days: string[]): Promise<Map<string, DaySeries | null>> {
+		const store = this.store();
+		return new Map(await Promise.all(days.map(async (day) => [day, await store.read(day)] as const)));
+	}
+
 	private scheduleRefresh(): void {
 		window.clearTimeout(this.pending);
 		this.pending = window.setTimeout(() => {
 			const today = toIsoDate();
 			const rows = this.rows();
-			void Promise.all([this.build(today, rows), this.buildActivities(rows)]).then(([model, activities]) => {
+			void Promise.all([this.build(today, rows), this.buildActivities(rows)]).then(async ([model, activities]) => {
+				const stats = await this.buildStats(rows, activities.units);
 				this.component?.setModel(model, today);
 				this.component?.setActivities(activities);
+				this.component?.setStats(stats);
 			});
 		}, 150);
 	}

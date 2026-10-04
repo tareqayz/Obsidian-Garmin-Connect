@@ -23,9 +23,16 @@ export interface DailySummary {
 	totalSteps?: number | null;
 	dailyStepGoal?: number | null;
 	totalDistanceMeters?: number | null;
+	/** Metres on foot. `totalDistanceMeters` adds rides and swims; the Steps page shows this one. */
+	wellnessDistanceMeters?: number | null;
 	totalKilocalories?: number | null;
 	activeKilocalories?: number | null;
+	/** Fractional: the Floors page shows these rounded down. */
 	floorsAscended?: number | null;
+	floorsDescended?: number | null;
+	userFloorsAscendedGoal?: number | null;
+	/** False, with every count null, on a day the watch recorded nothing. */
+	includesWellnessData?: boolean | null;
 	minHeartRate?: number | null;
 	maxHeartRate?: number | null;
 	restingHeartRate?: number | null;
@@ -34,7 +41,73 @@ export interface DailySummary {
 	bodyBatteryLowestValue?: number | null;
 	moderateIntensityMinutes?: number | null;
 	vigorousIntensityMinutes?: number | null;
+	/** The week's goal, not the day's. */
+	intensityMinutesGoal?: number | null;
 	privacyProtected?: boolean;
+	[key: string]: unknown;
+}
+
+/**
+ * One day of `/usersummary-service/stats/steps/daily`. The range endpoints
+ * leave out days the watch recorded nothing, and take 28 days at most.
+ */
+export interface DailyStepStat {
+	calendarDate?: string;
+	totalSteps?: number | null;
+	/** Metres on foot, as `wellnessDistanceMeters`. */
+	totalDistance?: number | null;
+	stepGoal?: number | null;
+	[key: string]: unknown;
+}
+
+/** One day of `/usersummary-service/stats/floors/daily`, in whole floors. */
+export interface DailyFloorStat {
+	calendarDate?: string;
+	values?: {
+		wellnessFloorsAscended?: number | null;
+		wellnessFloorsDescended?: number | null;
+		wellnessUserFloorsAscendedGoal?: number | null;
+		[key: string]: unknown;
+	} | null;
+	[key: string]: unknown;
+}
+
+/** One day of `/usersummary-service/stats/im/daily`. The goal is the week's. */
+export interface DailyIntensityStat {
+	calendarDate?: string;
+	weeklyGoal?: number | null;
+	moderateValue?: number | null;
+	vigorousValue?: number | null;
+	[key: string]: unknown;
+}
+
+/**
+ * A day's floors in 15-minute buckets: `[startGMT, endGMT, ascended,
+ * descended]` per the descriptor list. Whole floors per bucket, so they can
+ * add up to a little less than the day's total.
+ */
+export interface FloorsChart {
+	/** Midnight on the watch's clock, as a zone-less GMT string. */
+	startTimestampGMT?: string | null;
+	floorsValueDescriptorDTOList?: ValueDescriptor[] | null;
+	floorValuesArray?: Array<Array<string | number | null>> | null;
+	[key: string]: unknown;
+}
+
+/**
+ * A day's intensity minutes: `[bucketEndMs, minutes]`, vigorous already
+ * counted twice. The array is null on a day with none.
+ */
+export interface IntensityChart {
+	calendarDate?: string;
+	/** Midnight on the watch's clock, as a zone-less GMT string. */
+	startTimestampGMT?: string | null;
+	/** The week's total before this day, and after it. */
+	startDayMinutes?: number | null;
+	endDayMinutes?: number | null;
+	weekGoal?: number | null;
+	imValueDescriptorsDTOList?: ValueDescriptor[] | null;
+	imValuesArray?: Array<Array<number | null>> | null;
 	[key: string]: unknown;
 }
 
@@ -484,6 +557,39 @@ export class GarminApi extends GarminClient {
 			{ query: { date } },
 		);
 		return data ?? [];
+	}
+
+	/** The day's floors climbed and descended in 15-minute buckets. */
+	async floorsChart(date: string): Promise<FloorsChart | null> {
+		assertIsoDate(date);
+		return this.request(`/wellness-service/wellness/floorsChartData/daily/${date}`);
+	}
+
+	/** The day's intensity minutes in 15-minute buckets, and the week's total around it. */
+	async intensityMinutesChart(date: string): Promise<IntensityChart | null> {
+		assertIsoDate(date);
+		return this.request(`/wellness-service/wellness/daily/im/${date}`);
+	}
+
+	/* Daily totals over a window, as the Steps, Floors and Intensity Minutes
+	   pages read them. Garmin answers 400 past 28 days. */
+
+	async dailyStepStats(start: string, end: string): Promise<DailyStepStat[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyStepStat[] | null>(`/usersummary-service/stats/steps/daily/${start}/${end}`)) ?? [];
+	}
+
+	async dailyFloorStats(start: string, end: string): Promise<DailyFloorStat[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyFloorStat[] | null>(`/usersummary-service/stats/floors/daily/${start}/${end}`)) ?? [];
+	}
+
+	async dailyIntensityStats(start: string, end: string): Promise<DailyIntensityStat[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyIntensityStat[] | null>(`/usersummary-service/stats/im/daily/${start}/${end}`)) ?? [];
 	}
 
 	/** What charged and drained Body Battery that day: sleep, workouts, stress. */

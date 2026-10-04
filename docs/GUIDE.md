@@ -88,7 +88,8 @@ you can hold your phone next to it and check that every number arrived.
   state.
 - **⋯** in the header opens **More**, which holds **Activities** (the rest of the
   app's More tab comes later). On the Stay active and Track my training presets,
-  the All Activities card in In Focus opens All Activities too.
+  the All Activities card in In Focus opens All Activities too, and the Steps,
+  Floors and Intensity Minutes cards open their pages.
 
 ## Activities
 
@@ -118,6 +119,32 @@ way as Home.
   that, routine syncs keep it current with the request they already make.
 - Panes from 1000px wide put the controls on one row, the totals beside the
   chart and the lists three across.
+
+## Steps, Floors and Intensity Minutes
+
+The hub's last three rows, the Steps card in In Focus, and the Steps, Floors and
+Intensity Minutes cards in At a Glance open Garmin's pages for them. Each has
+**1d / 7d / 4w / 1y** and **‹ ›**, and opens on today.
+
+- **Steps**: a day's ring against its goal, the distance walked or run (not
+  ridden or swum, which is why it can be less than the note's `distance_km`),
+  calories, and the day's steps climbing through it. A week or four weeks show
+  each day against its goal — green when met — the totals, and the averages,
+  which leave today out as the app does. A year totals by the month or, with the
+  toggle, by the week. **View Personal Records** opens the Steps records.
+- **Floors**: climbed up from the line, descended below it, the goal dashed
+  across; a year totals each week.
+- **Intensity Minutes**: vigorous minutes count double. A day shows the week's
+  total running through it; a week shows its ring against the weekly goal; four
+  weeks restart the total each Monday; a year shows each week, green at goal.
+  Weeks run Monday to Sunday, as they do in the app.
+- A day in a list opens that day's page; **Back** returns to the list.
+- The pages read the **daily stats index**, which the sync keeps beside the notes
+  (see the [property reference](properties.md#the-daily-stats-index--daily-stats)).
+  Its whole history — about 40 requests a year — fetches by itself after the
+  first sync of a session, or with **Sync step, floor and intensity history**.
+  Day charts come from the intraday series files, so they cover the days synced
+  with the **intraday** group on.
 
 ## The classic dashboard
 

@@ -1,0 +1,127 @@
+{
+	"endpoint": "intensity-minutes-data",
+	"path": "/wellness-service/wellness/daily/im/{date}",
+	"plugin": "GarminApi.intensityMinutesChart",
+	"firstRecorded": "2026-10-04T12:55:00.341Z",
+	"updatedAt": "2026-10-04T12:55:00.341Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"dayOfGoalMet": {
+				"type": [
+					"string"
+				]
+			},
+			"endDayMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"imValueDescriptorsDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"index": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"imValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"moderateMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"startDayMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			},
+			"vigorousMinutes": {
+				"type": [
+					"number"
+				]
+			},
+			"weekGoal": {
+				"type": [
+					"number"
+				]
+			},
+			"weeklyModerate": {
+				"type": [
+					"number"
+				]
+			},
+			"weeklyTotal": {
+				"type": [
+					"number"
+				]
+			},
+			"weeklyVigorous": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

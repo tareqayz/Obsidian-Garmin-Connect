@@ -1,0 +1,40 @@
+{
+	"endpoint": "daily-intensity-minutes-stats",
+	"path": "/usersummary-service/stats/im/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.dailyIntensityStats",
+	"firstRecorded": "2026-10-04T12:55:00.341Z",
+	"updatedAt": "2026-10-04T12:55:00.341Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"moderateValue": {
+					"type": [
+						"number"
+					]
+				},
+				"vigorousValue": {
+					"type": [
+						"number"
+					]
+				},
+				"weeklyGoal": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

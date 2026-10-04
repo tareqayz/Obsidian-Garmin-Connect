@@ -7,15 +7,18 @@ import {
 	chunkRange,
 	dateRange,
 	fetchAllActivities,
+	fetchDailyStatsHistory,
 	lastNDays,
 	syncRange,
 	type ActivitySink,
+	type DailyStatsSink,
 	type NoteTarget,
 	type SyncOptions,
 	type SeriesTarget,
 	type SyncSource,
 	type WriteOutcome,
 } from "../src/sync/engine";
+import type { DailyStatsBatch } from "../src/sync/daily-stats";
 import type { DaySeries } from "../src/sync/intraday";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { Activity } from "../src/garmin/endpoints";
@@ -107,6 +110,42 @@ class FakeSource implements SyncSource {
 	async bodyBatteryEvents(date: string) {
 		this.guard("bodyBatteryEvents", date);
 		return [];
+	}
+	async floorsChart(date: string) {
+		this.guard("floorsChart", date);
+		return {
+			floorValuesArray: [
+				["2026-09-12T08:00:00.0", "2026-09-12T08:15:00.0", 2, 0],
+				["2026-09-12T08:15:00.0", "2026-09-12T08:30:00.0", 0, 0],
+			],
+		};
+	}
+	async intensityMinutesChart(date: string) {
+		this.guard("intensityMinutesChart", date);
+		return { startDayMinutes: 40, endDayMinutes: 70, imValuesArray: [[1_000, 30]] };
+	}
+	/** Days the range endpoints know about, keyed by date. */
+	stats: Record<string, { steps: number; up?: number; moderate?: number }> = {};
+	statCalls: string[] = [];
+	private inRange(start: string, end: string) {
+		return Object.keys(this.stats)
+			.filter((d) => d >= start && d <= end)
+			.sort();
+	}
+	async dailyStepStats(start: string, end: string) {
+		this.guard("dailyStepStats");
+		this.statCalls.push(`steps:${start}:${end}`);
+		return this.inRange(start, end).map((d) => ({ calendarDate: d, totalSteps: this.stats[d]!.steps, totalDistance: 700, stepGoal: 8000 }));
+	}
+	async dailyFloorStats(start: string, end: string) {
+		this.guard("dailyFloorStats");
+		this.statCalls.push(`floors:${start}:${end}`);
+		return this.inRange(start, end).map((d) => ({ calendarDate: d, values: { wellnessFloorsAscended: this.stats[d]!.up ?? 0, wellnessFloorsDescended: 1, wellnessUserFloorsAscendedGoal: 10 } }));
+	}
+	async dailyIntensityStats(start: string, end: string) {
+		this.guard("dailyIntensityStats");
+		this.statCalls.push(`im:${start}:${end}`);
+		return this.inRange(start, end).map((d) => ({ calendarDate: d, weeklyGoal: 150, moderateValue: this.stats[d]!.moderate ?? 0, vigorousValue: 0 }));
 	}
 	async healthStatus(date: string) {
 		this.guard("healthStatus", date);
@@ -497,6 +536,194 @@ describe("fetchAllActivities", () => {
 	});
 });
 
+/* ------------------------------------------------------------------ */
+/*  Daily stats index                                                 */
+/* ------------------------------------------------------------------ */
+
+class FakeDailySink implements DailyStatsSink {
+	held: { from?: string; to?: string } | null = null;
+	merged: Array<{ batch: DailyStatsBatch; covered: { from: string; to: string } | null }> = [];
+	fail = false;
+	async coverage() {
+		return this.held;
+	}
+	async merge(batch: DailyStatsBatch, covered: { from: string; to: string } | null) {
+		if (this.fail) throw new Error("disk full");
+		this.merged.push({ batch, covered });
+		return 1;
+	}
+}
+
+describe("syncRange — daily stats index", () => {
+	const all = new Set(["2026-09-10", "2026-09-11", "2026-09-12"]);
+
+	it("takes the days from the summaries the sync fetched anyway, at no extra cost", async () => {
+		const source = new FakeSource();
+		const sink = new FakeDailySink();
+		const report = await syncRange(source, new FakeTarget(all), options({ dailyStats: sink }));
+		assert.deepEqual(source.statCalls, []);
+		assert.equal(report.requests, 3);
+		const { batch, covered } = sink.merged[0]!;
+		assert.deepEqual(
+			batch.rows.map((r) => [r.date, r.steps]),
+			[
+				["2026-09-12", 8000],
+				["2026-09-11", 8000],
+				["2026-09-10", 8000],
+			],
+		);
+		assert.deepEqual(covered, { from: "2026-09-10", to: "2026-09-12" });
+		assert.equal(report.dailyStatsFilesWritten, 1);
+	});
+
+	it("asks the range endpoints for the days it could not write, three requests a window", async () => {
+		const source = new FakeSource();
+		source.stats = { "2026-09-10": { steps: 5000, up: 3 }, "2026-09-11": { steps: 6000, moderate: 20 } };
+		const sink = new FakeDailySink();
+		await syncRange(source, new FakeTarget(new Set(["2026-09-12"])), options({ dailyStats: sink }));
+		assert.deepEqual(source.statCalls, ["steps:2026-09-10:2026-09-11", "floors:2026-09-10:2026-09-11", "im:2026-09-10:2026-09-11"]);
+		const { batch, covered } = sink.merged[0]!;
+		assert.deepEqual([...batch.dates].sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
+		const byDate = new Map(batch.rows.map((r) => [r.date, r]));
+		assert.equal(byDate.get("2026-09-10")?.floorsUp, 3);
+		assert.equal(byDate.get("2026-09-11")?.moderate, 20);
+		assert.equal(byDate.get("2026-09-12")?.steps, 8000);
+		assert.deepEqual(covered, { from: "2026-09-10", to: "2026-09-12" });
+	});
+
+	it("fills the stretch since the index's newest day", async () => {
+		const source = new FakeSource();
+		const sink = new FakeDailySink();
+		sink.held = { from: "2026-08-01", to: "2026-09-01" };
+		await syncRange(source, new FakeTarget(all), options({ dailyStats: sink }));
+		assert.deepEqual(source.statCalls, ["steps:2026-09-02:2026-09-09", "floors:2026-09-02:2026-09-09", "im:2026-09-02:2026-09-09"]);
+		assert.deepEqual(sink.merged[0]!.covered, { from: "2026-09-02", to: "2026-09-12" });
+	});
+
+	it("feeds the index even when no day in the range can be written", async () => {
+		const source = new FakeSource();
+		source.stats = { "2026-09-11": { steps: 4000 } };
+		const sink = new FakeDailySink();
+		await syncRange(source, new FakeTarget(), options({ dailyStats: sink }));
+		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 0);
+		assert.deepEqual(
+			sink.merged[0]!.batch.rows.map((r) => r.date),
+			["2026-09-11"],
+		);
+	});
+
+	it("is left alone without the activity group", async () => {
+		const source = new FakeSource();
+		const sink = new FakeDailySink();
+		await syncRange(source, new FakeTarget(all), options({ groups: ["sleep"], dailyStats: sink }));
+		assert.deepEqual(sink.merged, []);
+		assert.deepEqual(source.statCalls, []);
+	});
+
+	it("keeps what earlier days gave it when a 429 ends the run, and fetches nothing more", async () => {
+		const source = new FakeSource();
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) => {
+			if (date === "2026-09-11") throw new GarminRateLimitError("rate limited", 60);
+			return original(date);
+		};
+		const sink = new FakeDailySink();
+		const report = await syncRange(source, new FakeTarget(all), options({ dailyStats: sink }));
+		assert.match(report.stoppedEarly ?? "", /rate limited/);
+		assert.deepEqual(source.statCalls, []);
+		assert.deepEqual(sink.merged[0]!.batch.dates, ["2026-09-12"]);
+		assert.equal(sink.merged[0]!.covered, null);
+	});
+
+	it("leaves out a day the watch recorded nothing", async () => {
+		const source = new FakeSource();
+		source.dailySummary = async (date: string) => {
+			const empty = { calendarDate: date, totalSteps: null, includesWellnessData: false };
+			return empty;
+		};
+		const sink = new FakeDailySink();
+		await syncRange(source, new FakeTarget(all), options({ dailyStats: sink }));
+		assert.deepEqual(sink.merged[0]!.batch.rows, []);
+		assert.equal(sink.merged[0]!.batch.dates.length, 3);
+	});
+
+	it("keeps syncing the days when the index cannot be written", async () => {
+		const source = new FakeSource();
+		const sink = new FakeDailySink();
+		sink.fail = true;
+		const target = new FakeTarget(all);
+		const report = await syncRange(source, target, options({ dailyStats: sink }));
+		assert.equal(report.written, 3);
+		assert.ok(report.warnings.some((w) => w.includes("daily stats: disk full")));
+	});
+});
+
+describe("fetchDailyStatsHistory", () => {
+	/** Steps every day from `from` to `to`; nothing before. */
+	function history(from: string, to: string, failAt?: { call: number; err: unknown }) {
+		const days: string[] = [];
+		for (let d = from; d <= to; d = new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) days.push(d);
+		const calls: string[] = [];
+		const hit = (name: string, a: string, b: string) => {
+			calls.push(`${name} ${a} ${b}`);
+			if (failAt && calls.length === failAt.call) throw failAt.err;
+			return days.filter((d) => d >= a && d <= b);
+		};
+		return {
+			calls,
+			dailyStepStats: async (a: string, b: string) => hit("steps", a, b).map((d) => ({ calendarDate: d, totalSteps: 1000, totalDistance: 800, stepGoal: 5000 })),
+			dailyFloorStats: async (a: string, b: string) => hit("floors", a, b).map((d) => ({ calendarDate: d, values: { wellnessFloorsAscended: 2, wellnessFloorsDescended: 1 } })),
+			dailyIntensityStats: async (a: string, b: string) => hit("im", a, b).map((d) => ({ calendarDate: d, weeklyGoal: 150, moderateValue: 5, vigorousValue: 1 })),
+		};
+	}
+
+	it("walks back 28 days at a time until windows come back empty", async () => {
+		const source = history("2026-08-15", "2026-09-12");
+		const reached: string[] = [];
+		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12", emptyWindows: 2, onWindow: (d) => reached.push(d) });
+		assert.equal(got.complete, true);
+		// Two windows with data (three requests each), then two empty ones (one each).
+		assert.equal(got.requests, 8);
+		assert.deepEqual(reached, ["2026-08-16", "2026-07-19", "2026-06-21", "2026-05-24"]);
+		assert.equal(got.batch.rows.length, 29);
+		assert.equal(got.batch.dates.length, 112);
+		assert.deepEqual(got.covered, { from: "2026-05-24", to: "2026-09-12" });
+		assert.deepEqual(source.calls.slice(0, 3), ["steps 2026-08-16 2026-09-12", "floors 2026-08-16 2026-09-12", "im 2026-08-16 2026-09-12"]);
+	});
+
+	it("keeps walking through empty windows newer than the oldest activity", async () => {
+		const source = history("2026-08-15", "2026-09-12");
+		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12", emptyWindows: 1, notBefore: "2026-06-01" });
+		assert.equal(got.complete, true);
+		assert.equal(got.covered?.from, "2026-05-24");
+	});
+
+	it("stops on a 429, keeping the windows before it", async () => {
+		const source = history("2026-08-15", "2026-09-12", { call: 4, err: new GarminRateLimitError("rate limited") });
+		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12" });
+		assert.ok(got.fatal instanceof GarminRateLimitError);
+		assert.equal(got.complete, false);
+		assert.equal(got.batch.rows.length, 28);
+		assert.deepEqual(got.covered, { from: "2026-08-16", to: "2026-09-12" });
+	});
+
+	it("reports any other failure without calling it fatal", async () => {
+		const source = history("2026-08-15", "2026-09-12", { call: 2, err: new GarminApiError("bad gateway", 502, "") });
+		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12" });
+		assert.equal(got.fatal, undefined);
+		assert.match(got.error ?? "", /2026-08-16\.\.2026-09-12: bad gateway/);
+		assert.equal(got.covered, null);
+	});
+
+	it("can be stopped between windows", async () => {
+		const source = history("2026-01-01", "2026-09-12");
+		let windows = 0;
+		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12", onWindow: () => (windows += 1), shouldStop: () => windows >= 2 });
+		assert.equal(windows, 2);
+		assert.equal(got.complete, false);
+	});
+});
+
 describe("syncRange — request budget", () => {
 	it("counts the requests it made", async () => {
 		const source = new FakeSource();
@@ -628,8 +855,13 @@ describe("syncRange — intraday", () => {
 		]);
 		assert.deepEqual(day.bodyBattery, [[1_000, 60]]);
 		assert.equal(day.steps![0]!.steps, 412);
+		// Quiet floor buckets are left out; minutes keep Garmin's bucket-end stamp.
+		assert.deepEqual(day.floors, [
+			{ start: Date.parse("2026-09-12T08:00:00Z"), end: Date.parse("2026-09-12T08:15:00Z"), up: 2, down: 0 },
+		]);
+		assert.deepEqual(day.intensity, [[1_000, 30]]);
 		assert.equal(report.seriesWritten, 1);
-		assert.equal(report.requests, 4);
+		assert.equal(report.requests, 6);
 	});
 
 	it("spends intraday requests only on the newest days of a run", async () => {

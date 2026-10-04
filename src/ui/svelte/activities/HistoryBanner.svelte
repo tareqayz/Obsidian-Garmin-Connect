@@ -1,45 +1,30 @@
 <script lang="ts">
-	import type { HistoryProgress } from "../../../sync/runner";
 	import { lucide } from "../home/lucide";
 
 	/**
-	 * Plugin-only: shown until the activity index holds the whole history, since
-	 * until then a chart can only cover what routine syncs have reached.
+	 * Plugin-only: shown until an index holds the whole history — activities,
+	 * or steps, floors and intensity minutes — since until then a chart can
+	 * only cover what routine syncs have reached.
 	 */
 	interface Props {
-		/** A history sync in progress, or null. */
-		progress: HistoryProgress | null;
-		/** How many activities the list held when last counted. */
-		total?: number;
+		title: string;
+		detail: string;
+		/** A history sync is running: the icon spins and the button goes. */
+		busy: boolean;
 		canSync: boolean;
 		onSync: () => void;
 	}
 
-	let { progress, total, canSync, onSync }: Props = $props();
-
-	let detail = $derived.by(() => {
-		if (total === undefined) return "Charts cover only what’s synced. The whole history takes about one request per hundred activities.";
-		const requests = Math.max(1, Math.ceil(total / 100));
-		return `Charts cover only what’s synced. All ${total.toLocaleString()} activities take about ${requests} ${requests === 1 ? "request" : "requests"}.`;
-	});
+	let { title, detail, busy, canSync, onSync }: Props = $props();
 </script>
 
 <div class="history" role="status">
-	<span class="icon" class:spin={progress} use:lucide={"refresh-cw"}></span>
+	<span class="icon" class:spin={busy} use:lucide={"refresh-cw"}></span>
 	<div class="text">
-		{#if progress}
-			<strong>Fetching activity history…</strong>
-			<span>
-				{progress.total !== undefined
-					? `${progress.fetched.toLocaleString()} of ${progress.total.toLocaleString()} activities`
-					: `${progress.fetched.toLocaleString()} activities so far`}
-			</span>
-		{:else}
-			<strong>Activity history isn’t synced</strong>
-			<span>{detail}</span>
-		{/if}
+		<strong>{title}</strong>
+		<span>{detail}</span>
 	</div>
-	{#if !progress}
+	{#if !busy}
 		<button class="mod-cta" disabled={!canSync} onclick={onSync}>Sync history</button>
 	{/if}
 </div>

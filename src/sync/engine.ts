@@ -3,14 +3,19 @@ import {
 	type Activity,
 	type BodyBatteryEvent,
 	type BodyComposition,
+	type DailyFloorStat,
+	type DailyIntensityStat,
+	type DailyStepStat,
 	type DailyStress,
 	type DailySummary,
 	type EnduranceScore,
 	type FitnessAge,
+	type FloorsChart,
 	type HealthSnapshot,
 	type HealthStatus,
 	type HeartRateData,
 	type HillScore,
+	type IntensityChart,
 	type MaxMetrics,
 	type RacePrediction,
 	type RunningTolerance,
@@ -20,6 +25,7 @@ import {
 } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
+import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
 import {
 	bucketWorkoutsByDate,
@@ -48,6 +54,8 @@ export interface SyncSource {
 	stress(date: string): Promise<DailyStress | null>;
 	heartRate(date: string): Promise<HeartRateData>;
 	stepsChart(date: string): Promise<StepsChartEntry[]>;
+	floorsChart(date: string): Promise<FloorsChart | null>;
+	intensityMinutesChart(date: string): Promise<IntensityChart | null>;
 	bodyBatteryEvents(date: string): Promise<BodyBatteryEvent[]>;
 	/** Range endpoints: one call covers the whole window. */
 	maxMetrics(start: string, end?: string): Promise<MaxMetrics[]>;
@@ -55,6 +63,10 @@ export interface SyncSource {
 	hillScores(start: string, end?: string): Promise<HillScore[]>;
 	runningTolerance(start: string, end?: string): Promise<RunningTolerance[]>;
 	healthSnapshots(start: string, end?: string): Promise<HealthSnapshot[]>;
+	/** Daily totals for the daily stats index. 28 days a call at most. */
+	dailyStepStats(start: string, end: string): Promise<DailyStepStat[]>;
+	dailyFloorStats(start: string, end: string): Promise<DailyFloorStat[]>;
+	dailyIntensityStats(start: string, end: string): Promise<DailyIntensityStat[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
 }
 
@@ -88,6 +100,21 @@ export interface ActivitySink {
 	merge(listing: readonly Activity[], complete: boolean): Promise<number>;
 }
 
+/**
+ * Where steps, floors and intensity minutes go besides the day notes: the
+ * daily stats index the Steps, Floors and Intensity Minutes pages read
+ * (`daily-stats.ts`).
+ */
+export interface DailyStatsSink {
+	/** The days the index holds end to end, or null before it has any. */
+	coverage(): Promise<{ from?: string; to?: string } | null>;
+	/**
+	 * Folds in a batch. `covered` is the stretch it fetched every day of, so
+	 * the index can say how far it reaches. Resolves with how many files changed.
+	 */
+	merge(batch: DailyStatsBatch, covered: { from: string; to: string } | null): Promise<number>;
+}
+
 export interface SyncOptions {
 	/** Inclusive ISO dates. */
 	from: string;
@@ -102,8 +129,14 @@ export interface SyncOptions {
 	 */
 	activities?: ActivitySink;
 	/**
-	 * How many of the newest days in a run get intraday series. They cost four
-	 * requests a day, and a year's backfill of them would be 1,460 requests for
+	 * Where the daily stats go. Fed from the daily summaries the `activity`
+	 * group fetches anyway; a day the run could not write is asked of the
+	 * range endpoints instead, three requests for up to 28 days.
+	 */
+	dailyStats?: DailyStatsSink;
+	/**
+	 * How many of the newest days in a run get intraday series. They cost six
+	 * requests a day, and a year's backfill of them would be 2,190 requests for
 	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
 	 */
 	intradayDays?: number;
@@ -156,6 +189,8 @@ export interface SyncReport {
 	seriesWritten: number;
 	/** Activity index files created or changed. */
 	activityFilesWritten: number;
+	/** Daily stats index files created or changed. */
+	dailyStatsFilesWritten: number;
 }
 
 /**
@@ -222,7 +257,7 @@ export function dateRange(from: string, to: string): string[] {
  */
 export const RANGE_CHUNK_DAYS = 365;
 
-/** See `SyncOptions.intradayDays`. A week covers the dashboard's today and yesterday with room to spare. */
+/** See `SyncOptions.intradayDays`. A week covers the dashboard's today and yesterday, and the Intensity Minutes week, with room to spare. */
 export const INTRADAY_DAYS = 7;
 
 /**
@@ -278,6 +313,7 @@ export async function syncRange(
 		requests: 0,
 		seriesWritten: 0,
 		activityFilesWritten: 0,
+		dailyStatsFilesWritten: 0,
 	};
 	if (dates.length === 0) return report;
 
@@ -293,9 +329,11 @@ export async function syncRange(
 		}
 	}
 	// The activity index wants the list even when no note does: it is how a
-	// new activity reaches the Activities pages.
+	// new activity reaches the Activities pages. The daily stats index the same.
 	const indexing = Boolean(wanted.workouts && opts.activities);
-	if (due.length === 0 && !indexing) {
+	const stats: StatsRun | null =
+		opts.dailyStats && opts.groups.includes("activity") ? { sink: opts.dailyStats, rows: [], dates: new Set() } : null;
+	if (due.length === 0 && !indexing && !stats) {
 		log.warn("nothing in this range can be written to — nothing fetched");
 		return finish(report, log);
 	}
@@ -321,6 +359,10 @@ export async function syncRange(
 	}
 	if (due.length === 0) {
 		log.warn("nothing in this range can be written to");
+		if (stats) {
+			const fatal = await feedDailyStats(source, stats, opts.from, opts.to, report, log, true);
+			if (fatal) return stop(report, fatal, log);
+		}
 		return finish(report, log);
 	}
 
@@ -407,7 +449,16 @@ export async function syncRange(
 			intraday: withSeries && index < intradayDays,
 		});
 		report.requests += fetched.requests;
-		if (fetched.fatal) return stop(report, fetched.fatal, log);
+		if (fetched.fatal) {
+			// What earlier days gave the index costs nothing more to keep.
+			if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
+			return stop(report, fetched.fatal, log);
+		}
+		if (stats && fetched.summaryFetched) {
+			stats.dates.add(date);
+			const row = rowFromSummary(date, fetched.data.summary);
+			if (row) stats.rows.push(row);
+		}
 
 		// The hypnogram rides in the sleep payload, so every day with sleep gets
 		// a series file, not only the newest few that paid for the rest.
@@ -479,7 +530,227 @@ export async function syncRange(
 		if (pause > 0 && done < due.length) await wait(pause);
 	}
 
+	if (stats) {
+		// A run cut short must not reach past the days it stopped at.
+		const fatal = await feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly);
+		if (fatal) return stop(report, fatal, log);
+	}
 	return finish(report, log);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Daily stats                                                        */
+/* ------------------------------------------------------------------ */
+
+interface StatsRun {
+	sink: DailyStatsSink;
+	/** Rows from the daily summaries the run fetched. */
+	rows: DailyStatsRow[];
+	/** Every day whose summary came back, row or not. */
+	dates: Set<string>;
+}
+
+/**
+ * Hands the index what the run saw. With `fetchMissing`, the days it could
+ * not see — no note to write, a summary that failed — are asked of the range
+ * endpoints, and so is any stretch between the index's newest day and this
+ * run: a vault left closed for a fortnight comes back without a hole.
+ * Resolves with the error that should stop the run, if one came up.
+ */
+async function feedDailyStats(
+	source: SyncSource,
+	stats: StatsRun,
+	from: string,
+	to: string,
+	report: SyncReport,
+	log: Log,
+	fetchMissing: boolean,
+): Promise<unknown> {
+	const rows = [...stats.rows];
+	const dates = new Set(stats.dates);
+	let covered: { from: string; to: string } | null = null;
+	let fatal: unknown;
+
+	if (fetchMissing) {
+		let start = from;
+		try {
+			const held = await stats.sink.coverage();
+			if (held?.to && held.to < shiftIso(from, -1)) start = shiftIso(held.to, 1);
+		} catch (err) {
+			note(report, log, `daily stats: ${message(err)}`);
+		}
+		let failed = false;
+		const missing = dateRange(start, to).filter((d) => !dates.has(d));
+		for (const span of spansOf(missing)) {
+			for (const window of chunkRange(span.from, span.to, SHORT_RANGE_DAYS)) {
+				const got = await fetchStatsWindow(source, window.from, window.to);
+				report.requests += got.requests;
+				if (got.fatal) {
+					fatal = got.fatal;
+					break;
+				}
+				if (got.error) {
+					failed = true;
+					note(report, log, `daily stats ${window.from}..${window.to}: ${got.error}`);
+					continue;
+				}
+				rows.push(...got.rows);
+				for (const d of dateRange(window.from, window.to)) dates.add(d);
+			}
+			if (fatal) break;
+		}
+		if (!fatal && !failed) covered = { from: start, to };
+	}
+
+	if (dates.size) {
+		try {
+			report.dailyStatsFilesWritten += await stats.sink.merge({ rows, dates: [...dates] }, covered);
+		} catch (err) {
+			note(report, log, `daily stats: ${message(err)}`);
+		}
+	}
+	return fatal;
+}
+
+type StatsSource = Pick<SyncSource, "dailyStepStats" | "dailyFloorStats" | "dailyIntensityStats">;
+
+interface StatsWindow {
+	rows: DailyStatsRow[];
+	/** How many days the steps endpoint returned. None means the watch recorded nothing all window. */
+	steps: number;
+	requests: number;
+	error?: string;
+	fatal?: unknown;
+}
+
+/**
+ * One window of the three range endpoints. A failure in any is the window's
+ * failure. `withSteps` is the steps answer when the caller already has it.
+ */
+async function fetchStatsWindow(source: StatsSource, from: string, to: string, withSteps?: DailyStepStat[]): Promise<StatsWindow> {
+	const jobs: Array<Promise<unknown[]>> = [
+		withSteps ? Promise.resolve(withSteps) : source.dailyStepStats(from, to),
+		source.dailyFloorStats(from, to),
+		source.dailyIntensityStats(from, to),
+	];
+	const settled = await Promise.allSettled(jobs);
+	const requests = withSteps ? 2 : 3;
+	const failure = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
+	if (failure) {
+		return isFatal(failure.reason)
+			? { rows: [], steps: 0, requests, fatal: failure.reason }
+			: { rows: [], steps: 0, requests, error: message(failure.reason) };
+	}
+	const [steps, floors, intensity] = settled.map((r) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []));
+	return {
+		rows: rowsFromRanges(steps as DailyStepStat[], floors as DailyFloorStat[], intensity as DailyIntensityStat[]),
+		steps: steps!.length,
+		requests,
+	};
+}
+
+export interface DailyHistoryOptions {
+	/** The newest day to walk back from. */
+	until: string;
+	/**
+	 * Keep walking through empty windows until past this day. The oldest
+	 * activity is a good one: a watch that recorded a run recorded steps.
+	 */
+	notBefore?: string;
+	/** Windows in a row with no steps at all that end the walk. */
+	emptyWindows?: number;
+	/** A hard stop, should every window come back non-empty forever. */
+	maxWindows?: number;
+	/** Courtesy pause between windows, in ms. */
+	pause?: number;
+	/** After each window: the oldest day reached so far. */
+	onWindow?: (reached: string) => void;
+	shouldStop?: () => boolean;
+	/** Injectable for tests. */
+	wait?: (ms: number) => Promise<void>;
+}
+
+export interface DailyHistoryFetch {
+	batch: DailyStatsBatch;
+	/** The stretch fetched end to end, newest day first walked back to the oldest. */
+	covered: { from: string; to: string } | null;
+	requests: number;
+	/** The walk ran past the start of the account's history. */
+	complete: boolean;
+	/** A 429 or a dead session. What came before it is still good. */
+	fatal?: unknown;
+	error?: string;
+}
+
+/**
+ * Walks the daily totals back from `until`, 28 days a step, until a run of
+ * windows with no steps says the account's history has started. Three
+ * requests a window, so a year is about 40; a window with no steps skips the
+ * other two.
+ */
+export async function fetchDailyStatsHistory(source: StatsSource, opts: DailyHistoryOptions): Promise<DailyHistoryFetch> {
+	const wait = opts.wait ?? defaultWait;
+	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
+	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
+	const out: DailyHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	let end = opts.until;
+	let empty = 0;
+
+	for (let n = 0; n < maxWindows; n++) {
+		if (opts.shouldStop?.()) break;
+		const start = shiftIso(end, -(SHORT_RANGE_DAYS - 1));
+		let steps: DailyStepStat[];
+		try {
+			steps = await source.dailyStepStats(start, end);
+			out.requests += 1;
+		} catch (err) {
+			out.requests += 1;
+			if (isFatal(err)) out.fatal = err;
+			else out.error = `${start}..${end}: ${message(err)}`;
+			break;
+		}
+		// A window without a step has no floors or minutes either.
+		const got: StatsWindow = steps.length ? await fetchStatsWindow(source, start, end, steps) : { rows: [], steps: 0, requests: 0 };
+		out.requests += got.requests;
+		if (got.fatal) {
+			out.fatal = got.fatal;
+			break;
+		}
+		if (got.error) {
+			out.error = `${start}..${end}: ${got.error}`;
+			break;
+		}
+
+		out.batch.rows.push(...got.rows);
+		out.batch.dates.push(...dateRange(start, end));
+		out.covered = { from: start, to: opts.until };
+		opts.onWindow?.(start);
+
+		empty = got.steps ? 0 : empty + 1;
+		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
+			out.complete = true;
+			break;
+		}
+		end = shiftIso(start, -1);
+		if (opts.pause) await wait(opts.pause);
+	}
+	return out;
+}
+
+/** Runs of consecutive days, oldest first, from a list of days in any order. */
+function spansOf(dates: readonly string[]): Array<{ from: string; to: string }> {
+	const sorted = [...new Set(dates)].sort();
+	const spans: Array<{ from: string; to: string }> = [];
+	for (const date of sorted) {
+		const last = spans[spans.length - 1];
+		if (last && shiftIso(last.to, 1) === date) last.to = date;
+		else spans.push({ from: date, to: date });
+	}
+	return spans;
+}
+
+function shiftIso(date: string, days: number): string {
+	return isoOf(utcOf(date) + days * DAY_MS);
 }
 
 /* ------------------------------------------------------------------ */
@@ -491,6 +762,8 @@ interface DayFetch {
 	intraday: IntradayPayloads;
 	warnings: string[];
 	requests: number;
+	/** The daily summary came back, empty or not. */
+	summaryFetched: boolean;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -514,15 +787,18 @@ async function fetchDay(
 		jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
 		jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
 		jobs.push({ name: "intraday.steps", run: () => source.stepsChart(date) });
+		jobs.push({ name: "intraday.floors", run: () => source.floorsChart(date) });
+		jobs.push({ name: "intraday.intensity", run: () => source.intensityMinutesChart(date) });
 		jobs.push({ name: "intraday.bodyBatteryEvents", run: () => source.bodyBatteryEvents(date) });
 	}
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length };
+	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false };
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
+			if (name === "summary") out.summaryFetched = true;
 			if (isIntradayJob(name)) assignIntraday(out.intraday, name, result.value);
 			else assign(out.data, name, result.value);
 			return;
@@ -586,6 +862,12 @@ function assignIntraday(out: IntradayPayloads, name: IntradayJob, value: unknown
 			break;
 		case "intraday.steps":
 			out.steps = Array.isArray(value) ? (value as StepsChartEntry[]) : null;
+			break;
+		case "intraday.floors":
+			out.floors = (value ?? null) as FloorsChart | null;
+			break;
+		case "intraday.intensity":
+			out.intensity = (value ?? null) as IntensityChart | null;
 			break;
 		case "intraday.bodyBatteryEvents":
 			out.bodyBatteryEvents = Array.isArray(value) ? (value as BodyBatteryEvent[]) : null;
