@@ -157,6 +157,124 @@ describe("endpoint URLs", () => {
 	});
 });
 
+describe("Health Stats URLs", () => {
+	const HOST = "https://connectapi.garmin.com";
+
+	it("builds the daily and weekly stats ranges without the profile", async () => {
+		const { http, client } = await api([{ url: "/stats/", json: [] }]);
+		await client.stressDaily("2026-09-11", "2026-10-08");
+		await client.stressWeekly("2026-10-08");
+		await client.bodyBatteryDaily("2026-09-11", "2026-10-08");
+		await client.heartRateDaily("2026-09-11", "2026-10-08");
+		await client.heartRateWeekly("2026-10-08", 26);
+		await client.respirationDaily("2026-09-08", "2026-10-08");
+		await client.fitnessAgeDaily("2026-09-10", "2026-10-08");
+		await client.fitnessAgeWeekly("2026-10-08");
+		assert.deepEqual(http.urls.slice(-8), [
+			`${HOST}/usersummary-service/stats/stress/daily/2026-09-11/2026-10-08`,
+			`${HOST}/usersummary-service/stats/stress/weekly/2026-10-08/52`,
+			`${HOST}/usersummary-service/stats/bodybattery/daily/2026-09-11/2026-10-08`,
+			`${HOST}/usersummary-service/stats/heartRate/daily/2026-09-11/2026-10-08`,
+			`${HOST}/usersummary-service/stats/heartRate/weekly/2026-10-08/26`,
+			`${HOST}/usersummary-service/stats/respiration/daily/2026-09-08/2026-10-08`,
+			`${HOST}/fitnessage-service/stats/daily/2026-09-10/2026-10-08`,
+			`${HOST}/fitnessage-service/stats/weekly/2026-10-08/52`,
+		]);
+		assert.equal(http.urls.filter((u) => u.includes("socialProfile")).length, 0);
+	});
+
+	it("rejects a week count or page that cannot be a path segment", async () => {
+		const { client } = await api([]);
+		await assert.rejects(() => client.stressWeekly("2026-10-08", 0), TypeError);
+		await assert.rejects(() => client.heartRateWeekly("2026-10-08", 1.5), TypeError);
+		await assert.rejects(() => client.healthSnapshotList("2026-10-08", 0), TypeError);
+		await assert.rejects(() => client.stressDaily("2026-9-11", "2026-10-08"), TypeError);
+	});
+
+	it("builds the day routes, heart rate zones with the web's trailing slash", async () => {
+		const { http, client } = await api([{ url: HOST, json: {} }]);
+		await client.heartRateZones();
+		await client.respiration("2026-10-07");
+		await client.healthStatusSummary("2026-10-07");
+		await client.spo2Acclimation("2026-10-07");
+		await client.bloodPressureDay("2026-10-07");
+		await client.lifestyleLog("2026-10-07");
+		await client.wellnessActivities("2026-09-24");
+		await client.weightLatest("2026-10-08");
+		assert.deepEqual(http.urls.slice(-8), [
+			`${HOST}/biometric-service/heartRateZones/`,
+			`${HOST}/wellness-service/wellness/daily/respiration/2026-10-07`,
+			`${HOST}/healthstatus-service/healthstatus/summary/2026-10-07`,
+			`${HOST}/wellness-service/wellness/daily/spo2acclimation/2026-10-07`,
+			`${HOST}/bloodpressure-service/bloodpressure/dayview/2026-10-07`,
+			`${HOST}/lifestylelogging-service/dailyLog/2026-10-07`,
+			`${HOST}/wellnessactivity-service/activity/summary/2026-09-24`,
+			`${HOST}/weight-service/weight/latest?date=2026-10-08&ignorePriority=true`,
+		]);
+	});
+
+	it("builds the date-pair ranges", async () => {
+		const { http, client } = await api([{ url: HOST, json: {} }]);
+		await client.healthStatusRange("2026-10-02", "2026-10-08");
+		await client.hrvDaily("2026-10-02", "2026-10-08");
+		await client.weighIns("2025-10-10", "2026-10-08");
+		await client.weightWeekly("2025-10-10", "2026-10-08");
+		await client.weightGoal("2025-10-10", "2026-10-08");
+		await client.acclimationDaily("2026-10-02", "2026-10-08");
+		await client.bloodPressureRange("2026-10-02", "2026-10-08");
+		await client.bloodPressureWeekly("2025-10-10", "2026-10-08");
+		await client.bloodPressureLast("2026-10-08", "2026-10-08");
+		assert.deepEqual(http.urls.slice(-9), [
+			`${HOST}/healthstatus-service/healthstatus/summary/2026-10-02/2026-10-08`,
+			`${HOST}/hrv-service/hrv/daily/2026-10-02/2026-10-08`,
+			`${HOST}/weight-service/weight/range/2025-10-10/2026-10-08?includeAll=true`,
+			`${HOST}/weight-service/weight/weeklyRange/2025-10-10/2026-10-08`,
+			`${HOST}/goal-service/goal/user/effective/weightgoal/2025-10-10/2026-10-08`,
+			`${HOST}/wellness-service/stats/daily/acclimation?fromDate=2026-10-02&untilDate=2026-10-08`,
+			`${HOST}/bloodpressure-service/bloodpressure/range/2026-10-02/2026-10-08?includeAll=true`,
+			`${HOST}/bloodpressure-service/bloodpressure/weeklyRange/2025-10-10/2026-10-08`,
+			`${HOST}/bloodpressure-service/bloodpressure/daily/last/2026-10-08/2026-10-08`,
+		]);
+	});
+
+	it("reads an empty body (HTTP 204) as no data", async () => {
+		const { client } = await api([{ url: HOST, text: "" }]);
+		assert.equal(await client.healthStatusSummary("2026-10-08"), null);
+		assert.equal(await client.hrvDaily("2026-10-08", "2026-10-08"), null);
+		assert.equal(await client.healthSnapshotDetail("2026-10-07", "x"), null);
+		assert.deepEqual(await client.stressDaily("2026-10-09", "2026-10-15"), []);
+		assert.deepEqual(await client.bloodPressureLast("2026-10-08", "2026-10-08"), []);
+		assert.deepEqual(await client.naps("2026-10-07"), []);
+	});
+
+	it("builds the Health Snapshot calls, paging from 1 and encoding the id", async () => {
+		const { http, client } = await api([{ url: "/wellnessactivity-service", json: [] }]);
+		await client.healthSnapshotList("2026-10-08");
+		await client.healthSnapshotList("2026-10-08", 21);
+		await client.healthSnapshotDetail("2026-09-24", "0e1f-2a3b");
+		await client.healthSnapshotEpochs("../x?y");
+		assert.deepEqual(http.urls.slice(-4), [
+			`${HOST}/wellnessactivity-service/activity/summary/list?limit=20&start=1&until=2026-10-08`,
+			`${HOST}/wellnessactivity-service/activity/summary/list?limit=20&start=21&until=2026-10-08`,
+			`${HOST}/wellnessactivity-service/activity/summary/2026-09-24/0e1f-2a3b`,
+			`${HOST}/wellnessactivity-service/activity/epoch/..%2Fx%3Fy`,
+		]);
+		await assert.rejects(() => client.healthSnapshotEpochs(""), TypeError);
+	});
+
+	it("builds the 1d timeline overlays, two of them with the display name", async () => {
+		const { http, client } = await api([profile, { url: HOST, json: [] }]);
+		await client.naps("2026-10-07");
+		await client.dailyEvents("2026-10-07");
+		await client.activitiesForDay("2026-10-07");
+		assert.deepEqual(http.urls.filter((u) => !u.includes("socialProfile")).slice(-3), [
+			`${HOST}/sleep-service/sleep/naps/2026-10-07?includeOverlaps=true`,
+			`${HOST}/wellness-service/wellness/dailyEvents/abc-123?calendarDate=2026-10-07`,
+			`${HOST}/activitylist-service/activities/fordailysummary/abc-123?calendarDate=2026-10-07`,
+		]);
+	});
+});
+
 describe("activities", () => {
 	it("passes paging through and tolerates a null body", async () => {
 		const { http, client } = await api([{ url: "/activitylist-service", text: "" }]);

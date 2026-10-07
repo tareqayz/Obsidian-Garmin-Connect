@@ -1,0 +1,175 @@
+{
+	"endpoint": "health-snapshot-list",
+	"path": "/wellnessactivity-service/activity/summary/list",
+	"plugin": "GarminApi.healthSnapshotList",
+	"firstRecorded": "2026-10-07T22:34:34.040Z",
+	"updatedAt": "2026-10-07T22:34:34.040Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"activityName": {
+					"type": [
+						"string"
+					]
+				},
+				"activityUuid": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"uuid": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"deviceMetaData": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"deviceId": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceName": {
+							"type": [
+								"string"
+							]
+						},
+						"deviceTypeId": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceVersion": {
+							"type": [
+								"string"
+							]
+						},
+						"deviceVersionId": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				},
+				"endTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"endTimestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"notes": {
+					"type": [
+						"null"
+					]
+				},
+				"rulePK": {
+					"type": [
+						"number"
+					]
+				},
+				"startTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"summaryTypeDataList": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"avgValue": {
+								"type": [
+									"number"
+								]
+							},
+							"maxValue": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"minValue": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"summaryType": {
+								"type": [
+									"string"
+								]
+							}
+						}
+					}
+				},
+				"timeInZoneList": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"millisInZone": {
+								"type": [
+									"number"
+								]
+							},
+							"zoneLowBoundary": {
+								"type": [
+									"number"
+								]
+							},
+							"zoneNumber": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					}
+				},
+				"userProfilePk": {
+					"type": [
+						"number"
+					]
+				},
+				"wellnessActivityType": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

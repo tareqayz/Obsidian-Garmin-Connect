@@ -1,0 +1,200 @@
+{
+	"endpoint": "respiration-data",
+	"path": "/wellness-service/wellness/daily/respiration/{date}",
+	"plugin": "GarminApi.respiration",
+	"firstRecorded": "2026-10-07T22:34:33.729Z",
+	"updatedAt": "2026-10-07T22:34:33.729Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"avgSleepRespirationValue": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"avgTomorrowSleepRespirationValue": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"avgWakingRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"highestRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"lowestRespirationValue": {
+				"type": [
+					"number"
+				]
+			},
+			"respirationAveragesValueDescriptorDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"respirationAveragesValueDescriptionKey": {
+							"type": [
+								"string"
+							]
+						},
+						"respirationAveragesValueDescriptorIndex": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"respirationAveragesValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"null",
+							"number"
+						]
+					}
+				}
+			},
+			"respirationValueDescriptorsDTOList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"index": {
+							"type": [
+								"number"
+							]
+						},
+						"key": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"respirationValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"respirationVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"sleepEndTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepEndTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepStartTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepStartTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"tomorrowSleepEndTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepEndTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepStartTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepStartTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

@@ -1,5 +1,5 @@
 {
-	"about": "Every Garmin Connect endpoint known to cyberjunky/python-garminconnect, plus what this plugin does with each one. Request shapes are generated; the `plugin`, `groups`, `cadence`, `check`, `critical`, `schema` and `notes` keys are hand-written and survive regeneration. See api/README.md.",
+	"about": "Every Garmin Connect endpoint known to cyberjunky/python-garminconnect, plus the routes this plugin found in Garmin's own app and web traffic (\"source\": \"plugin\"), and what the plugin does with each one. Request shapes of upstream entries are generated; the `plugin`, `groups`, `cadence`, `check`, `critical`, `reads`, `schema` and `notes` keys are hand-written and survive regeneration. See api/README.md.",
 	"generated": {
 		"by": "scripts/api/extract-endpoints.py",
 		"at": "2026-09-18T07:31:13Z",
@@ -53,6 +53,49 @@
 				],
 				"line": 2671
 			}
+		},
+		{
+			"id": "activities-for-day",
+			"method": "GET",
+			"path": "/activitylist-service/activities/fordailysummary/{displayName}",
+			"service": "activitylist-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.activitiesForDay",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"[].activityId",
+				"[].startTimeGMT"
+			],
+			"reads": [
+				"[].activityName",
+				"[].activityType.typeKey",
+				"[].startTimeLocal",
+				"[].duration",
+				"[].distance",
+				"[].calories",
+				"[].averageHR"
+			],
+			"schema": "schema/activities-for-day.json",
+			"notes": "The activity markers on the 1d timelines: the day's recorded activities, a lighter row than get-activities. [] on a day without one."
 		},
 		{
 			"id": "activities-fordate",
@@ -488,7 +531,8 @@
 					"cdate"
 				],
 				"line": 1789
-			}
+			},
+			"notes": "Same body as daily-events, the /dailyEvents/{displayName} form the web app sends and GarminApi.dailyEvents calls (both answered identically on 2026-10-08)."
 		},
 		{
 			"id": "all-day-stress",
@@ -614,7 +658,87 @@
 					"enddate"
 				],
 				"line": 1447
-			}
+			},
+			"plugin": "GarminApi.bloodPressureRange",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"measurementSummaries"
+			],
+			"reads": [
+				"categoryStats"
+			],
+			"schema": "schema/blood-pressure.json",
+			"notes": "The Blood Pressure 7d and 4w views, every reading included (includeAll=true). No cap seen: a 10-year span works. No readings on this account, so the recorded shape is the empty wrapper ({from, until, measurementSummaries: [], categoryStats: null}) and a summary's fields are unconfirmed."
+		},
+		{
+			"id": "blood-pressure-day",
+			"method": "GET",
+			"path": "/bloodpressure-service/bloodpressure/dayview/{date}",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.bloodPressureDay",
+			"groups": [
+				"body"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"bloodPressureMeasurements"
+			],
+			"reads": [
+				"totalMeasurementCount",
+				"elevatedMeasurementCount"
+			],
+			"schema": "schema/blood-pressure-day.json",
+			"notes": "The Blood Pressure 1d view. No readings on this account, so the recorded shape is the empty wrapper (bloodPressureMeasurements: [], counts null) and a reading's fields are unconfirmed."
+		},
+		{
+			"id": "blood-pressure-last",
+			"method": "GET",
+			"path": "/bloodpressure-service/bloodpressure/daily/last/{startDate}/{endDate}",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.bloodPressureLast",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [],
+			"schema": "schema/blood-pressure-last.json",
+			"notes": "Asked on every full Blood Pressure page load, over the page's span. Always [] on this account (no readings), so nothing is recorded and what a row holds is unknown. No cap seen: 1 day to 10 years all answer."
 		},
 		{
 			"id": "body-battery",
@@ -830,6 +954,162 @@
 			}
 		},
 		{
+			"id": "daily-acclimation-stats",
+			"method": "GET",
+			"path": "/wellness-service/stats/daily/acclimation",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"fromDate",
+				"untilDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.acclimationDaily",
+			"groups": [
+				"spo2"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"spo2DailyAverageArray"
+			],
+			"reads": [
+				"overallSpo2Average",
+				"spo2HourlyAverageArray",
+				"monitoringEnvironmentValuesArray",
+				"spo2SingleReadingValuesArray",
+				"spo2DailyAcclimationAverageDescriptorList"
+			],
+			"schema": "schema/daily-acclimation-stats.json",
+			"notes": "The Pulse Ox Acclimation report's 7d and 4w views. spo2DailyAverageArray is [calendarDate, average] for each day in the span; the hourly and elevation series cover only the span's newest month of readings. No cap seen: 28, 29, 366 days and 10 years all work. A span without readings has every list empty and overallSpo2Average null."
+		},
+		{
+			"id": "daily-body-battery-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/bodybattery/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.bodyBatteryDaily",
+			"groups": [
+				"stress"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.highBodyBattery",
+				"[].values.lowBodyBattery"
+			],
+			"reads": [],
+			"schema": "schema/daily-body-battery-stats.json",
+			"notes": "The Body Battery page's 7d and 4w views (it has no 1y). 28 days a call at most (29 is HTTP 400); days without data are left out."
+		},
+		{
+			"id": "daily-events",
+			"method": "GET",
+			"path": "/wellness-service/wellness/dailyEvents/{displayName}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"calendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.dailyEvents",
+			"groups": [
+				"activity"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"[].startTimestampGMT",
+				"[].endTimestampGMT",
+				"[].activityType"
+			],
+			"reads": [
+				"[].duration",
+				"[].startTimestampLocal",
+				"[].endTimestampLocal",
+				"[].activitySubType",
+				"[].moderateIntensityMinutes",
+				"[].vigorousIntensityMinutes"
+			],
+			"schema": "schema/daily-events.json",
+			"notes": "Move IQ events for the 1d timelines: duration in minutes, activityType a plain string (walking, running). The web sends the display name; all-day-events (no display name) returns the identical body. [] on a day without one."
+		},
+		{
+			"id": "daily-fitnessage-stats",
+			"method": "GET",
+			"path": "/fitnessage-service/stats/daily/{startDate}/{endDate}",
+			"service": "fitnessage-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.fitnessAgeDaily",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.fitnessAge"
+			],
+			"reads": [
+				"[].values.achievableFitnessAge",
+				"[].values.rhr",
+				"[].values.bmi",
+				"[].values.vigorousDaysAvg"
+			],
+			"schema": "schema/daily-fitnessage-stats.json",
+			"notes": "The Fitness Age report's 7d and 4w views. Only days fitness age was worked out appear (18 of 28 here). 29 days a call at most (30 is HTTP 400), one more than the usersummary stats routes."
+		},
+		{
 			"id": "daily-floors-stats",
 			"method": "GET",
 			"path": "/usersummary-service/stats/floors/daily/{startDate}/{endDate}",
@@ -864,6 +1144,43 @@
 			],
 			"schema": "schema/daily-floors-stats.json",
 			"notes": "Whole floors a day, 28 days a call at most. The same figures as the daily summary's fractional floorsAscended / floorsDescended rounded down. Fills the daily stats index beside daily-steps."
+		},
+		{
+			"id": "daily-heart-rate-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/heartRate/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.heartRateDaily",
+			"groups": [
+				"heart"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.restingHR"
+			],
+			"reads": [
+				"[].values.wellnessMaxAvgHR",
+				"[].values.wellnessMinAvgHR"
+			],
+			"schema": "schema/daily-heart-rate-stats.json",
+			"notes": "The Heart Rate page's 7d and 4w views: resting HR and the day's high and low averages. 28 days a call at most (29 is HTTP 400); days without data are left out."
 		},
 		{
 			"id": "daily-intensity-minutes-stats",
@@ -902,6 +1219,42 @@
 			"notes": "Moderate and vigorous minutes a day and the week's goal, 28 days a call at most. Fills the daily stats index beside daily-steps."
 		},
 		{
+			"id": "daily-respiration-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/respiration/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.respirationDaily",
+			"groups": [
+				"respiration"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].avgWakingRespiration"
+			],
+			"reads": [
+				"[].avgSleepRespiration"
+			],
+			"schema": "schema/daily-respiration-stats.json",
+			"notes": "The Respiration page's 7d and 4w views (it has no 1y). Flat rows, not under values. 31 days a call at most (32 is HTTP 400), unlike the 28-day stats routes; days without data are left out, and avgSleepRespiration is null on a night without sleep data."
+		},
+		{
 			"id": "daily-steps",
 			"method": "GET",
 			"path": "/usersummary-service/stats/steps/daily/{startDate}/{endDate}",
@@ -938,6 +1291,45 @@
 			],
 			"schema": "schema/daily-steps.json",
 			"notes": "28 days a call at most (29 is HTTP 400); days without watch data are left out. Fills the daily stats index (<dataFolder>/daily-stats/) the Steps, Floors and Intensity Minutes pages read: once back to the start of the history, then for any day a routine sync could not write. totalDistance is metres on foot, as the Steps page shows it."
+		},
+		{
+			"id": "daily-stress-stats",
+			"method": "GET",
+			"path": "/usersummary-service/stats/stress/daily/{startDate}/{endDate}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.stressDaily",
+			"groups": [
+				"stress"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.overallStressLevel"
+			],
+			"reads": [
+				"[].values.restStressDuration",
+				"[].values.lowStressDuration",
+				"[].values.mediumStressDuration",
+				"[].values.highStressDuration"
+			],
+			"schema": "schema/daily-stress-stats.json",
+			"notes": "The Stress page's 7d and 4w views. 28 days a call at most (29 is HTTP 400). Days without data are left out, so a span before the history or in the future is []. Durations are seconds and highStressDuration can be null; today's row is the partial day."
 		},
 		{
 			"id": "daily-weigh-ins",
@@ -1883,6 +2275,246 @@
 			"notes": "myDayCardEventsScalar(timeZone,date).eventMyDay."
 		},
 		{
+			"id": "health-snapshot-detail",
+			"method": "GET",
+			"path": "/wellnessactivity-service/activity/summary/{date}/{uuid}",
+			"service": "wellnessactivity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date",
+				"uuid"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthSnapshotDetail",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"activityUuid.uuid",
+				"summaryTypeDataList"
+			],
+			"reads": [
+				"summaryTypeDataList[].summaryType",
+				"summaryTypeDataList[].avgValue",
+				"timeInZoneList",
+				"startTimestampGMT",
+				"endTimestampGMT"
+			],
+			"schema": "schema/health-snapshot-detail.json",
+			"notes": "One snapshot, the same object as a list row. HTTP 204 (null) unless date is the snapshot's own calendarDate. Probed through the newest snapshot in the list."
+		},
+		{
+			"id": "health-snapshot-epochs",
+			"method": "GET",
+			"path": "/wellnessactivity-service/activity/epoch/{uuid}",
+			"service": "wellnessactivity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"uuid"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthSnapshotEpochs",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"epochDescriptorDTOList",
+				"epochArray"
+			],
+			"reads": [
+				"epochDescriptorDTOList[].key",
+				"epochDescriptorDTOList[].index",
+				"activityUuid"
+			],
+			"schema": "schema/health-snapshot-epochs.json",
+			"notes": "A snapshot's samples, one a second (121 rows for two minutes), columns per epochDescriptorDTOList: timestamp (GMT epoch ms), heartRate, stress, spo2, respiration. activityUuid is a bare string here and {uuid} in the summaries. Probed through the newest snapshot in the list."
+		},
+		{
+			"id": "health-snapshot-list",
+			"method": "GET",
+			"path": "/wellnessactivity-service/activity/summary/list",
+			"service": "wellnessactivity-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"limit",
+				"start",
+				"until"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthSnapshotList",
+			"groups": [
+				"health"
+			],
+			"cadence": "paged",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].activityUuid.uuid",
+				"[].summaryTypeDataList"
+			],
+			"reads": [
+				"[].summaryTypeDataList[].summaryType",
+				"[].summaryTypeDataList[].avgValue",
+				"[].summaryTypeDataList[].minValue",
+				"[].summaryTypeDataList[].maxValue",
+				"[].startTimestampGMT",
+				"[].startTimestampLocal",
+				"[].timeInZoneList",
+				"[].wellnessActivityType"
+			],
+			"schema": "schema/health-snapshot-list.json",
+			"notes": "The Health Snapshots list, newest first, 20 a page. start counts from 1 (start=21 is page two, [] past the end). Summary types: HEART_RATE, RESPIRATION, STRESS, SPO2 with min/avg/max, and RMSSD_HRV, SDRR_HRV with avg only."
+		},
+		{
+			"id": "health-snapshots-day",
+			"method": "GET",
+			"path": "/wellnessactivity-service/activity/summary/{date}",
+			"service": "wellnessactivity-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.wellnessActivities",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].activityUuid.uuid"
+			],
+			"reads": [
+				"[].startTimestampGMT",
+				"[].endTimestampGMT",
+				"[].summaryTypeDataList"
+			],
+			"schema": "schema/health-snapshots-day.json",
+			"notes": "A day's Health Snapshots as list rows: the snapshot markers on the Stress, Body Battery and Heart Rate 1d timelines. [] on most days."
+		},
+		{
+			"id": "health-status-range",
+			"method": "GET",
+			"path": "/healthstatus-service/healthstatus/summary/{startDate}/{endDate}",
+			"service": "healthstatus-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthStatusRange",
+			"groups": [
+				"health"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].metrics"
+			],
+			"reads": [
+				"[].outliersCount",
+				"[].metrics[].type",
+				"[].metrics[].value",
+				"[].metrics[].status"
+			],
+			"schema": "schema/health-status-range.json",
+			"notes": "The Health Status page asks for the seven days ending on the shown day. Rows as health-status-summary; days without one are left out. No cap seen: 1,100 days came back whole (334 rows, the account's full history)."
+		},
+		{
+			"id": "health-status-summary",
+			"method": "GET",
+			"path": "/healthstatus-service/healthstatus/summary/{date}",
+			"service": "healthstatus-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.healthStatusSummary",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"metrics[].type",
+				"metrics[].status"
+			],
+			"reads": [
+				"outliersCount",
+				"metrics[].value",
+				"metrics[].baselineLowerLimit",
+				"metrics[].baselineUpperLimit",
+				"metrics[].percentage",
+				"metrics[].feedbackKey"
+			],
+			"schema": "schema/health-status-summary.json",
+			"notes": "The REST route the Health Status page uses; graphql-health-status reads the same verdict through GraphQL. HTTP 204 (null) on a day without a summary, such as today before the night is scored. Metric types: HR, HRV, RESPIRATION, SKIN_TEMP_C, SKIN_TEMP_F, SPO2; status IN_RANGE, ABOVE, BELOW, ONBOARDING or UNKNOWN; value is null for a metric with no reading."
+		},
+		{
 			"id": "heart-rate-zones",
 			"method": "GET",
 			"path": "/biometric-service/heartRateZones",
@@ -1897,7 +2529,29 @@
 				"summary": "Return configured heart rate zones for all sport profiles.",
 				"args": [],
 				"line": 3086
-			}
+			},
+			"plugin": "GarminApi.heartRateZones",
+			"groups": [
+				"heart"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [
+				"[].sport",
+				"[].zone1Floor"
+			],
+			"reads": [
+				"[].zone2Floor",
+				"[].zone3Floor",
+				"[].zone4Floor",
+				"[].zone5Floor",
+				"[].maxHeartRateUsed",
+				"[].trainingMethod",
+				"[].restingHeartRateUsed",
+				"[].lactateThresholdHeartRateUsed"
+			],
+			"schema": "schema/heart-rate-zones.json",
+			"notes": "Zone floors in bpm per sport profile (DEFAULT and CYCLING here) and the method behind them (HR_MAX). The Heart Rate 1d page asks with a trailing slash (/heartRateZones/), as the plugin does; without it the answer is identical."
 		},
 		{
 			"id": "heart-rates",
@@ -2023,7 +2677,27 @@
 					"end"
 				],
 				"line": 2080
-			}
+			},
+			"plugin": "GarminApi.hrvDaily",
+			"groups": [
+				"hrv"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"hrvSummaries",
+				"hrvSummaries[].calendarDate"
+			],
+			"reads": [
+				"hrvSummaries[].lastNightAvg",
+				"hrvSummaries[].weeklyAvg",
+				"hrvSummaries[].lastNight5MinHigh",
+				"hrvSummaries[].baseline",
+				"hrvSummaries[].status",
+				"hrvSummaries[].feedbackPhrase"
+			],
+			"schema": "schema/hrv-data-range.json",
+			"notes": "{hrvSummaries, userProfilePk}, a night a row in ms; nights without a reading are left out, and a span with none is HTTP 204 (null). The HRV Status 7d/4w views and Health Status's HRV tile read it. 367 days a call at most (368 is HTTP 400), not the 28 of the stats routes."
 		},
 		{
 			"id": "hydration-data",
@@ -2261,7 +2935,27 @@
 					"cdate"
 				],
 				"line": 1981
-			}
+			},
+			"plugin": "GarminApi.lifestyleLog",
+			"groups": [
+				"health"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"dailyLogsReport"
+			],
+			"reads": [
+				"dailyLogsReport[].name",
+				"dailyLogsReport[].category",
+				"dailyLogsReport[].measurementType",
+				"dailyLogsReport[].details",
+				"completionStats[].totalTracking",
+				"completionStats[].completedTracking"
+			],
+			"schema": "schema/lifestyle-logging-data.json",
+			"notes": "No web page calls it. dailyLogsReport lists the tracked behaviours (9 here, [] before any were set up) and completionStats the seven days ending on the date. Nothing has been logged on this account (completedTracking 0), so how a logged value appears is unconfirmed."
 		},
 		{
 			"id": "max-metrics",
@@ -2375,6 +3069,47 @@
 				],
 				"line": 3635
 			}
+		},
+		{
+			"id": "naps",
+			"method": "GET",
+			"path": "/sleep-service/sleep/naps/{date}",
+			"service": "sleep-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [
+				"includeOverlaps"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.naps",
+			"groups": [
+				"sleep"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"[].napStartTimestampGMT",
+				"[].napEndTimestampGMT"
+			],
+			"reads": [
+				"[].napTimeSec",
+				"[].napFeedback",
+				"[].calendarDate",
+				"[].napStartTimeOffset",
+				"[].napEndTimeOffset"
+			],
+			"schema": "schema/naps.json",
+			"notes": "The nap markers on the Stress, Body Battery and Heart Rate 1d timelines. Seconds, GMT, offsets in minutes; [] on a day without one. includeOverlaps=true made no difference on the days tried."
 		},
 		{
 			"id": "non-completed-badge-challenges",
@@ -2724,7 +3459,28 @@
 					"cdate"
 				],
 				"line": 1747
-			}
+			},
+			"plugin": "GarminApi.respiration",
+			"groups": [
+				"respiration"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"respirationValuesArray"
+			],
+			"reads": [
+				"lowestRespirationValue",
+				"highestRespirationValue",
+				"avgWakingRespirationValue",
+				"avgSleepRespirationValue",
+				"respirationAveragesValuesArray",
+				"sleepStartTimestampGMT",
+				"sleepEndTimestampGMT"
+			],
+			"schema": "schema/respiration-data.json",
+			"notes": "The Respiration 1d chart: [GMT epoch ms, breaths/min] every two minutes, -1 and -2 meaning no reading, plus hourly [ms, average, high, low]. The sleep fields and avgSleepRespirationValue are null on a day whose night is not in yet."
 		},
 		{
 			"id": "rhr-daily",
@@ -3272,6 +4028,48 @@
 			]
 		},
 		{
+			"id": "spo2-acclimation",
+			"method": "GET",
+			"path": "/wellness-service/wellness/daily/spo2acclimation/{date}",
+			"service": "wellness-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.spo2Acclimation",
+			"groups": [
+				"spo2"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"spO2HourlyAverages"
+			],
+			"reads": [
+				"averageSpO2",
+				"lowestSpO2",
+				"latestSpO2",
+				"avgSleepSpO2",
+				"lastSevenDaysAvgSpO2",
+				"spO2SingleValues",
+				"spO2HourlyAveragesDescriptorList",
+				"monitoringEnvironmentValues"
+			],
+			"schema": "schema/spo2-acclimation.json",
+			"notes": "The Pulse Ox and Pulse Ox Acclimation 1d pages (the catalogued spo2-data is not called). Hourly [GMT ms, spo2Level, monitoringEnvironmentLevel] and an elevation series, each per its own descriptor list. Every SpO2 field is null on a day without readings (Pulse Ox has been off on this account since 2026-06-27), the elevation stays; recorded from 2026-06-15 as well, which has readings."
+		},
+		{
 			"id": "spo2-data",
 			"method": "GET",
 			"path": "/wellness-service/wellness/daily/spo2/{date}",
@@ -3706,6 +4504,116 @@
 			}
 		},
 		{
+			"id": "weekly-blood-pressure",
+			"method": "GET",
+			"path": "/bloodpressure-service/bloodpressure/weeklyRange/{startDate}/{endDate}",
+			"service": "bloodpressure-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.bloodPressureWeekly",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"measurementSummaries"
+			],
+			"reads": [
+				"categoryStats"
+			],
+			"schema": "schema/weekly-blood-pressure.json",
+			"notes": "The Blood Pressure 1y view, the same wrapper as blood-pressure. Exactly 52 weeks like weekly-weigh-ins: 364 days inclusive works, 28 and 366 are HTTP 400. No readings on this account, so only the empty wrapper is recorded."
+		},
+		{
+			"id": "weekly-fitnessage",
+			"method": "GET",
+			"path": "/fitnessage-service/stats/weekly/{endDate}/{weeks}",
+			"service": "fitnessage-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"endDate",
+				"weeks"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.fitnessAgeWeekly",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.fitnessAge"
+			],
+			"reads": [
+				"[].values.rhr",
+				"[].values.bmi",
+				"[].values.vigorousDaysAvg"
+			],
+			"schema": "schema/weekly-fitnessage.json",
+			"notes": "The Fitness Age report's 1y view: the daily values without achievableFitnessAge, dated by the week's first day. 52 weeks at most (53 is HTTP 400); weeks without data are left out."
+		},
+		{
+			"id": "weekly-heart-rate",
+			"method": "GET",
+			"path": "/usersummary-service/stats/heartRate/weekly/{endDate}/{weeks}",
+			"service": "usersummary-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"endDate",
+				"weeks"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.heartRateWeekly",
+			"groups": [
+				"heart"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.avgRestingHR"
+			],
+			"reads": [
+				"[].values.wellnessMaxAvgHR",
+				"[].values.wellnessMinAvgHR"
+			],
+			"schema": "schema/weekly-heart-rate.json",
+			"notes": "The Heart Rate page's 1y view. Rows carry a values map like the daily form (unlike weekly-stress), with avgRestingHR in place of restingHR, dated by the week's first day. 52 weeks at most (53 is HTTP 400); weeks without data are left out."
+		},
+		{
 			"id": "weekly-intensity-minutes",
 			"method": "GET",
 			"path": "/usersummary-service/stats/im/weekly/{startDate}/{endDate}",
@@ -3772,7 +4680,61 @@
 					"weeks"
 				],
 				"line": 1104
-			}
+			},
+			"plugin": "GarminApi.stressWeekly",
+			"groups": [
+				"stress"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].value"
+			],
+			"reads": [],
+			"schema": "schema/weekly-stress.json",
+			"notes": "The Stress page's 1y view: average stress a week, a single value rather than a values map, each row dated by its week's first day (weekly/2026-10-08/52 runs 2025-10-10 to 2026-10-02). 52 weeks at most (53 is HTTP 400); weeks without data are left out."
+		},
+		{
+			"id": "weekly-weigh-ins",
+			"method": "GET",
+			"path": "/weight-service/weight/weeklyRange/{startDate}/{endDate}",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.weightWeekly",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"weeklyWeightSummaries",
+				"weightAverageDTO"
+			],
+			"reads": [
+				"weeklyWeightSummaries[].startDate",
+				"weeklyWeightSummaries[].endDate",
+				"weeklyWeightSummaries[].averageWeight.weight",
+				"weeklyWeightSummaries[].minWeight",
+				"weeklyWeightSummaries[].maxWeight",
+				"weeklyWeightSummaries[].weightDelta"
+			],
+			"schema": "schema/weekly-weigh-ins.json",
+			"notes": "The Weight page's 1y chart: a summary per week with a weigh-in, newest first. Exactly 52 weeks: endDate must be 363 days after startDate (364 inclusive, as 2025-10-10 to 2026-10-08); 7, 28, 84, 182, 357, 360, 365, 366, 371 and 728 days are all HTTP 400."
 		},
 		{
 			"id": "weigh-ins",
@@ -3797,7 +4759,105 @@
 					"enddate"
 				],
 				"line": 1331
-			}
+			},
+			"plugin": "GarminApi.weighIns",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"dailyWeightSummaries",
+				"totalAverage"
+			],
+			"reads": [
+				"dailyWeightSummaries[].summaryDate",
+				"dailyWeightSummaries[].latestWeight.weight",
+				"dailyWeightSummaries[].allWeightMetrics[].weight",
+				"dailyWeightSummaries[].minWeight",
+				"dailyWeightSummaries[].maxWeight",
+				"dailyWeightSummaries[].numOfWeightEntries",
+				"totalAverage.weight",
+				"previousDateWeight",
+				"nextDateWeight"
+			],
+			"schema": "schema/weigh-ins.json",
+			"notes": "The Weight page's 7d, 4w and 1y lists: a summary per day with a weigh-in, newest first, every weigh-in under allWeightMetrics (includeAll=true). Grams. No cap seen: a 10-year span works. A span without weigh-ins is an empty list with a null totalAverage.weight."
+		},
+		{
+			"id": "weight-goal",
+			"method": "GET",
+			"path": "/goal-service/goal/user/effective/weightgoal/{startDate}/{endDate}",
+			"service": "goal-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.weightGoal",
+			"groups": [
+				"body"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"userGoals"
+			],
+			"reads": [
+				"userGoalRanges"
+			],
+			"schema": "schema/weight-goal.json",
+			"notes": "The goal line on every Weight view. {userGoals: [], userGoalRanges: null} on this account (no weight goal), so the recorded shape is the empty wrapper and a goal's fields are unconfirmed."
+		},
+		{
+			"id": "weight-latest",
+			"method": "GET",
+			"path": "/weight-service/weight/latest",
+			"service": "weight-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"date",
+				"ignorePriority"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-08 (ref/health-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.weightLatest",
+			"groups": [
+				"body"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"weight",
+				"date"
+			],
+			"reads": [
+				"timestampGMT",
+				"bmi",
+				"bodyFat",
+				"sourceType",
+				"weightDelta"
+			],
+			"schema": "schema/weight-latest.json",
+			"notes": "The newest weigh-in on or before date (2026-10-08 returns 2025-11-02's), for the Weight 1d view and the Fitness Age BMI hint. Grams; date is the local wall clock as epoch ms, timestampGMT the instant."
 		},
 		{
 			"id": "workout-by-id",

@@ -14,12 +14,17 @@ a job that checks it against the live one every day.
 
 ## endpoints.json
 
-135 endpoints. The request half is **generated** from
+167 endpoints. For 134 of them the request half is **generated** from
 [`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)
 by `scripts/api/extract-endpoints.py`, which reads that library's AST and folds
 its URL expressions back into path templates. That library is the closest thing
 Garmin has to a spec, because it is kept current by people who notice when it
 breaks.
+
+The other 33 are routes upstream does not know, seen in the Garmin Connect app's
+and web app's own traffic: GraphQL queries, and most of what the Health Stats
+pages call. They carry `"source": "plugin"`, which keeps a regeneration from
+marking them retired, and their `upstream.summary` says where they were seen.
 
 ```jsonc
 {
@@ -57,6 +62,14 @@ response.
 
 Losing anything outside both lists is a warning at most.
 
+A range entry's `notes` also say how long a span Garmin takes, probed live
+rather than assumed, because the caps differ by route: 28 days for most
+`stats/…/daily` ranges, 29 for fitness age, 31 for respiration, 367 for HRV,
+exactly 52 weeks for the weekly weight and blood pressure forms, and none found
+for others. Past the cap the answer is HTTP 400. The notes also say what an
+empty answer looks like, and when the recording account had no data to record
+a shape from.
+
 ### Regenerating
 
 ```bash
@@ -78,8 +91,10 @@ the news this file exists to carry.
 
 It drives the plugin's own `GarminApi` — not a parallel HTTP client — so a path,
 header or parameter that stops working here is one that stops working in the
-plugin. Sixteen endpoints and about 115 response paths, sampling the last three
-complete days and a fourteen-day range.
+plugin. 69 endpoints and about 500 response paths, sampling the last three
+complete days and a fourteen-day range. The weekly routes ask for their usual 52
+weeks, and the weight and blood pressure ranges for 52 weeks too: the weekly
+forms accept no other span, and a rare weigh-in needs the wider net.
 
 Each endpoint comes back with one verdict:
 
@@ -171,9 +186,12 @@ an account.
 
 1. Add the wrapper to `src/garmin/endpoints.ts`.
 2. In `endpoints.json`, set `plugin`, `check: true`, `critical` and `schema` on
-   its entry.
+   its entry. A route upstream does not have needs a new entry with
+   `"source": "plugin"`.
 3. Add a probe to `scripts/api/probes.ts` under the same id.
-4. `npm run api:record` once to lay down the baseline.
+4. `npm run api:record` once to lay down the baseline. Without a token, save
+   a few responses through the running plugin with `scripts/dev/live-api.sh`
+   and run `npm run api:record-file -- <id> <response.json>…` instead.
 
 Steps 2 and 3 have to agree: `tests/api-catalogue.test.ts` fails if an endpoint
 is marked `check: true` with no probe, or the other way round. The failure it

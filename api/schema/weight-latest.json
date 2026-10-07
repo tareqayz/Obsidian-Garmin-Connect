@@ -1,0 +1,90 @@
+{
+	"endpoint": "weight-latest",
+	"path": "/weight-service/weight/latest",
+	"plugin": "GarminApi.weightLatest",
+	"firstRecorded": "2026-10-07T22:34:34.003Z",
+	"updatedAt": "2026-10-07T22:34:34.003Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"bmi": {
+				"type": [
+					"null"
+				]
+			},
+			"bodyFat": {
+				"type": [
+					"null"
+				]
+			},
+			"bodyWater": {
+				"type": [
+					"null"
+				]
+			},
+			"boneMass": {
+				"type": [
+					"null"
+				]
+			},
+			"caloricIntake": {
+				"type": [
+					"null"
+				]
+			},
+			"date": {
+				"type": [
+					"number"
+				]
+			},
+			"metabolicAge": {
+				"type": [
+					"null"
+				]
+			},
+			"muscleMass": {
+				"type": [
+					"null"
+				]
+			},
+			"physiqueRating": {
+				"type": [
+					"null"
+				]
+			},
+			"sourceType": {
+				"type": [
+					"string"
+				]
+			},
+			"timestampGMT": {
+				"type": [
+					"number"
+				]
+			},
+			"version": {
+				"type": [
+					"number"
+				]
+			},
+			"visceralFat": {
+				"type": [
+					"null"
+				]
+			},
+			"weight": {
+				"type": [
+					"number"
+				]
+			},
+			"weightDelta": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

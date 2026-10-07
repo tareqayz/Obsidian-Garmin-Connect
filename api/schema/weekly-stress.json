@@ -1,0 +1,30 @@
+{
+	"endpoint": "weekly-stress",
+	"path": "/usersummary-service/stats/stress/weekly/{endDate}/{weeks}",
+	"plugin": "GarminApi.stressWeekly",
+	"firstRecorded": "2026-10-07T22:34:33.543Z",
+	"updatedAt": "2026-10-07T22:34:33.543Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"value": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

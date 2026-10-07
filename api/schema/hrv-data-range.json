@@ -1,0 +1,98 @@
+{
+	"endpoint": "hrv-data-range",
+	"path": "/hrv-service/hrv/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.hrvDaily",
+	"firstRecorded": "2026-10-07T22:34:33.893Z",
+	"updatedAt": "2026-10-07T22:34:33.893Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"hrvSummaries": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"baseline": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"balancedLow": {
+									"type": [
+										"number"
+									]
+								},
+								"balancedUpper": {
+									"type": [
+										"number"
+									]
+								},
+								"lowUpper": {
+									"type": [
+										"number"
+									]
+								},
+								"markerValue": {
+									"type": [
+										"null",
+										"number"
+									]
+								}
+							}
+						},
+						"calendarDate": {
+							"type": [
+								"string"
+							]
+						},
+						"createTimeStamp": {
+							"type": [
+								"string"
+							]
+						},
+						"feedbackPhrase": {
+							"type": [
+								"string"
+							]
+						},
+						"lastNight5MinHigh": {
+							"type": [
+								"null",
+								"number"
+							]
+						},
+						"lastNightAvg": {
+							"type": [
+								"null",
+								"number"
+							]
+						},
+						"status": {
+							"type": [
+								"string"
+							]
+						},
+						"weeklyAvg": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"userProfilePk": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

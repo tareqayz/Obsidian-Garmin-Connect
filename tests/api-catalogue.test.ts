@@ -18,7 +18,7 @@ import {
 	schemaPath,
 	type CatalogueEntry,
 } from "../scripts/api/catalogue";
-import { assertProbesMatchCatalogue, PROBES } from "../scripts/api/probes";
+import { assertProbesMatchCatalogue, PROBES, yearBefore } from "../scripts/api/probes";
 import { hasPath } from "../scripts/api/schema";
 
 const catalogue = loadCatalogue();
@@ -110,5 +110,14 @@ describe("recorded shapes", () => {
 				assert.ok(hasPath(shape, path), `${entry.id}: nothing recorded at "${path}"`);
 			}
 		}
+	});
+});
+
+describe("probe windows", () => {
+	// The weekly weight and blood pressure routes answer 400 to anything but
+	// exactly 52 weeks, so a probe a day off would read as a broken endpoint.
+	it("span the 52 weeks the weekly ranges insist on", () => {
+		assert.equal(yearBefore("2026-10-08"), "2025-10-10");
+		assert.equal(yearBefore("2025-12-30"), "2025-01-01");
 	});
 });

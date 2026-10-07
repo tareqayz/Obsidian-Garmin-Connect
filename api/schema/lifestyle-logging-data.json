@@ -1,0 +1,112 @@
+{
+	"endpoint": "lifestyle-logging-data",
+	"path": "/lifestylelogging-service/dailyLog/{date}",
+	"plugin": "GarminApi.lifestyleLog",
+	"firstRecorded": "2026-10-07T22:34:34.642Z",
+	"updatedAt": "2026-10-07T22:34:34.642Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"completionStats": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"calendarDate": {
+							"type": [
+								"string"
+							]
+						},
+						"completedTracking": {
+							"type": [
+								"number"
+							]
+						},
+						"totalTracking": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"dailyLogsReport": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"behaviourId": {
+							"type": [
+								"number"
+							]
+						},
+						"calendarDate": {
+							"type": [
+								"string"
+							]
+						},
+						"category": {
+							"type": [
+								"string"
+							]
+						},
+						"details": {
+							"type": [
+								"array"
+							],
+							"optional": true,
+							"items": {
+								"type": [
+									"object"
+								],
+								"fields": {
+									"subTypeId": {
+										"type": [
+											"number"
+										]
+									},
+									"subTypeName": {
+										"type": [
+											"string"
+										]
+									}
+								}
+							}
+						},
+						"measurementType": {
+							"type": [
+								"string"
+							]
+						},
+						"name": {
+							"type": [
+								"string"
+							]
+						},
+						"sleepRelated": {
+							"type": [
+								"boolean"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

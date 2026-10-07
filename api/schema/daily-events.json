@@ -1,0 +1,82 @@
+{
+	"endpoint": "daily-events",
+	"path": "/wellness-service/wellness/dailyEvents/{displayName}",
+	"plugin": "GarminApi.dailyEvents",
+	"firstRecorded": "2026-10-07T22:34:34.567Z",
+	"updatedAt": "2026-10-07T22:34:34.567Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"activitySubType": {
+					"type": [
+						"null"
+					]
+				},
+				"activityType": {
+					"type": [
+						"string"
+					]
+				},
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"deviceId": {
+					"type": [
+						"number"
+					]
+				},
+				"duration": {
+					"type": [
+						"number"
+					]
+				},
+				"endTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"endTimestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"moderateIntensityMinutes": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"startTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"userProfilePk": {
+					"type": [
+						"number"
+					]
+				},
+				"vigorousIntensityMinutes": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				}
+			}
+		}
+	}
+}

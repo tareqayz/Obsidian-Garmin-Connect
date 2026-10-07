@@ -1,0 +1,247 @@
+{
+	"endpoint": "activities-for-day",
+	"path": "/activitylist-service/activities/fordailysummary/{displayName}",
+	"plugin": "GarminApi.activitiesForDay",
+	"firstRecorded": "2026-10-07T22:34:34.604Z",
+	"updatedAt": "2026-10-07T22:34:34.604Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"activeCalories": {
+					"type": [
+						"number"
+					]
+				},
+				"activeSplitSummaryDuration": {
+					"type": [
+						"number"
+					]
+				},
+				"activityId": {
+					"type": [
+						"number"
+					]
+				},
+				"activityName": {
+					"type": [
+						"string"
+					]
+				},
+				"activityType": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"isHidden": {
+							"type": [
+								"boolean"
+							]
+						},
+						"parentTypeId": {
+							"type": [
+								"number"
+							]
+						},
+						"restricted": {
+							"type": [
+								"boolean"
+							]
+						},
+						"trimmable": {
+							"type": [
+								"boolean"
+							]
+						},
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"atpActivity": {
+					"type": [
+						"boolean"
+					]
+				},
+				"averageHR": {
+					"type": [
+						"number"
+					]
+				},
+				"avgRespirationRate": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"bmrCalories": {
+					"type": [
+						"number"
+					]
+				},
+				"calories": {
+					"type": [
+						"number"
+					]
+				},
+				"distance": {
+					"type": [
+						"number"
+					]
+				},
+				"duration": {
+					"type": [
+						"number"
+					]
+				},
+				"elapsedDuration": {
+					"type": [
+						"number"
+					]
+				},
+				"eventType": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"sortOrder": {
+							"type": [
+								"number"
+							]
+						},
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"favorite": {
+					"type": [
+						"boolean"
+					]
+				},
+				"lapCount": {
+					"type": [
+						"number"
+					]
+				},
+				"maxDistanceWithPrecision": {
+					"type": [
+						"number"
+					]
+				},
+				"maxSpeed": {
+					"type": [
+						"number"
+					]
+				},
+				"maxSplitDistance": {
+					"type": [
+						"number"
+					]
+				},
+				"moderateIntensityMinutes": {
+					"type": [
+						"number"
+					]
+				},
+				"noOfSplits": {
+					"type": [
+						"number"
+					]
+				},
+				"ownerDisplayName": {
+					"type": [
+						"string"
+					]
+				},
+				"ownerId": {
+					"type": [
+						"number"
+					]
+				},
+				"parent": {
+					"type": [
+						"boolean"
+					]
+				},
+				"pr": {
+					"type": [
+						"boolean"
+					]
+				},
+				"privacy": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"typeId": {
+							"type": [
+								"number"
+							]
+						},
+						"typeKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				},
+				"purposefull": {
+					"type": [
+						"boolean"
+					]
+				},
+				"requestorHasAccess": {
+					"type": [
+						"boolean"
+					]
+				},
+				"startTimeGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"startTimeLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"steps": {
+					"type": [
+						"number"
+					]
+				},
+				"totalAscent": {
+					"type": [
+						"number"
+					]
+				},
+				"vigorousIntensityMinutes": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

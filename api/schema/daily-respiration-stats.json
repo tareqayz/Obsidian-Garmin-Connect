@@ -1,0 +1,36 @@
+{
+	"endpoint": "daily-respiration-stats",
+	"path": "/usersummary-service/stats/respiration/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.respirationDaily",
+	"firstRecorded": "2026-10-07T22:34:33.765Z",
+	"updatedAt": "2026-10-07T22:34:33.765Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"avgSleepRespiration": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"avgWakingRespiration": {
+					"type": [
+						"number"
+					]
+				},
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

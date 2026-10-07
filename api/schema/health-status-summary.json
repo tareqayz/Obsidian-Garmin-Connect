@@ -1,0 +1,83 @@
+{
+	"endpoint": "health-status-summary",
+	"path": "/healthstatus-service/healthstatus/summary/{date}",
+	"plugin": "GarminApi.healthStatusSummary",
+	"firstRecorded": "2026-10-07T22:34:33.805Z",
+	"updatedAt": "2026-10-07T22:34:33.805Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"createTimestampUTC": {
+				"type": [
+					"string"
+				]
+			},
+			"metrics": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"baselineLowerLimit": {
+							"type": [
+								"number"
+							]
+						},
+						"baselineUpperLimit": {
+							"type": [
+								"number"
+							]
+						},
+						"feedbackKey": {
+							"type": [
+								"string"
+							]
+						},
+						"percentage": {
+							"type": [
+								"number"
+							]
+						},
+						"status": {
+							"type": [
+								"string"
+							]
+						},
+						"type": {
+							"type": [
+								"string"
+							]
+						},
+						"value": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"outliersCount": {
+				"type": [
+					"number"
+				]
+			},
+			"updateTimestampUTC": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

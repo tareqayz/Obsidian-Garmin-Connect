@@ -1,0 +1,35 @@
+{
+	"endpoint": "weekly-blood-pressure",
+	"path": "/bloodpressure-service/bloodpressure/weeklyRange/{startDate}/{endDate}",
+	"plugin": "GarminApi.bloodPressureWeekly",
+	"firstRecorded": "2026-10-07T22:34:34.458Z",
+	"updatedAt": "2026-10-07T22:34:34.458Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"categoryStats": {
+				"type": [
+					"null"
+				]
+			},
+			"from": {
+				"type": [
+					"string"
+				]
+			},
+			"measurementSummaries": {
+				"type": [
+					"array"
+				]
+			},
+			"until": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

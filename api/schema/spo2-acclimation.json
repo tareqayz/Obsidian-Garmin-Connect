@@ -1,0 +1,244 @@
+{
+	"endpoint": "spo2-acclimation",
+	"path": "/wellness-service/wellness/daily/spo2acclimation/{date}",
+	"plugin": "GarminApi.spo2Acclimation",
+	"firstRecorded": "2026-10-07T22:34:34.304Z",
+	"updatedAt": "2026-10-07T22:34:34.304Z",
+	"samples": 4,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"averageSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"avgSleepSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"avgTomorrowSleepSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"endTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"lastSevenDaysAvgSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"latestSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"latestSpO2TimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"latestSpO2TimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"lowestSpO2": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"monitoringEnvironmentValues": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"monitoringEnvironmentValuesDescriptorList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"monEnvValueDescIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"monEnvValueDescKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"sleepEndTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepEndTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepStartTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"sleepStartTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"spO2HourlyAverages": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"null",
+							"number"
+						]
+					}
+				}
+			},
+			"spO2HourlyAveragesDescriptorList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"spo2ValueDescIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"spo2ValueDescKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"spO2SingleValues": {
+				"type": [
+					"null"
+				]
+			},
+			"spO2SingleValuesDescriptorList": {
+				"type": [
+					"array",
+					"null"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"spo2ValueDescriptorIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"spo2ValueDescriptorKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"startTimestampGMT": {
+				"type": [
+					"string"
+				]
+			},
+			"startTimestampLocal": {
+				"type": [
+					"string"
+				]
+			},
+			"tomorrowSleepEndTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepEndTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepStartTimestampGMT": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"tomorrowSleepStartTimestampLocal": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"userProfilePK": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}
