@@ -3,7 +3,11 @@
  * Turns a web capture into an endpoint inventory for one stat.
  *
  *   node scripts/garmin-web/summarize.mjs --export <capture.jsonl> --out <dir>
- *        [--gql <graphql.json>] [--title "<Stat>"]
+ *        [--gql <graphql.json>] [--title "<Stat>"] [--since <epoch-ms>] [--requests <network.txt>]
+ *
+ * --since keeps only responses captured at or after a mark (the capture buffer
+ * is never cleared between stats). --requests adds bodiless responses (204,
+ * 30x) from `b.sh network` output, which the body capture drops.
  *
  * <capture.jsonl> is `scripts/dev/b.sh network --export` output (one response
  * per line, from `network --capture --filter gc-api`). <graphql.json> is
@@ -34,13 +38,23 @@ const catalogue = JSON.parse(readFileSync(join(root, "api/endpoints.json"), "utf
 
 // App-shell calls every page makes (preferences, devices, consent, inbox …):
 // listed apart from the page's own data so the inventory stays readable.
-const SHELL = /userpreference-service|gdprconsent-service|device-service|deviceregistration|info-service|web-gateway\/(inbox|snapshot|device-info)|myfitnesspal|nutrition-service\/user|connection-service|newsfeed|system-service|trainingplan-service|userprofile-service|activity-service\/activity\/activityTypes|activitylist-service\/activities\/fordailysummary|wellnessactivity-service|sleep-service\/sleep\/naps|dailyEvents/i;
-const SKIP = /oauth|\/token|\/sso\/|socialProfile|personal-information|userprofile-service\/userprofile\/(user-settings|personal)|\/login|\/logout|messaging|notification/i;
+const SHELL = /userpreference-service|gdprconsent-service|device-service|deviceregistration|info-service|web-gateway\/(inbox|snapshot|device-info)|myfitnesspal|nutrition-service\/user|newsfeed|system-service|trainingplan-service|userprofile-service|activity-service\/activity\/activityTypes|fitnessstats-service\/activity\/availableMetrics|userstats-service\/statistics\/(availability|chartconfig)|activitylist-service\/activities\/list\//i;
+const SKIP = /connection-service|oauth|\/token|\/sso\/|socialProfile|personal-information|userprofile-service\/userprofile\/(user-settings|personal)|\/login|\/logout|messaging|notification/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+const since = Number(opt("since") ?? 0);
 const lines = readFileSync(exportFile, "utf8").split("\n").filter(Boolean);
-const responses = lines.map((l) => JSON.parse(l));
+const responses = lines.map((l) => JSON.parse(l)).filter((r) => !since || (r.timestamp ?? 0) >= since);
+// Bodiless responses (204, 30x) only appear in the request log: "GET <url> → 204 (…)".
+if (opt("requests")) {
+	for (const line of readFileSync(opt("requests"), "utf8").split("\n")) {
+		const m = line.match(/^(GET|POST)\s+(\S+)\s+→\s+(\d{3})/);
+		if (m && /\/gc-api\//.test(m[2]) && (m[3] === "204" || m[3].startsWith("3"))) {
+			responses.push({ url: m[2], status: Number(m[3]), body: "", contentType: "", size: 0, method: m[1] });
+		}
+	}
+}
 
 // The account's display name: a UUID-shaped path segment, or the segment after
 // a service that is always keyed by it. Scrubbed from paths and bodies.
@@ -53,6 +67,14 @@ for (const r of responses) {
 	if (m && !DATE.test(m[1]) && !/^\d+$/.test(m[1]) && m[1].length >= 6) displayNames.add(decodeURIComponent(m[1]));
 }
 
+const PII_KEYS = /^(fullName|firstName|lastName|userName|displayName|email|emailAddress|profileImageUrl\w*|location|birthDate|phoneNumber)$/;
+const redact = (value) => {
+	if (Array.isArray(value)) return value.map(redact);
+	if (value && typeof value === "object") {
+		return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, PII_KEYS.test(k) && typeof v === "string" ? `{${k}}` : redact(v)]));
+	}
+	return value;
+};
 const scrub = (text) => {
 	let t = text;
 	for (const name of displayNames) t = t.split(name).join("{displayName}");
@@ -84,8 +106,8 @@ const catalogueRegex = catalogue.map((e) => ({
 	re: new RegExp("^" + e.path.split("?")[0].replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{[^}]+\}/g, "[^/]+") + "$"),
 }));
 
-function match(path) {
-	const hit = catalogueRegex.find(({ re }) => re.test(path));
+function match(path, method = /graphql/i.test(path) ? "POST" : "GET") {
+	const hit = catalogueRegex.find(({ entry, re }) => (entry.method ?? "GET").toUpperCase() === method && re.test(path));
 	if (!hit) return { id: "NEW", plugin: "" };
 	return { id: hit.entry.id, plugin: hit.entry.plugin ?? "no wrapper" };
 }
@@ -110,7 +132,7 @@ for (const r of responses) {
 		continue;
 	}
 	const key = template(path);
-	const g = groups.get(key) ?? { key, raw: path, queries: new Map(), statuses: new Set(), count: 0, sample: null, sizes: [] };
+	const g = groups.get(key) ?? { key, raw: path, method: r.method, queries: new Map(), statuses: new Set(), count: 0, sample: null, sizes: [] };
 	g.count++;
 	g.statuses.add(r.status);
 	g.sizes.push(r.size);
@@ -134,12 +156,12 @@ const shellRows = [];
 let n = 0;
 for (const g of [...groups.values()].sort((a, b) => a.key.localeCompare(b.key))) {
 	n++;
-	const m = match(g.raw);
+	const m = match(g.raw, g.method);
 	const slug = g.key.replace(/[{}]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 	let shape = "(no JSON body)";
 	if (g.sample !== null) {
 		shape = shapeOf(g.sample);
-		writeFileSync(join(outDir, "bodies", `${String(n).padStart(2, "0")}-${slug}.json`), scrub(JSON.stringify(g.sample, null, 1)));
+		writeFileSync(join(outDir, "bodies", `${String(n).padStart(2, "0")}-${slug}.json`), scrub(JSON.stringify(redact(g.sample), null, 1)));
 	}
 	const q = [...g.queries.entries()].map(([k, v]) => `${k}=${v}`).join("&");
 	const line = `| ${n} | \`${g.key}\`${q ? `<br>\`?${q}\`` : ""} | ${[...g.statuses].join(", ")} | ${g.count} | ${m.id} | ${m.plugin || "—"} | ${shape.replace(/\|/g, "\\|").slice(0, 400)} |`;

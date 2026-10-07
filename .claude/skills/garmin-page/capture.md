@@ -113,7 +113,8 @@ in the page: `b.sh snapshot -i`, find the tab **by its label**, click its ref, t
 
 ```bash
 B=scripts/dev/b.sh; RAW=<scratchpad>/web/<stat>; OUT=ref/<area>/<stat>/web; mkdir -p "$RAW" "$OUT"
-$B network --capture stop; $B network --capture --filter gc-api      # restart = empty buffer
+MARK=$(date +%s000)                                                  # the buffer is never cleared: filter by time
+$B network --capture stop; $B network --capture --filter gc-api; $B network --clear
 $B goto "https://connect.garmin.com/app/<…>"; $B wait --networkidle
 $B eval scripts/garmin-web/graphql-hook.js                          # after every full load
 # for each range / tab / state:
@@ -121,8 +122,10 @@ $B eval scripts/garmin-web/page-text.js --out "$OUT/text-<state>.txt"
 $B screenshot "$OUT/<state>.png"
 # at the end:
 $B network --export "$RAW/capture.jsonl"                             # raw: has headers — keep it out of ref/
+$B network > "$RAW/network.txt"                                      # request log: the only record of 204s
 $B eval scripts/garmin-web/graphql-dump.js --out "$RAW/graphql.json"
-node scripts/garmin-web/summarize.mjs --export "$RAW/capture.jsonl" --gql "$RAW/graphql.json" --out "$OUT" --title "<Stat>"
+node scripts/garmin-web/summarize.mjs --export "$RAW/capture.jsonl" --gql "$RAW/graphql.json" \
+  --since "$MARK" --requests "$RAW/network.txt" --out "$OUT" --title "<Stat>"
 ```
 
 `summarize.mjs` writes `endpoints.md` (page endpoints vs app-shell calls, catalogue id /

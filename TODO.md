@@ -151,3 +151,7 @@
   `api/endpoints.json`, so one `npm run api:record` run reports exactly which of
   them are real — anything coming back `missing` is reading a key Garmin does not
   send. That is the same failure mode as the VO2 Max item above.
+- Home's "today" is fixed when the view opens: a Home view left open past midnight keeps
+  yesterday's date until it is reopened or the plugin reloads, so every page's offsets
+  and "Yesterday"/"Today" labels are a day behind (seen 2026-10-08 01:30). Recompute
+  today on a timer or on focus.
