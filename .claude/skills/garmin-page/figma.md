@@ -23,8 +23,11 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   Health List Row 180:188, Chart Marker 180:199) have Obsidian twins 202:388…202:527.
   Steps-family components: Range Control 127:106, Header 127:130, Day Card 127:152, Month
   Row 127:153, Totals Toggle 127:164, Legend Item 127:177; Obsidian 139:369…139:467.
-- New stats get pages `Garmin / Health — <Stat>` and `Obsidian / Health — <Stat>` after the
-  Sleep pages. Components only that stat uses sit on its own page (a "Components" frame at
+- Each stat has pages `Garmin / <Stat>` and `Obsidian / <Stat>` after the Sleep pages, in the
+  phone's order (created 2026-10-08: Garmin 239:2–239:13, Obsidian 239:14–239:25 — Health
+  Status, Lifestyle Logging, Weight, Pulse Ox, Pulse Ox Acclimation, Respiration, Heart Rate,
+  Blood Pressure, Stress, Body Battery, Fitness Age, Health Snapshot). The hub frames are on
+  the Sleep 1d pages: Garmin `194:30269`, Obsidian `207:32591` (light) / `209:32867` (dark). Components only that stat uses sit on its own page (a "Components" frame at
   the top left). Shared components and new variables are added by the orchestrator only.
 
 ## Conventions

@@ -11,6 +11,13 @@ The helper is a signed background app (`npm run iphone:build`, lives in
 are granted to **Garmin Mirror**, not to the terminal. `mirror.sh stop` refuses all input
 until `mirror.sh resume`; closing iPhone Mirroring also stops everything.
 
+### When to capture
+
+**Between local midnight and ~04:00 (UTC+4) the Garmin iPhone app labels data with the UTC
+date**: "Today" shows yesterday's numbers, every date label and card is one day off, 1d
+timelines and per-day chart bars come up empty (seen 2026-10-08 01:20). Capture between
+04:00 and 23:59 local. Note the capture time in `INDEX.md` either way.
+
 ### Session start
 
 1. `mirror.sh doctor` → `screenRecording`, `accessibility`, `mirroringRunning` all true,
@@ -60,6 +67,9 @@ For **each range** the page offers (1d, 7d, 4w, 1y — whatever the app shows) a
 5. Every tappable card/row that opens a sub-page (factor pages, history sheets, detail
    pages): open, shoot it fully (and its ranges, if it has them), `back`.
 6. Each info (i) sheet once, for its copy; close it with `back` or the sheet's close/Cancel.
+   Bottom sheets (e.g. Sleep History) ignore Escape: close them with a downward drag or the
+   sheet's close button. Day/week cards on stat pages switch the same page to that day/week
+   rather than opening a new page — shoot the switched state and switch back.
 
 Naming: `ref/<area>/<stat>/phone/<range>[-prev]/NN-<slug>.png` + `NN-<slug>.ocr.json`
 (e.g. `stress/phone/7d-prev/03-scroll-2.png`). Sub-pages:
