@@ -1,0 +1,23 @@
+import type { DayIndexDef } from "./day-index";
+
+/**
+ * Every registered day index (`day-index.ts`), in the order the automatic
+ * history walk takes them. One entry per stat, defined in its own
+ * `src/sync/<stat>-index.ts`:
+ *
+ *   import { STRESS_INDEX } from "./stress-index";
+ *   export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX];
+ *
+ * Registering is all it takes: routine syncs keep the index current, the
+ * runner walks its history once per session and adds a "Sync <title> history"
+ * command, Home reads it with `readIndex(kind)` and watches its folder.
+ *
+ * Pure, so the tests can check every entry; a definition must not import
+ * Obsidian.
+ */
+export const DAY_INDEXES: readonly DayIndexDef[] = [];
+
+/** A registered index by its kind. */
+export function dayIndex(kind: string): DayIndexDef | undefined {
+	return DAY_INDEXES.find((def) => def.kind === kind);
+}

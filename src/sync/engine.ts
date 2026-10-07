@@ -27,6 +27,7 @@ import {
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
+import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
 import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
@@ -130,6 +131,25 @@ export interface SleepSink {
 	merge(batch: SleepBatch, covered: { from: string; to: string } | null): Promise<number>;
 }
 
+/**
+ * Where a registered day index goes (`day-index.ts`): the store's files for
+ * it, as the sleep index has its own.
+ */
+export interface DayIndexSink<R extends DayRow = DayRow> {
+	/** The days the index holds end to end, or null before it has any. */
+	coverage(): Promise<{ from?: string; to?: string } | null>;
+	/** Folds in a batch; `covered` is the stretch it fetched every day of. Resolves with how many files changed. */
+	merge(batch: DayIndexBatch<R>, covered: { from: string; to: string } | null): Promise<number>;
+}
+
+/** A registered index as a run uses it: its definition, its sink, and its window fetch bound to the account. */
+export interface DayIndexRuntime<R extends DayRow = DayRow> {
+	def: DayIndexDef<R>;
+	sink: DayIndexSink<R>;
+	/** One window, `start`..`end` inclusive, at most `def.windowDays` long. */
+	fetchWindow(start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
+}
+
 export interface SyncOptions {
 	/** Inclusive ISO dates. */
 	from: string;
@@ -155,6 +175,13 @@ export interface SyncOptions {
 	 * any stretch between the index's newest night and the run.
 	 */
 	sleep?: SleepSink;
+	/**
+	 * The registered day indexes, bound by the runner. Each is fed while its
+	 * group is on: rows from the daily summaries the run fetched anyway, when
+	 * its definition reads them, and a window request for any day those did
+	 * not cover, the stretch since the index's newest day included.
+	 */
+	indexes?: readonly DayIndexRuntime[];
 	/**
 	 * How many of the newest days in a run get intraday series. They cost six
 	 * requests a day, and a year's backfill of them would be 2,190 requests for
@@ -214,6 +241,8 @@ export interface SyncReport {
 	dailyStatsFilesWritten: number;
 	/** Sleep index files created or changed. */
 	sleepFilesWritten: number;
+	/** Files created or changed per registered day index, by kind. */
+	indexFilesWritten: Record<string, number>;
 }
 
 /**
@@ -338,6 +367,7 @@ export async function syncRange(
 		activityFilesWritten: 0,
 		dailyStatsFilesWritten: 0,
 		sleepFilesWritten: 0,
+		indexFilesWritten: {},
 	};
 	if (dates.length === 0) return report;
 
@@ -358,7 +388,19 @@ export async function syncRange(
 	const stats: StatsRun | null =
 		opts.dailyStats && opts.groups.includes("activity") ? { sink: opts.dailyStats, rows: [], dates: new Set() } : null;
 	const sleepSink = opts.sleep && opts.groups.includes("sleep") ? opts.sleep : null;
-	if (due.length === 0 && !indexing && !stats && !sleepSink) {
+	const runs: IndexRun[] = (opts.indexes ?? [])
+		.filter((runtime) => opts.groups.includes(runtime.def.group))
+		.map((runtime) => ({ runtime, rows: [], dates: new Set<string>() }));
+	/** Feeds an index and books what it cost. Resolves with the error that should stop the run, if one came up. */
+	const feed = async (run: IndexRun, fetchMissing: boolean): Promise<unknown> => {
+		const got = await feedIndex(run.runtime, run, opts.from, opts.to, { fetchMissing });
+		const kind = run.runtime.def.kind;
+		report.requests += got.requests;
+		report.indexFilesWritten[kind] = (report.indexFilesWritten[kind] ?? 0) + got.written;
+		for (const warning of got.warnings) note(report, log, `${kind} index: ${warning}`);
+		return got.fatal;
+	};
+	if (due.length === 0 && !indexing && !stats && !sleepSink && !runs.length) {
 		log.warn("nothing in this range can be written to — nothing fetched");
 		return finish(report, log);
 	}
@@ -390,6 +432,10 @@ export async function syncRange(
 		}
 		if (sleepSink) {
 			const fatal = await feedSleep(source, sleepSink, opts.from, opts.to, report, log);
+			if (fatal) return stop(report, fatal, log);
+		}
+		for (const run of runs) {
+			const fatal = await feed(run, true);
 			if (fatal) return stop(report, fatal, log);
 		}
 		return finish(report, log);
@@ -481,6 +527,7 @@ export async function syncRange(
 		if (fetched.fatal) {
 			// What earlier days gave the index costs nothing more to keep.
 			if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
+			for (const run of runs) await feed(run, false);
 			return stop(report, fetched.fatal, log);
 		}
 		if (stats && fetched.summaryFetched) {
@@ -488,6 +535,7 @@ export async function syncRange(
 			const row = rowFromSummary(date, fetched.data.summary);
 			if (row) stats.rows.push(row);
 		}
+		if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
 
 		// The hypnogram rides in the sleep payload, so every day with sleep gets
 		// a series file, not only the newest few that paid for the rest.
@@ -567,6 +615,11 @@ export async function syncRange(
 	// Cancelled or cut short, the nights cost nothing to skip: the next sync fetches them.
 	if (sleepSink && !report.stoppedEarly) {
 		const fatal = await feedSleep(source, sleepSink, opts.from, opts.to, report, log);
+		if (fatal) return stop(report, fatal, log);
+	}
+	// Cut short, an index keeps what the summaries gave it and fetches nothing.
+	for (const run of runs) {
+		const fatal = await feed(run, !report.stoppedEarly);
 		if (fatal) return stop(report, fatal, log);
 	}
 	return finish(report, log);
@@ -683,6 +736,199 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 			break;
 		}
 		end = shiftIso(start, -1);
+		if (opts.pause) await wait(opts.pause);
+	}
+	return out;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Registered day indexes                                             */
+/* ------------------------------------------------------------------ */
+
+/** A registered index during a run: what the run's daily summaries gave it. */
+interface IndexRun {
+	runtime: DayIndexRuntime;
+	/** Rows from `def.fromSummary`. */
+	rows: DayRow[];
+	/** Every day whose summary came back, row or not. */
+	dates: Set<string>;
+}
+
+/** A day's summary as a row for an index that reads summaries. A day it cannot read stays for the window fetch. */
+function takeSummary(run: IndexRun, date: string, summary: DailySummary | null | undefined): void {
+	const read = run.runtime.def.fromSummary;
+	if (!read) return;
+	try {
+		const row = summary && typeof summary === "object" ? read(summary, date) : null;
+		run.dates.add(date);
+		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
+		if (clean) run.rows.push(clean);
+	} catch {
+		// The window fetch covers the day instead.
+	}
+}
+
+export interface IndexFeed {
+	requests: number;
+	/** Index files created or changed. */
+	written: number;
+	warnings: string[];
+	/** A 429 or a dead session: the run should stop. What came before it was still merged. */
+	fatal?: unknown;
+}
+
+/**
+ * Hands a registered index what a routine sync saw. `seen` is what the run's
+ * daily summaries gave it, through `def.fromSummary`; with `fetchMissing`,
+ * every other day of `from..to` is asked of the index's window fetch, and so
+ * is any stretch between the index's newest day and `from`, so a vault left
+ * closed for a fortnight comes back without a hole. An index without
+ * `fromSummary` fetches the run's days that way too: one request per
+ * `windowDays`.
+ */
+export async function feedIndex<R extends DayRow>(
+	runtime: DayIndexRuntime<R>,
+	seen: { rows: readonly R[]; dates: Iterable<string> },
+	from: string,
+	to: string,
+	opts: { fetchMissing: boolean },
+): Promise<IndexFeed> {
+	const { def, sink } = runtime;
+	const out: IndexFeed = { requests: 0, written: 0, warnings: [] };
+	const rows: R[] = [...seen.rows];
+	const dates = new Set(seen.dates);
+	let covered: { from: string; to: string } | null = null;
+
+	if (opts.fetchMissing) {
+		let start = from;
+		try {
+			const held = await sink.coverage();
+			if (held?.to && held.to < shiftDate(from, -1)) start = shiftDate(held.to, 1);
+		} catch (err) {
+			out.warnings.push(message(err));
+		}
+		let failed = false;
+		const missing = dateRange(start, to).filter((d) => !dates.has(d));
+		windows: for (const span of spansOf(missing)) {
+			for (const window of chunkRange(span.from, span.to, def.windowDays)) {
+				out.requests += 1;
+				try {
+					const got = await runtime.fetchWindow(window.from, window.to);
+					for (const raw of got) {
+						const row = def.normalize(raw);
+						if (row) rows.push(row);
+					}
+					for (const d of dateRange(window.from, window.to)) dates.add(d);
+				} catch (err) {
+					if (isFatal(err)) {
+						out.fatal = err;
+						break windows;
+					}
+					failed = true;
+					out.warnings.push(`${window.from}..${window.to}: ${message(err)}`);
+				}
+			}
+		}
+		if (out.fatal === undefined && !failed) covered = { from: start, to };
+	}
+
+	if (dates.size) {
+		try {
+			out.written = await sink.merge({ rows, dates: [...dates] }, covered);
+		} catch (err) {
+			out.warnings.push(message(err));
+		}
+	}
+	return out;
+}
+
+export interface WalkOptions {
+	/** The newest day to walk back from. */
+	until: string;
+	/** The day `def.maxHistoryDays` counts back from. `until` when absent. */
+	today?: string;
+	/** Keep walking through empty windows until past this day: the oldest activity, say. */
+	notBefore?: string;
+	/** A hard stop, should every window come back with rows forever. */
+	maxWindows?: number;
+	/** Courtesy pause between windows, in ms. */
+	pause?: number;
+	/** After each window: the oldest day reached so far. */
+	onWindow?: (reached: string) => void;
+	shouldStop?: () => boolean;
+	/** Injectable for tests. */
+	wait?: (ms: number) => Promise<void>;
+}
+
+export interface WalkResult<R extends DayRow = DayRow> {
+	batch: DayIndexBatch<R>;
+	/** The stretch fetched end to end, from the oldest window to `until`. */
+	covered: { from: string; to: string } | null;
+	requests: number;
+	/** The walk found where the history starts, or reached `maxHistoryDays`: nothing older is left. */
+	complete: boolean;
+	/** A 429 or a dead session. What came before it is still good. */
+	fatal?: unknown;
+	error?: string;
+}
+
+/**
+ * Walks a registered index's history back from `until`, `def.windowDays` a
+ * request, until `def.emptyWindowsToStop` windows in a row without a row say
+ * the history has started (once past `notBefore`), or until
+ * `def.maxHistoryDays` before `today`, as far back as Garmin keeps the stat.
+ */
+export async function walkHistory<R extends DayRow>(
+	def: DayIndexDef<R>,
+	fetchWindow: (start: string, end: string) => Promise<ReadonlyArray<DayRowInput<R>>>,
+	opts: WalkOptions,
+): Promise<WalkResult<R>> {
+	const wait = opts.wait ?? defaultWait;
+	const size = def.windowDays;
+	const emptyLimit = Math.max(1, def.emptyWindowsToStop);
+	// About twelve years, whatever the window: what 160 windows of 28 days reach.
+	const maxWindows = Math.max(1, opts.maxWindows ?? Math.ceil(4480 / size));
+	const floor = def.maxHistoryDays ? shiftDate(opts.today ?? opts.until, -(def.maxHistoryDays - 1)) : undefined;
+	const out: WalkResult<R> = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	if (floor && opts.until < floor) {
+		out.complete = true;
+		return out;
+	}
+	let end = opts.until;
+	let empty = 0;
+
+	for (let n = 0; n < maxWindows; n++) {
+		if (opts.shouldStop?.()) break;
+		let start = shiftDate(end, -(size - 1));
+		const last = floor !== undefined && start <= floor;
+		if (last) start = floor;
+		const rows: R[] = [];
+		try {
+			out.requests += 1;
+			for (const raw of await fetchWindow(start, end)) {
+				const row = def.normalize(raw);
+				if (row) rows.push(row);
+			}
+		} catch (err) {
+			if (isFatal(err)) out.fatal = err;
+			else out.error = `${start}..${end}: ${message(err)}`;
+			break;
+		}
+		out.batch.rows.push(...rows);
+		out.batch.dates.push(...dateRange(start, end));
+		out.covered = { from: start, to: opts.until };
+		opts.onWindow?.(start);
+
+		if (last) {
+			out.complete = true;
+			break;
+		}
+		empty = rows.length ? 0 : empty + 1;
+		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
+			out.complete = true;
+			break;
+		}
+		end = shiftDate(start, -1);
 		if (opts.pause) await wait(opts.pause);
 	}
 	return out;

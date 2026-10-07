@@ -2,11 +2,14 @@
 	import { tick } from "svelte";
 	import type { ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
+	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
-	import { pop, push, replace, sleepRoute, statsRoute, top, type Route } from "../../../dashboard/routes";
+	import { healthStatRoute, pop, push, replace, sleepRoute, statsRoute, top, type Route } from "../../../dashboard/routes";
 	import { latestNightOffset, type HistoryView, type SleepData } from "../../../dashboard/sleep-pages";
 	import type { StatsData } from "../../../dashboard/stats-pages";
+	import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 	import type { DaySeries } from "../../../sync/intraday";
+	import type { IntradayLoad } from "../../../sync/intraday-registry";
 	import type { HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../../../sync/runner";
 	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
@@ -14,8 +17,9 @@
 	import MonthPage from "../activities/MonthPage.svelte";
 	import MorePage from "../activities/MorePage.svelte";
 	import RecordsPage from "../activities/RecordsPage.svelte";
+	import HealthHub from "../health/HealthHub.svelte";
+	import { HEALTH_PAGES } from "../health/pages";
 	import FactorPage from "../sleep/FactorPage.svelte";
-	import HealthHub from "../sleep/HealthHub.svelte";
 	import SleepPage from "../sleep/SleepPage.svelte";
 	import StatsPage from "../stats/StatsPage.svelte";
 	import EmptyCard from "./EmptyCard.svelte";
@@ -27,6 +31,7 @@
 	import FocusTraining from "./FocusTraining.svelte";
 	import Glance from "./Glance.svelte";
 	import HomeCard from "./HomeCard.svelte";
+	import PageBar from "./PageBar.svelte";
 	import PresetSheet from "./PresetSheet.svelte";
 	import RowCard from "./RowCard.svelte";
 	import SectionHeader from "./SectionHeader.svelte";
@@ -41,8 +46,9 @@
 	 * the device, since an Obsidian leaf can be narrow on a desktop.
 	 *
 	 * The other pages — See All, More, Activities, Steps, Floors, Intensity
-	 * Minutes, Health Stats, Sleep — open on top of Home inside the same view,
-	 * as a stack that Back walks down.
+	 * Minutes, Health Stats, Sleep and every stat registered in `HEALTH_PAGES`
+	 * — open on top of Home inside the same view, as a stack that Back walks
+	 * down.
 	 */
 	interface Props {
 		initialModel: HomeModel;
@@ -54,6 +60,8 @@
 		initialHistory: HistoryProgress | null;
 		initialStatsHistory: StatsHistoryProgress | null;
 		initialSleepHistory: SleepHistoryProgress | null;
+		/** The registered day indexes' history walks in progress, by kind. */
+		initialIndexHistory: Record<string, IndexHistoryProgress>;
 		initialPreset: PresetId;
 		initialHidden: MoreId[];
 		/** The At a Glance list once it has been edited; absent means the preset's. */
@@ -70,10 +78,16 @@
 		onSyncHistory: () => void;
 		onSyncStatsHistory: () => void;
 		onSyncSleepHistory: () => void;
+		/** Starts a registered day index's history walk. */
+		onSyncIndexHistory: (kind: string) => void;
 		/** Opens the Sleep Coach's Sleep History sheet. */
 		onSleepHistory: (view: HistoryView) => void;
 		/** Series files for the day charts and a night's Sleep page. */
 		readSeries: (days: string[]) => Promise<Map<string, DaySeries | null>>;
+		/** A day index's rows and meta, for the Health Stats pages. */
+		readIndex: ReadIndex;
+		/** A day's intraday blocks, fetched on view when its series file lacks them. */
+		loadIntraday: (date: string, keys: readonly string[]) => Promise<IntradayLoad>;
 	}
 
 	let {
@@ -85,6 +99,7 @@
 		initialHistory,
 		initialStatsHistory,
 		initialSleepHistory,
+		initialIndexHistory,
 		initialPreset,
 		initialHidden,
 		initialGlance,
@@ -97,8 +112,11 @@
 		onSyncHistory,
 		onSyncStatsHistory,
 		onSyncSleepHistory,
+		onSyncIndexHistory,
 		onSleepHistory,
 		readSeries,
+		readIndex,
+		loadIntraday,
 	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
@@ -124,6 +142,11 @@
 	let sleep = $state(initialSleep);
 	// svelte-ignore state_referenced_locally
 	let sleepHistory = $state<SleepHistoryProgress | null>(initialSleepHistory);
+	// svelte-ignore state_referenced_locally
+	let indexHistory = $state<Record<string, IndexHistoryProgress>>({ ...initialIndexHistory });
+	/** By index kind, and one for the series files: a Health Stats page re-reads what it shows when its number moves. */
+	let indexVersions = $state<Record<string, number>>({});
+	let seriesVersion = $state(0);
 
 	/** A view left open past midnight moves on to the new day with its next refresh. */
 	export function setModel(next: HomeModel, nextToday?: string) {
@@ -153,6 +176,21 @@
 
 	export function setSleepHistory(next: SleepHistoryProgress | null) {
 		sleepHistory = next;
+	}
+
+	export function setIndexHistory(kind: string, next: IndexHistoryProgress | null) {
+		if (next) indexHistory[kind] = next;
+		else delete indexHistory[kind];
+	}
+
+	/** A file in a day index's folder changed. */
+	export function setIndexVersion(kind: string, version: number) {
+		indexVersions[kind] = version;
+	}
+
+	/** A day's series file changed. */
+	export function setSeriesVersion(version: number) {
+		seriesVersion = version;
 	}
 
 	/** Opens a stack of pages from outside, as a command does. */
@@ -235,11 +273,15 @@
 	/** The night Home shows, as days back from today: its sleep cards open that night. */
 	let nightOffset = $derived(Math.min(0, Math.round((Date.parse(`${model.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)));
 
+	const healthPages = Object.keys(HEALTH_PAGES);
+
 	/** At a Glance cards with a page behind them, as in the app. */
 	function glancePage(id: GlanceId): Route | null {
 		if (id === "steps" || id === "floors" || id === "intensity") return statsRoute(id);
 		if (id === "sleep") return sleepRoute(nightOffset);
-		return null;
+		const stat = glanceStat(id, healthPages);
+		// A day's page opens on the day Home shows, as Sleep's card opens its night.
+		return stat ? healthStatRoute(stat.id, stat.defaultRange === "1d" ? { offset: nightOffset } : {}) : null;
 	}
 
 	async function sync() {
@@ -320,7 +362,31 @@
 	{:else if current.page === "all"}
 		<AllActivitiesPage data={activities} onBack={back} />
 	{:else if current.page === "health"}
-		<HealthHub onBack={back} openSleep={() => go(sleepRoute(latestNightOffset(sleep, today)))} />
+		<HealthHub onBack={back} {go} openSleep={() => go(sleepRoute(latestNightOffset(sleep, today)))} />
+	{:else if current.page === "health-stat"}
+		{@const Page = HEALTH_PAGES[current.stat]}
+		{#if Page}
+			<Page
+				route={current}
+				{today}
+				units={activities.units}
+				{canSync}
+				onBack={back}
+				{go}
+				{swap}
+				{readSeries}
+				{readIndex}
+				{loadIntraday}
+				onSyncHistory={onSyncIndexHistory}
+				versions={indexVersions}
+				{seriesVersion}
+				history={indexHistory}
+			/>
+		{:else}
+			<!-- A route saved by a version that had this page. -->
+			<PageBar title={healthStat(current.stat)?.title ?? "Health Stats"} onBack={back} />
+			<div class="unbuilt">This page isn’t in this version of the plugin.</div>
+		{/if}
 	{:else if current.page === "sleep"}
 		<SleepPage
 			route={current}
@@ -586,6 +652,11 @@
 	.quiet {
 		color: var(--text-faint);
 		font-size: 13px;
+	}
+	.unbuilt {
+		padding: 48px 16px;
+		text-align: center;
+		color: var(--text-muted);
 	}
 	section {
 		min-width: 0;

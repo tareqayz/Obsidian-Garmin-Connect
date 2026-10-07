@@ -1,4 +1,5 @@
 import { CATEGORIES, RECORD_TABS, type CategoryId, type MetricId, type RangeId, type RecordTab } from "./activities";
+import { pageStat, type HealthRange, type HealthStatPageId } from "./health-stats";
 import { SLEEP_FACTORS, SLEEP_RANGES, type SleepFactorId, type SleepRange, type SleepTab } from "./sleep-pages";
 import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } from "./stats-pages";
 
@@ -22,7 +23,14 @@ export type Route =
 	| { page: "stats"; stat: StatId; range: StatRange; offset: number; totals: StatTotals }
 	| { page: "health" }
 	| { page: "sleep"; range: SleepRange; offset: number; tab: SleepTab }
-	| { page: "sleep-factor"; factor: SleepFactorId; date: string };
+	| { page: "sleep-factor"; factor: SleepFactorId; date: string }
+	/**
+	 * Every Health Stats page but Sleep (`health-stats.ts`). `tab`, `sub` and
+	 * `date` are the page's own: a tab, a sub-page or sheet, a particular day.
+	 */
+	| { page: "health-stat"; stat: HealthStatPageId; range: HealthRange; offset: number; tab?: string; sub?: string; date?: string };
+
+export type HealthStatRoute = Extract<Route, { page: "health-stat" }>;
 
 export const HOME: Route = { page: "home" };
 
@@ -111,6 +119,8 @@ export function readRoute(value: unknown): Route | null {
 			if (!factor || typeof raw.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return null;
 			return { page: "sleep-factor", factor, date: raw.date };
 		}
+		case "health-stat":
+			return healthStatOf(raw);
 		case "month": {
 			const category = categoryId(raw.category);
 			if (!category || typeof raw.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month)) return null;
@@ -119,6 +129,27 @@ export function readRoute(value: unknown): Route | null {
 		default:
 			return null;
 	}
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A tab or sub-page id: a short token, nothing that could be markup or a path. */
+const TOKEN = /^[\w.:-]{1,64}$/;
+
+/** A health-stat route as the page accepts it: an unknown stat is refused, the rest repaired. */
+function healthStatOf(raw: Record<string, unknown>): HealthStatRoute | null {
+	const stat = pageStat(raw.stat);
+	if (!stat) return null;
+	const route: HealthStatRoute = {
+		page: "health-stat",
+		stat: stat.id,
+		range: stat.ranges.includes(raw.range as HealthRange) ? (raw.range as HealthRange) : stat.defaultRange,
+		// Only the past exists: a later period than now is the current one.
+		offset: Number.isInteger(raw.offset) ? Math.min(0, raw.offset as number) : 0,
+	};
+	if (typeof raw.tab === "string" && TOKEN.test(raw.tab)) route.tab = raw.tab;
+	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) route.sub = raw.sub;
+	if (typeof raw.date === "string" && DATE.test(raw.date)) route.date = raw.date;
+	return route;
 }
 
 function categoryId(value: unknown): CategoryId | undefined {
@@ -142,6 +173,18 @@ export function statsRoute(stat: StatId): Route {
 /** The Sleep page as Home and the hub open it: a night's score, `offset` days back. */
 export function sleepRoute(offset = 0): Route {
 	return { page: "sleep", range: "1d", offset: Math.min(0, offset), tab: "score" };
+}
+
+/**
+ * A Health Stats page as the hub, Home and the commands open it: its default
+ * range, the current period, unless `opts` says otherwise. Whatever `opts`
+ * holds is checked as a saved route would be.
+ */
+export function healthStatRoute(
+	stat: HealthStatPageId,
+	opts: { range?: HealthRange; offset?: number; tab?: string; sub?: string; date?: string } = {},
+): HealthStatRoute {
+	return healthStatOf({ ...opts, stat })!;
 }
 
 /** A category page as the hub opens it: everything, this week, the first tab. */

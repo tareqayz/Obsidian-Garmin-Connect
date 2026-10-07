@@ -6,6 +6,8 @@ import type { Log } from "../log";
 import { basesView } from "./bases-view";
 import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
 import { DataFolderTarget } from "./data-folder";
+import type { DayIndexDef, IndexHistoryProgress } from "./day-index";
+import { DAY_INDEXES, dayIndex } from "./day-indexes";
 import {
 	MultiTarget,
 	fetchAllActivities,
@@ -13,13 +15,17 @@ import {
 	fetchSleepHistory,
 	lastNDays,
 	syncRange,
+	walkHistory,
 	type DailyStatsSink,
+	type DayIndexRuntime,
 	type NoteTarget,
 	type SleepSink,
 	type SyncReport,
 } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
+import { INTRADAY_EXTRAS } from "./intraday-extras";
+import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
@@ -91,7 +97,12 @@ export class SyncRunner {
 	private api: GarminApi;
 	private settings: () => RunnerSettings;
 	private unitsCache: "metric" | "imperial" | null = null;
-	private running = false;
+	private busy = false;
+	/** The automatic history walks are under way, one after the other. */
+	private chainActive = false;
+	/** On-view intraday loads waiting for the runner to be free, one job a day. */
+	private intradayJobs = new DayJobs<IntradayLoad>();
+	private draining = false;
 	/** The history sync starts itself once a session, after the first sync, until it has finished once. */
 	private historyTried = false;
 	private historyState: HistoryProgress | null = null;
@@ -100,6 +111,8 @@ export class SyncRunner {
 	private statsHistoryListeners = new Set<(progress: StatsHistoryProgress | null) => void>();
 	private sleepHistoryState: SleepHistoryProgress | null = null;
 	private sleepHistoryListeners = new Set<(progress: SleepHistoryProgress | null) => void>();
+	private indexHistoryState = new Map<string, IndexHistoryProgress>();
+	private indexHistoryListeners = new Set<(kind: string, progress: IndexHistoryProgress | null) => void>();
 
 	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
 		this.app = app;
@@ -109,6 +122,21 @@ export class SyncRunner {
 
 	get isRunning(): boolean {
 		return this.running;
+	}
+
+	/**
+	 * One thing talks to Garmin at a time. Whatever waited for the runner —
+	 * an on-view intraday load — gets its turn once the current work is done,
+	 * on a later task, so a sync that hands over to the history walks keeps
+	 * the runner until they are done.
+	 */
+	private get running(): boolean {
+		return this.busy;
+	}
+
+	private set running(value: boolean) {
+		this.busy = value;
+		if (!value && this.intradayJobs.size) window.setTimeout(() => this.kickIntraday(), 0);
 	}
 
 	syncRecent(log?: Log): Promise<SyncReport | null> {
@@ -154,6 +182,17 @@ export class SyncRunner {
 		return () => this.sleepHistoryListeners.delete(listener);
 	}
 
+	/** The registered day indexes' history walks in progress, by kind. */
+	get indexHistoryProgress(): Record<string, IndexHistoryProgress> {
+		return Object.fromEntries(this.indexHistoryState);
+	}
+
+	/** Called with each window of a registered index's history walk, and with null when it ends. Returns the unsubscribe. */
+	onIndexHistory(listener: (kind: string, progress: IndexHistoryProgress | null) => void): () => void {
+		this.indexHistoryListeners.add(listener);
+		return () => this.indexHistoryListeners.delete(listener);
+	}
+
 	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
 		const report = await this.runDays(from, to, log);
 		// Not awaited: Home's sync button should not spin through the history
@@ -162,10 +201,23 @@ export class SyncRunner {
 		if (report && !report.stoppedEarly && !this.historyTried) {
 			this.historyTried = true;
 			const groups = this.settings().groups;
+			// Between walks, a page waiting on an intraday load gets its day first.
 			void (async () => {
-				if (groups.includes("workouts")) await this.syncActivityHistory({ auto: true, log });
-				if (groups.includes("activity")) await this.syncDailyStatsHistory({ auto: true, log });
-				if (groups.includes("sleep")) await this.syncSleepHistory({ auto: true, log });
+				this.chainActive = true;
+				try {
+					if (groups.includes("workouts")) await this.syncActivityHistory({ auto: true, log });
+					await this.drainIntraday();
+					if (groups.includes("activity")) await this.syncDailyStatsHistory({ auto: true, log });
+					await this.drainIntraday();
+					if (groups.includes("sleep")) await this.syncSleepHistory({ auto: true, log });
+					for (const def of DAY_INDEXES) {
+						await this.drainIntraday();
+						if (groups.includes(def.group)) await this.syncIndexHistory(def.kind, { auto: true, log });
+					}
+				} finally {
+					this.chainActive = false;
+					void this.drainIntraday();
+				}
 			})();
 		}
 		return report;
@@ -197,6 +249,7 @@ export class SyncRunner {
 				activities: { merge: (listing, complete) => series.mergeActivities(listing, { complete, units }) },
 				dailyStats: dailyStatsSink(series),
 				sleep: sleepSink(series),
+				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -480,6 +533,187 @@ export class SyncRunner {
 		for (const listener of this.sleepHistoryListeners) listener(progress);
 	}
 
+	/**
+	 * Fills a registered day index with its whole history, `windowDays` a
+	 * request with the usual pause, back to where its history starts or as far
+	 * as Garmin keeps it. Routine syncs keep its top current. A walk cut short
+	 * keeps what it fetched and carries on from there next time.
+	 *
+	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * already complete or another sync is running.
+	 */
+	async syncIndexHistory(kind: string, opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
+		const { auto = false, log } = opts;
+		const def = dayIndex(kind);
+		if (!def) return null;
+		const label = `Garmin ${def.title} history`;
+		if (this.running) {
+			if (!auto) new Notice("A Garmin sync is already running.");
+			return null;
+		}
+		if (!this.api.isAuthenticated) {
+			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		this.running = true;
+		const notice = auto ? null : new Notice(historyNotice(label, {}), 0);
+		try {
+			const meta = await store.readDayIndexMeta(def);
+			if (meta?.complete) {
+				notice?.hide();
+				if (!auto) new Notice(`${label} is already complete.`);
+				return null;
+			}
+			this.setIndexHistory(kind, {});
+
+			// Carry on below what the index already holds; routine syncs keep its top current.
+			const today = toIsoDate();
+			const until = meta?.from ? shiftDay(meta.from, -1) : today;
+			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
+			const got = await walkHistory(def, (start, end) => def.fetchWindow(this.api, start, end), {
+				until,
+				today,
+				...(oldestActivity ? { notBefore: oldestActivity } : {}),
+				pause: settings.pauseBetweenDays,
+				onWindow: (reached) => {
+					this.setIndexHistory(kind, { reached });
+					notice?.setMessage(historyNotice(label, { reached }));
+				},
+			});
+
+			// Even cut short, what came back runs unbroken from where it started.
+			if (got.batch.dates.length || got.complete) {
+				await store.mergeDayIndex(def, got.batch, { covered: got.covered, complete: got.complete });
+			}
+			notice?.hide();
+
+			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
+			const days = got.batch.rows.length;
+			log?.detail(`${def.kind} history`, `${days} days, ${got.requests} requests`);
+			if (!auto || stoppedEarly) {
+				new Notice(stoppedEarly ? `${label}: ${days} days fetched — stopped: ${stoppedEarly}` : `${label}: ${days} days`, stoppedEarly ? 10000 : 5000);
+			}
+			return { fetched: days, complete: got.complete, requests: got.requests, ...(stoppedEarly ? { stoppedEarly } : {}) };
+		} catch (err) {
+			notice?.hide();
+			new Notice(`${label} failed: ${explain(err)}`, 10000);
+			return null;
+		} finally {
+			this.running = false;
+			this.setIndexHistory(kind, null);
+		}
+	}
+
+	private setIndexHistory(kind: string, progress: IndexHistoryProgress | null): void {
+		if (progress) this.indexHistoryState.set(kind, progress);
+		else this.indexHistoryState.delete(kind);
+		for (const listener of this.indexHistoryListeners) listener(kind, progress);
+	}
+
+	/** A registered index as the engine feeds it: the store's files, and the window fetch bound to this account. */
+	private indexRuntime(store: VaultSeriesStore, def: DayIndexDef): DayIndexRuntime {
+		return {
+			def,
+			sink: {
+				coverage: () => store.readDayIndexMeta(def),
+				merge: (batch, covered) => store.mergeDayIndex(def, batch, { covered }),
+			},
+			fetchWindow: (start, end) => def.fetchWindow(this.api, start, end),
+		};
+	}
+
+	/* ---------------------------------------------------------------- */
+	/*  Intraday on view                                                 */
+	/* ---------------------------------------------------------------- */
+
+	/**
+	 * A day's intraday blocks for a page: whatever of `keys` the day's series
+	 * file lacks is fetched, merged into the file and handed back. The file's
+	 * own blocks (`stress`, `bodyBattery`, `heartRate`, `bodyBatteryEvents`)
+	 * load for any day this way, and so does every registered extra
+	 * (`intraday-extras.ts`).
+	 *
+	 * Never alongside a sync: the load waits for the runner, and asking again
+	 * for a day already waiting joins that load. Without a session, or with
+	 * the blocks' group off, it resolves at once with what the file has and
+	 * says why the rest is missing. It never rejects.
+	 */
+	async loadIntraday(date: string, keys: readonly string[]): Promise<IntradayLoad> {
+		// Most views find the file has it all; those never wait for a sync.
+		let now: IntradayLoad;
+		try {
+			now = withoutFatal(await this.loadDayFor(date, keys, false));
+		} catch (err) {
+			return { series: null, missing: [...new Set(keys)], reason: "failed", error: explain(err) };
+		}
+		if (!now.missing.length || now.reason !== "signed-out" || !this.api.isAuthenticated) return now;
+		const pending = this.intradayJobs.add(date, keys);
+		this.kickIntraday();
+		return pending;
+	}
+
+	/** One day's load. With `fetch` false, only what the file has and why the rest is missing. */
+	private async loadDayFor(date: string, keys: readonly string[], fetch: boolean): Promise<IntradayLoad & { fatal?: unknown }> {
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		return loadDay(this.api, store, date, keys, {
+			signedIn: fetch && this.api.isAuthenticated,
+			groups: settings.groups,
+			extras: INTRADAY_EXTRAS,
+			today: toIsoDate(),
+		});
+	}
+
+	private kickIntraday(): void {
+		if (this.running || this.chainActive || this.draining || !this.intradayJobs.size) return;
+		void this.drainIntraday();
+	}
+
+	/**
+	 * Runs the waiting loads one day at a time, holding the runner, with the
+	 * usual pause between days. A sync that starts in a pause goes first; the
+	 * rest wait for it. A 429 or a dead session answers every load still
+	 * waiting without asking Garmin again.
+	 */
+	private async drainIntraday(): Promise<void> {
+		if (this.draining) return;
+		this.draining = true;
+		try {
+			for (let first = true; !this.running && this.intradayJobs.size; first = false) {
+				const pause = this.settings().pauseBetweenDays;
+				if (!first && pause > 0) {
+					await pauseFor(pause);
+					if (this.running) break;
+				}
+				const job = this.intradayJobs.take();
+				if (!job) break;
+				this.running = true;
+				let fatal: unknown;
+				try {
+					const load = await this.loadDayFor(job.date, job.keys, true);
+					fatal = load.fatal;
+					job.resolve(fatal === undefined ? withoutFatal(load) : { ...withoutFatal(load), error: explain(fatal) });
+				} catch (err) {
+					job.resolve({ series: null, missing: [...job.keys], reason: "failed", error: explain(err) });
+				} finally {
+					this.running = false;
+				}
+				if (fatal === undefined) continue;
+				for (let rest = this.intradayJobs.take(); rest; rest = this.intradayJobs.take()) {
+					const now = await this.loadDayFor(rest.date, rest.keys, false).catch(() => null);
+					const series = now?.series ?? null;
+					const missing = now ? now.missing : [...rest.keys];
+					rest.resolve(missing.length ? { series, missing, reason: "failed", error: explain(fatal) } : { series, missing });
+				}
+			}
+		} finally {
+			this.draining = false;
+		}
+	}
+
 	private buildTarget(settings: RunnerSettings): NoteTarget {
 		const link = this.linkOption(settings);
 		const dataFolder = () =>
@@ -738,6 +972,18 @@ export function monthOf(date: string): string {
 function shiftDay(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
 	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+function pauseFor(ms: number): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** A load as a page gets it: the queue's fatal error stays behind. */
+function withoutFatal(load: IntradayLoad & { fatal?: unknown }): IntradayLoad {
+	const out: IntradayLoad = { series: load.series, missing: load.missing };
+	if (load.reason) out.reason = load.reason;
+	if (load.error !== undefined) out.error = load.error;
+	return out;
 }
 
 /** The engine's view of the sleep index on disk. */
