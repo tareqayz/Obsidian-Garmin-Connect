@@ -14,3 +14,5 @@ scripts/.api-check.mjs
 scripts/.api-token.mjs
 .garmin-token.json
 api-contract-report.md
+scripts/.api-record-file.mjs
+tests/.build-*/

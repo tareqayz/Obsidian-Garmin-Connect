@@ -18,6 +18,8 @@
 		"api:token": "esbuild scripts/api/mint-token.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-token.mjs --log-level=warning && node scripts/.api-token.mjs",
 		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test \"tests/.build/*.mjs\"",
 		"preview:dashboard": "node scripts/preview.mjs",
+		"iphone:build": "zsh scripts/iphone/build.sh",
+		"api:record-file": "esbuild scripts/api/record-from-file.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-record-file.mjs --log-level=warning && node scripts/.api-record-file.mjs",
 		"svelte-check": "svelte-check --tsconfig tsconfig.json"
 	},
 	"license": "MIT",

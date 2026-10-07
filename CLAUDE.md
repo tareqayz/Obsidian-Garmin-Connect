@@ -68,3 +68,4 @@ Key routing rules:
 - Resume context → invoke /context-restore
 - Author a backlog-ready spec/issue → invoke /spec
 - Figma → invoke /figma-use
+- Garmin page rebuild (capture the phone/web app, spec, Figma 1:1 + Obsidian twin, implement, verify) → invoke /garmin-page
