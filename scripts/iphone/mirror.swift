@@ -4,8 +4,11 @@
 // grants Screen Recording and Accessibility to this helper rather than to the
 // terminal that launches it. Every command prints one JSON object.
 //
-// Phone coordinates are points on a 402-pt-wide screen (iPhone 16/17 Pro), with
-// the origin at the top left, the same space the Figma frames use.
+// Phone coordinates are points on the 402 × 874 pt screen (iPhone 16/17 Pro), origin
+// at the top left: the same space as native screenshots ÷ 3 and the Figma frames.
+// The mirroring window adds a bezel and a top margin; a calibration (state.json,
+// `calibrate`) maps phone points into the window, and shots are cropped to the
+// screen and scaled to exactly 2x (804 × 1748 px).
 
 import AppKit
 import ApplicationServices
@@ -87,14 +90,38 @@ func audit(_ line: String) {
 
 // MARK: - The mirroring window
 
+let phoneHeight = 874.0
+
+/// Phone points → window units (the window's width divided into 402 units):
+/// unit = o + s × pt. Measured 2026-10-08 against a native screenshot's tab bar and
+/// status-bar clock; `calibrate` re-measures it.
+struct Calib {
+	var s = 0.9593, ox = 8.50, oy = 37.79, winW = 408.0, winH = 897.0
+	var json: [String: Any] { ["s": r3(s), "ox": r3(ox), "oy": r3(oy), "winW": r1(winW), "winH": r1(winH)] }
+}
+
+func loadCalib() -> Calib {
+	var c = Calib()
+	if let d = readState()["calib"] as? [String: Any] {
+		func num(_ k: String) -> Double? { (d[k] as? NSNumber)?.doubleValue }
+		c.s = num("s") ?? c.s; c.ox = num("ox") ?? c.ox; c.oy = num("oy") ?? c.oy
+		c.winW = num("winW") ?? c.winW; c.winH = num("winH") ?? c.winH
+	}
+	return c
+}
+
+let calib = loadCalib()
+
 struct Win {
 	let id: CGWindowID
 	let pid: pid_t
 	let frame: CGRect
+	/// Screen points per window unit.
+	var unit: Double { Double(frame.width) / phoneWidth }
 	/// Screen points per phone point.
-	var scale: Double { Double(frame.width) / phoneWidth }
+	var scale: Double { unit * calib.s }
 	func screen(_ p: CGPoint) -> CGPoint {
-		CGPoint(x: frame.minX + p.x * scale, y: frame.minY + p.y * scale)
+		CGPoint(x: frame.minX + (calib.ox + calib.s * p.x) * unit, y: frame.minY + (calib.oy + calib.s * p.y) * unit)
 	}
 }
 
@@ -134,7 +161,33 @@ func requireWindow() -> Win {
 
 // MARK: - Capture and OCR
 
+func writePNG(_ img: CGImage, to path: String) {
+	guard let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) else {
+		fail("WRITE_FAILED", path)
+	}
+	CGImageDestinationAddImage(dest, img, nil)
+	if !CGImageDestinationFinalize(dest) { fail("WRITE_FAILED", path) }
+}
+
+/// The phone screen only, cropped out of the window and scaled to exactly 2x.
 func capture(_ win: Win, to path: String) -> CGImage {
+	let raw = captureWindow(win, to: statePath("raw.png"))
+	let ppu = Double(raw.width) / phoneWidth // pixels per window unit
+	let rect = CGRect(x: calib.ox * ppu, y: calib.oy * ppu,
+		width: calib.s * phoneWidth * ppu, height: calib.s * phoneHeight * ppu).integral
+	guard let crop = raw.cropping(to: rect),
+		let ctx = CGContext(data: nil, width: Int(phoneWidth * 2), height: Int(phoneHeight * 2), bitsPerComponent: 8,
+			bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+			bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { fail("CROP_FAILED", "\(rect)") }
+	ctx.interpolationQuality = .high
+	ctx.draw(crop, in: CGRect(x: 0, y: 0, width: phoneWidth * 2, height: phoneHeight * 2))
+	guard let img = ctx.makeImage() else { fail("CROP_FAILED") }
+	writePNG(img, to: path)
+	return img
+}
+
+/// The whole mirroring window, bezel included (what `calibrate` measures).
+func captureWindow(_ win: Win, to path: String) -> CGImage {
 	guard CGPreflightScreenCaptureAccess() else { fail("NO_SCREEN_RECORDING", "grant Screen Recording to Garmin Mirror") }
 	let p = Process()
 	p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -193,6 +246,32 @@ func ocr(_ img: CGImage) -> [Item] {
 	return items.sorted { (Int($0.y / 6), $0.x) < (Int($1.y / 6), $1.x) }
 }
 
+/// Garmin's back chevron: blue pixels in the navigation bar's top-left corner. The
+/// root tabs put the profile picture there instead, so `back` checks first.
+func hasBackChevron(_ img: CGImage) -> Bool {
+	let w = 24, h = 32
+	var px = [UInt8](repeating: 0, count: w * h * 4)
+	px.withUnsafeMutableBytes { buf in
+		guard let ctx = CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+			space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+		// phone points x 8–32, y 60–92 (the image is 2x)
+		guard let crop = img.cropping(to: CGRect(x: 16, y: 120, width: 48, height: 64)) else { return }
+		ctx.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
+	}
+	var blue = 0
+	for i in stride(from: 0, to: px.count, by: 4) {
+		let r = Int(px[i]), g = Int(px[i + 1]), b = Int(px[i + 2])
+		if b > 170 && b > r + 60 && b > g + 15 { blue += 1 }
+	}
+	return blue >= 6
+}
+
+/// Root tabs show the tab bar; pushed pages don't.
+func showsTabBar(_ items: [Item]) -> Bool {
+	let labels = Set(items.filter { $0.y > 800 }.map { $0.text.trimmingCharacters(in: .whitespaces) })
+	return labels.contains("Home") && labels.contains("More")
+}
+
 /// Screens the agent must stop on rather than act through.
 let blockingPhrases = ["iphone in use", "unlock iphone", "unlock your iphone", "iphone is locked", "paused", "connecting", "try again", "not available"]
 
@@ -202,7 +281,7 @@ func describe(_ img: CGImage, _ items: [Item]) -> [String: Any] {
 	let blocking = blockingPhrases.filter { phrase in lower.contains { $0.contains(phrase) } }
 	return [
 		"pxPerPt": r3(ppt),
-		"sizePt": [r1(phoneWidth), r1(Double(img.height) / ppt)],
+		"sizePt": [r1(Double(img.width) / ppt), r1(Double(img.height) / ppt)],
 		"blank": items.isEmpty && lumaSpread(img) < 4,
 		"blocking": blocking,
 	]
@@ -246,7 +325,9 @@ func occluder(at sp: CGPoint, _ win: Win) -> String? {
 		let layer = w[kCGWindowLayer as String] as? Int ?? 0
 		let alpha = w[kCGWindowAlpha as String] as? Double ?? 1
 		let owner = w[kCGWindowOwnerName as String] as? String ?? "?"
-		if alpha < 0.05 || layer >= 1000 || owner == "Window Server" { continue }
+		// The capture taken just before a tap leaves a transient overlay from macOS's
+		// screenshot service; it is not a real obstruction.
+		if alpha < 0.05 || layer >= 1000 || ["Window Server", "Screenshot", "screencaptureui"].contains(owner) { continue }
 		if (w[kCGWindowNumber as String] as? Int) == Int(win.id) { return nil }
 		if owner == "Dock" && layer > 0 { continue }
 		return "\(owner) (layer \(layer))"
@@ -281,11 +362,11 @@ func click(_ sp: CGPoint) {
 	let src = CGEventSource(stateID: .hidSystemState)
 	withCursorRestored {
 		post(CGEvent(mouseEventSource: src, mouseType: .mouseMoved, mouseCursorPosition: sp, mouseButton: .left))
-		usleep(50_000)
+		usleep(150_000)
 		post(CGEvent(mouseEventSource: src, mouseType: .leftMouseDown, mouseCursorPosition: sp, mouseButton: .left))
-		usleep(80_000)
+		usleep(110_000)
 		post(CGEvent(mouseEventSource: src, mouseType: .leftMouseUp, mouseCursorPosition: sp, mouseButton: .left))
-		usleep(60_000)
+		usleep(80_000)
 	}
 }
 
@@ -340,17 +421,29 @@ func key(_ combo: String) {
 	markPost()
 }
 
+/// US-layout virtual key codes: iPhone Mirroring reads the key code, not the
+/// event's Unicode string, so text is typed key by key (Shift for capitals).
+let charCodes: [Character: CGKeyCode] = [
+	"a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9, "b": 11, "q": 12,
+	"w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
+	"=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29, "o": 31, "u": 32, "i": 34, "p": 35, "l": 37,
+	"j": 38, "'": 39, "k": 40, ";": 41, ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, " ": 49,
+]
+
 func typeText(_ s: String) {
 	let src = CGEventSource(stateID: .hidSystemState)
-	for unit in s.utf16 {
-		var c = unit
-		let down = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: true)
-		down?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &c)
+	for ch in s {
+		let lower = Character(ch.lowercased())
+		guard let code = charCodes[lower] else { fail("BAD_TEXT", "can't type \"\(ch)\"") }
+		let shift = ch.isUppercase
+		let down = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true)
+		if shift { down?.flags = .maskShift }
 		post(down)
-		let up = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: false)
-		up?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &c)
+		usleep(35_000)
+		let up = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false)
+		if shift { up?.flags = .maskShift }
 		post(up)
-		usleep(30_000)
+		usleep(70_000)
 	}
 	markPost()
 }
@@ -393,9 +486,16 @@ func tapTarget(_ items: [Item]) -> (CGPoint, String) {
 
 switch command {
 case "doctor":
+	let waitFor = Double(takeFlag("--wait") ?? "") ?? 0
 	if takeSwitch("--prompt") {
-		_ = CGRequestScreenCaptureAccess()
+		if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
 		_ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+		// Stay alive so the system can register the app and show its prompts; return as
+		// soon as both permissions are granted.
+		let deadline = Date().addingTimeInterval(waitFor)
+		while Date() < deadline && !(AXIsProcessTrusted() && CGPreflightScreenCaptureAccess()) {
+			RunLoop.current.run(until: Date().addingTimeInterval(1))
+		}
 	}
 	var out: [String: Any] = [
 		"ok": true,
@@ -406,7 +506,11 @@ case "doctor":
 		"killSwitch": FileManager.default.fileExists(atPath: statePath("STOP")),
 		"secondsSinceInput": r1(secondsSinceInput()),
 	]
+	out["calib"] = calib.json
 	if let w = mirroringWindow() {
+		if abs(Double(w.frame.width) - calib.winW) > 1 || abs(Double(w.frame.height) - calib.winH) > 1 {
+			out["warning"] = "window is \(Int(w.frame.width))×\(Int(w.frame.height)) but the calibration was measured at \(Int(calib.winW))×\(Int(calib.winH)); resize it back or run calibrate"
+		}
 		out["window"] = [
 			"id": Int(w.id), "x": r1(w.frame.minX), "y": r1(w.frame.minY),
 			"w": r1(w.frame.width), "h": r1(w.frame.height),
@@ -437,6 +541,49 @@ case "shot":
 	info["items"] = items.count
 	emit(info)
 
+case "calibrate":
+	// Phone on Garmin Connect's Home tab; argument: a native screenshot of any Garmin
+	// screen with the tab bar (e.g. ref/home/essentials-and-in-focus.PNG). Fits
+	// window units = o + s × phone pt from the tab-bar labels and the status-bar clock.
+	guard let file = argv.first,
+		let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: file) as CFURL, nil),
+		let native = CGImageSourceCreateImageAtIndex(src, 0, nil) else { fail("BAD_ARGS", "calibrate <native.png>") }
+	let win = requireWindow()
+	let rawItems = ocr(captureWindow(win, to: statePath("raw.png"))) // window units
+	let natItems = ocr(native) // phone points
+	func pick(_ items: [Item], _ t: String) -> Item? { items.last { $0.text.trimmingCharacters(in: .whitespaces) == t } }
+	var xs: [(Double, Double)] = [], ys: [(Double, Double)] = []
+	for t in ["Home", "Challenges", "Calendar", "Activities", "News Feed", "More"] {
+		if let n = pick(natItems, t), let r = pick(rawItems, t) { xs.append((n.cx, r.cx)); ys.append((n.cy, r.cy)) }
+	}
+	guard xs.count >= 2 else { fail("CALIBRATE_FAILED", "tab bar labels not found on both images") }
+	if let n = natItems.first(where: { $0.text.contains(":") && $0.y < 60 }),
+		let r = rawItems.first(where: { $0.text.contains(":") && $0.y < 120 }) { ys.append((n.cy, r.cy)) }
+	func fit(_ pts: [(Double, Double)]) -> (Double, Double) {
+		let n = Double(pts.count), mx = pts.map(\.0).reduce(0, +) / n, my = pts.map(\.1).reduce(0, +) / n
+		let sxx = pts.map { ($0.0 - mx) * ($0.0 - mx) }.reduce(0, +), sxy = pts.map { ($0.0 - mx) * ($0.1 - my) }.reduce(0, +)
+		let slope = sxx > 0 ? sxy / sxx : 1
+		return (slope, my - slope * mx)
+	}
+	let (sx, ox) = fit(xs)
+	guard ys.map(\.0).max()! - ys.map(\.0).min()! > 300 else { fail("CALIBRATE_FAILED", "no status-bar clock: need a top anchor") }
+	let (sy, oy) = fit(ys)
+	var state = readState()
+	let c = Calib(s: (sx + sy) / 2, ox: ox, oy: oy, winW: Double(win.frame.width), winH: Double(win.frame.height))
+	state["calib"] = c.json
+	if let data = try? JSONSerialization.data(withJSONObject: state) { try? data.write(to: URL(fileURLWithPath: statePath("state.json"))) }
+	emit(["ok": true, "calib": c.json, "sx": r3(sx), "sy": r3(sy), "anchors": xs.count])
+
+case "ocr-file":
+	// OCR any PNG (e.g. a native phone screenshot) in phone points: needs no permissions.
+	guard let file = argv.first,
+		let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: file) as CFURL, nil),
+		let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else { fail("BAD_ARGS", "ocr-file <png>") }
+	var info = describe(img, ocr(img))
+	info["ok"] = true
+	info["items"] = ocr(img).map(\.json)
+	emit(info)
+
 case "ocr":
 	let grep = takeFlag("--grep")?.lowercased()
 	let win = requireWindow()
@@ -450,8 +597,12 @@ case "ocr":
 
 case "tap", "back":
 	let win = requireWindow()
-	let items = ocr(capture(win, to: statePath("last.png")))
-	if command == "back" { argv += ["--xy", "20", "77", "--why", "back chevron"] }
+	let shot = capture(win, to: statePath("last.png"))
+	let items = ocr(shot)
+	if command == "back" {
+		if showsTabBar(items) || !hasBackChevron(shot) { fail("NO_BACK", "no back chevron on this screen (root tab or custom header)") }
+		argv += ["--xy", "20", "77", "--why", "back chevron"]
+	}
 	let (target, note) = tapTarget(items)
 	guardInput(win, target)
 	click(win.screen(target))

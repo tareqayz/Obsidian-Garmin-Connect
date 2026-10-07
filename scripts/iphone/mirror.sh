@@ -3,6 +3,8 @@
 #   doctor [--prompt]                 permissions, window geometry, kill switch
 #   shot <out.png> [--ocr <out.json>] capture the phone screen (+ OCR with tap points)
 #   ocr [--grep <text>]               visible text with boxes in phone points
+#   ocr-file <png>                    OCR any image (e.g. a native screenshot) the same way
+#   calibrate <native.png>            re-fit the window mapping (phone on the Garmin Home tab)
 #   tap --text "<label>" [--nth k] [--contains] | tap --xy X Y --why "<step>"
 #   back                              tap the navigation bar's back chevron
 #   scroll down|up <points> [--at <y>]
@@ -31,11 +33,14 @@ while (( $# )); do
 	esac
 done
 # The app starts in /, so the output path must be absolute.
-if [[ $cmd == shot && ${#args} -gt 0 && ${args[1]} != --* ]]; then args[1]=${args[1]:A}; fi
+if [[ ($cmd == shot || $cmd == ocr-file || $cmd == calibrate) && ${#args} -gt 0 && ${args[1]} != --* ]]; then args[1]=${args[1]:A}; fi
 case $cmd in
 	tap|back|scroll|key|type|open-app)
 		if [[ -e "$DIR/STOP" ]]; then print -r -- '{"error":"KILL_SWITCH","ok":false}'; exit 1; fi
-		open -b com.apple.ScreenContinuity && sleep 0.35 ;;
+		# Activate iPhone Mirroring first; a click that has to activate the window is lost.
+		if ! lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q com.apple.ScreenContinuity; then
+			open -b com.apple.ScreenContinuity && sleep 0.9
+		fi ;;
 esac
 out=$(mktemp -t garmin-mirror)
 open -W -n -g --stdout "$out" --stderr "$out" -a "$APP" --args --state "$DIR" "$cmd" "${args[@]}" 2>/dev/null

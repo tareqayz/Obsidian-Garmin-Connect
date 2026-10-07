@@ -14,11 +14,19 @@ until `mirror.sh resume`; closing iPhone Mirroring also stops everything.
 ### Session start
 
 1. `mirror.sh doctor` → `screenRecording`, `accessibility`, `mirroringRunning` all true,
-   `window` present. `blocking` in any shot (e.g. "Unlock Your iPhone") → stop and tell the
-   orchestrator; the user must unlock/connect.
-2. `mirror.sh key cmd+0` once (Actual Size → `pxPerPt` ≈ 2).
+   `window` present, no `warning`. `blocking` in any shot (e.g. "Unlock Your iPhone") → stop
+   and tell the orchestrator; the user must unlock/connect.
+2. The window must be the calibrated size (408 × 897 pt): `doctor` warns otherwise. Resize
+   with `key cmd+=` (Larger) / `key cmd+-` (Smaller) — **not** `cmd+0`, which shrinks it to
+   the phone's physical size. After any size change, put the phone on Garmin's Home tab and
+   run `mirror.sh calibrate ref/home/essentials-and-in-focus.PNG`.
 3. `mirror.sh key cmd+1` (Home Screen), `mirror.sh open-app "Garmin Connect"`.
 4. Navigate by text: `tap --text "More"` (tab bar) → `tap --text "Health Stats"` → `tap --text "<Stat>"`.
+
+Shots are cropped to the phone screen and scaled to exactly 2x (804 × 1748 px), so
+coordinates match native screenshots ÷ 3 and the 402 × 874 Figma frames (verified to ≈1 pt).
+Never print the OCR of screens outside Garmin Connect (Spotlight, Home Screen): they show
+the user's contacts, files and notifications.
 
 ### Commands
 
@@ -28,9 +36,10 @@ until `mirror.sh resume`; closing iPhone Mirroring also stops everything.
 | `shot <png> --ocr <json>` | A reference shot plus its OCR. View the PNG (Read) only to judge visual state. |
 | `tap --text "<label>" [--nth k] [--contains]` | The normal tap. Refuses denied labels. |
 | `tap --xy X Y --why "<step>"` | Icon taps only (period arrows, chips without text). Logged. |
-| `back` | The navigation bar's back chevron (20, 77). |
+| `back` | The navigation bar's back chevron (20, 77). Refused (`NO_BACK`) on root tabs, where that spot is the profile picture, and wherever no blue chevron is drawn. |
 | `scroll down\|up <pt> [--at y]` | Vertical wheel scroll. Never horizontal: sideways swipes change the period. |
-| `key cmd+1\|cmd+2\|cmd+3\|cmd+0\|return\|escape` | Home Screen, App Switcher, Spotlight, Actual Size, … |
+| `key cmd+1\|cmd+2\|cmd+3\|cmd+=\|cmd+-\|return\|escape` | Home Screen, App Switcher, Spotlight, Larger, Smaller; `escape` closes popovers and sheets. |
+| `type "<text>"` | Spotlight only; letters, digits, space and basic punctuation (US key codes). |
 
 The helper refuses taps on or next to: Edit, Delete, Remove, Add, Save, Log, Sync, Start,
 Stop, Reset, Connect, Pair, Upgrade, Subscribe, Buy, Done, Clear, Share, Send, Record,
