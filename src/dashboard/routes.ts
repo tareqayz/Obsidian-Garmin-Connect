@@ -1,4 +1,5 @@
 import { CATEGORIES, RECORD_TABS, type CategoryId, type MetricId, type RangeId, type RecordTab } from "./activities";
+import { SLEEP_FACTORS, SLEEP_RANGES, type SleepFactorId, type SleepRange, type SleepTab } from "./sleep-pages";
 import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } from "./stats-pages";
 
 /**
@@ -18,7 +19,10 @@ export type Route =
 	| { page: "month"; category: CategoryId; sub: number | null; month: string; metric: MetricId }
 	| { page: "records"; tab: RecordTab }
 	| { page: "all" }
-	| { page: "stats"; stat: StatId; range: StatRange; offset: number; totals: StatTotals };
+	| { page: "stats"; stat: StatId; range: StatRange; offset: number; totals: StatTotals }
+	| { page: "health" }
+	| { page: "sleep"; range: SleepRange; offset: number; tab: SleepTab }
+	| { page: "sleep-factor"; factor: SleepFactorId; date: string };
 
 export const HOME: Route = { page: "home" };
 
@@ -65,6 +69,7 @@ export function readRoute(value: unknown): Route | null {
 		case "more":
 		case "activities":
 		case "all":
+		case "health":
 			return { page: raw.page };
 		case "records": {
 			const tab = RECORD_TABS.find((t) => t.id === raw.tab)?.id;
@@ -94,6 +99,18 @@ export function readRoute(value: unknown): Route | null {
 				totals: raw.totals === "weekly" ? "weekly" : "monthly",
 			};
 		}
+		case "sleep":
+			return {
+				page: "sleep",
+				range: SLEEP_RANGES.includes(raw.range as SleepRange) ? (raw.range as SleepRange) : "1d",
+				offset: Number.isInteger(raw.offset) ? Math.min(0, raw.offset as number) : 0,
+				tab: raw.tab === "coach" ? "coach" : "score",
+			};
+		case "sleep-factor": {
+			const factor = SLEEP_FACTORS.find((f) => f === raw.factor);
+			if (!factor || typeof raw.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return null;
+			return { page: "sleep-factor", factor, date: raw.date };
+		}
 		case "month": {
 			const category = categoryId(raw.category);
 			if (!category || typeof raw.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month)) return null;
@@ -120,6 +137,11 @@ function metricId(value: unknown, category: CategoryId): MetricId {
 /** Steps, Floors or Intensity Minutes as the hub and Home open them: today. */
 export function statsRoute(stat: StatId): Route {
 	return { page: "stats", stat, range: "1d", offset: 0, totals: "monthly" };
+}
+
+/** The Sleep page as Home and the hub open it: a night's score, `offset` days back. */
+export function sleepRoute(offset = 0): Route {
+	return { page: "sleep", range: "1d", offset: Math.min(0, offset), tab: "score" };
 }
 
 /** A category page as the hub opens it: everything, this week, the first tab. */

@@ -64,6 +64,32 @@
     `dayStart`: their day charts sit on this computer's clock, and Intensity's
     week falls back to a step at each day's start. They fill in as days sync.
   - Steps' Help, the ⋮ menu and Edit Goal are not built.
+- Sleep (Garmin Connect rebuild, Health Stats), built 2026-10-07 on
+  `feature/health-stats`. Every number on the 36 phone screenshots reproduces
+  from the sleep index and the series file; these are inferred and need checking
+  on the phone:
+  - The 4w page (no screenshot): the nights ending today, cards for each night,
+    the score line broken at a night without sleep, and the bedtime axis
+    starting on the odd hour at or before the earliest bedtime (7 PM when one
+    night began at 8:54 PM; the Figma frame drew 9 PM).
+  - The Sleep Coach with an adjusted need: its wording ("You need a little less
+    sleep tonight…"), the dashed box between need and baseline, and the Sleep
+    History card and sheet. Oct 7's need (6h 30m, DECREASED by sleep history)
+    is the only adjusted night on this account. HRV, training and nap
+    adjustments get a card each with no sheet behind it.
+  - Phrase tables: only `POSITIVE_HIGHLY_RECOVERING` and one personalized
+    insight were seen; any other key shows its words read plainly
+    ("Long and deep" for `POSITIVE_LONG_AND_DEEP`).
+  - Awake/Restlessness is rated the worse of Garmin's awakeCount and
+    restlessness verdicts; both were Excellent on every night seen.
+  - The overlay chips appear only with data: Breathing Variations and Pulse Ox
+    never do on this watch, and `breathingDisruptionSeverity` is a documented
+    field name not yet observed.
+  - Nights synced before 2026-10-07 have no `sleep` block in their series file:
+    their 1d page shows the index's summary (score, verdict, stages ring,
+    metrics) without factors, timeline or coach. Re-sync a range to fill them.
+  - The factor pages leave out Garmin's articles and links; Add Notes, Help and
+    the ⋮ menu are not built.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to

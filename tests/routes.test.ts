@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { HOME, categoryRoute, pop, push, readRoute, readStack, replace, statsRoute, top, type Route } from "../src/dashboard/routes";
+import { HOME, categoryRoute, pop, push, readRoute, readStack, replace, sleepRoute, statsRoute, top, type Route } from "../src/dashboard/routes";
 
 describe("route stack", () => {
 	it("pushes, replaces the top and pops back", () => {
@@ -92,5 +92,22 @@ describe("stats routes", () => {
 		});
 		assert.deepEqual(readRoute({ page: "stats", stat: "steps", range: "2y", offset: 4, totals: "daily" }), statsRoute("steps"));
 		assert.equal(readRoute({ page: "stats", stat: "sleep" }), null);
+	});
+});
+
+describe("sleep routes", () => {
+	it("open on a night's score", () => {
+		assert.deepEqual(sleepRoute(), { page: "sleep", range: "1d", offset: 0, tab: "score" });
+		assert.deepEqual(sleepRoute(-1), { page: "sleep", range: "1d", offset: -1, tab: "score" });
+		assert.deepEqual(sleepRoute(2), sleepRoute());
+	});
+
+	it("read back what the pages accept, and only the past", () => {
+		assert.deepEqual(readRoute({ page: "health" }), { page: "health" });
+		assert.deepEqual(readRoute({ page: "sleep", range: "1y", offset: -2, tab: "coach" }), { page: "sleep", range: "1y", offset: -2, tab: "coach" });
+		assert.deepEqual(readRoute({ page: "sleep", range: "3d", offset: 5, tab: "notes" }), sleepRoute());
+		assert.deepEqual(readRoute({ page: "sleep-factor", factor: "deep", date: "2026-10-04" }), { page: "sleep-factor", factor: "deep", date: "2026-10-04" });
+		assert.equal(readRoute({ page: "sleep-factor", factor: "snoring", date: "2026-10-04" }), null);
+		assert.equal(readRoute({ page: "sleep-factor", factor: "rem", date: "yesterday" }), null);
 	});
 });

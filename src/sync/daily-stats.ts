@@ -133,7 +133,7 @@ export function mergeDays(rows: readonly DailyStatsRow[], batch: DailyStatsBatch
 }
 
 /** The covered stretch after a fetch of `from..to`: joined on when it touches what was there, otherwise unchanged. */
-export function extendCoverage(meta: DailyStatsMeta | null, from: string, to: string): Pick<DailyStatsMeta, "from" | "to"> {
+export function extendCoverage(meta: { from?: string; to?: string } | null, from: string, to: string): Pick<DailyStatsMeta, "from" | "to"> {
 	if (!meta?.from || !meta.to) return { from, to };
 	// Touching means no day between them was skipped.
 	if (from > nextDay(meta.to) || to < previousDay(meta.from)) return { from: meta.from, to: meta.to };

@@ -1,6 +1,6 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
-import { statsRoute } from "./dashboard/routes";
+import { sleepRoute, statsRoute } from "./dashboard/routes";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
@@ -69,6 +69,11 @@ export default class GarminPlugin extends Plugin {
 			});
 		}
 		this.addCommand({
+			id: "open-sleep",
+			name: "Open sleep",
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, sleepRoute()] }),
+		});
+		this.addCommand({
 			id: "open-classic-dashboard",
 			name: "Open classic dashboard",
 			callback: () => void this.openView(GARMIN_DASHBOARD_VIEW),
@@ -93,6 +98,11 @@ export default class GarminPlugin extends Plugin {
 			id: "sync-daily-stats-history",
 			name: "Sync step, floor and intensity history",
 			callback: () => void this.sync.syncDailyStatsHistory(),
+		});
+		this.addCommand({
+			id: "sync-sleep-history",
+			name: "Sync sleep history",
+			callback: () => void this.sync.syncSleepHistory(),
 		});
 		this.addCommand({
 			id: "sync-range",

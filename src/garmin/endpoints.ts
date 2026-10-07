@@ -72,6 +72,50 @@ export interface DailyFloorStat {
 	[key: string]: unknown;
 }
 
+/**
+ * One night of `/sleep-service/stats/sleep/daily`, filed under the day it
+ * ended on. The local times are epoch milliseconds read as local wall-clock
+ * time; durations are seconds, `sleepNeed` minutes.
+ */
+export interface SleepStatsDay {
+	calendarDate?: string;
+	values?: {
+		sleepScore?: number | null;
+		sleepScoreQuality?: string | null;
+		totalSleepTimeInSeconds?: number | null;
+		deepTime?: number | null;
+		lightTime?: number | null;
+		remTime?: number | null;
+		awakeTime?: number | null;
+		sleepNeed?: number | null;
+		localSleepStartTimeInMillis?: number | null;
+		localSleepEndTimeInMillis?: number | null;
+		avgHeartRate?: number | null;
+		restingHeartRate?: number | null;
+		bodyBatteryChange?: number | null;
+		respiration?: number | null;
+		spO2?: number | null;
+		skinTempC?: number | null;
+		skinTempF?: number | null;
+		avgOvernightHrv?: number | null;
+		hrv7dAverage?: number | null;
+		hrvStatus?: string | null;
+		sleepAlignmentStatus?: string | null;
+		/** The optimal sleep window, minutes from the day's local midnight. */
+		sleepAlignmentOswStart?: number | null;
+		sleepAlignmentOswEnd?: number | null;
+		[key: string]: unknown;
+	} | null;
+	[key: string]: unknown;
+}
+
+/** `/sleep-service/stats/sleep/daily/{start}/{end}`: 28 nights at most, nights without sleep left out. */
+export interface SleepStats {
+	overallStats?: Record<string, unknown> | null;
+	individualStats?: SleepStatsDay[] | null;
+	[key: string]: unknown;
+}
+
 /** One day of `/usersummary-service/stats/im/daily`. The goal is the week's. */
 export interface DailyIntensityStat {
 	calendarDate?: string;
@@ -590,6 +634,14 @@ export class GarminApi extends GarminClient {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		return (await this.request<DailyIntensityStat[] | null>(`/usersummary-service/stats/im/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** A night a day over a window, as the Sleep pages' 7d, 4w and 1y read them. Also 28 days at most. */
+	async sleepStats(start: string, end: string): Promise<SleepStatsDay[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.request<SleepStats | null>(`/sleep-service/stats/sleep/daily/${start}/${end}`);
+		return Array.isArray(data?.individualStats) ? data.individualStats : [];
 	}
 
 	/** What charged and drained Body Battery that day: sleep, workouts, stress. */

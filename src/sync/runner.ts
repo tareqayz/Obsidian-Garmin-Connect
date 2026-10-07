@@ -10,10 +10,12 @@ import {
 	MultiTarget,
 	fetchAllActivities,
 	fetchDailyStatsHistory,
+	fetchSleepHistory,
 	lastNDays,
 	syncRange,
 	type DailyStatsSink,
 	type NoteTarget,
+	type SleepSink,
 	type SyncReport,
 } from "./engine";
 import { ensureFolder, trimSlashes } from "./frontmatter";
@@ -73,6 +75,12 @@ export interface StatsHistoryProgress {
 	reached?: string;
 }
 
+/** A sleep history sync in progress, for the Sleep page's banner. */
+export interface SleepHistoryProgress {
+	/** The oldest day fetched so far, once the first window is in. */
+	reached?: string;
+}
+
 /**
  * Turns settings into a sync run and reports it.
  *
@@ -90,6 +98,8 @@ export class SyncRunner {
 	private historyListeners = new Set<(progress: HistoryProgress | null) => void>();
 	private statsHistoryState: StatsHistoryProgress | null = null;
 	private statsHistoryListeners = new Set<(progress: StatsHistoryProgress | null) => void>();
+	private sleepHistoryState: SleepHistoryProgress | null = null;
+	private sleepHistoryListeners = new Set<(progress: SleepHistoryProgress | null) => void>();
 
 	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
 		this.app = app;
@@ -133,6 +143,17 @@ export class SyncRunner {
 		return () => this.statsHistoryListeners.delete(listener);
 	}
 
+	/** The sleep history sync in progress, or null. */
+	get sleepHistoryProgress(): SleepHistoryProgress | null {
+		return this.sleepHistoryState;
+	}
+
+	/** Called with each window of a sleep history sync, and with null when it ends. Returns the unsubscribe. */
+	onSleepHistory(listener: (progress: SleepHistoryProgress | null) => void): () => void {
+		this.sleepHistoryListeners.add(listener);
+		return () => this.sleepHistoryListeners.delete(listener);
+	}
+
 	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
 		const report = await this.runDays(from, to, log);
 		// Not awaited: Home's sync button should not spin through the history
@@ -144,6 +165,7 @@ export class SyncRunner {
 			void (async () => {
 				if (groups.includes("workouts")) await this.syncActivityHistory({ auto: true, log });
 				if (groups.includes("activity")) await this.syncDailyStatsHistory({ auto: true, log });
+				if (groups.includes("sleep")) await this.syncSleepHistory({ auto: true, log });
 			})();
 		}
 		return report;
@@ -174,6 +196,7 @@ export class SyncRunner {
 				series,
 				activities: { merge: (listing, complete) => series.mergeActivities(listing, { complete, units }) },
 				dailyStats: dailyStatsSink(series),
+				sleep: sleepSink(series),
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -383,6 +406,78 @@ export class SyncRunner {
 	private setStatsHistory(progress: StatsHistoryProgress | null): void {
 		this.statsHistoryState = progress;
 		for (const listener of this.statsHistoryListeners) listener(progress);
+	}
+
+	/**
+	 * Fills the sleep index with the whole history: about 14 requests a year,
+	 * 28 nights each, with the usual pause. Routine syncs keep its top current.
+	 *
+	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * already complete or another sync is running.
+	 */
+	async syncSleepHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
+		const { auto = false, log } = opts;
+		if (this.running) {
+			if (!auto) new Notice("A Garmin sync is already running.");
+			return null;
+		}
+		if (!this.api.isAuthenticated) {
+			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		this.running = true;
+		const notice = auto ? null : new Notice(historyNotice("Garmin sleep history", {}), 0);
+		try {
+			const meta = await store.readSleepMeta();
+			if (meta?.complete) {
+				notice?.hide();
+				if (!auto) new Notice("Garmin sleep history is already complete.");
+				return null;
+			}
+			this.setSleepHistory({});
+
+			// Carry on below what the index already holds; routine syncs keep its top current.
+			const until = meta?.from ? shiftDay(meta.from, -1) : toIsoDate();
+			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
+			const got = await fetchSleepHistory(this.api, {
+				until,
+				...(oldestActivity ? { notBefore: oldestActivity } : {}),
+				pause: settings.pauseBetweenDays,
+				onWindow: (reached) => {
+					this.setSleepHistory({ reached });
+					notice?.setMessage(historyNotice("Garmin sleep history", { reached }));
+				},
+			});
+
+			if (got.batch.dates.length) await store.mergeSleep(got.batch, { covered: got.covered, complete: got.complete });
+			notice?.hide();
+
+			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
+			const nights = got.batch.rows.length;
+			log?.detail("sleep history", `${nights} nights, ${got.requests} requests`);
+			if (!auto || stoppedEarly) {
+				new Notice(
+					stoppedEarly ? `Garmin sleep history: ${nights} nights fetched — stopped: ${stoppedEarly}` : `Garmin sleep history: ${nights} nights`,
+					stoppedEarly ? 10000 : 5000,
+				);
+			}
+			return { fetched: nights, complete: got.complete, requests: got.requests, ...(stoppedEarly ? { stoppedEarly } : {}) };
+		} catch (err) {
+			notice?.hide();
+			new Notice(`Garmin sleep history failed: ${explain(err)}`, 10000);
+			return null;
+		} finally {
+			this.running = false;
+			this.setSleepHistory(null);
+		}
+	}
+
+	private setSleepHistory(progress: SleepHistoryProgress | null): void {
+		this.sleepHistoryState = progress;
+		for (const listener of this.sleepHistoryListeners) listener(progress);
 	}
 
 	private buildTarget(settings: RunnerSettings): NoteTarget {
@@ -605,6 +700,11 @@ function historyBody(progress: HistoryProgress): DocumentFragment {
 
 /** The daily stats history sync's Notice: how far back it has reached. */
 function statsHistoryBody(progress: StatsHistoryProgress): DocumentFragment {
+	return historyNotice("Garmin step, floor and intensity history", progress);
+}
+
+/** A history walk's Notice: what it fetches and how far back it has reached. */
+function historyNotice(label: string, progress: { reached?: string }): DocumentFragment {
 	const fragment = document.createDocumentFragment();
 	const wrap = document.createElement("div");
 	wrap.className = "gcn-sync";
@@ -612,7 +712,7 @@ function statsHistoryBody(progress: StatsHistoryProgress): DocumentFragment {
 	const line = document.createElement("div");
 	line.className = "gcn-line";
 	const title = document.createElement("span");
-	title.textContent = "Garmin step, floor and intensity history";
+	title.textContent = label;
 	const count = document.createElement("span");
 	count.className = "gcn-count";
 	count.textContent = progress.reached ? `back to ${monthOf(progress.reached)}` : "starting…";
@@ -638,6 +738,14 @@ export function monthOf(date: string): string {
 function shiftDay(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
 	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+/** The engine's view of the sleep index on disk. */
+function sleepSink(store: VaultSeriesStore): SleepSink {
+	return {
+		coverage: () => store.readSleepMeta(),
+		merge: (batch, covered) => store.mergeSleep(batch, { covered }),
+	};
 }
 
 /** The engine's view of the daily stats index on disk. */

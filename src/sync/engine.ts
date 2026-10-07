@@ -20,6 +20,7 @@ import {
 	type RacePrediction,
 	type RunningTolerance,
 	type SleepData,
+	type SleepStatsDay,
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
@@ -27,6 +28,7 @@ import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
+import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
 	bucketWorkoutsByDate,
 	endpointsFor,
@@ -67,6 +69,8 @@ export interface SyncSource {
 	dailyStepStats(start: string, end: string): Promise<DailyStepStat[]>;
 	dailyFloorStats(start: string, end: string): Promise<DailyFloorStat[]>;
 	dailyIntensityStats(start: string, end: string): Promise<DailyIntensityStat[]>;
+	/** A night a day for the sleep index. 28 days a call at most. */
+	sleepStats(start: string, end: string): Promise<SleepStatsDay[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
 }
 
@@ -115,6 +119,17 @@ export interface DailyStatsSink {
 	merge(batch: DailyStatsBatch, covered: { from: string; to: string } | null): Promise<number>;
 }
 
+/**
+ * Where nights go besides the day notes: the sleep index the Sleep page's
+ * 7d, 4w and 1y read (`sleep-index.ts`).
+ */
+export interface SleepSink {
+	/** The days the index holds end to end, or null before it has any. */
+	coverage(): Promise<{ from?: string; to?: string } | null>;
+	/** Folds in a batch; `covered` is the stretch it fetched every day of. Resolves with how many files changed. */
+	merge(batch: SleepBatch, covered: { from: string; to: string } | null): Promise<number>;
+}
+
 export interface SyncOptions {
 	/** Inclusive ISO dates. */
 	from: string;
@@ -134,6 +149,12 @@ export interface SyncOptions {
 	 * range endpoints instead, three requests for up to 28 days.
 	 */
 	dailyStats?: DailyStatsSink;
+	/**
+	 * Where the nights go. Fed from Garmin's daily sleep stats for the run's
+	 * days whenever the `sleep` group is on: one request per 28 days, plus
+	 * any stretch between the index's newest night and the run.
+	 */
+	sleep?: SleepSink;
 	/**
 	 * How many of the newest days in a run get intraday series. They cost six
 	 * requests a day, and a year's backfill of them would be 2,190 requests for
@@ -191,6 +212,8 @@ export interface SyncReport {
 	activityFilesWritten: number;
 	/** Daily stats index files created or changed. */
 	dailyStatsFilesWritten: number;
+	/** Sleep index files created or changed. */
+	sleepFilesWritten: number;
 }
 
 /**
@@ -314,6 +337,7 @@ export async function syncRange(
 		seriesWritten: 0,
 		activityFilesWritten: 0,
 		dailyStatsFilesWritten: 0,
+		sleepFilesWritten: 0,
 	};
 	if (dates.length === 0) return report;
 
@@ -333,7 +357,8 @@ export async function syncRange(
 	const indexing = Boolean(wanted.workouts && opts.activities);
 	const stats: StatsRun | null =
 		opts.dailyStats && opts.groups.includes("activity") ? { sink: opts.dailyStats, rows: [], dates: new Set() } : null;
-	if (due.length === 0 && !indexing && !stats) {
+	const sleepSink = opts.sleep && opts.groups.includes("sleep") ? opts.sleep : null;
+	if (due.length === 0 && !indexing && !stats && !sleepSink) {
 		log.warn("nothing in this range can be written to — nothing fetched");
 		return finish(report, log);
 	}
@@ -361,6 +386,10 @@ export async function syncRange(
 		log.warn("nothing in this range can be written to");
 		if (stats) {
 			const fatal = await feedDailyStats(source, stats, opts.from, opts.to, report, log, true);
+			if (fatal) return stop(report, fatal, log);
+		}
+		if (sleepSink) {
+			const fatal = await feedSleep(source, sleepSink, opts.from, opts.to, report, log);
 			if (fatal) return stop(report, fatal, log);
 		}
 		return finish(report, log);
@@ -535,7 +564,128 @@ export async function syncRange(
 		const fatal = await feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly);
 		if (fatal) return stop(report, fatal, log);
 	}
+	// Cancelled or cut short, the nights cost nothing to skip: the next sync fetches them.
+	if (sleepSink && !report.stoppedEarly) {
+		const fatal = await feedSleep(source, sleepSink, opts.from, opts.to, report, log);
+		if (fatal) return stop(report, fatal, log);
+	}
 	return finish(report, log);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sleep index                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Asks the daily sleep stats for the run's days, 28 at a time, and for any
+ * stretch since the index's newest night, so a vault left closed for a
+ * fortnight comes back without a hole. Resolves with the error that should
+ * stop the run, if one came up.
+ */
+async function feedSleep(source: SyncSource, sink: SleepSink, from: string, to: string, report: SyncReport, log: Log): Promise<unknown> {
+	let start = from;
+	try {
+		const held = await sink.coverage();
+		if (held?.to && held.to < shiftIso(from, -1)) start = shiftIso(held.to, 1);
+	} catch (err) {
+		note(report, log, `sleep index: ${message(err)}`);
+	}
+	const rows: SleepRow[] = [];
+	const dates: string[] = [];
+	let failed = false;
+	for (const window of chunkRange(start, to, SHORT_RANGE_DAYS)) {
+		try {
+			const days = await source.sleepStats(window.from, window.to);
+			report.requests += 1;
+			rows.push(...rowsFromSleepStats(days));
+			dates.push(...dateRange(window.from, window.to));
+		} catch (err) {
+			report.requests += 1;
+			if (isFatal(err)) return err;
+			failed = true;
+			note(report, log, `sleep stats ${window.from}..${window.to}: ${message(err)}`);
+		}
+	}
+	if (dates.length) {
+		try {
+			report.sleepFilesWritten += await sink.merge({ rows, dates }, failed ? null : { from: start, to });
+		} catch (err) {
+			note(report, log, `sleep index: ${message(err)}`);
+		}
+	}
+	return undefined;
+}
+
+export interface SleepHistoryOptions {
+	/** The newest day to walk back from. */
+	until: string;
+	/** Keep walking through empty windows until past this day. */
+	notBefore?: string;
+	/** Windows in a row without a night that end the walk. */
+	emptyWindows?: number;
+	/** A hard stop, should every window come back with nights forever. */
+	maxWindows?: number;
+	/** Courtesy pause between windows, in ms. */
+	pause?: number;
+	/** After each window: the oldest day reached so far. */
+	onWindow?: (reached: string) => void;
+	shouldStop?: () => boolean;
+	/** Injectable for tests. */
+	wait?: (ms: number) => Promise<void>;
+}
+
+export interface SleepHistoryFetch {
+	batch: SleepBatch;
+	/** The stretch fetched end to end. */
+	covered: { from: string; to: string } | null;
+	requests: number;
+	/** The walk ran past the start of the account's sleep history. */
+	complete: boolean;
+	/** A 429 or a dead session. What came before it is still good. */
+	fatal?: unknown;
+	error?: string;
+}
+
+/**
+ * Walks the daily sleep stats back from `until`, 28 nights a request, until
+ * a run of windows without a night says the history has started. About 14
+ * requests a year.
+ */
+export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, opts: SleepHistoryOptions): Promise<SleepHistoryFetch> {
+	const wait = opts.wait ?? defaultWait;
+	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
+	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
+	const out: SleepHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	let end = opts.until;
+	let empty = 0;
+
+	for (let n = 0; n < maxWindows; n++) {
+		if (opts.shouldStop?.()) break;
+		const start = shiftIso(end, -(SHORT_RANGE_DAYS - 1));
+		let rows: SleepRow[];
+		try {
+			rows = rowsFromSleepStats(await source.sleepStats(start, end));
+			out.requests += 1;
+		} catch (err) {
+			out.requests += 1;
+			if (isFatal(err)) out.fatal = err;
+			else out.error = `${start}..${end}: ${message(err)}`;
+			break;
+		}
+		out.batch.rows.push(...rows);
+		out.batch.dates.push(...dateRange(start, end));
+		out.covered = { from: start, to: opts.until };
+		opts.onWindow?.(start);
+
+		empty = rows.length ? 0 : empty + 1;
+		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
+			out.complete = true;
+			break;
+		}
+		end = shiftIso(start, -1);
+		if (opts.pause) await wait(opts.pause);
+	}
+	return out;
 }
 
 /* ------------------------------------------------------------------ */

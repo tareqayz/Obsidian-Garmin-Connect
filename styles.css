@@ -1,6 +1,12 @@
 .gcp-modal { max-width: 46rem; }
 /* Home's Add a Stat picker: Garmin's sheet, as a narrow list. */
 .gch-add-stat { width: 420px; max-width: 100%; }
+/* The Sleep Coach's Sleep History sheet: its header is the sheet's own, not the modal's. */
+.gch-sleep-history { width: 402px; max-width: 100%; padding: 0; overflow: hidden; }
+.gch-sleep-history .modal-close-button,
+.gch-sleep-history .modal-header,
+.gch-sleep-history .modal-title { display: none; }
+.gch-sleep-history .modal-content { padding: 0; }
 
 /* ==================================================================
    Garmin dashboard

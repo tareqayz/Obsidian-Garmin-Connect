@@ -5,6 +5,7 @@ import { toIsoDate } from "../garmin/endpoints";
 import { describe } from "../sync/runner";
 import { VaultSeriesStore } from "../sync/series-store";
 import { pickStat } from "../ui/add-stat-modal";
+import { SleepHistoryModal } from "../ui/sleep-history-modal";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import type { ActivitiesData } from "./activities";
@@ -14,6 +15,7 @@ import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
 import { HOME, readStack, type Route } from "./routes";
 import type { DayRow } from "./series";
+import type { HistoryView, SleepData } from "./sleep-pages";
 import type { StatsData } from "./stats-pages";
 import type { DaySeries } from "../sync/intraday";
 
@@ -24,8 +26,8 @@ export const GARMIN_HOME_VIEW = "garmin-home";
  * the pages that open from it.
  *
  * Reads the day notes' frontmatter, that day's series file, `account.json`,
- * the activity index and the daily stats index, and rebuilds whenever any of
- * them changes. Which page is open is part of the view's state, so a reload
+ * the activity index, the daily stats index and the sleep index, and rebuilds
+ * whenever any of them changes. Which page is open is part of the view's state, so a reload
  * returns to it.
  */
 export class GarminHomeView extends ItemView {
@@ -71,16 +73,18 @@ export class GarminHomeView extends ItemView {
 		const today = toIsoDate();
 		const rows = this.rows();
 		const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
-		const stats = await this.buildStats(rows, activities.units);
+		const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 		this.component = mount(Home, {
 			target: this.contentEl,
 			props: {
 				initialModel: model,
 				initialActivities: activities,
 				initialStats: stats,
+				initialSleep: sleep,
 				initialStack: this.stack,
 				initialHistory: this.plugin.sync.historyProgress,
 				initialStatsHistory: this.plugin.sync.statsHistoryProgress,
+				initialSleepHistory: this.plugin.sync.sleepHistoryProgress,
 				initialPreset: this.plugin.data.home.preset,
 				initialHidden: [...this.plugin.data.home.hidden],
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
@@ -99,12 +103,15 @@ export class GarminHomeView extends ItemView {
 				},
 				onSyncHistory: () => void this.plugin.sync.syncActivityHistory(),
 				onSyncStatsHistory: () => void this.plugin.sync.syncDailyStatsHistory(),
+				onSyncSleepHistory: () => void this.plugin.sync.syncSleepHistory(),
+				onSleepHistory: (view: HistoryView) => new SleepHistoryModal(this.app, view).open(),
 				readSeries: (days: string[]) => this.readSeries(days),
 			},
 		});
 
 		this.register(this.plugin.sync.onHistory((progress) => this.component?.setHistory(progress)));
 		this.register(this.plugin.sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)));
+		this.register(this.plugin.sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)));
 
 		// Frontmatter lands through the metadata cache; the JSON files do not,
 		// so watch those directly.
@@ -180,6 +187,12 @@ export class GarminHomeView extends ItemView {
 		};
 	}
 
+	/** What the Sleep pages read: every night the sleep index holds. */
+	private async buildSleep(units: SleepData["units"]): Promise<SleepData> {
+		const index = await this.store().readSleep();
+		return { rows: index.rows, complete: index.meta?.complete === true, units };
+	}
+
 	private async readSeries(days: string[]): Promise<Map<string, DaySeries | null>> {
 		const store = this.store();
 		return new Map(await Promise.all(days.map(async (day) => [day, await store.read(day)] as const)));
@@ -191,10 +204,11 @@ export class GarminHomeView extends ItemView {
 			const today = toIsoDate();
 			const rows = this.rows();
 			void Promise.all([this.build(today, rows), this.buildActivities(rows)]).then(async ([model, activities]) => {
-				const stats = await this.buildStats(rows, activities.units);
+				const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 				this.component?.setModel(model, today);
 				this.component?.setActivities(activities);
 				this.component?.setStats(stats);
+				this.component?.setSleep(sleep);
 			});
 		}, 150);
 	}

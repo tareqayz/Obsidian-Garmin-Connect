@@ -4,8 +4,8 @@
 	import MenuRow from "./MenuRow.svelte";
 
 	/**
-	 * The app's More tab. Only Activities for now; Health Stats, Performance
-	 * Stats and the rest join it as their pages are built.
+	 * The app's More tab. Activities and Health Stats for now; Performance
+	 * Stats and the rest join them as their pages are built.
 	 */
 	let { onBack, go }: { onBack: () => void; go: (route: Route) => void } = $props();
 </script>
@@ -14,6 +14,7 @@
 
 <div class="list">
 	<MenuRow kind="more" icon="activity" label="Activities" onclick={() => go({ page: "activities" })} />
+	<MenuRow kind="more" icon="heart-pulse" label="Health Stats" onclick={() => go({ page: "health" })} />
 </div>
 
 <style>

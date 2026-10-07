@@ -62,6 +62,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"user-profile": async (api) => [await api.userSettings()],
 	"user-summary": (api, w) => perDay(w, (d) => api.dailySummary(d)),
 	"sleep-data": (api, w) => perDay(w, (d) => api.sleep(d)),
+	"sleep-daily": async (api, w) => [await api.sleepStats(w.rangeStart, w.rangeEnd)],
 	"hrv-data": (api, w) => perDay(w, (d) => api.hrv(d)),
 	"training-readiness": (api, w) => perDay(w, (d) => api.trainingReadiness(d)),
 	"endurance-score": (api, w) => perDay(w, (d) => api.enduranceScore(d)),

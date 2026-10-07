@@ -1,0 +1,157 @@
+{
+	"endpoint": "sleep-daily",
+	"path": "/sleep-service/stats/sleep/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.sleepStats",
+	"firstRecorded": "2026-10-07T05:27:45.990Z",
+	"updatedAt": "2026-10-07T05:27:45.990Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"avgHeartRate": {
+							"type": [
+								"number"
+							]
+						},
+						"avgOvernightHrv": {
+							"type": [
+								"number"
+							]
+						},
+						"awakeTime": {
+							"type": [
+								"number"
+							]
+						},
+						"bodyBatteryChange": {
+							"type": [
+								"number"
+							]
+						},
+						"deepTime": {
+							"type": [
+								"number"
+							]
+						},
+						"gmtSleepEndTimeInMillis": {
+							"type": [
+								"number"
+							]
+						},
+						"gmtSleepStartTimeInMillis": {
+							"type": [
+								"number"
+							]
+						},
+						"hrv7dAverage": {
+							"type": [
+								"number"
+							]
+						},
+						"hrvStatus": {
+							"type": [
+								"string"
+							]
+						},
+						"lightTime": {
+							"type": [
+								"number"
+							]
+						},
+						"localSleepEndTimeInMillis": {
+							"type": [
+								"number"
+							]
+						},
+						"localSleepStartTimeInMillis": {
+							"type": [
+								"number"
+							]
+						},
+						"remTime": {
+							"type": [
+								"number"
+							]
+						},
+						"respiration": {
+							"type": [
+								"number"
+							]
+						},
+						"restingHeartRate": {
+							"type": [
+								"number"
+							]
+						},
+						"skinTempC": {
+							"type": [
+								"number"
+							]
+						},
+						"skinTempF": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepAlignmentOswEnd": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepAlignmentOswStart": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepAlignmentStatus": {
+							"type": [
+								"string"
+							]
+						},
+						"sleepNeed": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepScore": {
+							"type": [
+								"number"
+							]
+						},
+						"sleepScoreQuality": {
+							"type": [
+								"string"
+							]
+						},
+						"spO2": {
+							"type": [
+								"null"
+							]
+						},
+						"totalSleepTimeInSeconds": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}
