@@ -43,6 +43,8 @@ export interface HealthStat<Id extends HealthStatId = HealthStatId> {
 	defaultRange: HealthRange;
 	/** The settings group whose requests the stat's data costs. */
 	group: MetricGroup;
+	/** A segment's own name where it is not the range's: Fitness Age's "Current" for 1d. */
+	rangeLabels?: Partial<Record<HealthRange, string>>;
 	/** At a Glance cards that open this stat's page once it is built. */
 	glance?: readonly GlanceId[];
 }
@@ -71,7 +73,9 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "stress", title: "Stress", ranges: ALL, defaultRange: "1d", group: "stress", glance: ["stress"] },
 	// No 1y on the phone or the web (ref/health-stats/body-battery/README.md).
 	{ id: "body-battery", title: "Body Battery", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "stress", glance: ["bodyBattery"] },
-	{ id: "fitness-age", title: "Fitness Age", ranges: DAY, defaultRange: "1d", group: "fitness", glance: ["fitnessAge"] },
+	// Current / 7d / 4w / 1y: Current is the day's computation, no stepper (ref/health-stats/fitness-age/README.md).
+	{ id: "fitness-age", title: "Fitness Age", ranges: ALL, defaultRange: "1d", rangeLabels: { "1d": "Current" }, group: "fitness", glance: ["fitnessAge"] },
+	// A list and a detail (`sub` = the snapshot's uuid, `date` its day); no ranges, no stepper.
 	{ id: "health-snapshot", title: "Health Snapshot", ranges: DAY, defaultRange: "1d", group: "health" },
 ];
 

@@ -1,3 +1,4 @@
+import { FITNESS_AGE_DAY } from "./fitness-age-index";
 import { HEART_DAY } from "./heart-rate-index";
 import type { IntradayDef } from "./intraday-registry";
 import { RESPIRATION_DAY } from "./respiration-index";
@@ -10,7 +11,7 @@ import { STRESS_DAY } from "./stress-index";
  * `src/sync/<stat>-index.ts`:
  *
  *   import { RESPIRATION_DAY } from "./respiration-index";
- *   export const INTRADAY_EXTRAS: readonly IntradayDef[] = [RESPIRATION_DAY];
+ *   export const INTRADAY_EXTRAS: readonly IntradayDef[] = [RESPIRATION_DAY, FITNESS_AGE_DAY];
  *
  * A page then asks for it with `loadIntraday(date, [RESPIRATION_DAY.key])`.
  * Stress, Body Battery, heart rate and Body Battery events are the series
@@ -22,4 +23,4 @@ import { STRESS_DAY } from "./stress-index";
  *
  * Pure, so the tests can check every entry.
  */
-export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY, RESPIRATION_DAY];
+export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY, RESPIRATION_DAY, FITNESS_AGE_DAY];

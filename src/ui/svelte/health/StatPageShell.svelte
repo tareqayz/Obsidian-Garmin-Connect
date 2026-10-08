@@ -42,8 +42,10 @@
 		/** The page's route: its stat, range, period and remembered day. */
 		route: HealthStatRoute;
 		today: string;
-		/** The period's label: "Today", "Oct 2 - 8". */
-		label: string;
+		/** The period's label: "Today", "Oct 2 - 8"; null for a page without a period (no stepper row). */
+		label: string | null;
+		/** The bar's title, where it is not the stat's: a sub-page's own name. */
+		title?: string;
 		/** "<": older data exists, or may (the index is still coming). */
 		canGoBack: boolean;
 		onBack: () => void;
@@ -61,7 +63,7 @@
 		children: Snippet<[{ pane: boolean; move: (next: PeriodRoute) => void }]>;
 	}
 
-	let { route, today, label, canGoBack, onBack, swap, history, style, children }: Props = $props();
+	let { route, today, label, title, canGoBack, onBack, swap, history, style, children }: Props = $props();
 
 	let stat = $derived(pageStat(route.stat));
 	let ranges: readonly PeriodRange[] = $derived(stat?.ranges ?? HEALTH_RANGES);
@@ -100,15 +102,17 @@
 
 <div class="stat-page" {style} bind:clientWidth={width}>
 	<div class="sticky">
-		<PageBar title={stat?.title ?? ""} {onBack} />
-		<div class="controls" class:single={ranges.length < 2}>
+		<PageBar title={title ?? stat?.title ?? ""} {onBack} />
+		{#if label !== null || ranges.length > 1}
+		<div class="controls" class:single={ranges.length < 2} class:bare={label === null}>
 			{#if ranges.length > 1}
 				<div class="range-control">
 					{#each ranges as range (range)}
-						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{range}</button>
+						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{stat?.rangeLabels?.[range] ?? range}</button>
 					{/each}
 				</div>
 			{/if}
+			{#if label !== null}
 			<div class="period">
 				<button class="step" aria-label="Previous period" disabled={!canGoBack} onclick={() => move(stepRoute(period, -1))}>
 					<span use:lucide={"chevron-left"}></span>
@@ -118,7 +122,9 @@
 					<span use:lucide={"chevron-right"}></span>
 				</button>
 			</div>
+			{/if}
 		</div>
+		{/if}
 	</div>
 
 	<div class="body">
@@ -167,6 +173,11 @@
 		box-sizing: border-box;
 		height: 121px;
 		padding-top: 22.3px;
+	}
+	/* No period: the range control alone (Fitness Age's Current). */
+	.controls.bare {
+		height: auto;
+		padding-bottom: 14px;
 	}
 	/* A stat with one range keeps the period where the others have it: 22.3 + 34 + 25.9pt down. */
 	.controls.single {
@@ -267,6 +278,10 @@
 		}
 		.controls.single {
 			justify-content: flex-end;
+		}
+		.controls.bare {
+			height: 72px;
+			padding-bottom: 0;
 		}
 		.period {
 			display: flex;
