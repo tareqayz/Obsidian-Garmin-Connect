@@ -4,6 +4,7 @@ import type { HealthStatRoute, Route } from "../../../dashboard/routes";
 import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 import type { DaySeries } from "../../../sync/intraday";
 import type { IntradayLoad } from "../../../sync/intraday-registry";
+import BloodPressurePage from "../blood-pressure/BloodPressurePage.svelte";
 import BodyBatteryPage from "../body-battery/BodyBatteryPage.svelte";
 import HealthStatusPage from "../health-status/HealthStatusPage.svelte";
 import FitnessAgePage from "../fitness-age/FitnessAgePage.svelte";
@@ -81,4 +82,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	weight: WeightPage,
 	"pulse-ox": PulseOxPage,
 	"pulse-ox-acclimation": AcclimationPage,
+	"blood-pressure": BloodPressurePage,
 };
