@@ -82,6 +82,8 @@ git worktree remove "$WT" && git branch -D feature/health-<stat>
 - **Cross-stat facts travel.** Findings in one spec often change another stat's build
   (Body Battery's curve rides in Stress's `dailyStress`; no HR/stress intraday before
   2026-06-01). Pass them on when dispatching or resuming.
+- **Scratch files collide.** Agents share the session scratchpad: give each its own
+  subfolder (`scratchpad/<stat>/`) and file names prefixed with the stat.
 - **Rounding differs per stat** (Stress floors; Body Battery, Heart Rate, Respiration round
   half-up/nearest). Never assume; every spec proves its own rule.
 

@@ -13,10 +13,15 @@ until `mirror.sh resume`; closing iPhone Mirroring also stops everything.
 
 ### When to capture
 
-**Between local midnight and ~04:00 (UTC+4) the Garmin iPhone app labels data with the UTC
-date**: "Today" shows yesterday's numbers, every date label and card is one day off, 1d
-timelines and per-day chart bars come up empty (seen 2026-10-08 01:20). Capture between
-04:00 and 23:59 local. Note the capture time in `INDEX.md` either way.
+**The iPhone app anchors "today" on the watch's last sync, by its UTC date.** After a sync
+between local midnight and 04:00 (UTC+4) — or with no sync since — "Today" shows the
+previous day's numbers, every day label and day card is one day off, and 1d timelines and
+per-day bars come up empty. It does **not** clear at 04:00 by itself (seen 2026-10-08
+01:20–05:17); it clears with the next watch sync made after 04:00 local. So capture after a
+sync that happened today after 04:00 (the web's device menu shows "Last synced Today at …").
+Navigation-only rules forbid tapping Sync yourself — ask the user to sync once. If you must
+shoot anyway, note "data date = label − 1 day" in `INDEX.md` and list the 1d timelines for a
+re-shoot.
 
 ### Session start
 
