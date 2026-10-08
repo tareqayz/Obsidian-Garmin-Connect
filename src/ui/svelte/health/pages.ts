@@ -10,6 +10,7 @@ import FitnessAgePage from "../fitness-age/FitnessAgePage.svelte";
 import HealthSnapshotPage from "../health-snapshot/HealthSnapshotPage.svelte";
 import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
 import PulseOxPage from "../pulse-ox/PulseOxPage.svelte";
+import AcclimationPage from "../pulse-ox-acclimation/AcclimationPage.svelte";
 import RespirationPage from "../respiration/RespirationPage.svelte";
 import StressPage from "../stress/StressPage.svelte";
 import WeightPage from "../weight/WeightPage.svelte";
@@ -79,4 +80,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	"health-snapshot": HealthSnapshotPage,
 	weight: WeightPage,
 	"pulse-ox": PulseOxPage,
+	"pulse-ox-acclimation": AcclimationPage,
 };

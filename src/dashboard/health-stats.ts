@@ -66,7 +66,8 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "weight", title: "Weight", ranges: ALL, defaultRange: "1d", group: "body", glance: ["weight"] },
 	// 1d / 7d / 4w only (ref/health-stats/pulse-ox/README.md).
 	{ id: "pulse-ox", title: "Pulse Ox", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "spo2", glance: ["pulseOx"] },
-	{ id: "pulse-ox-acclimation", title: "Pulse Ox Acclimation", ranges: ALL, defaultRange: "1d", group: "spo2" },
+	// 7d / 4w only, no day page on the phone (ref/health-stats/pulse-ox-acclimation/README.md).
+	{ id: "pulse-ox-acclimation", title: "Pulse Ox Acclimation", ranges: ["7d", "4w"], defaultRange: "7d", group: "spo2" },
 	// 1d / 7d / 4w only (ref/health-stats/respiration/README.md).
 	{ id: "respiration", title: "Respiration", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "respiration", glance: ["respiration"] },
 	{ id: "heart-rate", title: "Heart Rate", ranges: ALL, defaultRange: "1d", group: "heart", glance: ["heartRate"] },
