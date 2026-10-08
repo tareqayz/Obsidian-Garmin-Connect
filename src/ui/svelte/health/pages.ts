@@ -10,6 +10,7 @@ import HealthStatusPage from "../health-status/HealthStatusPage.svelte";
 import FitnessAgePage from "../fitness-age/FitnessAgePage.svelte";
 import HealthSnapshotPage from "../health-snapshot/HealthSnapshotPage.svelte";
 import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
+import LifestyleLoggingPage from "../lifestyle-logging/LifestyleLoggingPage.svelte";
 import PulseOxPage from "../pulse-ox/PulseOxPage.svelte";
 import AcclimationPage from "../pulse-ox-acclimation/AcclimationPage.svelte";
 import RespirationPage from "../respiration/RespirationPage.svelte";
@@ -83,4 +84,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	"pulse-ox": PulseOxPage,
 	"pulse-ox-acclimation": AcclimationPage,
 	"blood-pressure": BloodPressurePage,
+	"lifestyle-logging": LifestyleLoggingPage,
 };

@@ -62,7 +62,8 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "sleep", title: "Sleep", ranges: ALL, defaultRange: "1d", group: "sleep", glance: ["sleep"] },
 	// A day at a time with a day stepper; each metric opens a sheet (`sub`).
 	{ id: "health-status", title: "Health Status", ranges: DAY, defaultRange: "1d", group: "health", glance: ["healthStatus"] },
-	{ id: "lifestyle-logging", title: "Lifestyle Logging", ranges: ALL, defaultRange: "1d", group: "health", glance: ["lifestyle"] },
+	// A placeholder page until a later version: no range control, no data.
+	{ id: "lifestyle-logging", title: "Lifestyle Logging", ranges: DAY, defaultRange: "1d", group: "health", glance: ["lifestyle"] },
 	{ id: "weight", title: "Weight", ranges: ALL, defaultRange: "1d", group: "body", glance: ["weight"] },
 	// 1d / 7d / 4w only (ref/health-stats/pulse-ox/README.md).
 	{ id: "pulse-ox", title: "Pulse Ox", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "spo2", glance: ["pulseOx"] },
