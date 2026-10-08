@@ -1,0 +1,47 @@
+{
+	"endpoint": "weekly-heart-rate",
+	"path": "/usersummary-service/stats/heartRate/weekly/{endDate}/{weeks}",
+	"plugin": "GarminApi.heartRateWeekly",
+	"firstRecorded": "2026-10-07T22:34:33.655Z",
+	"updatedAt": "2026-10-07T22:34:33.655Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"avgRestingHR": {
+							"type": [
+								"number"
+							]
+						},
+						"wellnessMaxAvgHR": {
+							"type": [
+								"number"
+							]
+						},
+						"wellnessMinAvgHR": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

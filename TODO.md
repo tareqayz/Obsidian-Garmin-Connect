@@ -64,6 +64,32 @@
     `dayStart`: their day charts sit on this computer's clock, and Intensity's
     week falls back to a step at each day's start. They fill in as days sync.
   - Steps' Help, the ⋮ menu and Edit Goal are not built.
+- Sleep (Garmin Connect rebuild, Health Stats), built 2026-10-07 on
+  `feature/health-stats`. Every number on the 36 phone screenshots reproduces
+  from the sleep index and the series file; these are inferred and need checking
+  on the phone:
+  - The 4w page (no screenshot): the nights ending today, cards for each night,
+    the score line broken at a night without sleep, and the bedtime axis
+    starting on the odd hour at or before the earliest bedtime (7 PM when one
+    night began at 8:54 PM; the Figma frame drew 9 PM).
+  - The Sleep Coach with an adjusted need: its wording ("You need a little less
+    sleep tonight…"), the dashed box between need and baseline, and the Sleep
+    History card and sheet. Oct 7's need (6h 30m, DECREASED by sleep history)
+    is the only adjusted night on this account. HRV, training and nap
+    adjustments get a card each with no sheet behind it.
+  - Phrase tables: only `POSITIVE_HIGHLY_RECOVERING` and one personalized
+    insight were seen; any other key shows its words read plainly
+    ("Long and deep" for `POSITIVE_LONG_AND_DEEP`).
+  - Awake/Restlessness is rated the worse of Garmin's awakeCount and
+    restlessness verdicts; both were Excellent on every night seen.
+  - The overlay chips appear only with data: Breathing Variations and Pulse Ox
+    never do on this watch, and `breathingDisruptionSeverity` is a documented
+    field name not yet observed.
+  - Nights synced before 2026-10-07 have no `sleep` block in their series file:
+    their 1d page shows the index's summary (score, verdict, stages ring,
+    metrics) without factors, timeline or coach. Re-sync a range to fill them.
+  - The factor pages leave out Garmin's articles and links; Add Notes, Help and
+    the ⋮ menu are not built.
 - Verify MFA against a live challenge
   - The flow is wired end to end: `loginWithMfa()` in `src/garmin/auth.ts` asks
     for a code through `LoginOptions.onMfaRequired`, retries up to
@@ -125,3 +151,48 @@
   `api/endpoints.json`, so one `npm run api:record` run reports exactly which of
   them are real — anything coming back `missing` is reading a key Garmin does not
   send. That is the same failure mode as the VO2 Max item above.
+- Home's "today" is fixed when the view opens: a Home view left open past midnight keeps
+  yesterday's date until it is reopened or the plugin reloads, so every page's offsets
+  and "Yesterday"/"Today" labels are a day behind (seen 2026-10-08 01:30). Recompute
+  today on a timer or on focus.
+- Stress (Garmin Connect rebuild, Health Stats), built 2026-10-08 on `feature/health-stats`
+  through the /garmin-page pipeline. Every golden number in `ref/health-stats/stress/README.md`
+  reproduces live; these still need the phone:
+  - The 1d timeline drawing (Active as full-height grey bars, Unmeasurable blank, the clock
+    marker, GMT offsets on 23/25 h days): the first capture ran between midnight and 04:00,
+    when the iPhone app shows no timeline. A re-shoot is in `phone/1d-r/`.
+  - A 1d day before 2026-06-01 (no intraday samples on this account): numbers with an empty
+    plot is inferred.
+  - Copy for the STRESSFUL, *_AWAKE and VERY_STRESSFUL qualifiers, and CALM's present tense:
+    unseen; they fall back to the web's "Your stress level was N out of 100."
+  - Lowest / Highest (web only) are computed but not shown, as on the phone.
+  - Dark "Low" uses Home's stress-glance colour (#986732); a paler #F2C18C reads more like
+    Garmin's but would not match Home.
+- Home's Pulse Ox glance shows Health Status's onboarding prompt permanently: Pulse Ox has
+  been ONBOARDING in Health Status since 2026-09-02 (it is "Not enabled during sleep"), while
+  the other metrics have data. Check what the app's Home shows and match it (found by the
+  Health Status spec, 2026-10-08).
+- Heart Rate and Body Battery (Health Stats), built 2026-10-08 via /garmin-page; golden numbers
+  verified live. Still provisional:
+  - Heart Rate: 1d gradient stops use Garmin's DEFAULT zones for max HR 204 (pages can't read
+    the account's zones); Move IQ / activity rows under the 1d figures not drawn; pane chart
+    frames reuse Stress's measurements.
+  - Body Battery: factor sheets lack the impact chart and time range (the series block drops the
+    event arrays); timeline activity markers not drawn; the pane factor dialog is a page overlay,
+    not an Obsidian Modal; copy known for 6 of ~50 feedback types; dial/chart frames estimated.
+- Respiration (Health Stats), built 2026-10-08; golden numbers verified live. Provisional: the
+  1d "Active" chip/blocks (source unknown); the High/Low Rates chip isn't remembered; pane
+  layouts only checked by tests; low dots and Active grey read alike.
+- Health Status Figma: Pulse Ox detail and out-of-range states are Inferred (no shots).
+- Remaining Health Stats, built 2026-10-08 and verified live (numbers): Health Status, Fitness
+  Age, Health Snapshot, Weight, Pulse Ox, Pulse Ox Acclimation, Blood Pressure, plus the
+  Lifestyle Logging placeholder. Provisional:
+  - Health Status: out-of-range states and the Pulse Ox detail are inferred; HRV sheet omits
+    "HRV Status Range" (not in the sleep index).
+  - Fitness Age / Snapshot / Weight panes stretch the phone chart instead of the pane frames.
+  - Weight stores height per index row (`h`); move it to account.json `profile.heightCm`.
+    7d/4w "Change" (last − first day) is inferred.
+  - Pulse Ox Acclimation uses the segmented control, not the twin's underlined tabs; its
+    elevation area groups by UTC day (inferred).
+  - Blood Pressure reading layout is inferred (no readings on this account).
+  - API catalogue notes / schema re-records listed in each stat's spec are not done yet.

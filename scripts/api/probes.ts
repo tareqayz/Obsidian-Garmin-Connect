@@ -53,6 +53,28 @@ async function perDay(w: Window, fetch: (date: string) => Promise<unknown>): Pro
 }
 
 /**
+ * The start of the 52 weeks ending on `end`: the only span the weekly weight
+ * and blood pressure routes accept, and wide enough that the date-pair ranges
+ * have a chance of catching a rare weigh-in.
+ */
+export function yearBefore(end: string): string {
+	return isoDay(363, new Date(`${end}T00:00:00Z`));
+}
+
+/** The snapshot detail and epoch routes need a real id, so they start from the newest one listed. */
+async function newestSnapshot(
+	api: GarminApi,
+	w: Window,
+	fetch: (snapshot: { date: string; uuid: string }) => Promise<unknown>,
+): Promise<unknown[]> {
+	const [newest] = await api.healthSnapshotList(w.rangeEnd, 1, 1);
+	const uuid = newest?.activityUuid?.uuid;
+	if (!newest?.calendarDate || !uuid) return [];
+	await sleep(PAUSE_MS);
+	return [await fetch({ date: newest.calendarDate, uuid })];
+}
+
+/**
  * Keyed by catalogue id. Intraday endpoints take one day rather than the whole
  * window: their payloads run to thousands of points and a second day adds
  * nothing the first did not already show.
@@ -62,6 +84,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"user-profile": async (api) => [await api.userSettings()],
 	"user-summary": (api, w) => perDay(w, (d) => api.dailySummary(d)),
 	"sleep-data": (api, w) => perDay(w, (d) => api.sleep(d)),
+	"sleep-daily": async (api, w) => [await api.sleepStats(w.rangeStart, w.rangeEnd)],
 	"hrv-data": (api, w) => perDay(w, (d) => api.hrv(d)),
 	"training-readiness": (api, w) => perDay(w, (d) => api.trainingReadiness(d)),
 	"endurance-score": (api, w) => perDay(w, (d) => api.enduranceScore(d)),
@@ -95,6 +118,38 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"graphql-hill-scores": async (api, w) => [await api.hillScores(w.days.at(-1)!, w.days[0]!)],
 	"graphql-cycling-ability": async (api, w) => [await api.cyclingAbility(w.days[0]!)],
 	"graphql-upcoming-events": async (api, w) => [await api.upcomingEvents(w.days[0]!)],
+	// Health Stats pages.
+	"daily-stress-stats": async (api, w) => [await api.stressDaily(w.rangeStart, w.rangeEnd)],
+	"weekly-stress": async (api, w) => [await api.stressWeekly(w.rangeEnd)],
+	"daily-body-battery-stats": async (api, w) => [await api.bodyBatteryDaily(w.rangeStart, w.rangeEnd)],
+	"daily-heart-rate-stats": async (api, w) => [await api.heartRateDaily(w.rangeStart, w.rangeEnd)],
+	"weekly-heart-rate": async (api, w) => [await api.heartRateWeekly(w.rangeEnd)],
+	"heart-rate-zones": async (api) => [await api.heartRateZones()],
+	"respiration-data": async (api, w) => [await api.respiration(w.days[0]!)],
+	"daily-respiration-stats": async (api, w) => [await api.respirationDaily(w.rangeStart, w.rangeEnd)],
+	"health-status-summary": (api, w) => perDay(w, (d) => api.healthStatusSummary(d)),
+	"health-status-range": async (api, w) => [await api.healthStatusRange(w.rangeStart, w.rangeEnd)],
+	"hrv-data-range": async (api, w) => [await api.hrvDaily(w.rangeStart, w.rangeEnd)],
+	"daily-fitnessage-stats": async (api, w) => [await api.fitnessAgeDaily(w.rangeStart, w.rangeEnd)],
+	"weekly-fitnessage": async (api, w) => [await api.fitnessAgeWeekly(w.rangeEnd)],
+	"weight-latest": async (api, w) => [await api.weightLatest(w.days[0]!)],
+	"health-snapshot-list": async (api, w) => [await api.healthSnapshotList(w.rangeEnd)],
+	"health-snapshot-detail": (api, w) => newestSnapshot(api, w, (s) => api.healthSnapshotDetail(s.date, s.uuid)),
+	"health-snapshot-epochs": (api, w) => newestSnapshot(api, w, (s) => api.healthSnapshotEpochs(s.uuid)),
+	"health-snapshots-day": (api, w) => perDay(w, (d) => api.wellnessActivities(d)),
+	"weigh-ins": async (api, w) => [await api.weighIns(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"weekly-weigh-ins": async (api, w) => [await api.weightWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"weight-goal": async (api, w) => [await api.weightGoal(w.rangeStart, w.rangeEnd)],
+	"spo2-acclimation": async (api, w) => [await api.spo2Acclimation(w.days[0]!)],
+	"daily-acclimation-stats": async (api, w) => [await api.acclimationDaily(w.rangeStart, w.rangeEnd)],
+	"blood-pressure-day": async (api, w) => [await api.bloodPressureDay(w.days[0]!)],
+	"blood-pressure": async (api, w) => [await api.bloodPressureRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"weekly-blood-pressure": async (api, w) => [await api.bloodPressureWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"blood-pressure-last": async (api, w) => [await api.bloodPressureLast(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"naps": (api, w) => perDay(w, (d) => api.naps(d)),
+	"daily-events": (api, w) => perDay(w, (d) => api.dailyEvents(d)),
+	"activities-for-day": (api, w) => perDay(w, (d) => api.activitiesForDay(d)),
+	"lifestyle-logging-data": async (api, w) => [await api.lifestyleLog(w.days[0]!)],
 };
 
 /**

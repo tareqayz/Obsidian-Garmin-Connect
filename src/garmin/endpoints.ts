@@ -72,6 +72,50 @@ export interface DailyFloorStat {
 	[key: string]: unknown;
 }
 
+/**
+ * One night of `/sleep-service/stats/sleep/daily`, filed under the day it
+ * ended on. The local times are epoch milliseconds read as local wall-clock
+ * time; durations are seconds, `sleepNeed` minutes.
+ */
+export interface SleepStatsDay {
+	calendarDate?: string;
+	values?: {
+		sleepScore?: number | null;
+		sleepScoreQuality?: string | null;
+		totalSleepTimeInSeconds?: number | null;
+		deepTime?: number | null;
+		lightTime?: number | null;
+		remTime?: number | null;
+		awakeTime?: number | null;
+		sleepNeed?: number | null;
+		localSleepStartTimeInMillis?: number | null;
+		localSleepEndTimeInMillis?: number | null;
+		avgHeartRate?: number | null;
+		restingHeartRate?: number | null;
+		bodyBatteryChange?: number | null;
+		respiration?: number | null;
+		spO2?: number | null;
+		skinTempC?: number | null;
+		skinTempF?: number | null;
+		avgOvernightHrv?: number | null;
+		hrv7dAverage?: number | null;
+		hrvStatus?: string | null;
+		sleepAlignmentStatus?: string | null;
+		/** The optimal sleep window, minutes from the day's local midnight. */
+		sleepAlignmentOswStart?: number | null;
+		sleepAlignmentOswEnd?: number | null;
+		[key: string]: unknown;
+	} | null;
+	[key: string]: unknown;
+}
+
+/** `/sleep-service/stats/sleep/daily/{start}/{end}`: 28 nights at most, nights without sleep left out. */
+export interface SleepStats {
+	overallStats?: Record<string, unknown> | null;
+	individualStats?: SleepStatsDay[] | null;
+	[key: string]: unknown;
+}
+
 /** One day of `/usersummary-service/stats/im/daily`. The goal is the week's. */
 export interface DailyIntensityStat {
 	calendarDate?: string;
@@ -426,6 +470,302 @@ export interface RunningTolerance {
 	[key: string]: unknown;
 }
 
+/* Health Stats pages. Range rows leave out days (and weeks) without data
+   rather than zero-filling them, and arrive oldest first. */
+
+/**
+ * One row of a `stats/<metric>/daily` range: stress, Body Battery, heart rate
+ * and fitness age. The weekly heart rate and fitness age ranges send the same
+ * shape a week a row, dated by the week's first day.
+ */
+export interface DailyStatRow {
+	calendarDate: string;
+	values: Record<string, number | string | null>;
+}
+
+/** One week of the weekly stress range, dated by the week's first day. */
+export interface WeeklyStatRow {
+	calendarDate: string;
+	value: number | null;
+}
+
+/** One day of `/usersummary-service/stats/respiration/daily`: breaths a minute, flat rather than under `values`. */
+export interface RespirationStatRow {
+	calendarDate: string;
+	avgWakingRespiration: number | null;
+	avgSleepRespiration: number | null;
+}
+
+/** One sport's heart rate zones: each zone's floor in bpm, and what they were worked out from. */
+export interface HeartRateZones {
+	/** `DEFAULT`, `CYCLING`, … */
+	sport?: string | null;
+	/** `HR_MAX`, `HRR` or `LTHR`. */
+	trainingMethod?: string | null;
+	zone1Floor?: number | null;
+	zone2Floor?: number | null;
+	zone3Floor?: number | null;
+	zone4Floor?: number | null;
+	zone5Floor?: number | null;
+	maxHeartRateUsed?: number | null;
+	restingHeartRateUsed?: number | null;
+	lactateThresholdHeartRateUsed?: number | null;
+	[key: string]: unknown;
+}
+
+/**
+ * A day's breathing rate. `respirationValuesArray` rows are `[GMT epoch ms,
+ * breaths/min]` every two minutes, with -1 and -2 for no reading; the averages
+ * array is hourly `[ms, average, high, low]` per its descriptor list.
+ */
+export interface RespirationDay {
+	calendarDate?: string;
+	sleepStartTimestampGMT?: string | null;
+	sleepEndTimestampGMT?: string | null;
+	lowestRespirationValue?: number | null;
+	highestRespirationValue?: number | null;
+	avgWakingRespirationValue?: number | null;
+	avgSleepRespirationValue?: number | null;
+	respirationValueDescriptorsDTOList?: ValueDescriptor[] | null;
+	respirationValuesArray?: Array<Array<number | null>> | null;
+	respirationAveragesValueDescriptorDTOList?: Array<Record<string, unknown>> | null;
+	respirationAveragesValuesArray?: Array<Array<number | null>> | null;
+	[key: string]: unknown;
+}
+
+/** One night of `/hrv-service/hrv/daily`, in milliseconds, with the baseline band its status is judged against. */
+export interface HrvSummary {
+	calendarDate?: string;
+	weeklyAvg?: number | null;
+	lastNightAvg?: number | null;
+	lastNight5MinHigh?: number | null;
+	baseline?: {
+		lowUpper?: number | null;
+		balancedLow?: number | null;
+		balancedUpper?: number | null;
+		markerValue?: number | null;
+		[key: string]: unknown;
+	} | null;
+	/** `BALANCED`, `UNBALANCED`, `LOW` or `NONE`. */
+	status?: string | null;
+	feedbackPhrase?: string | null;
+	[key: string]: unknown;
+}
+
+export interface HrvRange {
+	hrvSummaries?: HrvSummary[] | null;
+	[key: string]: unknown;
+}
+
+/**
+ * One weigh-in. Grams; `date` is the local wall clock written as epoch ms,
+ * `timestampGMT` the real instant, so they differ by the zone offset of the
+ * moment it was taken.
+ */
+export interface WeighIn {
+	samplePk?: number;
+	calendarDate?: string;
+	date?: number | null;
+	timestampGMT?: number | null;
+	weight?: number | null;
+	bmi?: number | null;
+	bodyFat?: number | null;
+	bodyWater?: number | null;
+	boneMass?: number | null;
+	muscleMass?: number | null;
+	sourceType?: string | null;
+	weightDelta?: number | null;
+	[key: string]: unknown;
+}
+
+/** An average over a span of weigh-ins; `from` and `until` are epoch ms. */
+export interface WeightAverage {
+	from?: number | null;
+	until?: number | null;
+	weight?: number | null;
+	bmi?: number | null;
+	bodyFat?: number | null;
+	bodyWater?: number | null;
+	boneMass?: number | null;
+	muscleMass?: number | null;
+	[key: string]: unknown;
+}
+
+/** `/weight-service/weight/range`: a summary per day that has a weigh-in, newest first. */
+export interface WeighInRange {
+	dailyWeightSummaries?: Array<{
+		summaryDate?: string;
+		numOfWeightEntries?: number | null;
+		minWeight?: number | null;
+		maxWeight?: number | null;
+		latestWeight?: WeighIn | null;
+		/** Every weigh-in that day, with `includeAll=true`. */
+		allWeightMetrics?: WeighIn[] | null;
+		[key: string]: unknown;
+	}> | null;
+	totalAverage?: WeightAverage | null;
+	previousDateWeight?: WeighIn | null;
+	nextDateWeight?: WeighIn | null;
+	[key: string]: unknown;
+}
+
+/** `/weight-service/weight/weeklyRange`: a summary per week that has a weigh-in, newest first. */
+export interface WeightWeeks {
+	weeklyWeightSummaries?: Array<{
+		startDate?: string;
+		endDate?: string;
+		minWeight?: number | null;
+		maxWeight?: number | null;
+		averageWeight?: WeightAverage | null;
+		weightDelta?: number | null;
+		[key: string]: unknown;
+	}> | null;
+	weightAverageDTO?: WeightAverage | null;
+	previousWeekAverageDTO?: WeightAverage | null;
+	nextWeekAverageDTO?: WeightAverage | null;
+	[key: string]: unknown;
+}
+
+/** Weight goals in effect over a span. Empty on an account without one, so the goal shape is unconfirmed. */
+export interface WeightGoal {
+	userGoals?: Array<Record<string, unknown>> | null;
+	userGoalRanges?: unknown;
+	[key: string]: unknown;
+}
+
+/** A Health Snapshot as the REST routes send it: the GraphQL fields, plus its id, zones and device. */
+export interface HealthSnapshotSummary extends HealthSnapshot {
+	/** An object here, a bare string in the epochs payload. */
+	activityUuid?: { uuid?: string } | null;
+	activityName?: string | null;
+	wellnessActivityType?: string | null;
+	endTimestampLocal?: string | null;
+	timeInZoneList?: Array<{
+		zoneNumber?: number | null;
+		millisInZone?: number | null;
+		zoneLowBoundary?: number | null;
+		[key: string]: unknown;
+	}> | null;
+	deviceMetaData?: Record<string, unknown> | null;
+}
+
+/**
+ * A Health Snapshot's samples, one a second: rows per `epochDescriptorDTOList`
+ * (`timestamp` in GMT epoch ms, `heartRate`, `stress`, `spo2`, `respiration`).
+ */
+export interface HealthSnapshotEpochs {
+	activityUuid?: string | null;
+	epochDescriptorDTOList?: ValueDescriptor[] | null;
+	epochArray?: Array<Array<number | null>> | null;
+	[key: string]: unknown;
+}
+
+/**
+ * A day's Pulse Ox with the altitude it was taken at. Hourly averages are
+ * `[GMT epoch ms, spo2Level, monitoringEnvironmentLevel]`, the elevation series
+ * `[ms, monitoringEnvironmentLevel]`, each per its own descriptor list. Every
+ * SpO₂ field is null on a day without readings, while the elevation stays.
+ */
+export interface Spo2Acclimation {
+	calendarDate?: string;
+	averageSpO2?: number | null;
+	lowestSpO2?: number | null;
+	latestSpO2?: number | null;
+	lastSevenDaysAvgSpO2?: number | null;
+	avgSleepSpO2?: number | null;
+	spO2SingleValuesDescriptorList?: Array<Record<string, unknown>> | null;
+	spO2SingleValues?: Array<Array<number | boolean | null>> | null;
+	spO2HourlyAveragesDescriptorList?: Array<Record<string, unknown>> | null;
+	spO2HourlyAverages?: Array<Array<number | null>> | null;
+	monitoringEnvironmentValuesDescriptorList?: Array<Record<string, unknown>> | null;
+	monitoringEnvironmentValues?: Array<Array<number | null>> | null;
+	[key: string]: unknown;
+}
+
+/**
+ * Pulse Ox acclimation over a span. `spo2DailyAverageArray` rows are
+ * `[calendarDate, average]`; the hourly and elevation arrays are `[ms, value]`.
+ */
+export interface AcclimationStats {
+	overallSpo2Average?: number | null;
+	spo2DailyAverageArray?: Array<Array<string | number | null>> | null;
+	spo2HourlyAverageArray?: Array<Array<number | null>> | null;
+	spo2SingleReadingValuesArray?: Array<Array<number | boolean | null>> | null;
+	monitoringEnvironmentValuesArray?: Array<Array<number | null>> | null;
+	[key: string]: unknown;
+}
+
+/** Blood pressure readings for one day. None on the account these were captured from, so the reading shape is unconfirmed. */
+export interface BloodPressureDay {
+	startDate?: string;
+	endDate?: string;
+	bloodPressureMeasurements?: Array<Record<string, unknown>> | null;
+	totalMeasurementCount?: number | null;
+	elevatedMeasurementCount?: number | null;
+	[key: string]: unknown;
+}
+
+/** Blood pressure over a span, by day or by week. Summary shape unconfirmed, as for `BloodPressureDay`. */
+export interface BloodPressureRange {
+	from?: string;
+	until?: string;
+	measurementSummaries?: Array<Record<string, unknown>> | null;
+	categoryStats?: Record<string, unknown> | null;
+	[key: string]: unknown;
+}
+
+/** A nap. Seconds; GMT times; the offsets are the zone's, in minutes. */
+export interface Nap {
+	calendarDate?: string;
+	napTimeSec?: number | null;
+	napStartTimestampGMT?: string | null;
+	napEndTimestampGMT?: string | null;
+	napStartTimeOffset?: number | null;
+	napEndTimeOffset?: number | null;
+	napFeedback?: string | null;
+	napSource?: number | null;
+	[key: string]: unknown;
+}
+
+/** A Move IQ event: a stretch of walking, running or the like that was never recorded as an activity. Minutes. */
+export interface DailyEvent {
+	calendarDate?: string;
+	startTimestampGMT?: string | null;
+	endTimestampGMT?: string | null;
+	startTimestampLocal?: string | null;
+	endTimestampLocal?: string | null;
+	duration?: number | null;
+	activityType?: string | null;
+	activitySubType?: string | null;
+	moderateIntensityMinutes?: number | null;
+	vigorousIntensityMinutes?: number | null;
+	[key: string]: unknown;
+}
+
+/** Lifestyle Logging for one day: the behaviours being tracked, and the week's completion. */
+export interface LifestyleLog {
+	calendarDate?: string;
+	dailyLogsReport?: Array<{
+		behaviourId?: number;
+		name?: string | null;
+		/** `LIFESTYLE`, `SELF_CARE`, `SLEEP_RELATED`… */
+		category?: string | null;
+		/** `QUANTITY` (with `details` to pick from) or `NONE`. */
+		measurementType?: string | null;
+		sleepRelated?: boolean | null;
+		details?: Array<{ subTypeId?: number; subTypeName?: string | null; [key: string]: unknown }> | null;
+		[key: string]: unknown;
+	}> | null;
+	/** The seven days ending on the date. */
+	completionStats?: Array<{
+		calendarDate?: string;
+		totalTracking?: number | null;
+		completedTracking?: number | null;
+		[key: string]: unknown;
+	}> | null;
+	[key: string]: unknown;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -444,6 +784,20 @@ export function assertIsoDate(value: string, label = "date"): string {
 		throw new TypeError(`${label} must be YYYY-MM-DD, got "${value}"`);
 	}
 	return value;
+}
+
+/** A count that goes into the URL, such as a number of weeks or a page size. */
+function assertCount(value: number, label: string): number {
+	if (!Number.isInteger(value) || value < 1) {
+		throw new TypeError(`${label} must be a positive integer, got ${value}`);
+	}
+	return value;
+}
+
+/** An id from a Garmin response, encoded so a corrupt one cannot add path segments. */
+function pathId(value: string, label: string): string {
+	if (!value) throw new TypeError(`${label} must not be empty`);
+	return encodeURIComponent(value);
 }
 
 /* ------------------------------------------------------------------ */
@@ -590,6 +944,14 @@ export class GarminApi extends GarminClient {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		return (await this.request<DailyIntensityStat[] | null>(`/usersummary-service/stats/im/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** A night a day over a window, as the Sleep pages' 7d, 4w and 1y read them. Also 28 days at most. */
+	async sleepStats(start: string, end: string): Promise<SleepStatsDay[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.request<SleepStats | null>(`/sleep-service/stats/sleep/daily/${start}/${end}`);
+		return Array.isArray(data?.individualStats) ? data.individualStats : [];
 	}
 
 	/** What charged and drained Body Battery that day: sleep, workouts, stress. */
@@ -831,5 +1193,237 @@ export class GarminApi extends GarminClient {
 			{ query: { start: String(start), limit: String(limit) } },
 		);
 		return list ?? [];
+	}
+
+	/* Health Stats pages: the web app's REST routes for the 7d, 4w and 1y views
+	   and the 1d timeline overlays. Each range route has its own cap, and Garmin
+	   answers HTTP 400 past it. */
+
+	/** Stress a day: overall level and seconds at rest, low, medium and high. 28 days at most. */
+	async stressDaily(start: string, end: string): Promise<DailyStatRow[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyStatRow[] | null>(`/usersummary-service/stats/stress/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Average stress a week for the `weeks` weeks ending on `end`. 52 weeks at most. */
+	async stressWeekly(end: string, weeks = 52): Promise<WeeklyStatRow[]> {
+		assertIsoDate(end, "end");
+		assertCount(weeks, "weeks");
+		return (await this.request<WeeklyStatRow[] | null>(`/usersummary-service/stats/stress/weekly/${end}/${weeks}`)) ?? [];
+	}
+
+	/** The day's highest and lowest Body Battery. 28 days at most. */
+	async bodyBatteryDaily(start: string, end: string): Promise<DailyStatRow[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyStatRow[] | null>(`/usersummary-service/stats/bodybattery/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Resting heart rate and the day's high and low averages. 28 days at most. */
+	async heartRateDaily(start: string, end: string): Promise<DailyStatRow[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyStatRow[] | null>(`/usersummary-service/stats/heartRate/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** The same a week, `avgRestingHR` in place of `restingHR`. 52 weeks at most. */
+	async heartRateWeekly(end: string, weeks = 52): Promise<DailyStatRow[]> {
+		assertIsoDate(end, "end");
+		assertCount(weeks, "weeks");
+		return (await this.request<DailyStatRow[] | null>(`/usersummary-service/stats/heartRate/weekly/${end}/${weeks}`)) ?? [];
+	}
+
+	/** Heart rate zones per sport profile, with the trailing slash the web app sends. */
+	async heartRateZones(): Promise<HeartRateZones[]> {
+		return (await this.request<HeartRateZones[] | null>("/biometric-service/heartRateZones/")) ?? [];
+	}
+
+	/** A day's breathing rate every two minutes, with its hourly averages. */
+	async respiration(date: string): Promise<RespirationDay | null> {
+		assertIsoDate(date);
+		return this.request(`/wellness-service/wellness/daily/respiration/${date}`);
+	}
+
+	/** Waking and sleeping breaths a minute a day. 31 days at most, unlike the other daily stats. */
+	async respirationDaily(start: string, end: string): Promise<RespirationStatRow[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<RespirationStatRow[] | null>(`/usersummary-service/stats/respiration/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Health Status for one day by the REST route the web page uses; null (HTTP 204) on a day without one. */
+	async healthStatusSummary(date: string): Promise<HealthStatus | null> {
+		assertIsoDate(date);
+		return this.request(`/healthstatus-service/healthstatus/summary/${date}`);
+	}
+
+	/** Health Status a day over a span, days without one left out. No cap seen up to three years. */
+	async healthStatusRange(start: string, end: string): Promise<HealthStatus[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<HealthStatus[] | null>(`/healthstatus-service/healthstatus/summary/${start}/${end}`)) ?? [];
+	}
+
+	/** Overnight HRV a night with its baseline. 367 days at most; null (HTTP 204) when no night has any. */
+	async hrvDaily(start: string, end: string): Promise<HrvRange | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/hrv-service/hrv/daily/${start}/${end}`);
+	}
+
+	/** Fitness age and its inputs on the days it was worked out. 29 days at most. */
+	async fitnessAgeDaily(start: string, end: string): Promise<DailyStatRow[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<DailyStatRow[] | null>(`/fitnessage-service/stats/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Fitness age a week, without `achievableFitnessAge`. 52 weeks at most. */
+	async fitnessAgeWeekly(end: string, weeks = 52): Promise<DailyStatRow[]> {
+		assertIsoDate(end, "end");
+		assertCount(weeks, "weeks");
+		return (await this.request<DailyStatRow[] | null>(`/fitnessage-service/stats/weekly/${end}/${weeks}`)) ?? [];
+	}
+
+	/** The newest weigh-in on or before `date`, as the Weight and Fitness Age pages ask for it. */
+	async weightLatest(date: string): Promise<WeighIn | null> {
+		assertIsoDate(date);
+		return this.request("/weight-service/weight/latest", {
+			query: { date, ignorePriority: "true" },
+		});
+	}
+
+	/** Health Snapshots, newest first. `start` counts from 1, so the second page of 20 is `start = 21`. */
+	async healthSnapshotList(until: string, start = 1, limit = 20): Promise<HealthSnapshotSummary[]> {
+		assertIsoDate(until, "until");
+		assertCount(start, "start");
+		assertCount(limit, "limit");
+		return (await this.request<HealthSnapshotSummary[] | null>(
+			"/wellnessactivity-service/activity/summary/list",
+			{ query: { limit: String(limit), start: String(start), until } },
+		)) ?? [];
+	}
+
+	/** One Health Snapshot. Null (HTTP 204) unless `date` is the snapshot's own calendar date. */
+	async healthSnapshotDetail(date: string, uuid: string): Promise<HealthSnapshotSummary | null> {
+		assertIsoDate(date);
+		return this.request(`/wellnessactivity-service/activity/summary/${date}/${pathId(uuid, "uuid")}`);
+	}
+
+	/** A Health Snapshot's second-by-second samples. */
+	async healthSnapshotEpochs(uuid: string): Promise<HealthSnapshotEpochs | null> {
+		return this.request(`/wellnessactivity-service/activity/epoch/${pathId(uuid, "uuid")}`);
+	}
+
+	/** The day's Health Snapshots, for the 1d timeline. */
+	async wellnessActivities(date: string): Promise<HealthSnapshotSummary[]> {
+		assertIsoDate(date);
+		return (await this.request<HealthSnapshotSummary[] | null>(`/wellnessactivity-service/activity/summary/${date}`)) ?? [];
+	}
+
+	/** Every weigh-in over a span. No cap seen up to ten years. */
+	async weighIns(start: string, end: string): Promise<WeighInRange | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/weight-service/weight/range/${start}/${end}`, {
+			query: { includeAll: "true" },
+		});
+	}
+
+	/**
+	 * Weigh-ins summarised a week. Garmin takes exactly 52 weeks: `end` must be
+	 * 363 days after `start` (the web asks 2025-10-10 → 2026-10-08), and any other
+	 * span is HTTP 400.
+	 */
+	async weightWeekly(start: string, end: string): Promise<WeightWeeks | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/weight-service/weight/weeklyRange/${start}/${end}`);
+	}
+
+	/** The weight goals in effect over a span. */
+	async weightGoal(start: string, end: string): Promise<WeightGoal | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/goal-service/goal/user/effective/weightgoal/${start}/${end}`);
+	}
+
+	/** A day's Pulse Ox and the elevation it was taken at, as the Pulse Ox pages chart it. */
+	async spo2Acclimation(date: string): Promise<Spo2Acclimation | null> {
+		assertIsoDate(date);
+		return this.request(`/wellness-service/wellness/daily/spo2acclimation/${date}`);
+	}
+
+	/** Pulse Ox acclimation: a daily average across the span; the hourly and elevation series cover only its newest month of readings. */
+	async acclimationDaily(start: string, end: string): Promise<AcclimationStats | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request("/wellness-service/stats/daily/acclimation", {
+			query: { fromDate: start, untilDate: end },
+		});
+	}
+
+	/** One day's blood pressure readings. */
+	async bloodPressureDay(date: string): Promise<BloodPressureDay | null> {
+		assertIsoDate(date);
+		return this.request(`/bloodpressure-service/bloodpressure/dayview/${date}`);
+	}
+
+	/** Blood pressure a day over a span, every reading included. No cap seen up to ten years. */
+	async bloodPressureRange(start: string, end: string): Promise<BloodPressureRange | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/bloodpressure-service/bloodpressure/range/${start}/${end}`, {
+			query: { includeAll: "true" },
+		});
+	}
+
+	/** Blood pressure a week. Exactly 52 weeks, as for `weightWeekly`; any other span is HTTP 400. */
+	async bloodPressureWeekly(start: string, end: string): Promise<BloodPressureRange | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request(`/bloodpressure-service/bloodpressure/weeklyRange/${start}/${end}`);
+	}
+
+	/** `daily/last` over a span, which the web asks for on every page load. What a row holds is unconfirmed. */
+	async bloodPressureLast(start: string, end: string): Promise<Array<Record<string, unknown>>> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<Array<Record<string, unknown>> | null>(
+			`/bloodpressure-service/bloodpressure/daily/last/${start}/${end}`,
+		)) ?? [];
+	}
+
+	/** The day's naps, for the 1d timeline. */
+	async naps(date: string): Promise<Nap[]> {
+		assertIsoDate(date);
+		return (await this.request<Nap[] | null>(`/sleep-service/sleep/naps/${date}`, {
+			query: { includeOverlaps: "true" },
+		})) ?? [];
+	}
+
+	/** The day's Move IQ events, for the 1d timeline. */
+	async dailyEvents(date: string): Promise<DailyEvent[]> {
+		assertIsoDate(date);
+		const who = await this.requireDisplayName();
+		return (await this.request<DailyEvent[] | null>(`/wellness-service/wellness/dailyEvents/${who}`, {
+			query: { calendarDate: date },
+		})) ?? [];
+	}
+
+	/** The day's recorded activities, for the 1d timeline. */
+	async activitiesForDay(date: string): Promise<Activity[]> {
+		assertIsoDate(date);
+		const who = await this.requireDisplayName();
+		return (await this.request<Activity[] | null>(`/activitylist-service/activities/fordailysummary/${who}`, {
+			query: { calendarDate: date },
+		})) ?? [];
+	}
+
+	/** Lifestyle Logging for one day: the behaviours tracked and the week's completion. No web page calls it. */
+	async lifestyleLog(date: string): Promise<LifestyleLog | null> {
+		assertIsoDate(date);
+		return this.request(`/lifestylelogging-service/dailyLog/${date}`);
 	}
 }

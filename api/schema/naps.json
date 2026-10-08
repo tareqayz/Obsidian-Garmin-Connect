@@ -1,0 +1,80 @@
+{
+	"endpoint": "naps",
+	"path": "/sleep-service/sleep/naps/{date}",
+	"plugin": "GarminApi.naps",
+	"firstRecorded": "2026-10-07T22:34:34.530Z",
+	"updatedAt": "2026-10-07T22:34:34.530Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"createTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"deviceId": {
+					"type": [
+						"number"
+					]
+				},
+				"napEndTimeOffset": {
+					"type": [
+						"number"
+					]
+				},
+				"napEndTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"napFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"napSource": {
+					"type": [
+						"number"
+					]
+				},
+				"napStartTimeOffset": {
+					"type": [
+						"number"
+					]
+				},
+				"napStartTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"napTimeSec": {
+					"type": [
+						"number"
+					]
+				},
+				"updateTimestampGMT": {
+					"type": [
+						"string"
+					]
+				},
+				"userProfilePK": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

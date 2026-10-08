@@ -62,6 +62,92 @@ export interface BodyBatteryMarker {
 	averageStress?: number;
 }
 
+/** One part of the sleep score: Garmin's verdict, the night's figure, and the range it is judged against. */
+export interface SleepFactor {
+	/** EXCELLENT, GOOD, FAIR, POOR. */
+	qualifier?: string;
+	/** The stages' share of the night, in percent. Absent for the other parts. */
+	value?: number;
+	/** The optimal range: percent for the stages, seconds for duration, a level or a count otherwise. */
+	optimalStart?: number;
+	optimalEnd?: number;
+	/** A stage's optimal range in seconds, for its page's bar. */
+	idealStart?: number;
+	idealEnd?: number;
+}
+
+export type SleepFactorKey = "duration" | "stress" | "deep" | "light" | "rem" | "awakeCount" | "restlessness";
+
+/** The night's sleep need, minutes, and Garmin's reasons for it. */
+export interface SleepNeedInfo {
+	baseline?: number;
+	actual?: number;
+	feedback?: string;
+	training?: string;
+	history?: string;
+	hrv?: string;
+	nap?: string;
+}
+
+/** Sleep alignment: the optimal window and both midpoints, in minutes from midnight (negative before it). */
+export interface SleepAlignmentInfo {
+	status?: string;
+	start?: number;
+	end?: number;
+	mid?: number;
+	last?: number;
+}
+
+/**
+ * Everything the Sleep page's day view draws, from the night's sleep payload.
+ * Times are epoch milliseconds, UTC; `offset` turns them into the watch's clock.
+ */
+export interface SleepDetail {
+	start: number;
+	end: number;
+	/** The watch's local time minus UTC that night, ms. */
+	offset?: number;
+	score?: number;
+	quality?: string;
+	seconds?: number;
+	deep?: number;
+	light?: number;
+	rem?: number;
+	awake?: number;
+	factors?: Partial<Record<SleepFactorKey, SleepFactor>>;
+	/** Garmin's message keys: the headline, the insight under it, and the personal one. */
+	feedback?: string;
+	insight?: string;
+	personal?: string;
+	avgStress?: number;
+	avgHr?: number;
+	restingHr?: number;
+	bodyBatteryChange?: number;
+	respAvg?: number;
+	respLow?: number;
+	spo2Avg?: number;
+	spo2Low?: number;
+	hrv?: number;
+	hrvStatus?: string;
+	skinC?: number;
+	skinF?: number;
+	awakeCount?: number;
+	restlessCount?: number;
+	/** Breathing variations, when the watch measures them. */
+	breathing?: string;
+	need?: SleepNeedInfo;
+	nextNeed?: SleepNeedInfo;
+	alignment?: SleepAlignmentInfo;
+	/** `[epochMs, count]`: a restless moment can count more than one. */
+	restless?: SeriesPoint[];
+	heartRate?: SeriesPoint[];
+	bodyBattery?: SeriesPoint[];
+	hrvValues?: SeriesPoint[];
+	stress?: SeriesPoint[];
+	/** `[hourEndMs, breaths a minute]`: the hourly averages the app steps through. */
+	respiration?: SeriesPoint[];
+}
+
 export interface DaySeries {
 	/**
 	 * When the day began on the watch's clock. The day's charts run from here,
@@ -79,7 +165,17 @@ export interface DaySeries {
 	 */
 	intensity?: SeriesPoint[];
 	sleepLevels?: SleepLevel[];
+	/** The night's scores, factors and overnight series, for the Sleep page. */
+	sleep?: SleepDetail;
 	bodyBatteryEvents?: BodyBatteryMarker[];
+	/**
+	 * Blocks a Health Stats page had fetched on view, by the key its
+	 * definition registered (`intraday-registry.ts`). A sync's own write of
+	 * the day starts the file afresh, so they are fetched again on the next view.
+	 */
+	extra?: Record<string, unknown>;
+	/** Keys fetched on view, data or not, so a day Garmin had nothing for is not asked again. */
+	checked?: string[];
 }
 
 export interface IntradayPayloads {
@@ -188,6 +284,9 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 	}
 	if (levels.length) out.sleepLevels = levels;
 
+	const detail = payloads.sleep ? mapSleepDetail(payloads.sleep) : null;
+	if (detail) out.sleep = detail;
+
 	const markers: BodyBatteryMarker[] = [];
 	for (const entry of payloads.bodyBatteryEvents ?? []) {
 		const event = entry?.event ?? undefined;
@@ -211,6 +310,148 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 	if (markers.length) out.bodyBatteryEvents = markers;
 
 	return out;
+}
+
+const FACTOR_KEYS: Record<string, SleepFactorKey> = {
+	totalDuration: "duration",
+	stress: "stress",
+	deepPercentage: "deep",
+	lightPercentage: "light",
+	remPercentage: "rem",
+	awakeCount: "awakeCount",
+	restlessness: "restlessness",
+};
+
+/**
+ * The night's scores, factors and overnight series, or null on a day with no
+ * night. Several of the night's figures sit beside `dailySleepDTO` rather than
+ * in it (resting heart rate, Body Battery, HRV, skin temperature, restless
+ * moments), so both places are read, the top level first.
+ */
+export function mapSleepDetail(sleep: SleepData): SleepDetail | null {
+	const dto = (sleep.dailySleepDTO ?? {}) as Record<string, unknown>;
+	const top = sleep as Record<string, unknown>;
+	const pick = (key: string): unknown => (top[key] !== undefined && top[key] !== null ? top[key] : dto[key]);
+	const start = finite(dto.sleepStartTimestampGMT);
+	const end = finite(dto.sleepEndTimestampGMT);
+	if (start === undefined || end === undefined || end <= start) return null;
+
+	const out: SleepDetail = { start, end };
+	const local = finite(dto.sleepStartTimestampLocal);
+	if (local !== undefined) out.offset = local - start;
+
+	const scores = (dto.sleepScores ?? {}) as Record<string, Record<string, unknown> | undefined>;
+	const overall = scores.overall;
+	assignNumber(out, "score", overall?.value);
+	assignText(out, "quality", overall?.qualifierKey);
+	assignNumber(out, "seconds", dto.sleepTimeSeconds);
+	assignNumber(out, "deep", dto.deepSleepSeconds);
+	assignNumber(out, "light", dto.lightSleepSeconds);
+	assignNumber(out, "rem", dto.remSleepSeconds);
+	assignNumber(out, "awake", dto.awakeSleepSeconds);
+
+	const factors: Partial<Record<SleepFactorKey, SleepFactor>> = {};
+	for (const [raw, key] of Object.entries(FACTOR_KEYS)) {
+		const part = scores[raw];
+		if (!part || typeof part !== "object") continue;
+		const factor: SleepFactor = {};
+		assignText(factor, "qualifier", part.qualifierKey);
+		assignNumber(factor, "value", part.value);
+		assignNumber(factor, "optimalStart", part.optimalStart);
+		assignNumber(factor, "optimalEnd", part.optimalEnd);
+		assignNumber(factor, "idealStart", part.idealStartInSeconds);
+		assignNumber(factor, "idealEnd", part.idealEndInSeconds);
+		if (Object.keys(factor).length) factors[key] = factor;
+	}
+	if (Object.keys(factors).length) out.factors = factors;
+
+	for (const [key, from] of [
+		["feedback", "sleepScoreFeedback"],
+		["insight", "sleepScoreInsight"],
+		["personal", "sleepScorePersonalizedInsight"],
+	] as const) {
+		const value = dto[from];
+		if (typeof value === "string" && value && value !== "NONE" && value !== "NOT_AVAILABLE") out[key] = value;
+	}
+
+	assignNumber(out, "avgStress", pick("avgSleepStress"));
+	assignNumber(out, "avgHr", pick("avgHeartRate"));
+	assignNumber(out, "restingHr", pick("restingHeartRate"));
+	const battery = finite(pick("bodyBatteryChange"));
+	if (battery !== undefined) out.bodyBatteryChange = battery;
+	assignNumber(out, "respAvg", pick("averageRespirationValue"));
+	assignNumber(out, "respLow", pick("lowestRespirationValue"));
+	assignNumber(out, "spo2Avg", pick("averageSpO2Value"));
+	assignNumber(out, "spo2Low", pick("lowestSpO2Value"));
+	assignNumber(out, "hrv", pick("avgOvernightHrv"));
+	assignText(out, "hrvStatus", pick("hrvStatus"));
+	const skinC = finite(pick("avgSkinTempDeviationC"));
+	const skinF = finite(pick("avgSkinTempDeviationF"));
+	if (skinC !== undefined) out.skinC = skinC;
+	if (skinF !== undefined) out.skinF = skinF;
+	assignNumber(out, "awakeCount", pick("awakeCount"));
+	assignNumber(out, "restlessCount", pick("restlessMomentsCount"));
+	assignText(out, "breathing", pick("breathingDisruptionSeverity"));
+
+	const need = needOf(dto.sleepNeed);
+	if (need) out.need = need;
+	const next = needOf(dto.nextSleepNeed ?? top.nextSleepNeed);
+	if (next) out.nextNeed = next;
+
+	const align = dto.sleepAlignment as Record<string, unknown> | undefined;
+	if (align && typeof align === "object") {
+		const a: SleepAlignmentInfo = {};
+		assignText(a, "status", align.status);
+		assignSigned(a, "start", align.optimalSleepWindowStartMins);
+		assignSigned(a, "end", align.optimalSleepWindowEndMins);
+		assignSigned(a, "mid", align.optimalSleepWindowMidpointMins);
+		assignSigned(a, "last", align.lastSleepMidpointMins);
+		if (Object.keys(a).length) out.alignment = a;
+	}
+
+	// The overnight series. The payload pads the night by an hour each side;
+	// a sample a few minutes out still belongs to its edge, as the chart draws it.
+	const within = (t: number) => t >= start - 180_000 && t <= end + 180_000;
+	const points = (list: unknown, at: string, value: string, keepNegative = false): SeriesPoint[] => {
+		if (!Array.isArray(list)) return [];
+		const found: SeriesPoint[] = [];
+		for (const item of list) {
+			const row = item as Record<string, unknown> | null;
+			const t = epochOf(row?.[at]);
+			const v = finite(row?.[value]);
+			if (t === undefined || !within(t)) continue;
+			found.push([t, v === undefined || (!keepNegative && v < 0) ? null : v]);
+		}
+		return found;
+	};
+	const restless = points(top.sleepRestlessMoments, "startGMT", "value").filter((p) => (p[1] ?? 0) > 0);
+	if (restless.length) out.restless = restless;
+	const hr = points(top.sleepHeartRate, "startGMT", "value");
+	if (hr.length) out.heartRate = hr;
+	const bb = points(top.sleepBodyBattery, "startGMT", "value");
+	if (bb.length) out.bodyBattery = bb;
+	const hrv = points(top.hrvData, "startGMT", "value");
+	if (hrv.length) out.hrvValues = hrv;
+	const stress = points(top.sleepStress, "startGMT", "value");
+	if (stress.length) out.stress = stress;
+	const resp = points(top.wellnessEpochRespirationAveragesList, "epochEndTimestampGmt", "respirationAverageValue");
+	if (resp.some((p) => p[1] !== null)) out.respiration = resp;
+
+	return out;
+}
+
+function needOf(raw: unknown): SleepNeedInfo | null {
+	if (!raw || typeof raw !== "object") return null;
+	const n = raw as Record<string, unknown>;
+	const out: SleepNeedInfo = {};
+	assignNumber(out, "baseline", n.baseline);
+	assignNumber(out, "actual", n.actual);
+	assignText(out, "feedback", n.feedback);
+	assignText(out, "training", n.trainingFeedback);
+	assignText(out, "history", n.sleepHistoryAdjustment);
+	assignText(out, "hrv", n.hrvAdjustment);
+	assignText(out, "nap", n.napAdjustment);
+	return Object.keys(out).length ? out : null;
 }
 
 export function isEmptySeries(series: DaySeries): boolean {
@@ -294,4 +535,13 @@ function finite(value: unknown): number | undefined {
 
 function assignText<T extends object>(target: T, key: keyof T, value: unknown): void {
 	if (typeof value === "string" && value.trim()) (target as Record<keyof T, unknown>)[key] = value;
+}
+
+/** A finite, non-negative number. Garmin sends -1 and -2 for "not measured". */
+function assignNumber<T extends object>(target: T, key: keyof T, value: unknown): void {
+	if (typeof value === "number" && Number.isFinite(value) && value >= 0) (target as Record<keyof T, unknown>)[key] = value;
+}
+
+function assignSigned<T extends object>(target: T, key: keyof T, value: unknown): void {
+	if (typeof value === "number" && Number.isFinite(value)) (target as Record<keyof T, unknown>)[key] = value;
 }

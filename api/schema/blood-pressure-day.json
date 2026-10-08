@@ -1,0 +1,40 @@
+{
+	"endpoint": "blood-pressure-day",
+	"path": "/bloodpressure-service/bloodpressure/dayview/{date}",
+	"plugin": "GarminApi.bloodPressureDay",
+	"firstRecorded": "2026-10-07T22:34:34.384Z",
+	"updatedAt": "2026-10-07T22:34:34.384Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"bloodPressureMeasurements": {
+				"type": [
+					"array"
+				]
+			},
+			"elevatedMeasurementCount": {
+				"type": [
+					"null"
+				]
+			},
+			"endDate": {
+				"type": [
+					"string"
+				]
+			},
+			"startDate": {
+				"type": [
+					"string"
+				]
+			},
+			"totalMeasurementCount": {
+				"type": [
+					"null"
+				]
+			}
+		}
+	}
+}

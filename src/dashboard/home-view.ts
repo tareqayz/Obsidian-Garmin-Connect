@@ -2,9 +2,12 @@ import { ItemView, TAbstractFile, type ViewStateResult, type WorkspaceLeaf } fro
 import { mount, unmount } from "svelte";
 import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
+import type { DayIndexData, ReadIndex } from "../sync/day-index";
+import { dayIndex } from "../sync/day-indexes";
 import { describe } from "../sync/runner";
 import { VaultSeriesStore } from "../sync/series-store";
 import { pickStat } from "../ui/add-stat-modal";
+import { SleepHistoryModal } from "../ui/sleep-history-modal";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import type { ActivitiesData } from "./activities";
@@ -14,25 +17,38 @@ import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
 import { HOME, readStack, type Route } from "./routes";
 import type { DayRow } from "./series";
+import type { HistoryView, SleepData } from "./sleep-pages";
 import type { StatsData } from "./stats-pages";
 import type { DaySeries } from "../sync/intraday";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
+
+/** The series files' entry among the versions: not a name an index can have. */
+const SERIES = "#series";
 
 /**
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
  * the pages that open from it.
  *
  * Reads the day notes' frontmatter, that day's series file, `account.json`,
- * the activity index and the daily stats index, and rebuilds whenever any of
- * them changes. Which page is open is part of the view's state, so a reload
+ * the activity index, the daily stats index and the sleep index, and rebuilds
+ * whenever any of them changes. Which page is open is part of the view's state, so a reload
  * returns to it.
+ *
+ * The registered day indexes (`day-indexes.ts`) are not part of that
+ * rebuild: a page reads one when it asks (`readIndex`), and a change in an
+ * index's folder only moves that index's version, which the pages reading it
+ * watch.
  */
 export class GarminHomeView extends ItemView {
 	private plugin: GarminPlugin;
 	private component: ReturnType<typeof Home> | undefined;
 	private pending = 0;
 	private stack: Route[] = [HOME];
+	/** By index kind, and `SERIES`: moved, a moment after the files settle, whenever one changes. */
+	private versions = new Map<string, number>();
+	private bumps = new Map<string, number>();
+	private indexCache = new Map<string, { version: number; data: Promise<DayIndexData> }>();
 
 	constructor(leaf: WorkspaceLeaf, plugin: GarminPlugin) {
 		super(leaf);
@@ -71,16 +87,19 @@ export class GarminHomeView extends ItemView {
 		const today = toIsoDate();
 		const rows = this.rows();
 		const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
-		const stats = await this.buildStats(rows, activities.units);
+		const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 		this.component = mount(Home, {
 			target: this.contentEl,
 			props: {
 				initialModel: model,
 				initialActivities: activities,
 				initialStats: stats,
+				initialSleep: sleep,
 				initialStack: this.stack,
 				initialHistory: this.plugin.sync.historyProgress,
 				initialStatsHistory: this.plugin.sync.statsHistoryProgress,
+				initialSleepHistory: this.plugin.sync.sleepHistoryProgress,
+				initialIndexHistory: this.plugin.sync.indexHistoryProgress,
 				initialPreset: this.plugin.data.home.preset,
 				initialHidden: [...this.plugin.data.home.hidden],
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
@@ -99,18 +118,36 @@ export class GarminHomeView extends ItemView {
 				},
 				onSyncHistory: () => void this.plugin.sync.syncActivityHistory(),
 				onSyncStatsHistory: () => void this.plugin.sync.syncDailyStatsHistory(),
+				onSyncSleepHistory: () => void this.plugin.sync.syncSleepHistory(),
+				onSyncIndexHistory: (kind: string) => void this.plugin.sync.syncIndexHistory(kind),
+				onSleepHistory: (view: HistoryView) => new SleepHistoryModal(this.app, view).open(),
 				readSeries: (days: string[]) => this.readSeries(days),
+				readIndex: ((kind: string) => this.readIndex(kind)) as ReadIndex,
+				loadIntraday: (date: string, keys: readonly string[]) => this.plugin.sync.loadIntraday(date, keys),
 			},
 		});
 
 		this.register(this.plugin.sync.onHistory((progress) => this.component?.setHistory(progress)));
 		this.register(this.plugin.sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)));
+		this.register(this.plugin.sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)));
+		this.register(this.plugin.sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)));
 
 		// Frontmatter lands through the metadata cache; the JSON files do not,
 		// so watch those directly.
 		this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
 		const onFile = (file: TAbstractFile) => {
-			if (this.store().owns(file.path)) this.scheduleRefresh();
+			const store = this.store();
+			// A registered index reaches only the pages that read it.
+			const def = store.dayIndexOf(file.path);
+			if (def) {
+				this.bump(def.kind);
+				return;
+			}
+			if (!store.owns(file.path)) return;
+			if (store.isSeriesPath(file.path)) this.bump(SERIES);
+			else if (file.path.startsWith(`${store.sleepFolder}/`)) this.bump("sleep");
+			else if (file.path.startsWith(`${store.dailyStatsFolder}/`)) this.bump("daily-stats");
+			this.scheduleRefresh();
 		};
 		this.registerEvent(this.app.vault.on("modify", onFile));
 		this.registerEvent(this.app.vault.on("create", onFile));
@@ -119,6 +156,8 @@ export class GarminHomeView extends ItemView {
 
 	async onClose(): Promise<void> {
 		window.clearTimeout(this.pending);
+		for (const timer of this.bumps.values()) window.clearTimeout(timer);
+		this.bumps.clear();
 		if (this.component) {
 			unmount(this.component);
 			this.component = undefined;
@@ -180,9 +219,57 @@ export class GarminHomeView extends ItemView {
 		};
 	}
 
+	/** What the Sleep pages read: every night the sleep index holds. */
+	private async buildSleep(units: SleepData["units"]): Promise<SleepData> {
+		const index = await this.store().readSleep();
+		return { rows: index.rows, complete: index.meta?.complete === true, units };
+	}
+
 	private async readSeries(days: string[]): Promise<Map<string, DaySeries | null>> {
 		const store = this.store();
 		return new Map(await Promise.all(days.map(async (day) => [day, await store.read(day)] as const)));
+	}
+
+	/**
+	 * A day index as a Health Stats page reads it: a registered one by its
+	 * kind, or the sleep and daily stats indexes. Read once per version, so
+	 * pages sharing an index share the read.
+	 */
+	private readIndex(kind: string): Promise<DayIndexData> {
+		const version = this.versions.get(kind) ?? 0;
+		const cached = this.indexCache.get(kind);
+		if (cached?.version === version) return cached.data;
+		const data = this.loadIndex(kind);
+		this.indexCache.set(kind, { version, data });
+		data.catch(() => {
+			if (this.indexCache.get(kind)?.data === data) this.indexCache.delete(kind);
+		});
+		return data;
+	}
+
+	private async loadIndex(kind: string): Promise<DayIndexData> {
+		const store = this.store();
+		if (kind === "sleep") return store.readSleep();
+		if (kind === "daily-stats") return store.readDailyStats();
+		const def = dayIndex(kind);
+		return def ? store.readDayIndex(def) : { rows: [], meta: null };
+	}
+
+	/** Moves one version, once a burst of file events settles: a sync writes a year file and the meta together. */
+	private bump(key: string): void {
+		this.indexCache.delete(key);
+		window.clearTimeout(this.bumps.get(key));
+		this.bumps.set(
+			key,
+			window.setTimeout(() => {
+				this.bumps.delete(key);
+				this.indexCache.delete(key);
+				const version = (this.versions.get(key) ?? 0) + 1;
+				this.versions.set(key, version);
+				if (key === SERIES) this.component?.setSeriesVersion(version);
+				else this.component?.setIndexVersion(key, version);
+			}, 150),
+		);
 	}
 
 	private scheduleRefresh(): void {
@@ -191,10 +278,11 @@ export class GarminHomeView extends ItemView {
 			const today = toIsoDate();
 			const rows = this.rows();
 			void Promise.all([this.build(today, rows), this.buildActivities(rows)]).then(async ([model, activities]) => {
-				const stats = await this.buildStats(rows, activities.units);
+				const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 				this.component?.setModel(model, today);
 				this.component?.setActivities(activities);
 				this.component?.setStats(stats);
+				this.component?.setSleep(sleep);
 			});
 		}, 150);
 	}

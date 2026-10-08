@@ -1,0 +1,80 @@
+{
+	"endpoint": "heart-rate-zones",
+	"path": "/biometric-service/heartRateZones",
+	"plugin": "GarminApi.heartRateZones",
+	"firstRecorded": "2026-10-07T22:34:33.690Z",
+	"updatedAt": "2026-10-07T22:34:33.690Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"changeState": {
+					"type": [
+						"string"
+					]
+				},
+				"lactateThresholdHeartRateUsed": {
+					"type": [
+						"number"
+					]
+				},
+				"maxHeartRateUsed": {
+					"type": [
+						"number"
+					]
+				},
+				"restingHeartRateUsed": {
+					"type": [
+						"null"
+					]
+				},
+				"restingHrAutoUpdateUsed": {
+					"type": [
+						"boolean"
+					]
+				},
+				"sport": {
+					"type": [
+						"string"
+					]
+				},
+				"trainingMethod": {
+					"type": [
+						"string"
+					]
+				},
+				"zone1Floor": {
+					"type": [
+						"number"
+					]
+				},
+				"zone2Floor": {
+					"type": [
+						"number"
+					]
+				},
+				"zone3Floor": {
+					"type": [
+						"number"
+					]
+				},
+				"zone4Floor": {
+					"type": [
+						"number"
+					]
+				},
+				"zone5Floor": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

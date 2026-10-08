@@ -1,0 +1,291 @@
+{
+	"endpoint": "weigh-ins",
+	"path": "/weight-service/weight/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.weighIns",
+	"firstRecorded": "2026-10-07T22:34:34.190Z",
+	"updatedAt": "2026-10-07T22:34:34.190Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"dailyWeightSummaries": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"allWeightMetrics": {
+							"type": [
+								"array"
+							],
+							"items": {
+								"type": [
+									"object"
+								],
+								"fields": {
+									"bmi": {
+										"type": [
+											"null"
+										]
+									},
+									"bodyFat": {
+										"type": [
+											"null"
+										]
+									},
+									"bodyWater": {
+										"type": [
+											"null"
+										]
+									},
+									"boneMass": {
+										"type": [
+											"null"
+										]
+									},
+									"calendarDate": {
+										"type": [
+											"string"
+										]
+									},
+									"date": {
+										"type": [
+											"number"
+										]
+									},
+									"metabolicAge": {
+										"type": [
+											"null"
+										]
+									},
+									"muscleMass": {
+										"type": [
+											"null"
+										]
+									},
+									"physiqueRating": {
+										"type": [
+											"null"
+										]
+									},
+									"samplePk": {
+										"type": [
+											"number"
+										]
+									},
+									"sourceType": {
+										"type": [
+											"string"
+										]
+									},
+									"timestampGMT": {
+										"type": [
+											"number"
+										]
+									},
+									"visceralFat": {
+										"type": [
+											"null"
+										]
+									},
+									"weight": {
+										"type": [
+											"number"
+										]
+									},
+									"weightDelta": {
+										"type": [
+											"null",
+											"number"
+										]
+									}
+								}
+							}
+						},
+						"latestWeight": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"bmi": {
+									"type": [
+										"null"
+									]
+								},
+								"bodyFat": {
+									"type": [
+										"null"
+									]
+								},
+								"bodyWater": {
+									"type": [
+										"null"
+									]
+								},
+								"boneMass": {
+									"type": [
+										"null"
+									]
+								},
+								"calendarDate": {
+									"type": [
+										"string"
+									]
+								},
+								"date": {
+									"type": [
+										"number"
+									]
+								},
+								"metabolicAge": {
+									"type": [
+										"null"
+									]
+								},
+								"muscleMass": {
+									"type": [
+										"null"
+									]
+								},
+								"physiqueRating": {
+									"type": [
+										"null"
+									]
+								},
+								"samplePk": {
+									"type": [
+										"number"
+									]
+								},
+								"sourceType": {
+									"type": [
+										"string"
+									]
+								},
+								"timestampGMT": {
+									"type": [
+										"number"
+									]
+								},
+								"visceralFat": {
+									"type": [
+										"null"
+									]
+								},
+								"weight": {
+									"type": [
+										"number"
+									]
+								},
+								"weightDelta": {
+									"type": [
+										"null",
+										"number"
+									]
+								}
+							}
+						},
+						"maxWeight": {
+							"type": [
+								"number"
+							]
+						},
+						"minWeight": {
+							"type": [
+								"number"
+							]
+						},
+						"numOfWeightEntries": {
+							"type": [
+								"number"
+							]
+						},
+						"summaryDate": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"nextDateWeight": {
+				"type": [
+					"null"
+				]
+			},
+			"previousDateWeight": {
+				"type": [
+					"null"
+				]
+			},
+			"totalAverage": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"bmi": {
+						"type": [
+							"null"
+						]
+					},
+					"bodyFat": {
+						"type": [
+							"null"
+						]
+					},
+					"bodyWater": {
+						"type": [
+							"null"
+						]
+					},
+					"boneMass": {
+						"type": [
+							"null"
+						]
+					},
+					"from": {
+						"type": [
+							"number"
+						]
+					},
+					"metabolicAge": {
+						"type": [
+							"null"
+						]
+					},
+					"muscleMass": {
+						"type": [
+							"null"
+						]
+					},
+					"physiqueRating": {
+						"type": [
+							"null"
+						]
+					},
+					"until": {
+						"type": [
+							"number"
+						]
+					},
+					"visceralFat": {
+						"type": [
+							"null"
+						]
+					},
+					"weight": {
+						"type": [
+							"null",
+							"number"
+						]
+					}
+				}
+			}
+		}
+	}
+}

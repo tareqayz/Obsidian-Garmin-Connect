@@ -1,0 +1,57 @@
+{
+	"endpoint": "daily-fitnessage-stats",
+	"path": "/fitnessage-service/stats/daily/{startDate}/{endDate}",
+	"plugin": "GarminApi.fitnessAgeDaily",
+	"firstRecorded": "2026-10-07T22:34:33.928Z",
+	"updatedAt": "2026-10-07T22:34:33.928Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"achievableFitnessAge": {
+							"type": [
+								"number"
+							]
+						},
+						"bmi": {
+							"type": [
+								"number"
+							]
+						},
+						"fitnessAge": {
+							"type": [
+								"number"
+							]
+						},
+						"rhr": {
+							"type": [
+								"number"
+							]
+						},
+						"vigorousDaysAvg": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

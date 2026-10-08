@@ -28,6 +28,20 @@ import {
 	type DailyStatsRow,
 } from "./daily-stats";
 import type { SeriesTarget } from "./engine";
+import { dedupeByDate as dedupeRows, extendSpan, rowsByYear, type DayIndexBatch, type DayIndexData, type DayIndexDef, type DayIndexMeta, type DayRow } from "./day-index";
+import { DAY_INDEXES } from "./day-indexes";
+import {
+	SLEEP_INDEX_VERSION,
+	mergeNights,
+	nightsByYear,
+	parseSleepMeta,
+	parseSleepYear,
+	serializeSleepMeta,
+	serializeSleepYear,
+	type SleepBatch,
+	type SleepIndexMeta,
+	type SleepRow,
+} from "./sleep-index";
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import type { AccountInfo } from "./account";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
@@ -38,6 +52,17 @@ export const ACTIVITIES_FOLDER = "activities";
 export const ACTIVITY_META_FILE = "index.json";
 export const DAILY_STATS_FOLDER = "daily-stats";
 export const DAILY_STATS_META_FILE = "index.json";
+export const SLEEP_FOLDER = "sleep";
+export const SLEEP_META_FILE = "index.json";
+/** Every registered day index keeps its meta in a file of this name, beside its year files. */
+export const DAY_INDEX_META_FILE = "index.json";
+
+export interface SleepIndex {
+	/** Oldest first. */
+	rows: SleepRow[];
+	/** Null until a sync has written the index. */
+	meta: SleepIndexMeta | null;
+}
 
 export interface DailyStatsIndex {
 	/** Oldest first. */
@@ -73,7 +98,9 @@ export interface MergeOptions {
  * `<dataFolder>/series/<date>.json`. Plus `<dataFolder>/account.json` for the
  * few facts that belong to no day, the activity index in
  * `<dataFolder>/activities/` (see `activity-index.ts`) and the daily stats
- * index in `<dataFolder>/daily-stats/` (see `daily-stats.ts`).
+ * index in `<dataFolder>/daily-stats/` (see `daily-stats.ts`), the sleep
+ * index in `<dataFolder>/sleep/` (see `sleep-index.ts`) and each registered
+ * day index in `<dataFolder>/<folder>/` (see `day-index.ts`).
  *
  * Files rather than frontmatter because a day of heart rate is hundreds of
  * points (see `intraday.ts`). Written through the vault API so Obsidian Sync and
@@ -199,14 +226,134 @@ export class VaultSeriesStore implements SeriesTarget {
 		return written;
 	}
 
+	get sleepFolder(): string {
+		return this.join(SLEEP_FOLDER);
+	}
+
+	/** Only what the sleep index knows about itself: one small file. */
+	async readSleepMeta(): Promise<SleepIndexMeta | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.join(`${SLEEP_FOLDER}/${SLEEP_META_FILE}`));
+		return file instanceof TFile ? parseSleepMeta(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	/** Every night the sleep index holds, oldest first, and what it knows about itself. */
+	async readSleep(): Promise<SleepIndex> {
+		const { rows, meta } = await this.readSleepIndex();
+		return { rows: dedupeNights(rows), meta };
+	}
+
+	/**
+	 * Folds a batch of nights into the sleep index. Returns how many files
+	 * changed: a routine sync touches this year's file and the index, and only
+	 * when a night moved.
+	 */
+	async mergeSleep(batch: SleepBatch, opts: DailyStatsMergeOptions = {}): Promise<number> {
+		const current = await this.readSleepIndex();
+		const rows = mergeNights(dedupeNights(current.rows), batch);
+
+		const meta: SleepIndexMeta = { version: SLEEP_INDEX_VERSION, complete: opts.complete === true || current.meta?.complete === true };
+		const span = opts.covered ? extendCoverage(current.meta, opts.covered.from, opts.covered.to) : current.meta;
+		if (span?.from) meta.from = span.from;
+		if (span?.to) meta.to = span.to;
+
+		let written = 0;
+		const years = nightsByYear(rows);
+		for (const year of current.years) if (!years.has(year)) years.set(year, []);
+		for (const [year, list] of years) {
+			if ((await this.put(this.join(`${SLEEP_FOLDER}/${year}.json`), serializeSleepYear(year, list))) === "written") written += 1;
+		}
+		if ((await this.put(this.join(`${SLEEP_FOLDER}/${SLEEP_META_FILE}`), serializeSleepMeta(meta))) === "written") written += 1;
+		return written;
+	}
+
+	/** Only what a registered day index knows about itself: one small file. */
+	async readDayIndexMeta<R extends DayRow>(def: DayIndexDef<R>): Promise<DayIndexMeta | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.join(`${def.folder}/${DAY_INDEX_META_FILE}`));
+		return file instanceof TFile ? def.parseMeta(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	/** Every row a registered day index holds, oldest first, and what it knows about itself. */
+	async readDayIndex<R extends DayRow>(def: DayIndexDef<R>): Promise<DayIndexData<R>> {
+		const { rows, meta } = await this.readDayIndexFiles(def);
+		return { rows: dedupeRows(rows), meta };
+	}
+
+	/**
+	 * Folds a batch into a registered day index. Returns how many files
+	 * changed: a routine sync touches this year's file and the index, and only
+	 * when a row moved.
+	 */
+	async mergeDayIndex<R extends DayRow>(def: DayIndexDef<R>, batch: DayIndexBatch<R>, opts: DailyStatsMergeOptions = {}): Promise<number> {
+		const current = await this.readDayIndexFiles(def);
+		const rows = def.merge(dedupeRows(current.rows), batch);
+
+		const meta: DayIndexMeta = { version: def.version, complete: opts.complete === true || current.meta?.complete === true };
+		const span = opts.covered ? extendSpan(current.meta, opts.covered.from, opts.covered.to) : current.meta;
+		if (span?.from) meta.from = span.from;
+		if (span?.to) meta.to = span.to;
+
+		let written = 0;
+		const years = rowsByYear(rows);
+		for (const year of current.years) if (!years.has(year)) years.set(year, []);
+		for (const [year, list] of years) {
+			if ((await this.put(this.join(`${def.folder}/${year}.json`), def.serializeYear(year, list))) === "written") written += 1;
+		}
+		if ((await this.put(this.join(`${def.folder}/${DAY_INDEX_META_FILE}`), def.serializeMeta(meta))) === "written") written += 1;
+		return written;
+	}
+
+	/** The registered day index whose folder holds a vault path, if any. */
+	dayIndexOf(path: string): DayIndexDef | undefined {
+		return DAY_INDEXES.find((def) => path.startsWith(`${this.join(def.folder)}/`));
+	}
+
+	/** Whether a vault path is a day's series file. */
+	isSeriesPath(path: string): boolean {
+		return path.startsWith(`${this.join(SERIES_FOLDER)}/`);
+	}
+
 	/** Whether a vault path is one of the files this store writes. */
 	owns(path: string): boolean {
 		return (
 			path === this.accountPath ||
 			path.startsWith(`${this.join(SERIES_FOLDER)}/`) ||
 			path.startsWith(`${this.activitiesFolder}/`) ||
-			path.startsWith(`${this.dailyStatsFolder}/`)
+			path.startsWith(`${this.dailyStatsFolder}/`) ||
+			path.startsWith(`${this.sleepFolder}/`) ||
+			this.dayIndexOf(path) !== undefined
 		);
+	}
+
+	private async readDayIndexFiles<R extends DayRow>(def: DayIndexDef<R>): Promise<DayIndexData<R> & { years: string[] }> {
+		const folder = this.app.vault.getAbstractFileByPath(this.join(def.folder));
+		const out: DayIndexData<R> & { years: string[] } = { rows: [], meta: null, years: [] };
+		if (!(folder instanceof TFolder)) return out;
+		for (const child of folder.children) {
+			if (!(child instanceof TFile)) continue;
+			if (child.name === DAY_INDEX_META_FILE) {
+				out.meta = def.parseMeta(await this.app.vault.cachedRead(child));
+			} else if (isYearFile(child.name)) {
+				out.years.push(child.basename);
+				out.rows.push(...def.parseYear(await this.app.vault.cachedRead(child)));
+			}
+		}
+		return out;
+	}
+
+	private async readSleepIndex(): Promise<SleepIndex & { years: string[] }> {
+		const folder = this.app.vault.getAbstractFileByPath(this.sleepFolder);
+		const out: SleepIndex & { years: string[] } = { rows: [], meta: null, years: [] };
+		if (!(folder instanceof TFolder)) return out;
+		for (const child of folder.children) {
+			if (!(child instanceof TFile)) continue;
+			if (child.name === SLEEP_META_FILE) {
+				out.meta = parseSleepMeta(await this.app.vault.cachedRead(child));
+			} else if (isYearFile(child.name)) {
+				out.years.push(child.basename);
+				out.rows.push(...parseSleepYear(await this.app.vault.cachedRead(child)));
+			}
+		}
+		return out;
 	}
 
 	private async readDailyIndex(): Promise<DailyStatsIndex & { years: string[] }> {
@@ -262,6 +409,13 @@ export class VaultSeriesStore implements SeriesTarget {
 /** One row a day, oldest first, whatever order the year files were read in. */
 function dedupeByDate(rows: readonly DailyStatsRow[]): DailyStatsRow[] {
 	const byDate = new Map<string, DailyStatsRow>();
+	for (const row of rows) byDate.set(row.date, row);
+	return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** One night a day, oldest first. */
+function dedupeNights(rows: readonly SleepRow[]): SleepRow[] {
+	const byDate = new Map<string, SleepRow>();
 	for (const row of rows) byDate.set(row.date, row);
 	return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }

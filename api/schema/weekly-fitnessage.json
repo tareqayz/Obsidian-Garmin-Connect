@@ -1,0 +1,52 @@
+{
+	"endpoint": "weekly-fitnessage",
+	"path": "/fitnessage-service/stats/weekly/{endDate}/{weeks}",
+	"plugin": "GarminApi.fitnessAgeWeekly",
+	"firstRecorded": "2026-10-07T22:34:33.966Z",
+	"updatedAt": "2026-10-07T22:34:33.966Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"bmi": {
+							"type": [
+								"number"
+							]
+						},
+						"fitnessAge": {
+							"type": [
+								"number"
+							]
+						},
+						"rhr": {
+							"type": [
+								"number"
+							]
+						},
+						"vigorousDaysAvg": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

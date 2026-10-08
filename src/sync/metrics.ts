@@ -465,17 +465,20 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			if (next) set("sleep_need_next_hours", hoursOfMinutes(metric(next.actual)));
 
 			// The night's own physiology, which is where a bad night shows up
-			// before the score does.
-			set("sleep_resting_hr", metric(dto.restingHeartRate));
+			// before the score does. Resting heart rate, restless moments and
+			// Body Battery come beside the DTO rather than inside it.
+			const night = (data.sleep ?? {}) as Record<string, unknown>;
+			const beside = (key: string): unknown => night[key] ?? dto[key];
+			set("sleep_resting_hr", metric(beside("restingHeartRate")));
 			set("sleep_avg_stress", metric(dto.avgSleepStress));
 			set("sleep_awake_count", metric(dto.awakeCount));
-			set("sleep_restless_moments", metric(dto.restlessMomentsCount));
+			set("sleep_restless_moments", metric(beside("restlessMomentsCount")));
 			set("sleep_respiration", metric(dto.averageRespirationValue));
 			set("sleep_spo2", metric(dto.averageSpO2Value));
 			set("sleep_spo2_low", metric(dto.lowestSpO2Value));
 			// How much Body Battery the night put back. Negative is possible and
 			// meaningful, so this is one of the few metrics allowed to go below zero.
-			set("sleep_body_battery_change", metric(dto.bodyBatteryChange, { allowNegative: true }));
+			set("sleep_body_battery_change", metric(beside("bodyBatteryChange"), { allowNegative: true }));
 			set("nap_hours", hours(metric(dto.napTimeSeconds)));
 		}
 	}

@@ -4,7 +4,7 @@ Every Garmin endpoint this plugin calls, which metric group triggers it, and
 what the request budget works out to. Source: `src/garmin/endpoints.ts` and
 `src/garmin/constants.ts`.
 
-For the full surface — all 135 endpoints Garmin exposes, their request shapes,
+For the full surface — all 167 catalogued endpoints, their request shapes,
 and the response fields observed at each one — see
 [`api/endpoints.json`](../api/endpoints.json) and
 [`api/README.md`](../api/README.md). This page is the narrow, prose version:
@@ -87,7 +87,6 @@ One request per day synced.
 | `trainingStatus(date)` | `/metrics-service/metrics/trainingstatus/aggregated/{date}` | `training` |
 | `bodyComposition(date)` | `/weight-service/weight/dayview/{date}?includeAll=true` | `body` |
 | `fitnessAge(date)` | `/fitnessage-service/fitnessage/{date}` | `fitness` |
-
 | `healthStatus(date)` | `POST /graphql-gateway/graphql` — `healthStatusSummary` | `health` |
 
 ### GraphQL
@@ -152,6 +151,68 @@ chunked.
 whole range and buckets results by the local calendar day each activity started
 on.
 
+## Health Stats pages
+
+The Health Stats pages read the routes the Garmin Connect web app uses (captured
+2026-10-08, `ref/health-stats/web-survey.md`), not the note sync's. None of
+them is GraphQL: Health Status has a REST route too.
+
+### Ranges
+
+Days, and weeks, without data are left out rather than zero-filled, oldest
+first except for weight. Past its cap a route answers HTTP 400, and the caps
+differ by route. "None found" means a three-year span (Health Status) or a
+ten-year one still answered.
+
+| Method | Path | Cap |
+| --- | --- | --- |
+| `stressDaily(start, end)` | `/usersummary-service/stats/stress/daily/{start}/{end}` | 28 days |
+| `bodyBatteryDaily(start, end)` | `/usersummary-service/stats/bodybattery/daily/{start}/{end}` | 28 days |
+| `heartRateDaily(start, end)` | `/usersummary-service/stats/heartRate/daily/{start}/{end}` | 28 days |
+| `fitnessAgeDaily(start, end)` | `/fitnessage-service/stats/daily/{start}/{end}` | 29 days |
+| `respirationDaily(start, end)` | `/usersummary-service/stats/respiration/daily/{start}/{end}` | 31 days |
+| `stressWeekly(end, weeks = 52)` | `/usersummary-service/stats/stress/weekly/{end}/{weeks}` | 52 weeks |
+| `heartRateWeekly(end, weeks = 52)` | `/usersummary-service/stats/heartRate/weekly/{end}/{weeks}` | 52 weeks |
+| `fitnessAgeWeekly(end, weeks = 52)` | `/fitnessage-service/stats/weekly/{end}/{weeks}` | 52 weeks |
+| `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | 367 days |
+| `healthStatusRange(start, end)` | `/healthstatus-service/healthstatus/summary/{start}/{end}` | none found |
+| `weighIns(start, end)` | `/weight-service/weight/range/{start}/{end}?includeAll=true` | none found |
+| `weightWeekly(start, end)` | `/weight-service/weight/weeklyRange/{start}/{end}` | exactly 52 weeks |
+| `weightGoal(start, end)` | `/goal-service/goal/user/effective/weightgoal/{start}/{end}` | — |
+| `acclimationDaily(start, end)` | `/wellness-service/stats/daily/acclimation?fromDate=&untilDate=` | none found |
+| `bloodPressureRange(start, end)` | `/bloodpressure-service/bloodpressure/range/{start}/{end}?includeAll=true` | none found |
+| `bloodPressureWeekly(start, end)` | `/bloodpressure-service/bloodpressure/weeklyRange/{start}/{end}` | exactly 52 weeks |
+| `bloodPressureLast(start, end)` | `/bloodpressure-service/bloodpressure/daily/last/{start}/{end}` | none found |
+
+- The `stats/…/daily` rows are `{calendarDate, values}`, except respiration's,
+  which are flat. Weekly rows are dated by the week's first day: stress sends a
+  single `value`, heart rate and fitness age a `values` map.
+- The two weekly date-pair routes take exactly 52 weeks: `end` 363 days after
+  `start`, as the web's 2025-10-10 → 2026-10-08. Every other span tried is a 400.
+- `hrvDaily` is `{hrvSummaries}`, and HTTP 204 (null) when no night has any.
+
+### Days and the 1d timelines
+
+| Method | Path | For |
+| --- | --- | --- |
+| `healthStatusSummary(date)` | `/healthstatus-service/healthstatus/summary/{date}` | Health Status; 204 (null) until the night is scored |
+| `respiration(date)` | `/wellness-service/wellness/daily/respiration/{date}` | Respiration 1d, every two minutes |
+| `spo2Acclimation(date)` | `/wellness-service/wellness/daily/spo2acclimation/{date}` | Pulse Ox 1d, with elevation |
+| `bloodPressureDay(date)` | `/bloodpressure-service/bloodpressure/dayview/{date}` | Blood Pressure 1d |
+| `weightLatest(date)` | `/weight-service/weight/latest?date=&ignorePriority=true` | the newest weigh-in on or before the date |
+| `heartRateZones()` | `/biometric-service/heartRateZones/` | zone floors per sport profile |
+| `healthSnapshotList(until, start = 1, limit = 20)` | `/wellnessactivity-service/activity/summary/list` | newest first; `start` counts from 1 |
+| `healthSnapshotDetail(date, uuid)` | `/wellnessactivity-service/activity/summary/{date}/{uuid}` | 204 unless `date` is the snapshot's own |
+| `healthSnapshotEpochs(uuid)` | `/wellnessactivity-service/activity/epoch/{uuid}` | a sample a second |
+| `wellnessActivities(date)` | `/wellnessactivity-service/activity/summary/{date}` | the day's snapshots, on the timeline |
+| `naps(date)` | `/sleep-service/sleep/naps/{date}?includeOverlaps=true` | naps, on the timeline |
+| `dailyEvents(date)` | `/wellness-service/wellness/dailyEvents/{who}?calendarDate=` | Move IQ events, on the timeline |
+| `activitiesForDay(date)` | `/activitylist-service/activities/fordailysummary/{who}?calendarDate=` | activities, on the timeline |
+| `lifestyleLog(date)` | `/lifestylelogging-service/dailyLog/{date}` | Lifestyle Logging, which has no web page |
+
+The Stress, Body Battery and Heart Rate 1d pages call the four timeline routes
+(snapshots, naps, Move IQ events, activities); Respiration's does not.
+
 ## Available but unused
 
 Implemented and tested, not currently wired into the sync:
@@ -195,11 +256,12 @@ throttles between days.
 
 Garmin ships changes to these payloads without notice and without a version, so
 none of the above is guaranteed to still be true tomorrow.
-`.github/workflows/api-contract.yml` runs every morning, fetches the sixteen
-endpoints above through this plugin's own `GarminApi`, and compares what comes
-back with the shapes recorded in [`api/schema/`](../api/schema/). A field the
-plugin depends on that stops arriving opens an issue the same day; a field it
-merely reads is reported without failing the run.
+`.github/workflows/api-contract.yml` runs every morning, fetches the 69 checked
+endpoints (the ones above and the Health Stats routes) through this plugin's own
+`GarminApi`, and compares what comes back with the shapes recorded in
+[`api/schema/`](../api/schema/). A field the plugin depends on that stops
+arriving opens an issue the same day; a field it merely reads is reported
+without failing the run.
 
 `api/README.md` covers the verdicts, the setup, and how to accept a change.
 

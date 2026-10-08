@@ -1,0 +1,35 @@
+{
+	"endpoint": "blood-pressure",
+	"path": "/bloodpressure-service/bloodpressure/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.bloodPressureRange",
+	"firstRecorded": "2026-10-07T22:34:34.421Z",
+	"updatedAt": "2026-10-07T22:34:34.421Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"categoryStats": {
+				"type": [
+					"null"
+				]
+			},
+			"from": {
+				"type": [
+					"string"
+				]
+			},
+			"measurementSummaries": {
+				"type": [
+					"array"
+				]
+			},
+			"until": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

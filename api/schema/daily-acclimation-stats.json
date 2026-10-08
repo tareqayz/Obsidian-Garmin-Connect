@@ -1,0 +1,148 @@
+{
+	"endpoint": "daily-acclimation-stats",
+	"path": "/wellness-service/stats/daily/acclimation",
+	"plugin": "GarminApi.acclimationDaily",
+	"firstRecorded": "2026-10-07T22:34:34.346Z",
+	"updatedAt": "2026-10-07T22:34:34.346Z",
+	"samples": 3,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"monitoringEnvironmentValueDescriptorList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"monEnvValueDescIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"monEnvValueDescKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"monitoringEnvironmentValuesArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"overallSpo2Average": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"spo2AccValueDescriptorList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"spo2ValueDescIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"spo2ValueDescKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"spo2DailyAcclimationAverageDescriptorList": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"spo2DayAverageDescIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"spo2DayAverageDescKey": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"spo2DailyAverageArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number",
+							"string"
+						]
+					}
+				}
+			},
+			"spo2HourlyAverageArray": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				}
+			},
+			"spo2SingleReadingValueDescriptorList": {
+				"type": [
+					"array"
+				]
+			},
+			"spo2SingleReadingValuesArray": {
+				"type": [
+					"array"
+				]
+			},
+			"userProfilePk": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

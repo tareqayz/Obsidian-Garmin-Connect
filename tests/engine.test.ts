@@ -8,10 +8,12 @@ import {
 	dateRange,
 	fetchAllActivities,
 	fetchDailyStatsHistory,
+	fetchSleepHistory,
 	lastNDays,
 	syncRange,
 	type ActivitySink,
 	type DailyStatsSink,
+	type SleepSink,
 	type NoteTarget,
 	type SyncOptions,
 	type SeriesTarget,
@@ -19,6 +21,7 @@ import {
 	type WriteOutcome,
 } from "../src/sync/engine";
 import type { DailyStatsBatch } from "../src/sync/daily-stats";
+import type { SleepBatch } from "../src/sync/sleep-index";
 import type { DaySeries } from "../src/sync/intraday";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { Activity } from "../src/garmin/endpoints";
@@ -146,6 +149,20 @@ class FakeSource implements SyncSource {
 		this.guard("dailyIntensityStats");
 		this.statCalls.push(`im:${start}:${end}`);
 		return this.inRange(start, end).map((d) => ({ calendarDate: d, weeklyGoal: 150, moderateValue: this.stats[d]!.moderate ?? 0, vigorousValue: 0 }));
+	}
+	/** Nights the sleep stats know about: date → score. */
+	nights: Record<string, number> = {};
+	sleepCalls: string[] = [];
+	async sleepStats(start: string, end: string) {
+		this.guard("sleepStats");
+		this.sleepCalls.push(`${start}:${end}`);
+		return Object.keys(this.nights)
+			.filter((d) => d >= start && d <= end)
+			.sort()
+			.map((d) => ({
+				calendarDate: d,
+				values: { sleepScore: this.nights[d], totalSleepTimeInSeconds: 27000, localSleepStartTimeInMillis: Date.parse(`${d}T00:00:00Z`) - 1800_000 },
+			}));
 	}
 	async healthStatus(date: string) {
 		this.guard("healthStatus", date);
@@ -721,6 +738,125 @@ describe("fetchDailyStatsHistory", () => {
 		const got = await fetchDailyStatsHistory(source, { until: "2026-09-12", onWindow: () => (windows += 1), shouldStop: () => windows >= 2 });
 		assert.equal(windows, 2);
 		assert.equal(got.complete, false);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Sleep index                                                       */
+/* ------------------------------------------------------------------ */
+
+class FakeSleepSink implements SleepSink {
+	held: { from?: string; to?: string } | null = null;
+	merged: Array<{ batch: SleepBatch; covered: { from: string; to: string } | null }> = [];
+	async coverage() {
+		return this.held;
+	}
+	async merge(batch: SleepBatch, covered: { from: string; to: string } | null) {
+		this.merged.push({ batch, covered });
+		return 2;
+	}
+}
+
+describe("syncRange — sleep index", () => {
+	const all = new Set(["2026-09-10", "2026-09-11", "2026-09-12"]);
+
+	it("asks the sleep stats for the run's days in one request", async () => {
+		const source = new FakeSource();
+		source.nights = { "2026-09-11": 84, "2026-09-12": 91 };
+		const sink = new FakeSleepSink();
+		const report = await syncRange(source, new FakeTarget(all), options({ groups: ["sleep"], sleep: sink }));
+		assert.deepEqual(source.sleepCalls, ["2026-09-10:2026-09-12"]);
+		assert.equal(report.requests, 4);
+		const { batch, covered } = sink.merged[0]!;
+		assert.deepEqual(
+			batch.rows.map((r) => [r.date, r.score, r.bed]),
+			[
+				["2026-09-11", 84, -1800],
+				["2026-09-12", 91, -1800],
+			],
+		);
+		assert.deepEqual([...batch.dates].sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
+		assert.deepEqual(covered, { from: "2026-09-10", to: "2026-09-12" });
+		assert.equal(report.sleepFilesWritten, 2);
+	});
+
+	it("fills the stretch since the index's newest night, 28 days a request", async () => {
+		const source = new FakeSource();
+		const sink = new FakeSleepSink();
+		sink.held = { from: "2026-07-01", to: "2026-08-01" };
+		await syncRange(source, new FakeTarget(all), options({ groups: ["sleep"], sleep: sink }));
+		assert.deepEqual(source.sleepCalls, ["2026-08-02:2026-08-29", "2026-08-30:2026-09-12"]);
+		assert.deepEqual(sink.merged[0]!.covered, { from: "2026-08-02", to: "2026-09-12" });
+	});
+
+	it("is left alone without the sleep group", async () => {
+		const source = new FakeSource();
+		const sink = new FakeSleepSink();
+		await syncRange(source, new FakeTarget(all), options({ groups: ["activity"], sleep: sink }));
+		assert.deepEqual(source.sleepCalls, []);
+		assert.deepEqual(sink.merged, []);
+	});
+
+	it("stops the run on a 429 from the sleep stats", async () => {
+		const source = new FakeSource();
+		source.failWith.sleepStats = new GarminRateLimitError("rate limited", 60);
+		const sink = new FakeSleepSink();
+		const report = await syncRange(source, new FakeTarget(all), options({ groups: ["sleep"], sleep: sink }));
+		assert.match(report.stoppedEarly ?? "", /rate limited/);
+		assert.deepEqual(sink.merged, []);
+	});
+
+	it("keeps what it got, without claiming coverage, when a window fails", async () => {
+		const source = new FakeSource();
+		source.failWith.sleepStats = new GarminApiError("bad gateway", 502, "");
+		const sink = new FakeSleepSink();
+		const report = await syncRange(source, new FakeTarget(all), options({ groups: ["sleep"], sleep: sink }));
+		assert.equal(report.stoppedEarly, undefined);
+		assert.deepEqual(sink.merged, []);
+		assert.ok(report.warnings.some((w) => w.includes("sleep stats 2026-09-10..2026-09-12: bad gateway")));
+	});
+});
+
+describe("fetchSleepHistory", () => {
+	function nights(from: string, to: string, failAt?: { call: number; err: unknown }) {
+		const days: string[] = [];
+		for (let d = from; d <= to; d = new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) days.push(d);
+		const calls: string[] = [];
+		return {
+			calls,
+			sleepStats: async (a: string, b: string) => {
+				calls.push(`${a} ${b}`);
+				if (failAt && calls.length === failAt.call) throw failAt.err;
+				return days.filter((d) => d >= a && d <= b).map((d) => ({ calendarDate: d, values: { sleepScore: 80, totalSleepTimeInSeconds: 25000 } }));
+			},
+		};
+	}
+
+	it("walks back 28 nights a request until windows come back empty", async () => {
+		const source = nights("2026-08-15", "2026-09-12");
+		const reached: string[] = [];
+		const got = await fetchSleepHistory(source, { until: "2026-09-12", emptyWindows: 2, onWindow: (d) => reached.push(d) });
+		assert.equal(got.complete, true);
+		assert.equal(got.requests, 4);
+		assert.deepEqual(reached, ["2026-08-16", "2026-07-19", "2026-06-21", "2026-05-24"]);
+		assert.equal(got.batch.rows.length, 29);
+		assert.deepEqual(got.covered, { from: "2026-05-24", to: "2026-09-12" });
+	});
+
+	it("keeps walking through empty windows newer than the oldest activity", async () => {
+		const source = nights("2026-08-15", "2026-09-12");
+		const got = await fetchSleepHistory(source, { until: "2026-09-12", emptyWindows: 1, notBefore: "2026-06-01" });
+		assert.equal(got.complete, true);
+		assert.equal(got.covered?.from, "2026-05-24");
+	});
+
+	it("stops on a 429, keeping the windows before it", async () => {
+		const source = nights("2026-01-01", "2026-09-12", { call: 2, err: new GarminRateLimitError("rate limited") });
+		const got = await fetchSleepHistory(source, { until: "2026-09-12" });
+		assert.ok(got.fatal instanceof GarminRateLimitError);
+		assert.equal(got.complete, false);
+		assert.equal(got.batch.rows.length, 28);
+		assert.deepEqual(got.covered, { from: "2026-08-16", to: "2026-09-12" });
 	});
 });
 

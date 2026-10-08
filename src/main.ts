@@ -1,14 +1,17 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
-import { statsRoute } from "./dashboard/routes";
+import { healthStatRoute, sleepRoute, statsRoute } from "./dashboard/routes";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
+import { DAY_INDEXES } from "./sync/day-indexes";
 import { SyncRunner } from "./sync/runner";
 import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
+import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
 import { ProbeModal } from "./ui/probe-modal";
@@ -69,6 +72,19 @@ export default class GarminPlugin extends Plugin {
 			});
 		}
 		this.addCommand({
+			id: "open-sleep",
+			name: "Open sleep",
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, sleepRoute()] }),
+		});
+		// One per Health Stats page built so far.
+		for (const stat of pageStats(Object.keys(HEALTH_PAGES))) {
+			this.addCommand({
+				id: `open-${stat.id}`,
+				name: `Open ${stat.title.toLowerCase()}`,
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, healthStatRoute(stat.id)] }),
+			});
+		}
+		this.addCommand({
 			id: "open-classic-dashboard",
 			name: "Open classic dashboard",
 			callback: () => void this.openView(GARMIN_DASHBOARD_VIEW),
@@ -94,6 +110,18 @@ export default class GarminPlugin extends Plugin {
 			name: "Sync step, floor and intensity history",
 			callback: () => void this.sync.syncDailyStatsHistory(),
 		});
+		this.addCommand({
+			id: "sync-sleep-history",
+			name: "Sync sleep history",
+			callback: () => void this.sync.syncSleepHistory(),
+		});
+		for (const def of DAY_INDEXES) {
+			this.addCommand({
+				id: `sync-${def.kind}-history`,
+				name: `Sync ${def.title} history`,
+				callback: () => void this.sync.syncIndexHistory(def.kind),
+			});
+		}
 		this.addCommand({
 			id: "sync-range",
 			name: "Sync a date range…",
