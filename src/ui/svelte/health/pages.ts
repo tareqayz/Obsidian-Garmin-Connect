@@ -7,6 +7,7 @@ import type { IntradayLoad } from "../../../sync/intraday-registry";
 import BodyBatteryPage from "../body-battery/BodyBatteryPage.svelte";
 import HealthStatusPage from "../health-status/HealthStatusPage.svelte";
 import FitnessAgePage from "../fitness-age/FitnessAgePage.svelte";
+import HealthSnapshotPage from "../health-snapshot/HealthSnapshotPage.svelte";
 import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
 import RespirationPage from "../respiration/RespirationPage.svelte";
 import StressPage from "../stress/StressPage.svelte";
@@ -73,4 +74,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	respiration: RespirationPage,
 	"health-status": HealthStatusPage,
 	"fitness-age": FitnessAgePage,
+	"health-snapshot": HealthSnapshotPage,
 };
