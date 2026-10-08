@@ -172,3 +172,11 @@
   been ONBOARDING in Health Status since 2026-09-02 (it is "Not enabled during sleep"), while
   the other metrics have data. Check what the app's Home shows and match it (found by the
   Health Status spec, 2026-10-08).
+- Heart Rate and Body Battery (Health Stats), built 2026-10-08 via /garmin-page; golden numbers
+  verified live. Still provisional:
+  - Heart Rate: 1d gradient stops use Garmin's DEFAULT zones for max HR 204 (pages can't read
+    the account's zones); Move IQ / activity rows under the 1d figures not drawn; pane chart
+    frames reuse Stress's measurements.
+  - Body Battery: factor sheets lack the impact chart and time range (the series block drops the
+    event arrays); timeline activity markers not drawn; the pane factor dialog is a page overlay,
+    not an Obsidian Modal; copy known for 6 of ~50 feedback types; dial/chart frames estimated.

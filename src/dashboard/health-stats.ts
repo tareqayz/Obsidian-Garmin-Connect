@@ -68,7 +68,8 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "heart-rate", title: "Heart Rate", ranges: ALL, defaultRange: "1d", group: "heart", glance: ["heartRate"] },
 	{ id: "blood-pressure", title: "Blood Pressure", ranges: ALL, defaultRange: "1d", group: "body", glance: ["bloodPressure"] },
 	{ id: "stress", title: "Stress", ranges: ALL, defaultRange: "1d", group: "stress", glance: ["stress"] },
-	{ id: "body-battery", title: "Body Battery", ranges: ALL, defaultRange: "1d", group: "stress", glance: ["bodyBattery"] },
+	// No 1y on the phone or the web (ref/health-stats/body-battery/README.md).
+	{ id: "body-battery", title: "Body Battery", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "stress", glance: ["bodyBattery"] },
 	{ id: "fitness-age", title: "Fitness Age", ranges: DAY, defaultRange: "1d", group: "fitness", glance: ["fitnessAge"] },
 	{ id: "health-snapshot", title: "Health Snapshot", ranges: DAY, defaultRange: "1d", group: "health" },
 ];
