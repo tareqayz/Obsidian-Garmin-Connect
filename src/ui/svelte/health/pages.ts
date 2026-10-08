@@ -4,6 +4,7 @@ import type { HealthStatRoute, Route } from "../../../dashboard/routes";
 import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 import type { DaySeries } from "../../../sync/intraday";
 import type { IntradayLoad } from "../../../sync/intraday-registry";
+import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
 import StressPage from "../stress/StressPage.svelte";
 
 /**
@@ -54,11 +55,12 @@ export interface HealthStatPageProps {
  * Every Health Stats page built so far, by stat. One line per stat, its page
  * in `src/ui/svelte/<stat>/`:
  *
- *   import StressPage from "../stress/StressPage.svelte";
- *   export const HEALTH_PAGES: … = { stress: StressPage };
+ *   import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
+import StressPage from "../stress/StressPage.svelte";
+ *   export const HEALTH_PAGES: … = { "heart-rate": HeartRatePage, stress: StressPage };
  *
  * A stat appears in the Health Stats hub, gets an "Open <stat>" command and
  * opens from its At a Glance card once it is here. Sleep keeps its own route
  * and page, so it has no entry.
  */
-export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStatPageProps>>> = { stress: StressPage };
+export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStatPageProps>>> = { "heart-rate": HeartRatePage, stress: StressPage };

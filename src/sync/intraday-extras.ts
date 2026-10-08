@@ -1,3 +1,4 @@
+import { HEART_DAY } from "./heart-rate-index";
 import type { IntradayDef } from "./intraday-registry";
 import { STRESS_DAY } from "./stress-index";
 
@@ -14,8 +15,10 @@ import { STRESS_DAY } from "./stress-index";
  * Stress, Body Battery, heart rate and Body Battery events are the series
  * file's own blocks, loadable by their own keys. Stress still registers
  * `STRESS_DAY`, because its block turns Garmin's two "not measured" codes
- * into the same null and the 1d timeline draws them apart.
+ * into the same null and the 1d timeline draws them apart. Heart Rate
+ * registers `HEART_DAY`, because its block keeps neither the day's end nor
+ * Garmin's figures for it, which a history day's 1d page needs.
  *
  * Pure, so the tests can check every entry.
  */
-export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY];
+export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY];
