@@ -184,3 +184,15 @@
   1d "Active" chip/blocks (source unknown); the High/Low Rates chip isn't remembered; pane
   layouts only checked by tests; low dots and Active grey read alike.
 - Health Status Figma: Pulse Ox detail and out-of-range states are Inferred (no shots).
+- Remaining Health Stats, built 2026-10-08 and verified live (numbers): Health Status, Fitness
+  Age, Health Snapshot, Weight, Pulse Ox, Pulse Ox Acclimation, Blood Pressure, plus the
+  Lifestyle Logging placeholder. Provisional:
+  - Health Status: out-of-range states and the Pulse Ox detail are inferred; HRV sheet omits
+    "HRV Status Range" (not in the sleep index).
+  - Fitness Age / Snapshot / Weight panes stretch the phone chart instead of the pane frames.
+  - Weight stores height per index row (`h`); move it to account.json `profile.heightCm`.
+    7d/4w "Change" (last − first day) is inferred.
+  - Pulse Ox Acclimation uses the segmented control, not the twin's underlined tabs; its
+    elevation area groups by UTC day (inferred).
+  - Blood Pressure reading layout is inferred (no readings on this account).
+  - API catalogue notes / schema re-records listed in each stat's spec are not done yet.
