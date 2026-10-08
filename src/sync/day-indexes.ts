@@ -1,4 +1,5 @@
 import type { DayIndexDef } from "./day-index";
+import { STRESS_INDEX } from "./stress-index";
 
 /**
  * Every registered day index (`day-index.ts`), in the order the automatic
@@ -15,7 +16,7 @@ import type { DayIndexDef } from "./day-index";
  * Pure, so the tests can check every entry; a definition must not import
  * Obsidian.
  */
-export const DAY_INDEXES: readonly DayIndexDef[] = [];
+export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX];
 
 /** A registered index by its kind. */
 export function dayIndex(kind: string): DayIndexDef | undefined {

@@ -4,6 +4,7 @@ import type { HealthStatRoute, Route } from "../../../dashboard/routes";
 import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 import type { DaySeries } from "../../../sync/intraday";
 import type { IntradayLoad } from "../../../sync/intraday-registry";
+import StressPage from "../stress/StressPage.svelte";
 
 /**
  * What every Health Stats page gets from Home, whichever stat it draws: the
@@ -60,4 +61,4 @@ export interface HealthStatPageProps {
  * opens from its At a Glance card once it is here. Sleep keeps its own route
  * and page, so it has no entry.
  */
-export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStatPageProps>>> = {};
+export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStatPageProps>>> = { stress: StressPage };

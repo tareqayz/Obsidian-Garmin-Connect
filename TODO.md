@@ -155,3 +155,16 @@
   yesterday's date until it is reopened or the plugin reloads, so every page's offsets
   and "Yesterday"/"Today" labels are a day behind (seen 2026-10-08 01:30). Recompute
   today on a timer or on focus.
+- Stress (Garmin Connect rebuild, Health Stats), built 2026-10-08 on `feature/health-stats`
+  through the /garmin-page pipeline. Every golden number in `ref/health-stats/stress/README.md`
+  reproduces live; these still need the phone:
+  - The 1d timeline drawing (Active as full-height grey bars, Unmeasurable blank, the clock
+    marker, GMT offsets on 23/25 h days): the first capture ran between midnight and 04:00,
+    when the iPhone app shows no timeline. A re-shoot is in `phone/1d-r/`.
+  - A 1d day before 2026-06-01 (no intraday samples on this account): numbers with an empty
+    plot is inferred.
+  - Copy for the STRESSFUL, *_AWAKE and VERY_STRESSFUL qualifiers, and CALM's present tense:
+    unseen; they fall back to the web's "Your stress level was N out of 100."
+  - Lowest / Highest (web only) are computed but not shown, as on the phone.
+  - Dark "Low" uses Home's stress-glance colour (#986732); a paler #F2C18C reads more like
+    Garmin's but would not match Home.

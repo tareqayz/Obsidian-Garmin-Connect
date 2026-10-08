@@ -22,7 +22,9 @@ timelines and per-day chart bars come up empty (seen 2026-10-08 01:20). Capture 
 
 1. `mirror.sh doctor` → `screenRecording`, `accessibility`, `mirroringRunning` all true,
    `window` present, no `warning`. `blocking` in any shot (e.g. "Unlock Your iPhone") → stop
-   and tell the orchestrator; the user must unlock/connect.
+   and tell the orchestrator; the user must unlock/connect. Exception: after a while idle,
+   iPhone Mirroring shows "Connection Paused" — `tap --text Resume` (its own button) and wait
+   ~6 s.
 2. The window must be the calibrated size (408 × 897 pt): `doctor` warns otherwise. Resize
    with `key cmd+=` (Larger) / `key cmd+-` (Smaller) — **not** `cmd+0`, which shrinks it to
    the phone's physical size. After any size change, put the phone on Garmin's Home tab and
