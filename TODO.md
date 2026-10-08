@@ -168,3 +168,7 @@
   - Lowest / Highest (web only) are computed but not shown, as on the phone.
   - Dark "Low" uses Home's stress-glance colour (#986732); a paler #F2C18C reads more like
     Garmin's but would not match Home.
+- Home's Pulse Ox glance shows Health Status's onboarding prompt permanently: Pulse Ox has
+  been ONBOARDING in Health Status since 2026-09-02 (it is "Not enabled during sleep"), while
+  the other metrics have data. Check what the app's Home shows and match it (found by the
+  Health Status spec, 2026-10-08).
