@@ -1,20 +1,23 @@
 <script lang="ts">
 	import { DAY_RING } from "../../../dashboard/stress-charts";
 	import type { StressDayView } from "../../../dashboard/stress-pages";
+	import StatDayLayout from "../health/StatDayLayout.svelte";
+	import StatFigures from "../health/StatFigures.svelte";
+	import { PART_COLOR } from "./colors";
 	import StressRing from "./StressRing.svelte";
-	import StressTiles from "./StressTiles.svelte";
 	import StressTimeline from "./StressTimeline.svelte";
 
 	/**
-	 * A day: the ring with the day's level, the copy line, the four tiles and
-	 * the Daily Timeline under them. A pane puts the timeline on the left and
-	 * the rest in a 370pt column beside it.
+	 * A day: the ring with the day's level, the copy line, the four tiles, and
+	 * the Daily Timeline under them; a pane puts the timeline beside the rest.
 	 */
 	let { view, pane }: { view: StressDayView; pane: boolean } = $props();
+
+	let tiles = $derived(view.tiles.map((t) => (t.part ? { value: t.value, label: t.label, color: PART_COLOR[t.part] } : { value: t.value, label: t.label })));
 </script>
 
-<div class="day-body">
-	<div class="summary">
+<StatDayLayout>
+	{#snippet summary()}
 		<div class="ring">
 			<StressRing parts={view.ring} size={DAY_RING.size} thickness={DAY_RING.thickness} />
 			<div class="centre">
@@ -24,27 +27,15 @@
 		</div>
 		<!-- Not a <p>: Obsidian pads it. -->
 		<div class="copy">{view.copy}</div>
-		<div class="tiles"><StressTiles stats={view.tiles} /></div>
-	</div>
-	<div class="timeline"><StressTimeline timeline={view.timeline} {pane} /></div>
-</div>
+		<div class="tiles"><StatFigures figures={tiles} /></div>
+	{/snippet}
+	{#snippet chart()}
+		<StressTimeline timeline={view.timeline} {pane} />
+	{/snippet}
+</StatDayLayout>
 
 <style>
 	/* Measured off the twin's 1d frame (272:18), from the bottom of the header. */
-	.day-body {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-areas: "summary" "timeline";
-	}
-	.summary {
-		grid-area: summary;
-		min-width: 0;
-	}
-	.timeline {
-		grid-area: timeline;
-		min-width: 0;
-		margin-top: 21px;
-	}
 	.ring {
 		position: relative;
 		width: 182.4px;
@@ -85,20 +76,8 @@
 		padding: 0 16.5px 0 16px;
 	}
 
-	/* The twin's pane (279:3157): the timeline in the wide column, the ring,
-	   the copy and the tiles in the 370pt one. */
+	/* The twin's pane (279:3157): the ring, the copy and the tiles in the 370pt column. */
 	@container (min-width: 1000px) {
-		.day-body {
-			grid-template-columns: minmax(0, 1fr) 370px;
-			grid-template-areas: "timeline summary";
-			column-gap: 8px;
-			align-items: start;
-			--stress-title-indent: 0px;
-			--stress-tile-gap: 16px;
-		}
-		.timeline {
-			margin-top: 32px;
-		}
 		.ring {
 			margin-top: 33px;
 		}

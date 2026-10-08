@@ -1,37 +1,37 @@
 <script lang="ts">
-	import { CARD_RING } from "../../../dashboard/stress-charts";
-	import type { RingPart } from "../../../dashboard/stress-pages";
-	import StressRing from "./StressRing.svelte";
+	import type { Snippet } from "svelte";
 
 	/**
-	 * A day or a week in a Stress list. A day has its weekday over its date,
-	 * the level and a mini ring, grey with "--" on a day without data; a week
-	 * has its dates and its average on one line. Either switches the page in
-	 * place: a day to 1d, a week to 7d.
+	 * A day or a week in a Health Stats list. A day has its weekday over its
+	 * date, the figure on the right and an optional visual beside it (Stress's
+	 * mini ring); a week has its dates and its figure on one line. Tapping it
+	 * switches the page, as the app does.
 	 */
 	interface Props {
 		title: string;
 		detail?: string;
 		value: string;
-		/** A day's mini ring; a week has none. */
-		ring?: RingPart[];
+		/** "day": 73.6pt, a title over a detail; "week": 53.95pt, one line. */
+		kind?: "day" | "week";
+		/** Drawn after the figure, at the card's right edge. */
+		visual?: Snippet;
 		onclick: () => void;
 	}
 
-	let { title, detail, value, ring, onclick }: Props = $props();
+	let { title, detail, value, kind = "day", visual, onclick }: Props = $props();
 </script>
 
-<button class="stress-card" class:week={ring === undefined} {onclick}>
+<button class="stat-card" class:week={kind === "week"} {onclick}>
 	<span class="text">
 		<span class="title">{title}</span>
 		{#if detail}<span class="detail">{detail}</span>{/if}
 	</span>
 	<span class="value">{value}</span>
-	{#if ring}<StressRing parts={ring} size={CARD_RING.size} thickness={CARD_RING.thickness} />{/if}
+	{@render visual?.()}
 </button>
 
 <style>
-	.stress-card {
+	.stat-card {
 		display: flex;
 		align-items: center;
 		gap: 16.7px;
@@ -51,7 +51,7 @@
 		white-space: normal;
 		cursor: pointer;
 	}
-	.stress-card:hover {
+	.stat-card:hover {
 		background: var(--background-modifier-hover);
 	}
 	.week {

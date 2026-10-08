@@ -82,6 +82,10 @@ src/dashboard/
   stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
   stats-charts.ts        their charts' geometry, measured off the app — pure
   health-stats.ts        HEALTH_STATS: the Health Stats in the app's order, ranges, groups — pure
+  periods.ts             the periods a range stat pages through: spans, 1y weeks, card routes, labels, means — pure
+  stat-charts.ts         a Health Stats chart's box: frames, gridlines, the axis, gap-breaking lines — pure
+  stress-pages.ts        Stress: the 1d, 7d, 4w and 1y view model — pure
+  stress-charts.ts       Stress's chart frames and marks, and its ring — pure
   routes.ts              the page stack inside the Home view, and reading it back — pure
   home-view.ts           the Home ItemView: rows + series files + account.json + both indexes
   view.ts                the classic dashboard's ItemView, mounts Svelte
@@ -93,7 +97,9 @@ src/ui/svelte/activities/ More, the Activities hub, a sport's page, a month, Per
                          and All Activities, with their parts
 src/ui/svelte/stats/     the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
-src/ui/svelte/health/    the Health Stats hub, HEALTH_PAGES and the props every stat page gets
+src/ui/svelte/health/    the Health Stats hub, HEALTH_PAGES and the props every stat page gets, and
+                         the parts a stat page is built from (see "Building a stat page")
+src/ui/svelte/stress/    the Stress page: its 1d and period bodies, the ring, the timeline, its colours
 src/ui/sport-icons.ts    sport figures (Tabler, MIT) registered as Obsidian icons
 src/ui/add-stat-modal.ts Add a Stat, the picker the edit mode opens
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
@@ -352,6 +358,76 @@ and `history` (walks in progress, by kind). Re-read an index when
 `versions[kind]` moves and the series when `seriesVersion` does. The history
 banner (`activities/HistoryBanner.svelte`) shows while `history[kind]` is set
 or the index's meta is not `complete`.
+
+### Building a stat page
+
+A stat page is the shared parts below plus the stat's own view model, chart
+frames and marks. Stress is built this way (`src/ui/svelte/stress/`); start
+from it, not from a copy of it.
+
+| Shared part | What it gives a stat |
+| --- | --- |
+| `src/dashboard/periods.ts` | `periodOf` (7d, 4w, 1y rolling back from today, offsets a whole period), `rollingWeeks` and `weeksOf` (the 1y's 52 rolling weeks, each the rounded mean of its days), `switchRange`, `stepRoute`, `dayCardRoute`, `weekCardRoute`, the labels (`dayLabel` "Today" / "Wednesday, October 7", `periodLabel` "Oct 2 - 8" / "Oct 16-22, 2025", `yearLabel`, `weekTitle`, `cardDate`), the axes (`dayAxis` with its "MM-DD" ends, `monthAxis`), and `meanOf(values, rounding)`: `"floor"` for Stress, `"round"` (half up) for Body Battery, Heart Rate and Respiration |
+| `src/dashboard/stat-charts.ts` | `ChartFrame` (a chart's insets and heights, measured off the stat's Figma frame, one for the phone and one for a pane's 748pt column), `plotBox(frame, width, ticks, axis)` (gridlines, y labels, the axis' dots and labels, and the scale for the stat's marks) and `linePath` (a line that breaks at a missing value) |
+| `health/StatPageShell.svelte` | the sticky header — back and the stat's title, the range control with the stat's ranges from `HEALTH_STATS`, the period stepper (‹ disabled at the start of history, › only on a past period) — the history banner, and the phone and pane containers (640 and 1000pt) |
+| `health/StatChart.svelte` | a chart under its title: the box at the width it gets, with `under` and `over` snippets for the stat's marks and a `footer` for its key |
+| `health/StatFigures.svelte` | figures two to a row under a rule: the "Avg <metric>" block, or a day's tiles with a colour dot each |
+| `health/StatCardList.svelte`, `StatCard.svelte` | a period's day or week cards, the figure on the right and an optional `visual` snippet beside it; one a row, two from 640pt, three in a pane |
+| `health/StatDayLayout.svelte`, `StatPeriodLayout.svelte` | a 1d body (summary, then chart) and a 7d / 4w / 1y body (chart, figures, list), side by side in a pane |
+
+`StatPageShell` takes the page's `route`, `today`, `onBack` and `swap` from
+`HealthStatPageProps`, the period's `label` and `canGoBack` from the stat's
+view, an optional `history` (`{ title, windowDays, complete, walking,
+canSync, onSync }`, for the banner) and an optional `style` (custom
+properties for the whole page, such as a stat's colours). It moves the page
+itself; its body snippet gets `{ pane, move }`, so a card switches the page
+with `move(dayCardRoute(date, today))`. Spacing defaults are the twin's for
+Stress; a stat whose twin differs sets the layouts' custom properties
+(`--stat-chart-top`, `--stat-chart-top-pane`, `--stat-figures-top-pane`,
+`--stat-list-top`, `--stat-list-top-pane`).
+
+What stays the stat's own: its view model's rules (what a figure is, its
+rounding, its copy), its chart frames (measured off its own twin) and marks,
+and anything only it draws — Stress's ring, colours and timeline stay in
+`src/ui/svelte/stress/`.
+
+A 7d / 4w page, sketched for a stat like Respiration:
+
+```ts
+// src/dashboard/respiration-charts.ts — its frames, measured off its twin
+const FRAMES: Record<"phone" | "pane", ChartFrame> = { phone: { left: 46, … }, pane: { left: 32, … } };
+
+export function respirationPlot(view: RespirationPeriodView, width: number, pane: boolean) {
+	const { box, scale } = plotBox(FRAMES[pane ? "pane" : "phone"], width, view.ticks, view.axis);
+	return { ...box, line: linePath(view.points.map((p) => [scale.x(p.x), p.value === null ? null : scale.y(p.value)])) };
+}
+```
+
+```svelte
+<!-- src/ui/svelte/respiration/RespirationPage.svelte -->
+<StatPageShell {route} {today} {onBack} {swap} label={view.label} canGoBack={view.canGoBack}
+	history={{ title: RESPIRATION_INDEX.title, windowDays: RESPIRATION_INDEX.windowDays, complete,
+		walking: history.respiration, canSync, onSync: () => onSyncHistory("respiration") }}>
+	{#snippet children({ pane, move })}
+		<StatPeriodLayout>
+			{#snippet chart()}
+				<StatChart title="Daily Averages" {pane} plot={(width) => respirationPlot(view, width, pane)}>
+					{#snippet over(p)}<path class="line" d={p.line} />{/snippet}
+				</StatChart>
+			{/snippet}
+			{#snippet figures()}<StatFigures figures={[{ value: view.average, label: "Avg Waking" }]} />{/snippet}
+			{#snippet list()}
+				<StatCardList items={view.days.map((d) => ({ key: d.date, title: d.weekday, detail: d.detail,
+					value: d.value, kind: "day", onclick: () => move(dayCardRoute(d.date, today)) }))} />
+			{/snippet}
+		</StatPeriodLayout>
+	{/snippet}
+</StatPageShell>
+```
+
+The view behind it is `periodOf` for the span, `daysOf` and `dayAxis` for
+the points and the axis, `periodLabel` for the label and `meanOf(values,
+"round")` for the average.
 
 ## Error taxonomy
 

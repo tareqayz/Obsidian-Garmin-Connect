@@ -4,19 +4,21 @@ import { stressCopy } from "../src/dashboard/stress-copy";
 import {
 	dayCardRoute,
 	dayLabel,
-	duration,
 	periodLabel,
+	periodSeriesDays,
 	stepRoute,
-	stressDayView,
-	stressPeriodView,
-	stressSeriesDays,
-	stressView,
-	stressWeeks,
 	switchRange,
-	timelineOf,
 	weekCardRoute,
 	weekTitle,
 	yearLabel,
+} from "../src/dashboard/periods";
+import {
+	duration,
+	stressDayView,
+	stressPeriodView,
+	stressView,
+	stressWeeks,
+	timelineOf,
 	type StressData,
 	type StressDayView,
 	type StressPeriodView,
@@ -475,8 +477,8 @@ describe("moving between pages", () => {
 	});
 
 	it("loads readings for a 1d page's day only", () => {
-		assert.deepEqual(stressSeriesDays({ range: "1d", offset: -1 }, TODAY), ["2026-10-07"]);
-		assert.deepEqual(stressSeriesDays({ range: "7d", offset: 0 }, TODAY), []);
+		assert.deepEqual(periodSeriesDays({ range: "1d", offset: -1 }, TODAY), ["2026-10-07"]);
+		assert.deepEqual(periodSeriesDays({ range: "7d", offset: 0 }, TODAY), []);
 		assert.equal(stressView({ data: data(), route: { range: "1d", offset: 0 }, today: TODAY }).range, "1d");
 		assert.equal(stressView({ data: data(), route: { range: "4w", offset: 0 }, today: TODAY }).range, "4w");
 	});

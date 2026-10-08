@@ -1,70 +1,27 @@
+import { linePath, plotBox, r2, type ChartFrame, type PlotBox } from "./stat-charts";
 import type { RingPart, StressPart, StressPeriodView, StressTimeline } from "./stress-pages";
 
 /**
- * Where the marks of the Stress charts go, measured off the Figma frames of
- * the app (Garmin / Stress, page 239:10: 1d 260:1478, 7d 255:17, 4w 258:421,
- * 1y 259:1265). The Obsidian twin (page 239:22) draws the same charts 56pt
- * higher on its page, at the same sizes.
+ * The Stress charts: their frames, measured off the Figma frames of the app
+ * (Garmin / Stress, page 239:10: 1d 260:1478, 7d 255:17, 4w 258:421, 1y
+ * 259:1265; the Obsidian twin, page 239:22, draws them 56pt higher on its
+ * page at the same sizes), and the marks only Stress draws: the averages'
+ * line, the day's bars, and the ring. The box every chart shares — gridlines,
+ * y labels, the axis — comes from `stat-charts.ts`.
  *
- * The values arrive worked out by `stress-pages.ts`, every x a fraction of
- * the plot. Here they become pixels in the chart's own box, whose top is the
- * bottom of the chart's title (22pt of 18pt type): each chart keeps the
- * phone's insets and heights and stretches its plot across whatever width
- * it gets. A pane (the twin's 1190pt frames, the chart in a 748pt column)
- * has frames of its own: the plot from 32pt in to the column's edge and
- * 240pt tall, every mark below it where the phone has it.
+ * A pane (the twin's 1190pt frames, the chart in a 748pt column) has frames
+ * of its own: the plot from 32pt in to the column's edge and 240pt tall,
+ * every mark below it where the phone has it.
  */
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Every Stress chart: 0 to 100, labelled every 25, whatever the data. */
 const TICKS = [100, 75, 50, 25, 0];
-const SMALL_DOT = 1.75;
-const LARGE_DOT = 4;
-
-/** Clamped to the axis. */
-function yOf(top: number, baseline: number): (v: number) => number {
-	return (v) => baseline - (Math.min(100, Math.max(0, v)) / 100) * (baseline - top);
-}
-
-/** A polyline through the points, broken wherever a value is missing. */
-function pathOf(points: ReadonlyArray<[number, number | null]>): string {
-	let d = "";
-	let pen = false;
-	for (const [px, py] of points) {
-		if (py === null) {
-			pen = false;
-			continue;
-		}
-		d += `${pen ? "L" : "M"}${r2(px)} ${r2(py)} `;
-		pen = true;
-	}
-	return d.trim();
-}
 
 /* ------------------------------------------------------------------ */
 /*  Daily and Weekly Averages                                          */
 /* ------------------------------------------------------------------ */
-
-interface LineFrame {
-	/** Where the first and last day sit, or a year's axis ends: from the left, and in from the right. */
-	left: number;
-	inset: number;
-	/** The gridlines' own ends. */
-	gridLeft: number;
-	gridInset: number;
-	/** The 100 and 0 gridlines. */
-	top: number;
-	baseline: number;
-	/** The y labels' right edge; each label is centred on its gridline. */
-	labelRight: number;
-	dotY: number;
-	/** The day labels' centre, or the foot of a year's upright month names. */
-	labelY: number;
-	/** Down to the stat under the chart. */
-	height: number;
-}
 
 /**
  * Figma's 7d and 4w frames (their title's bottom at 270.56): gridlines from
@@ -75,7 +32,7 @@ interface LineFrame {
  * from 32 to the column's right edge, 200.05 to 440.05; the days end 0.56
  * short of it and the months 3.35 past it, as the phone's do.
  */
-const LINE_FRAMES: Readonly<Record<"phone" | "pane", Record<"days" | "year", LineFrame>>> = {
+const LINE_FRAMES: Readonly<Record<"phone" | "pane", Record<"days" | "year", ChartFrame>>> = {
 	phone: {
 		days: { left: 46, inset: 33.75, gridLeft: 46, gridInset: 33.5, top: 52.94, baseline: 234.19, labelRight: 28, dotY: 267.44, labelY: 280.04, height: 324.94 },
 		year: { left: 35.75, inset: 44, gridLeft: 36, gridInset: 45.5, top: 33.19, baseline: 237.04, labelRight: 26.3, dotY: 249.44, labelY: 282.04, height: 324.94 },
@@ -86,50 +43,26 @@ const LINE_FRAMES: Readonly<Record<"phone" | "pane", Record<"days" | "year", Lin
 	},
 };
 
-export interface LinePlot {
-	width: number;
-	height: number;
-	left: number;
-	right: number;
-	top: number;
-	baseline: number;
-	labelRight: number;
-	grid: Array<{ y: number; x1: number; x2: number; label: string }>;
+export interface LinePlot extends PlotBox {
 	/** Through the points, broken where a day or week has no level: no dot there, and no segment to either side. */
 	line: string;
 	lineWidth: number;
 	/** A dot a day with a level; a year's line has none. */
 	points: Array<{ x: number; y: number }>;
 	pointRadius: number;
-	/** The axis: a dot a day, the ends large; or a large dot a month. */
-	dots: Array<{ x: number; y: number; r: number }>;
-	/** Centred on `x`; a rotated label stands on end, reading up from `y`. */
-	labels: Array<{ x: number; y: number; text: string; rotated: boolean }>;
 }
 
 /** `pane`: the twin's pane frame, for a page laid out as a pane. */
 export function linePlot(view: StressPeriodView, width: number, pane = false): LinePlot {
 	const f = LINE_FRAMES[pane ? "pane" : "phone"][view.range === "1y" ? "year" : "days"];
-	const right = Math.max(f.left + 60, width - f.inset);
-	const gridRight = Math.max(f.gridLeft + 60, width - f.gridInset);
-	const x = (t: number) => f.left + t * (right - f.left);
-	const y = yOf(f.top, f.baseline);
+	const { box, scale } = plotBox(f, width, TICKS, view.axis);
 	const points = view.points.filter((p): p is { x: number; value: number } => p.value !== null);
 	return {
-		width,
-		height: f.height,
-		left: f.left,
-		right: r2(right),
-		top: f.top,
-		baseline: f.baseline,
-		labelRight: f.labelRight,
-		grid: TICKS.map((v) => ({ y: r2(y(v)), x1: f.gridLeft, x2: r2(gridRight), label: String(v) })),
-		line: pathOf(view.points.map((p) => [x(p.x), p.value === null ? null : y(p.value)])),
+		...box,
+		line: linePath(view.points.map((p) => [scale.x(p.x), p.value === null ? null : scale.y(p.value)])),
 		lineWidth: 2,
-		points: view.dots ? points.map((p) => ({ x: r2(x(p.x)), y: r2(y(p.value)) })) : [],
+		points: view.dots ? points.map((p) => ({ x: r2(scale.x(p.x)), y: r2(scale.y(p.value)) })) : [],
 		pointRadius: 4,
-		dots: view.axis.dots.map((d) => ({ x: r2(x(d.x)), y: f.dotY, r: d.large ? LARGE_DOT : SMALL_DOT })),
-		labels: view.axis.labels.map((l) => ({ x: r2(x(l.x)), y: f.labelY, text: l.text, rotated: l.rotated === true })),
 	};
 }
 
@@ -143,22 +76,16 @@ export function linePlot(view: StressPeriodView, width: number, pane = false): L
  * 956.14, the legend below at 982.4. The pane (279:3157), from the column's
  * edge and its title's bottom at 171: x 32 to 20 short of the column's right
  * edge, gridlines from 200.05 to 440.05, the rest as far below as the
- * phone's. The clock marker is the phone's ≈19pt.
+ * phone's.
  */
-const TIMELINES = {
-	phone: { left: 38, inset: 25.5, top: 37.94, baseline: 225.19, labelRight: 28, dotY: 252.44, labelY: 265.08, height: 291.34, marker: 9.5 },
-	pane: { left: 32, inset: 20, top: 29.05, baseline: 269.05, labelRight: 24, dotY: 296.3, labelY: 308.94, height: 335.2, marker: 9.5 },
-} as const;
+const TIMELINES: Readonly<Record<"phone" | "pane", ChartFrame>> = {
+	phone: { left: 38, inset: 25.5, gridLeft: 38, gridInset: 25.5, top: 37.94, baseline: 225.19, labelRight: 28, dotY: 252.44, labelY: 265.08, height: 291.34 },
+	pane: { left: 32, inset: 20, gridLeft: 32, gridInset: 20, top: 29.05, baseline: 269.05, labelRight: 24, dotY: 296.3, labelY: 308.94, height: 335.2 },
+};
+/** The clock marker: the phone's ≈19pt. */
+const MARKER = 9.5;
 
-export interface TimelinePlot {
-	width: number;
-	height: number;
-	left: number;
-	right: number;
-	top: number;
-	baseline: number;
-	labelRight: number;
-	grid: Array<{ y: number; x1: number; x2: number; label: string }>;
+export interface TimelinePlot extends PlotBox {
 	/** A bar a reading, from the 0 line up to its level; a 0 still shows a sliver. */
 	bars: Array<{ x: number; y: number; w: number; h: number; tone: "rest" | "stress" }>;
 	/**
@@ -168,9 +95,6 @@ export interface TimelinePlot {
 	active: Array<{ x: number; y: number; w: number; h: number }>;
 	/** Unmeasurable: nothing scored there, the legend's hollow ring. Left blank unless the re-shoot says otherwise. */
 	unmeasurable: Array<{ x: number; w: number }>;
-	dots: Array<{ x: number; y: number; r: number }>;
-	/** Centred on `x` and `y`. */
-	labels: Array<{ x: number; y: number; text: string }>;
 	/** The clock marker where the night ended, on the dot row. */
 	marker?: { x: number; y: number; r: number };
 }
@@ -178,29 +102,21 @@ export interface TimelinePlot {
 /** `pane`: the twin's pane frame, for a page laid out as a pane. */
 export function timelinePlot(t: StressTimeline, width: number, pane = false): TimelinePlot {
 	const f = TIMELINES[pane ? "pane" : "phone"];
-	const right = Math.max(f.left + 60, width - f.inset);
-	const span = right - f.left;
-	const x = (fraction: number) => f.left + fraction * span;
-	const y = yOf(f.top, f.baseline);
-	const plot: TimelinePlot = {
-		width,
-		height: f.height,
-		left: f.left,
-		right: r2(right),
-		top: f.top,
-		baseline: f.baseline,
-		labelRight: f.labelRight,
-		grid: TICKS.map((v) => ({ y: r2(y(v)), x1: f.left, x2: r2(right), label: String(v) })),
-		bars: t.bars.map((b) => {
-			const top = y(Math.max(1, b.level));
-			return { x: r2(x(b.x0)), y: r2(top), w: r2((b.x1 - b.x0) * span), h: r2(f.baseline - top), tone: b.tone };
-		}),
-		active: t.active.map((a) => ({ x: r2(x(a.x0)), y: f.top, w: r2((a.x1 - a.x0) * span), h: r2(f.baseline - f.top) })),
-		unmeasurable: t.unmeasurable.map((u) => ({ x: r2(x(u.x0)), w: r2((u.x1 - u.x0) * span) })),
-		dots: t.ticks.map((tick) => ({ x: r2(x(tick.x)), y: f.dotY, r: tick.large ? LARGE_DOT : SMALL_DOT })),
-		labels: t.ticks.flatMap((tick) => (tick.label ? [{ x: r2(x(tick.x)), y: f.labelY, text: tick.label }] : [])),
+	const axis = {
+		dots: t.ticks.map((tick) => ({ x: tick.x, large: tick.large })),
+		labels: t.ticks.flatMap((tick) => (tick.label ? [{ x: tick.x, text: tick.label }] : [])),
 	};
-	if (t.wake !== undefined) plot.marker = { x: r2(x(t.wake)), y: f.dotY, r: f.marker };
+	const { box, scale } = plotBox(f, width, TICKS, axis);
+	const plot: TimelinePlot = {
+		...box,
+		bars: t.bars.map((b) => {
+			const top = scale.y(Math.max(1, b.level));
+			return { x: r2(scale.x(b.x0)), y: r2(top), w: r2((b.x1 - b.x0) * scale.span), h: r2(f.baseline - top), tone: b.tone };
+		}),
+		active: t.active.map((a) => ({ x: r2(scale.x(a.x0)), y: f.top, w: r2((a.x1 - a.x0) * scale.span), h: r2(f.baseline - f.top) })),
+		unmeasurable: t.unmeasurable.map((u) => ({ x: r2(scale.x(u.x0)), w: r2((u.x1 - u.x0) * scale.span) })),
+	};
+	if (t.wake !== undefined) plot.marker = { x: r2(scale.x(t.wake)), y: f.dotY, r: MARKER };
 	return plot;
 }
 
