@@ -64,7 +64,8 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "health-status", title: "Health Status", ranges: DAY, defaultRange: "1d", group: "health", glance: ["healthStatus"] },
 	{ id: "lifestyle-logging", title: "Lifestyle Logging", ranges: ALL, defaultRange: "1d", group: "health", glance: ["lifestyle"] },
 	{ id: "weight", title: "Weight", ranges: ALL, defaultRange: "1d", group: "body", glance: ["weight"] },
-	{ id: "pulse-ox", title: "Pulse Ox", ranges: ALL, defaultRange: "1d", group: "spo2", glance: ["pulseOx"] },
+	// 1d / 7d / 4w only (ref/health-stats/pulse-ox/README.md).
+	{ id: "pulse-ox", title: "Pulse Ox", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "spo2", glance: ["pulseOx"] },
 	{ id: "pulse-ox-acclimation", title: "Pulse Ox Acclimation", ranges: ALL, defaultRange: "1d", group: "spo2" },
 	// 1d / 7d / 4w only (ref/health-stats/respiration/README.md).
 	{ id: "respiration", title: "Respiration", ranges: ["1d", "7d", "4w"], defaultRange: "1d", group: "respiration", glance: ["respiration"] },
