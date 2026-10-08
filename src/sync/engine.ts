@@ -784,7 +784,8 @@ export interface IndexFeed {
  * is any stretch between the index's newest day and `from`, so a vault left
  * closed for a fortnight comes back without a hole. An index without
  * `fromSummary` fetches the run's days that way too: one request per
- * `windowDays`.
+ * `windowDays`. An index with `refreshDays` has its last days asked again
+ * whether it holds them or not, for the rows Garmin revises late.
  */
 export async function feedIndex<R extends DayRow>(
 	runtime: DayIndexRuntime<R>,
@@ -806,6 +807,11 @@ export async function feedIndex<R extends DayRow>(
 			if (held?.to && held.to < shiftDate(from, -1)) start = shiftDate(held.to, 1);
 		} catch (err) {
 			out.warnings.push(message(err));
+		}
+		// Days Garmin revises late are asked again on every sync, held or not.
+		if (def.refreshDays > 0) {
+			const refresh = shiftDate(to, -(def.refreshDays - 1));
+			if (refresh < start) start = refresh;
 		}
 		let failed = false;
 		const missing = dateRange(start, to).filter((d) => !dates.has(d));

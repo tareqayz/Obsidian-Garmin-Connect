@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+	DEFAULT_WINDOW_DAYS,
 	MAX_WINDOW_DAYS,
 	RESERVED_INDEX_NAMES,
 	dedupeByDate,
@@ -147,11 +148,24 @@ describe("defineDayIndex — merge", () => {
 describe("defineDayIndex — checks", () => {
 	const bad = (over: Record<string, unknown>) => () => defineDayIndex({ ...SPEC, ...over } as DayIndexSpec<TestRow>);
 
-	it("refuses a window Garmin would answer 400 for", () => {
-		assert.equal(MAX_WINDOW_DAYS, 28);
-		assert.throws(bad({ windowDays: 29 }), /windowDays/);
+	it("takes 28 days a window unless the definition says otherwise, up to about ten years", () => {
+		assert.equal(DEFAULT_WINDOW_DAYS, 28);
+		const { windowDays: _window, ...noWindow } = SPEC;
+		assert.equal(defineDayIndex(noWindow).windowDays, 28);
+		// Respiration 31, fitness age 29, the weekly ranges 364, HRV 367, Health Status no cap.
+		for (const days of [7, 29, 31, 364, 367, MAX_WINDOW_DAYS]) assert.equal(defineDayIndex({ ...SPEC, windowDays: days }).windowDays, days);
+		assert.equal(MAX_WINDOW_DAYS, 3660);
 		assert.throws(bad({ windowDays: 0 }), /windowDays/);
-		assert.doesNotThrow(bad({ windowDays: 7 }));
+		assert.throws(bad({ windowDays: MAX_WINDOW_DAYS + 1 }), /windowDays/);
+		assert.throws(bad({ windowDays: 7.5 }), /windowDays/);
+	});
+
+	it("refreshes nothing unless told to, and never a stretch that cannot be one", () => {
+		assert.equal(DEF.refreshDays, 0);
+		assert.equal(defineDayIndex({ ...SPEC, refreshDays: 28 }).refreshDays, 28);
+		assert.throws(bad({ refreshDays: -1 }), /refreshDays/);
+		assert.throws(bad({ refreshDays: 2.5 }), /refreshDays/);
+		assert.throws(bad({ refreshDays: MAX_WINDOW_DAYS + 1 }), /refreshDays/);
 	});
 
 	it("refuses names the store already uses, and names that are not names", () => {

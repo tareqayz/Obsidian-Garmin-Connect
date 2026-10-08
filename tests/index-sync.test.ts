@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { DailySummary } from "../src/garmin/endpoints";
 import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
-import { defineDayIndex, type DayIndexBatch, type DayIndexSpec } from "../src/sync/day-index";
+import { defineDayIndex, extendSpan, rowsByYear, type DayIndexBatch, type DayIndexDef, type DayIndexSpec } from "../src/sync/day-index";
 import { feedIndex, syncRange, walkHistory, type DayIndexRuntime, type NoteTarget, type SyncSource } from "../src/sync/engine";
 
 interface StressRow {
@@ -151,6 +151,34 @@ class FakeSink {
 	}
 }
 
+/**
+ * A sink that keeps each file's text, as the vault store does, and counts the
+ * files whose text changed: what a merge would really write.
+ */
+class TextSink {
+	rows: StressRow[] = [];
+	files = new Map<string, string>();
+	held: { from?: string; to?: string } | null = null;
+	constructor(private def: DayIndexDef<StressRow>) {}
+	async coverage() {
+		return this.held;
+	}
+	async merge(batch: DayIndexBatch<StressRow>, covered: { from: string; to: string } | null) {
+		this.rows = this.def.merge(this.rows, batch);
+		if (covered) this.held = extendSpan(this.held, covered.from, covered.to);
+		const texts = new Map<string, string>();
+		for (const [year, list] of rowsByYear(this.rows)) texts.set(`${year}.json`, this.def.serializeYear(year, list));
+		texts.set("index.json", this.def.serializeMeta({ version: this.def.version, complete: false, ...this.held }));
+		let written = 0;
+		for (const [name, text] of texts) {
+			if (this.files.get(name) === text) continue;
+			this.files.set(name, text);
+			written += 1;
+		}
+		return written;
+	}
+}
+
 function runtime(spec: Partial<DayIndexSpec<StressRow>>, fetch: (start: string, end: string) => Promise<ReadonlyArray<Record<string, unknown>>>) {
 	const sink = new FakeSink();
 	const def = defineDayIndex({ ...SPEC, ...spec });
@@ -240,6 +268,34 @@ describe("feedIndex", () => {
 		const got = await feedIndex(rt, { rows: [], dates: [] }, "2026-09-10", "2026-09-12", { fetchMissing: true });
 		assert.deepEqual(source.calls, ["2026-09-10 2026-09-12"]);
 		assert.deepEqual(got.warnings, ["unreadable"]);
+	});
+
+	it("asks the last refreshDays days again on every sync, held or not", async () => {
+		const source = windows("2026-01-01", "2026-12-31");
+		const { rt, sink } = runtime({ refreshDays: 5 }, source.fetch);
+		sink.held = { from: "2026-01-01", to: "2026-09-12" };
+		await feedIndex(rt, summaries(["2026-09-12"]), "2026-09-12", "2026-09-12", { fetchMissing: true });
+		assert.deepEqual(source.calls, ["2026-09-08 2026-09-11"]);
+		assert.deepEqual(sink.merged[0]!.covered, { from: "2026-09-08", to: "2026-09-12" });
+		// Without it, the same sync asks nothing.
+		const plain = runtime({}, windows("2026-01-01", "2026-12-31").fetch);
+		plain.sink.held = { from: "2026-01-01", to: "2026-09-12" };
+		assert.equal((await feedIndex(plain.rt, summaries(["2026-09-12"]), "2026-09-12", "2026-09-12", { fetchMissing: true })).requests, 0);
+	});
+
+	it("writes nothing when the days it asked again come back the same, and the one Garmin rescored when one moved", async () => {
+		const def = defineDayIndex({ ...SPEC, refreshDays: 5 });
+		const sink = new TextSink(def);
+		const held = (await windows("2026-09-01", "2026-09-12").fetch("2026-09-01", "2026-09-12")) as unknown as StressRow[];
+		await sink.merge({ rows: held, dates: held.map((r) => r.date) }, { from: "2026-09-01", to: "2026-09-12" });
+		const same = await feedIndex({ def, sink, fetchWindow: windows("2026-09-01", "2026-09-12").fetch }, { rows: [], dates: [] }, "2026-09-12", "2026-09-12", { fetchMissing: true });
+		assert.equal(same.requests, 1);
+		assert.equal(same.written, 0);
+		const rescored = async (start: string, end: string) =>
+			(await windows("2026-09-01", "2026-09-12").fetch(start, end)).map((r) => (r.date === "2026-09-09" ? { ...r, avg: 31 } : r));
+		const moved = await feedIndex({ def, sink, fetchWindow: rescored }, { rows: [], dates: [] }, "2026-09-12", "2026-09-12", { fetchMissing: true });
+		assert.equal(moved.written, 1);
+		assert.equal(sink.rows.find((r) => r.date === "2026-09-09")?.avg, 31);
 	});
 
 	it("reports a sink that cannot write without failing", async () => {

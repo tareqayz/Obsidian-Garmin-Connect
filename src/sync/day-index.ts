@@ -98,8 +98,19 @@ export interface DayIndexSpec<R extends DayRow> {
 	keepOld: boolean;
 	/** The settings group the index belongs to: nothing is fetched while it is off. */
 	group: MetricGroup;
-	/** Days a window request covers, at most 28: Garmin answers 400 for 29. */
-	windowDays: number;
+	/**
+	 * Days a window request covers: 28 unless the endpoint takes more (the
+	 * respiration range 31, fitness age 29, HRV 367, the weekly weight and
+	 * blood pressure ranges 364; Health Status's has no cap). At most 3660.
+	 */
+	windowDays?: number;
+	/**
+	 * Days back from a routine sync's last day fetched again on every sync,
+	 * held or not, for a stat Garmin revises late (Health Status rescores days
+	 * up to 26 days on). 0, the default, fetches only what the index lacks. A
+	 * row that comes back the same writes nothing.
+	 */
+	refreshDays?: number;
 	/** Windows in a row without a row that end a history walk, once past `notBefore`. */
 	emptyWindowsToStop: number;
 	/** How far back from today Garmin keeps the stat at all; a walk stops there. */
@@ -126,6 +137,7 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 	readonly keepOld: boolean;
 	readonly group: MetricGroup;
 	readonly windowDays: number;
+	readonly refreshDays: number;
 	readonly emptyWindowsToStop: number;
 	readonly maxHistoryDays?: number;
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
@@ -146,8 +158,11 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 /** Folders and kinds the store already uses for something else. */
 export const RESERVED_INDEX_NAMES: readonly string[] = ["series", "activities", "daily-stats", "sleep"];
 
-/** Garmin's range endpoints refuse a 29th day. */
-export const MAX_WINDOW_DAYS = 28;
+/** Days a window covers unless a definition says otherwise: most of Garmin's range endpoints refuse a 29th day. */
+export const DEFAULT_WINDOW_DAYS = 28;
+
+/** The widest window, and the longest refresh, a definition may ask for: about ten years. */
+export const MAX_WINDOW_DAYS = 3660;
 
 /**
  * A stat's index, checked. Throws on a definition that cannot work, so the
@@ -244,7 +259,8 @@ export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayInde
 		keys,
 		keepOld: spec.keepOld,
 		group: spec.group,
-		windowDays: spec.windowDays,
+		windowDays: spec.windowDays ?? DEFAULT_WINDOW_DAYS,
+		refreshDays: spec.refreshDays ?? 0,
 		emptyWindowsToStop: spec.emptyWindowsToStop,
 		...(spec.maxHistoryDays !== undefined ? { maxHistoryDays: spec.maxHistoryDays } : {}),
 		fetchWindow: (api, start, end) => spec.fetchWindow(api, start, end),
@@ -339,8 +355,13 @@ function problemWith(spec: DayIndexSpec<DayRow>): string | null {
 			return `column "${key}": precision must be 0 to 6`;
 		}
 	}
-	if (!Number.isInteger(spec.windowDays) || spec.windowDays < 1 || spec.windowDays > MAX_WINDOW_DAYS) {
+	const windowDays = spec.windowDays ?? DEFAULT_WINDOW_DAYS;
+	if (!Number.isInteger(windowDays) || windowDays < 1 || windowDays > MAX_WINDOW_DAYS) {
 		return `windowDays must be 1 to ${MAX_WINDOW_DAYS}`;
+	}
+	const refreshDays = spec.refreshDays ?? 0;
+	if (!Number.isInteger(refreshDays) || refreshDays < 0 || refreshDays > MAX_WINDOW_DAYS) {
+		return `refreshDays must be 0 to ${MAX_WINDOW_DAYS}`;
 	}
 	if (!Number.isInteger(spec.emptyWindowsToStop) || spec.emptyWindowsToStop < 1) return "emptyWindowsToStop must be 1 or more";
 	if (spec.maxHistoryDays !== undefined && (!Number.isInteger(spec.maxHistoryDays) || spec.maxHistoryDays < 1)) {

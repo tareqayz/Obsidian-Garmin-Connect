@@ -278,17 +278,25 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 - **`keepOld`**: true keeps the fields a new row lacks (daily stats' calories),
   false replaces the row whole (a night). A day a fetch asked about and found
   empty loses its row either way.
-- **`windowDays`** is at most 28: Garmin answers 400 for a 29-day range.
-  `emptyWindowsToStop` windows in a row without a row end a history walk,
-  once it is past the oldest activity; `maxHistoryDays` stops it where Garmin
-  stops keeping the stat.
+- **`windowDays`** is 28 unless a definition says otherwise: most range
+  endpoints answer 400 for a 29-day range. An endpoint that takes more is
+  given its own cap (the respiration range 31, fitness age 29, HRV 367, the
+  weekly weight and blood pressure ranges 364; Health Status's range has none),
+  up to 3660. `emptyWindowsToStop` windows in a row without a row end a
+  history walk, once it is past the oldest activity; `maxHistoryDays` stops it
+  where Garmin stops keeping the stat.
+- **`refreshDays`** (0 by default) has every routine sync fetch the index's
+  last days again, held or not, for a stat Garmin revises late: Health Status
+  rescores days up to 26 days on. A row that comes back the same changes no
+  file.
 - **`fetchWindow(api, start, end)`** owns its request, through the API batch's
   wrapper or `api.request`. **`fromSummary(summary, date)`** makes the run's own
   days free: the daily summary is fetched anyway.
 - Bump **`version`** when a row's meaning changes: an `index.json` of another
   version reads as none, and the history is fetched again.
-- `defineDayIndex` throws on a definition that cannot work — a 29-day window,
-  a folder the store already uses — so the mistake fails the build's tests.
+- `defineDayIndex` throws on a definition that cannot work — a window over
+  3660 days, a negative refresh, a folder the store already uses — so the
+  mistake fails the build's tests.
 
 ```
 engine.ts     takeSummary ← each day's summary, through fromSummary, at no cost ──┐
