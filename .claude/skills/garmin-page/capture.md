@@ -11,17 +11,22 @@ The helper is a signed background app (`npm run iphone:build`, lives in
 are granted to **Garmin Mirror**, not to the terminal. `mirror.sh stop` refuses all input
 until `mirror.sh resume`; closing iPhone Mirroring also stops everything.
 
-### When to capture
+### When to capture: relaunch the app first
 
-**The iPhone app anchors "today" on the watch's last sync, by its UTC date.** After a sync
-between local midnight and 04:00 (UTC+4) — or with no sync since — "Today" shows the
-previous day's numbers, every day label and day card is one day off, and 1d timelines and
-per-day bars come up empty. It does **not** clear at 04:00 by itself (seen 2026-10-08
-01:20–05:17); it clears with the next watch sync made after 04:00 local. So capture after a
-sync that happened today after 04:00 (the web's device menu shows "Last synced Today at …").
-Navigation-only rules forbid tapping Sync yourself — ask the user to sync once. If you must
-shoot anyway, note "data date = label − 1 day" in `INDEX.md` and list the 1d timelines for a
-re-shoot.
+**The iPhone app can get stuck a day behind.** After a sync between local midnight and 04:00
+(UTC+4), "Today" shows the previous day's numbers, every day label and card is one day off,
+and 1d timelines and per-day bars come up empty. Neither 04:00 nor a later watch sync clears
+it (seen 2026-10-08 01:20–06:16). **Relaunching the app does** (verified 06:20):
+
+```bash
+mirror.sh key cmd+2                                   # App Switcher (non-Garmin screen: don't print its OCR)
+mirror.sh shot <scratch>/switcher.png                 # find Garmin's card; delete the shot afterwards
+mirror.sh drag <x on Garmin's card> 500 60 --why "close Garmin Connect to clear its date shift"
+mirror.sh key cmd+1 && mirror.sh open-app "Garmin Connect"
+```
+
+Do this at the start of every capture session, then check that Stress "Today" matches today's
+web numbers. Swipe only on Garmin's own card (other cards show the user's private content).
 
 ### Session start
 
@@ -52,6 +57,7 @@ the user's contacts, files and notifications.
 | `tap --xy X Y --why "<step>"` | Icon taps only (period arrows, chips without text). Logged. |
 | `back` | The navigation bar's back chevron (20, 77). Refused (`NO_BACK`) on root tabs, where that spot is the profile picture, and wherever no blue chevron is drawn. |
 | `scroll down\|up <pt> [--at y]` | Vertical wheel scroll. Never horizontal: sideways swipes change the period. |
+| `drag X Y1 Y2 --why "…"` | Vertical drags only — e.g. closing Garmin in the App Switcher. |
 | `key cmd+1\|cmd+2\|cmd+3\|cmd+=\|cmd+-\|return\|escape` | Home Screen, App Switcher, Spotlight, Larger, Smaller; `escape` closes popovers and sheets. |
 | `type "<text>"` | Spotlight only; letters, digits, space and basic punctuation (US key codes). |
 

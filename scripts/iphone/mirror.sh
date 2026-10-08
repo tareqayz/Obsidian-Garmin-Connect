@@ -8,6 +8,7 @@
 #   tap --text "<label>" [--nth k] [--contains] | tap --xy X Y --why "<step>"
 #   back                              tap the navigation bar's back chevron
 #   scroll down|up <points> [--at <y>]
+#   drag X Y1 Y2 --why "…"           vertical drag only (e.g. close an app in the App Switcher)
 #   key cmd+1|cmd+2|cmd+3|return|escape
 #   type "<text>"                     Spotlight search only
 #   open-app "<App Name>"
@@ -35,7 +36,7 @@ done
 # The app starts in /, so the output path must be absolute.
 if [[ ($cmd == shot || $cmd == ocr-file || $cmd == calibrate) && ${#args} -gt 0 && ${args[1]} != --* ]]; then args[1]=${args[1]:A}; fi
 case $cmd in
-	tap|back|scroll|key|type|open-app)
+	tap|back|scroll|drag|key|type|open-app)
 		if [[ -e "$DIR/STOP" ]]; then print -r -- '{"error":"KILL_SWITCH","ok":false}'; exit 1; fi
 		# Activate iPhone Mirroring first; a click that has to activate the window is lost.
 		if ! lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q com.apple.ScreenContinuity; then

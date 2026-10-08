@@ -399,6 +399,28 @@ func scroll(_ win: Win, down: Bool, points: Double, at p: CGPoint) {
 	}
 }
 
+/// A vertical drag (e.g. swiping an app card up in the App Switcher to close it).
+/// Never sideways: a horizontal swipe over a chart changes the period.
+func drag(_ win: Win, from a: CGPoint, to b: CGPoint) {
+	let src = CGEventSource(stateID: .hidSystemState)
+	let pa = win.screen(a), pb = win.screen(b)
+	withCursorRestored {
+		post(CGEvent(mouseEventSource: src, mouseType: .mouseMoved, mouseCursorPosition: pa, mouseButton: .left))
+		usleep(120_000)
+		post(CGEvent(mouseEventSource: src, mouseType: .leftMouseDown, mouseCursorPosition: pa, mouseButton: .left))
+		usleep(80_000)
+		let steps = 18
+		for i in 1...steps {
+			let t = Double(i) / Double(steps)
+			let p = CGPoint(x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t)
+			post(CGEvent(mouseEventSource: src, mouseType: .leftMouseDragged, mouseCursorPosition: p, mouseButton: .left))
+			usleep(14_000)
+		}
+		post(CGEvent(mouseEventSource: src, mouseType: .leftMouseUp, mouseCursorPosition: pb, mouseButton: .left))
+		usleep(300_000)
+	}
+}
+
 let keyCodes: [String: CGKeyCode] = [
 	"0": 29, "1": 18, "2": 19, "3": 20, "=": 24, "-": 27,
 	"return": 36, "escape": 53, "tab": 48, "space": 49, "delete": 51,
@@ -628,6 +650,20 @@ case "scroll":
 	audit("scroll \(dir) \(pts) at y \(r1(at.y))")
 	emit(["ok": true, "scrolled": dir, "points": pts])
 
+case "drag":
+	// drag X Y1 Y2 --why "…": vertical only, upward or downward.
+	let why = takeFlag("--why") ?? ""
+	guard argv.count >= 3, let x = Double(argv[0]), let y1 = Double(argv[1]), let y2 = Double(argv[2]) else {
+		fail("BAD_ARGS", "drag X Y1 Y2 --why \"<step>\" (vertical only)")
+	}
+	if why.isEmpty { fail("WHY_REQUIRED", "drags need --why") }
+	let win = requireWindow()
+	let a = CGPoint(x: x, y: y1), b = CGPoint(x: x, y: y2)
+	guardInput(win, a)
+	drag(win, from: a, to: b)
+	audit("drag \(r1(x)) \(r1(y1))→\(r1(y2)) — \(why)")
+	emit(["ok": true, "dragged": [r1(x), r1(y1), r1(y2)], "why": why])
+
 case "key":
 	guard let combo = argv.first else { fail("BAD_ARGS", "key cmd+1|cmd+2|cmd+3|return|escape|…") }
 	let win = requireWindow()
@@ -657,5 +693,5 @@ case "open-app":
 	emit(["ok": true, "opened": name])
 
 default:
-	fail("BAD_COMMAND", "doctor | shot | ocr | tap | back | scroll | key | type | open-app")
+	fail("BAD_COMMAND", "doctor | shot | ocr | ocr-file | calibrate | tap | back | scroll | drag | key | type | open-app")
 }
