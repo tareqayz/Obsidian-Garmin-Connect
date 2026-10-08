@@ -11,6 +11,7 @@ import HealthSnapshotPage from "../health-snapshot/HealthSnapshotPage.svelte";
 import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
 import RespirationPage from "../respiration/RespirationPage.svelte";
 import StressPage from "../stress/StressPage.svelte";
+import WeightPage from "../weight/WeightPage.svelte";
 
 /**
  * What every Health Stats page gets from Home, whichever stat it draws: the
@@ -61,6 +62,7 @@ export interface HealthStatPageProps {
  * in `src/ui/svelte/<stat>/`:
  *
  *   import StressPage from "../stress/StressPage.svelte";
+import WeightPage from "../weight/WeightPage.svelte";
  *   export const HEALTH_PAGES: … = { stress: StressPage };
  *
  * A stat appears in the Health Stats hub, gets an "Open <stat>" command and
@@ -75,4 +77,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	"health-status": HealthStatusPage,
 	"fitness-age": FitnessAgePage,
 	"health-snapshot": HealthSnapshotPage,
+	weight: WeightPage,
 };
