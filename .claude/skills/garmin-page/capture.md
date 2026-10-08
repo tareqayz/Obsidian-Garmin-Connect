@@ -1,4 +1,7 @@
-# Capture: phone (iPhone Mirroring) and web (Chrome for Testing)
+# Capture: phone and web
+
+> **Default capture is manual phone screenshots** (user decision 2026-10-08): the user force-quits and reopens Garmin Connect, then drops shots in `ref/<area>/<stat>/phone/<range>/`, no write-ups. The iPhone Mirroring helper below is optional — it worked but cost hours and many tokens per stat.
+
 
 The phone is the **visual source of truth** and the primary source of golden numbers (OCR).
 The web app is the **network source**: which endpoints and GraphQL operations each view
