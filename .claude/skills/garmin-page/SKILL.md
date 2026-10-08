@@ -66,6 +66,25 @@ git cherry-pick --no-commit feature/health-<stat>   # in the live tree, then reg
 git worktree remove "$WT" && git branch -D feature/health-<stat>
 ```
 
+## Lessons from the Stress pilot (2026-10-08)
+
+- **Custom agent types load at session start.** In the session that created or changed
+  `.claude/agents/*.md`, dispatch `general-purpose` agents told to "act as `<agent>`" and to
+  read its file first.
+- **Usage limits.** Keep ≤3 agents running at once. An agent stopped by a limit keeps its
+  transcript: resume it with `SendMessage` once the limit resets — don't start over.
+- **Two-pass specs.** Pass 1 (web + API: endpoints, caps, golden numbers, rules) can run
+  before the phone capture; pass 2 adds the phone anatomy and settles the phone-only items
+  its "phone pass to-do" lists.
+- **Two-phase builders.** Phase 1 (index, view model, geometry, golden tests) right after
+  the spec; phase 2 (Svelte) once the Obsidian twin exists — resume the same agent so it
+  keeps its context. Then `git cherry-pick --no-commit <phase commits>` → one per-stat commit.
+- **Cross-stat facts travel.** Findings in one spec often change another stat's build
+  (Body Battery's curve rides in Stress's `dailyStress`; no HR/stress intraday before
+  2026-06-01). Pass them on when dispatching or resuming.
+- **Rounding differs per stat** (Stress floors; Body Battery, Heart Rate, Respiration round
+  half-up/nearest). Never assume; every spec proves its own rule.
+
 ## Dispatching agents
 
 Give each agent: the stat, its output directory (absolute paths), the inputs it may read,

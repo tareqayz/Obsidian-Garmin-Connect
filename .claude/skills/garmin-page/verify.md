@@ -28,6 +28,24 @@ python3 scripts/dev/compare.py trio <phone.png> <figma.png> <live.png> ref/<area
 page stack it found. Keys must be unique per run (`window.__p0` guards against a retried
 eval starting a second copy, which once captured the next page into the previous file).
 
+## Numbers first, pictures second
+
+Check numbers from the live DOM — cheaper and exact — then one `compare.py trio` sheet per
+range for layout:
+
+```js
+// in an idempotent ev.sh job: open a route, wait, read the page text
+await v.setState({stack:[{page:'home'},{page:'health'},{page:'health-stat',stat:'stress',range:'7d',offset:-1}]},{});
+await new Promise(r => setTimeout(r, 1500));
+v.contentEl.querySelector('.gch-root').innerText
+```
+
+The sync runner is `app.plugins.plugins['garmin-connect'].sync` (`isRunning`,
+`indexHistoryProgress`). A day index's coverage is its meta file,
+`app.vault.adapter.read('<dataFolder>/<kind>/index.json')` → `{from, to, complete}` (the data
+folder is `Garmin/data` in this vault). For the re-sync check compare `adapter.stat(...).mtime`
+of a past year's file before and after `obsidian command id=garmin-connect:sync-recent`.
+
 ## Gotchas
 
 - **The user may be using the window.** Read `view.getState().stack` before trusting a
