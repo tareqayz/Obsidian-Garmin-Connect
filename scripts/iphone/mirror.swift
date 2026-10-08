@@ -328,6 +328,14 @@ func occluder(at sp: CGPoint, _ win: Win) -> String? {
 		// The capture taken just before a tap leaves a transient overlay from macOS's
 		// screenshot service; it is not a real obstruction.
 		if alpha < 0.05 || layer >= 1000 || ["Window Server", "Screenshot", "screencaptureui"].contains(owner) { continue }
+		// Notification Centre keeps a full-screen container window above everything; it
+		// passes clicks through except where a banner is drawn, top right. Allow points
+		// below the banner band; refuse the band itself.
+		let screen = NSScreen.main?.frame.size ?? .zero
+		if owner.hasPrefix("Notification Cent") && r.width >= screen.width - 1 && r.height >= screen.height - 1 {
+			if sp.y < 160 { return "possible notification banner (top band)" }
+			continue
+		}
 		if (w[kCGWindowNumber as String] as? Int) == Int(win.id) { return nil }
 		if owner == "Dock" && layer > 0 { continue }
 		return "\(owner) (layer \(layer))"
