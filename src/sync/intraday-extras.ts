@@ -1,5 +1,6 @@
 import { HEART_DAY } from "./heart-rate-index";
 import type { IntradayDef } from "./intraday-registry";
+import { RESPIRATION_DAY } from "./respiration-index";
 import { STRESS_DAY } from "./stress-index";
 
 /**
@@ -21,4 +22,4 @@ import { STRESS_DAY } from "./stress-index";
  *
  * Pure, so the tests can check every entry.
  */
-export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY];
+export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY, RESPIRATION_DAY];

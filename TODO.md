@@ -180,3 +180,7 @@
   - Body Battery: factor sheets lack the impact chart and time range (the series block drops the
     event arrays); timeline activity markers not drawn; the pane factor dialog is a page overlay,
     not an Obsidian Modal; copy known for 6 of ~50 feedback types; dial/chart frames estimated.
+- Respiration (Health Stats), built 2026-10-08; golden numbers verified live. Provisional: the
+  1d "Active" chip/blocks (source unknown); the High/Low Rates chip isn't remembered; pane
+  layouts only checked by tests; low dots and Active grey read alike.
+- Health Status Figma: Pulse Ox detail and out-of-range states are Inferred (no shots).

@@ -6,6 +6,7 @@ import type { DaySeries } from "../../../sync/intraday";
 import type { IntradayLoad } from "../../../sync/intraday-registry";
 import BodyBatteryPage from "../body-battery/BodyBatteryPage.svelte";
 import HeartRatePage from "../heart-rate/HeartRatePage.svelte";
+import RespirationPage from "../respiration/RespirationPage.svelte";
 import StressPage from "../stress/StressPage.svelte";
 
 /**
@@ -67,4 +68,5 @@ export const HEALTH_PAGES: Partial<Record<HealthStatPageId, Component<HealthStat
 	stress: StressPage,
 	"heart-rate": HeartRatePage,
 	"body-battery": BodyBatteryPage,
+	respiration: RespirationPage,
 };
