@@ -26,8 +26,8 @@
 	let picked = $state<OverlayId | null>(null);
 
 	let overlays = $derived(view.timeline?.overlays ?? []);
-	/* Awake/Restlessness until another chip is picked, as the app opens. */
-	let overlay = $derived(overlays.find((o) => o.id === picked) ?? overlays.find((o) => o.id === "awake") ?? overlays[0] ?? null);
+	/* Bare stages until a chip is picked; picking it again takes it off. */
+	let overlay = $derived(overlays.find((o) => o.id === picked) ?? null);
 	let look = $derived<"stages" | "awake" | "line">(!overlay ? "stages" : overlay.kind === "awake" ? "awake" : "line");
 	let legend = $derived<LegendEntry[]>(
 		!overlay
@@ -89,7 +89,7 @@
 				<div class="legend"><SleepLegend items={legend} /></div>
 				{#if overlays.length}
 					<div class="chips">
-						<SleepChips chips={overlays.map((o) => ({ id: o.id, label: o.chip }))} selected={overlay?.id ?? null} onSelect={(id) => (picked = id as OverlayId)} />
+						<SleepChips chips={overlays.map((o) => ({ id: o.id, label: o.chip }))} selected={overlay?.id ?? null} onSelect={(id) => (picked = picked === id ? null : (id as OverlayId))} />
 					</div>
 				{/if}
 			{:else if view.stages}
