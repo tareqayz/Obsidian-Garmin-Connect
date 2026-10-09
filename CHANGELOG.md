@@ -32,8 +32,9 @@ gone.
 - **Sleep.** The night's score, stages and timeline, its factors, and the Sleep
   Coach, plus the weekly, four-week and yearly views. Read from a sleep index in
   `<data folder>/sleep/`.
-- **Health Stats.** From More → Health Stats, a hub with these pages, each
-  reading its own history index under `<data folder>/`:
+- **Health Stats.** From More → Health Stats, a hub with these pages. They read
+  the histories the sync keeps under `<data folder>/`; Health Snapshot loads on
+  view.
   - Health Status, Weight, Pulse Ox, Pulse Ox Acclimation
   - Respiration, Heart Rate, Blood Pressure, Stress, Body Battery
   - Fitness Age, Health Snapshot

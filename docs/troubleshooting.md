@@ -1,18 +1,20 @@
 # Troubleshooting
 
-Keyed by symptom. If your problem is authentication, run the probe first — it
-tells you which of four layers broke, which is most of the diagnosis.
+Keyed by symptom. If your problem is signing in, run the diagnostics first: they
+tell you which of four layers broke, which is most of the diagnosis.
 
-## The probe
+## Diagnostics
 
-*Run connectivity probe* from the command palette opens a modal with four
-checks. Every run writes its log to `garmin-probe-logs/` in the vault, because
-**on a phone there is no console** and a file in the vault syncs back to your
-desktop like any other note.
+**Run diagnostics** from the command palette opens a modal with four checks.
+While **Save every diagnostics run to the vault** is on (the default), every run
+is saved as a note in the **Log folder**, because **on a phone there is no
+console**. That is `Garmin/diagnostics` in vaults set up since 0.2; older vaults
+keep the folder they had, usually `garmin-probe-logs`. The note syncs back to
+your desktop like any other.
 
 | Check | What it proves |
 | --- | --- |
-| **1. Network fingerprint** | What this platform looks like on the wire. Asks `tls.peet.ws` for the User-Agent the server actually saw, JA3/JA4, and the HTTP version. If `requestUrl` dropped your UA override, nothing below matters. |
+| **1. Network fingerprint** | What this platform looks like on the wire. Asks `tls.peet.ws` for the User-Agent the server actually saw, JA3/JA4 and the HTTP version. If `requestUrl` dropped your UA override, nothing below matters. |
 | **2. Test login** | Reachability without credentials, then the login POST, then MFA if demanded, then the ticket exchange, then a live API call. |
 | **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from `data.json`, mints a new access token from it alone, then makes two real calls. |
 | **4. Inspect fitness endpoints** | Prints the raw keys `maxMetrics`, `racePredictions` and `enduranceScore` return, then what the mapper makes of them. |
@@ -24,27 +26,28 @@ warning below.
 
 | Verdict | Meaning |
 | --- | --- |
-| `SUCCESS` | This platform can authenticate. |
+| `SUCCESS` | This platform can sign in. |
 | `BLOCKED` | Garmin's edge refused the client, not your credentials. If step 0 passed and step 1 got a 403, the path is open and it is the credential POST being scored. Retrying will not help. |
 | `RATE-LIMITED` | A 429. Not a verdict — wait 15–30 minutes. Do not retry in a loop. |
 | `BAD-CREDENTIALS` | Wrong email or password. Fix it before re-running; repeated failures can lock the account. |
 | `BAD-MFA-CODE` | The email and password were accepted; three verification codes were not. Re-run with the newest code Garmin sends. |
 | `CANCELLED` | Stopped at the code prompt. Costs the one login attempt already spent, nothing more. |
-| `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin rotated the DI client IDs. |
+| `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin has rotated its client IDs: save the run and open an issue with it. |
 
 ---
 
 ## Sign-in fails
 
 **Check the verdict first.** `BLOCKED` and `BAD-CREDENTIALS` are different
-problems and the fix for one makes the other worse.
+problems, and the fix for one makes the other worse.
 
 `BLOCKED` means Cloudflare scored the request, not that your password is wrong.
 There is no workaround from inside Obsidian. If it persists, the things worth
-trying — all present in `python-garminconnect`, none needing TLS forgery — are
-the Android client (`GCM_ANDROID_DARK` with the `/gcm/android` service URL)
-instead of iOS, matching more of the real app's header set and ordering, or the
-SSO embed widget flow, which lands in a different rate-limit bucket.
+trying are all present in `python-garminconnect`, and none needs TLS forgery:
+- the Android client (`GCM_ANDROID_DARK` with the `/gcm/android` service URL)
+  instead of iOS;
+- matching more of the real app's header set and ordering;
+- the SSO embed widget flow, which lands in a different rate-limit bucket.
 
 **Do not retry in a loop.** Garmin limits login attempts per IP and can lock an
 account after repeated failures.
@@ -66,9 +69,9 @@ skipped — but a sign-in is once per session, not once per sync.
 
 If the codes are certainly right and Garmin keeps refusing them, the error
 carries Garmin's own word for the refusal (`INVALID_MFA_CODE`, or something not
-seen before). That string is the useful half of a bug report: any refusal the
-flow cannot classify by shape is treated as a retryable bad code, which is right
-for a typo and wrong for, say, an SSO session that expired mid-sign-in.
+seen before). That string is the useful half of a bug report. Any refusal the
+flow cannot classify by shape is treated as a retryable bad code: right for a
+typo, wrong for, say, an SSO session that expired mid-sign-in.
 
 "MFA required" as a hard error means something tried to sign in with no way to
 ask for a code. That is a wiring bug, not an account problem.
@@ -77,115 +80,156 @@ ask for a code. That is a wiring bug, not an account problem.
 
 Garmin may hand back a **new** refresh token when the old one is used. Dropping
 that rotated token strands the session days later for no visible reason. The
-client persists rotation, so if this happens, probe check 3 is the one to run —
-it exercises exactly that path.
+client saves the new token straight away, so if this happens, diagnostics check
+3 is the one to run: it exercises exactly that path.
 
-If check 3 fails while check 2 passes, the DI client IDs have rotated. Compare
-`DI_CLIENT_IDS` in `src/garmin/constants.ts` against `python-garminconnect`
-master; they rotate roughly quarterly and the list is tried in order.
+If check 3 fails while check 2 passes, Garmin has probably rotated its client
+IDs. They rotate roughly quarterly; open an issue with the saved run.
+
+The session lives in the plugin's `data.json`. If your vault sync copies that
+file between devices, they share one session.
 
 ## Rate limited (429)
 
 Wait 15–30 minutes. Then:
 
-- Raise `pauseBetweenDays` (default 250 ms) before retrying a long backfill.
-- Turn off metric groups you do not need — that genuinely removes requests. Note
-  `activity`, `heart` and `stress` share one request, so switching off one of
-  the three saves nothing.
-- Remember the sync runs **newest day first**, so a run cut short by a rate limit
-  already covered the days you care about most.
+- **Slow a long backfill down.** Raise **Settings → Advanced → Pause between
+  days** (250 ms by default) before retrying it.
+- **Turn off metric groups you do not need.** That genuinely removes requests,
+  with one exception: `activity`, `heart`, `stress`, `respiration` and `spo2`
+  share one daily summary request, so switching off some of the five saves
+  nothing.
+- **Mind the first session.** After its first sync, a new vault also fills its
+  history files, about 130 requests per year of history. If those hit the
+  limit, they keep what they fetched and carry on next session, or when you
+  press **Sync history** on a page.
+- **Nothing recent was lost.** The sync runs **newest day first**, so a run cut
+  short by a rate limit already covered the days you care about most.
 
-A 429 or a dead session abandons the whole range immediately, because every
-later request would fail the same way.
+A 429 or a dead session abandons the whole run immediately, because every later
+request would fail the same way.
 
-## VO2 Max is always empty
+## Home still shows yesterday after midnight
 
-**Fixed, and confirmed on a live account.** The range rows carry their day
-on `generic.calendarDate`, not on the row, and the engine used to index them by
-a top-level `calendarDate` — so every row was dropped as dateless and the sync
-warned "Garmin returned no rows". It now reads the day from the sub-objects
-(`maxMetricsDate` in `src/garmin/endpoints.ts`), and training status's
-`mostRecentVO2Max` fills in for the day it belongs to. If `vo2max` is still
-empty after a sync, the diagnosis below still applies.
+Home works out "today" when it opens, and again whenever a note or one of its own
+files changes. A Home tab left open past midnight, with nothing changing, keeps
+yesterday's date, labels, offsets and all. Run **Sync recent days** (Home's ↻),
+or close Home and run **Open home**.
 
-Not a range-length problem.
+## Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 
-Evidence from a 407-day vault: endurance score present in 393 notes, race
-predictions present in exactly the 5 days of the recent-sync window, VO2 Max in
-zero. The same short window that successfully fetched race predictions got no
-VO2 Max — and since race predictions are *derived* from VO2 Max, Garmin plainly
-has the data. That points at a wrong URL or a wrong field name in
-`GarminApi.maxMetrics` or `mapDay`, not at an absent metric.
+The card shows Garmin's onboarding prompt while **any** Health Status metric is
+still building its baseline, as the app does. Pulse Ox is the usual one: its
+baseline never finishes if your watch's Pulse Ox mode is off during sleep, even
+though the other metrics have data.
 
-To diagnose, run **probe check 4, "Inspect fitness endpoints"**. It prints the
-raw keys the endpoint returned and then what the mapper extracted. If a value is
-there under a different name, that name is the fix — change it in
-`src/sync/metrics.ts`. If the mapper reports "nothing mapped", the field names
-do not match at all.
+**More → Health Stats → Health Status** still shows each metric and its status.
+
+## "This page isn't in this version of the plugin"
+
+Home remembers which page it was on. This appears when that saved page belongs to
+a version of the plugin that had it, typically after going back to an older
+build. Press **Back**, or update the plugin.
+
+## A day page has figures but no chart
+
+A day's chart comes from its series file, which the **intraday** group fills.
+Two limits apply.
+
+**Only the newest seven days of each sync get curves.** Older days work like
+this:
+- **Heart rate, stress, Body Battery and the Health Stats curves** are fetched
+  the first time you open the day. That needs you signed in and the right group
+  on: `intraday` for Home's charts, the page's own group for a Health Stats page.
+- **Steps, floors and intensity minutes** only show what a sync wrote. Run
+  **Sync a date range…** over that week, seven days or fewer at a time.
+
+**Garmin does not keep every day's detail.** If a day still has no curve after
+that, Garmin has none for it. Older days often have only the totals.
+
+## A night has a score but no timeline, factors or coach
+
+The night's sleep page reads its timeline, factors and Sleep Coach from that
+day's series file. Nights synced before the Sleep pages existed (2026-10-07) have
+none. Run **Sync a date range…** over those nights with the **intraday** group
+on. Every night in the range gets them, however long it is.
+
+## A metric is always empty
+
+Either its group is off in **Settings → Metrics**, your watch doesn't record it,
+or Garmin renamed a field.
+
+For the fitness metrics, **diagnostics check 4** prints the raw keys
+`maxMetrics`, `racePredictions` and `enduranceScore` return, and then what the
+mapper extracted. If a value is there under a different name, that name is the
+fix, in `src/sync/metrics.ts`. Please open an issue with the log.
 
 ## Nothing gets written in daily-notes mode
 
 By design, a day with nowhere to go costs nothing: the target decides whether a
-day is writable **before any request is made**. With `createMissingNotes` off, a
-day without an existing note is skipped for free.
+day is writable **before any request is made**. With **Create missing notes**
+off, a day without an existing note is skipped for free.
 
-So a sparse range legitimately writes nothing. Either turn on
-`createMissingNotes`, or switch to data-folder mode, where every day is writable
-and backfill works with nothing existing first.
+So a sparse range legitimately writes nothing. Either turn on **Create missing
+notes**, or switch to data-folder mode, where every day is writable and backfill
+works with nothing existing first.
 
-Also check that `dailyNoteFolder` and `dailyNoteFormat` match your actual daily
-notes. Left empty, they follow the core Daily Notes plugin.
+Also check that the daily notes **Folder** and **Date format** settings match
+your actual daily notes. Left empty, they follow the core Daily Notes plugin.
 
 ## Properties do not appear, or appear as plain text
 
 The sync writes real frontmatter properties, not a markdown table. If you are
 looking at a markdown table you built yourself, Dataview and Bases cannot query
-it — they query properties. That is why the plugin generates a Bases view rather
-than writing a table.
+it — they query properties. That is why the plugin generates a Bases table view
+rather than writing a table.
 
 In daily-notes mode every key carries the `garmin_` prefix. Querying `steps`
 instead of `garmin_steps` returns nothing.
 
 ## A backfill stopped early and said it "found nothing"
 
-Working as intended. After 45 consecutive empty days (`stopAfterEmptyDays`, `0`
-disables) the sync gives up and reports where, on the assumption it has run off
-the start of your Garmin history. Since it walks newest to oldest, that empty
-region is always the tail.
+Working as intended. After 45 consecutive empty days (**Stop after empty days**,
+`0` disables) the sync gives up and reports where, on the assumption it has run
+off the start of your Garmin history. Since it walks newest to oldest, that
+empty region is always the tail.
 
-Nothing bogus is written for those days — a day with no usable numbers is
+Nothing bogus is written for those days: a day with no usable numbers is
 skipped, not stored as zeroes.
 
 ## Re-syncing keeps touching files / sync churn
 
-It should not. Incoming properties are diffed against the existing frontmatter
-and an identical day leaves the file untouched, precisely because Obsidian Sync
-and LiveSync both treat a bumped mtime as a change to propagate.
+It should not. Incoming properties are diffed against the existing frontmatter,
+and an identical day leaves the file untouched. That matters because Obsidian
+Sync and LiveSync both treat a bumped modification time as a change to
+propagate. The history and series files are only rewritten when their content
+changes, too.
 
-If files *are* being rewritten every run, a value is changing — Garmin revising
-a recent day is the usual reason, and is why the default window is three days.
+If files *are* being rewritten every run, a value is changing. Garmin revising a
+recent day is the usual reason, and is why the default window is three days.
 
 ## The graph view freezes
 
-`linkToBase` gives every day note a link to one base file. With hundreds of day
-notes that is one hub with hundreds of edges, which has been observed to make
-the graph simulation struggle. Turn `linkToBase` off in settings; existing notes
-keep the property until rewritten.
+**Link every day to the table view** gives every day note a link to one base
+file. With hundreds of day notes that is one hub with hundreds of edges, which
+has been observed to make the graph simulation struggle. Turn the setting off;
+existing notes keep the property until they are rewritten.
 
 ## It works on desktop but breaks on mobile
 
 Almost always a node or electron import that leaked into the bundle. `npm run
-build` fails on exactly this (`scripts/check-mobile-safe.mjs`) because it is the
-bug class that loads fine on the desktop and throws on the phone, where it is
-hardest to debug.
+build` fails on exactly this (`scripts/check-mobile-safe.mjs`), because it is
+the bug class that loads fine on the desktop and throws on the phone, where it
+is hardest to debug.
 
-If you are not building from source, run probe check 1 on the phone — if
+If you are not building from source, run diagnostics check 1 on the phone. If
 `requestUrl` dropped the User-Agent override there, that is the difference.
 
-The two devices keep **separate sessions**; signing in on desktop does not sign
-you in on mobile.
+A phone signed out while the desktop works usually just has no session: sign in
+there. Its vault sync may not be copying the plugin's `data.json`.
 
-## Reading a probe log on a phone
+## Reading a diagnostics log on a phone
 
-Open `garmin-probe-logs/` in the vault. It is a normal note and syncs back to
-your desktop. Set `autoSaveLog` off if you do not want them kept.
+Open the **Log folder** (`Garmin/diagnostics`, or `garmin-probe-logs` in older
+vaults). Each run is a normal note and syncs back to your desktop. Turn off
+**Save every diagnostics run to the vault** if you do not want them kept.

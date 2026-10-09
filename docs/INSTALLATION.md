@@ -1,26 +1,51 @@
 # Installation
 
-As of now, this is not a [publicly listed plugin](https://community.obsidian.md/search?type=plugin). Only manual installation is available until then.
+The plugin is not in Obsidian's [community plugin
+directory](https://community.obsidian.md/search?type=plugin) yet. Until it is,
+releases are betas: GitHub pre-releases you install with BRAT, or by hand.
 
-Works on **desktop and mobile**. Obsidian 1.5.7 or newer.
+It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**. That
+is the first release with Bases, which the generated table view uses.
 
-## Manual
+## With BRAT (recommended)
 
-1. Download `main.js`, `manifest.json` and `styles.css` from the
-   [latest release](https://github.com/tareqayz/Obsidian-Garmin-Connect/releases/latest).
-2. Put them in `<your vault>/.obsidian/plugins/garmin-connect/` — create the folder if it isn't there.
-3. In Obsidian: **Settings → Community plugins → Reload**, then enable **Garmin Connect**.
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from the
+   community plugins.
+2. In BRAT, **Add a beta plugin** and enter `tareqayz/Obsidian-Garmin-Connect`.
+3. Enable **Garmin Connect** in **Settings → Community plugins**.
 
-These three files are built by CI and attached to the release — they aren't in the repo tree, so downloading them from Releases is the intended route, not copying them out of a clone.
+BRAT installs the newest release, pre-releases included, and keeps you on the
+newest one when it checks for updates.
 
-## BRAT
+## By hand
 
-If you use [BRAT](https://github.com/TfTHacker/obsidian42-brat), add
-`tareqayz/Obsidian-Garmin-Connect` as a beta plugin and it will keep you on the latest release.
+1. Open the [Releases](https://github.com/tareqayz/Obsidian-Garmin-Connect/releases)
+   page and pick the newest release. It is marked *Pre-release*: there is no
+   stable release yet, so a "latest release" link finds nothing.
+2. Download `main.js`, `manifest.json` and `styles.css` from its assets.
+3. Put them in `<your vault>/.obsidian/plugins/garmin-connect/`. Create the
+   folder if it isn't there.
+4. In Obsidian, **Settings → Community plugins → Reload**, then enable **Garmin
+   Connect**.
 
-## Mobile
+Take the three files from a release, not from a clone. `manifest.json` and
+`styles.css` are in the repository, but `main.js` is a build output that only
+the releases carry.
 
-There's no separate download. The plugin folder arrives through vault sync like any other file — enable it in **Settings → Community plugins** and sign in there too. Each device keeps its own session.
+To update by hand, replace the three files with a newer release's and reload the
+plugin.
+
+## On a phone or a second computer
+
+There is no separate mobile download. The plugin folder reaches the phone through
+your vault sync like any other folder; then enable the plugin in **Settings →
+Community plugins** there too.
+
+Your Garmin session is the refresh token in the plugin's `data.json`, in that
+same folder, so whether you sign in again depends on your sync:
+- **It copies `data.json`:** the other device has the same session and
+  settings, and is signed in already.
+- **It does not:** sign in on that device as well.
 
 ## From source
 
@@ -31,8 +56,10 @@ npm install
 npm run build
 ```
 
-Copy `main.js`, `manifest.json` and `styles.css` into the plugin folder as above, or clone straight into `.obsidian/plugins/garmin-connect/`.
+`npm run build` type-checks, runs the tests, then writes `main.js`. Copy
+`main.js`, `manifest.json` and `styles.css` into the plugin folder as above, or
+clone straight into `.obsidian/plugins/garmin-connect/`.
 
 ## Next
 
-Sign in and run your first sync — see the [Guide](GUIDE.md).
+Sign in and run your first sync: see the [Guide](GUIDE.md).
