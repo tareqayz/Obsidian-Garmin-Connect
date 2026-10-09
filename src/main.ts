@@ -1,9 +1,9 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
+import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
 import { healthStatRoute, sleepRoute, statsRoute } from "./dashboard/routes";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
-import { GARMIN_DASHBOARD_VIEW, GarminDashboardView } from "./dashboard/view";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
@@ -35,17 +35,11 @@ export default class GarminPlugin extends Plugin {
 		this.buildClient();
 		await this.garmin.restore();
 
-		this.registerView(
-			GARMIN_DASHBOARD_VIEW,
-			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),
-		);
-
 		this.registerView(GARMIN_HOME_VIEW, (leaf: WorkspaceLeaf) => new GarminHomeView(leaf, this));
+		this.registerView(LEGACY_DASHBOARD_VIEW, (leaf: WorkspaceLeaf) => new LegacyDashboardView(leaf));
 
 		this.addRibbonIcon(GARMIN_ICON, "Open Garmin dashboard", () => void this.openView(GARMIN_HOME_VIEW));
 
-		// The dashboard is being rebuilt as a copy of Garmin Connect, Home first.
-		// The previous dashboard stays one command away until that is finished.
 		this.addCommand({
 			id: "open-dashboard",
 			name: "Open dashboard",
@@ -76,11 +70,6 @@ export default class GarminPlugin extends Plugin {
 				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, healthStatRoute(stat.id)] }),
 			});
 		}
-		this.addCommand({
-			id: "open-classic-dashboard",
-			name: "Open classic dashboard",
-			callback: () => void this.openView(GARMIN_DASHBOARD_VIEW),
-		});
 
 		this.addCommand({
 			id: "sync-recent",

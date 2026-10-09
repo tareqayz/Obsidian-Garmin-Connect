@@ -54,6 +54,13 @@ describe("PluginData", () => {
 		assert.equal("somethingElse" in saved[0]!, false);
 	});
 
+	it("drops the retired classic dashboard's layouts on the next save", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: AUTH, layouts: { version: 1, active: "default", layouts: [] } });
+		assert.equal(saved.length, 0);
+		await data.saveHome({ preset: "be-healthy", hidden: [] });
+		assert.deepEqual(Object.keys(saved[0]!).sort(), ["auth", "home", "settings"]);
+	});
+
 	it("keeps values a slider can show", async () => {
 		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 999, pauseBetweenDays: -5, units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.syncDays, 30);

@@ -1,7 +1,6 @@
 import type { Plugin } from "obsidian";
 import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
-import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings-data";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
@@ -31,7 +30,6 @@ function groups(v: unknown, fallback: MetricGroup[]): MetricGroup[] {
 interface Persisted {
 	settings: GarminSettings;
 	auth: PersistedAuth | null;
-	layouts: LayoutsState;
 	home: HomeState;
 }
 
@@ -52,8 +50,8 @@ const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
 /**
  * Owns `data.json`.
  *
- * Settings, the session and the dashboard layouts share one file, so all three
- * go through here — otherwise saving settings would clobber a token written
+ * Settings, the session and Home's state share one file, so all three go
+ * through here — otherwise saving settings would clobber a token written
  * moments earlier.
  *
  * It is also the only `TokenStore` the plugin uses, and what it stores is
@@ -63,12 +61,10 @@ const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
 export class PluginData implements TokenStore {
 	settings: GarminSettings = { ...DEFAULT_SETTINGS };
 	/**
-	 * Dashboard layouts. Kept beside settings rather than inside them because
-	 * they are a different kind of thing: settings say what to sync, a layout
-	 * says how to read it, and the settings tab never touches these.
+	 * The Home screen's own state. Kept beside settings rather than inside them:
+	 * settings say what to sync, this says how Home shows it, and the settings
+	 * tab never touches it.
 	 */
-	layouts: LayoutsState = { ...DEFAULT_LAYOUTS };
-	/** The Home screen's own state, kept apart from the classic dashboard's layouts. */
 	home: HomeState = { preset: DEFAULT_PRESET, hidden: [] };
 
 	private plugin: Plugin;
@@ -124,9 +120,8 @@ export class PluginData implements TokenStore {
 		};
 		const migrated = this.migrate();
 
-		// Same allowlist treatment as settings: a block this build cannot draw is
-		// dropped rather than rendered. See `readLayouts`.
-		this.layouts = readLayouts(raw.layouts);
+		// Same allowlist treatment as settings: a card or section this build does
+		// not know is dropped rather than drawn.
 		const home = (raw.home ?? {}) as Record<string, unknown>;
 		const glance = readGlance(home.glance);
 		this.home = {
@@ -193,13 +188,6 @@ export class PluginData implements TokenStore {
 		await this.flush();
 	}
 
-	/* Layouts -------------------------------------------------------- */
-
-	async saveLayouts(next: LayoutsState): Promise<void> {
-		this.layouts = next;
-		await this.flush();
-	}
-
 	/* Home ----------------------------------------------------------- */
 
 	async saveHome(next: HomeState): Promise<void> {
@@ -215,7 +203,6 @@ export class PluginData implements TokenStore {
 		const payload: Persisted = {
 			settings: this.settings,
 			auth: this.auth,
-			layouts: this.layouts,
 			home: this.home,
 		};
 		await this.plugin.saveData(payload);
