@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-garmin-connect",
 	"version": "0.1.0",
-	"description": "Sync, store and visualize Garmin Connect data in your Obsidian vault",
+	"description": "Sync your Garmin Connect health and activity data into your vault and browse it in Garmin-style Home, Activities, Sleep and Health Stats pages.",
 	"main": "main.js",
 	"type": "module",
 	"private": true,
