@@ -2,7 +2,6 @@ node_modules
 main.js
 main.js.map
 data.json
-scripts/.node-probe.mjs
 .DS_Store
 tests/.build/
 scripts/.preview/
