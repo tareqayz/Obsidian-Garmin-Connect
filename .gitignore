@@ -1,11 +1,9 @@
 node_modules
-node_modules.nosync/
 main.js
 main.js.map
 data.json
 scripts/.node-probe.mjs
 .DS_Store
-garmin-probe-logs/
 tests/.build/
 scripts/.preview/
 .hotreload
@@ -16,3 +14,4 @@ scripts/.api-token.mjs
 api-contract-report.md
 scripts/.api-record-file.mjs
 tests/.build-*/
+ref/
