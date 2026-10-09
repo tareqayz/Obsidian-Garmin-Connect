@@ -15,8 +15,8 @@ the edge:
 | Adapter | Used by | File |
 | --- | --- | --- |
 | `requestUrl` | the plugin, desktop and mobile | `src/obsidian-http.ts` |
-| `fetch` | the Node harness | `src/fetch-http.ts` |
-| fixtures | tests | `src/testing/fixture-http.ts` |
+| `fetch` | the API scripts (`api:check`, `api:token`) | `scripts/api/fetch-http.ts` |
+| fixtures | tests | `tests/support/fixture-http.ts` |
 
 So the same auth and API code runs unchanged on a phone, in Node, and against
 recorded responses.
@@ -43,92 +43,128 @@ Starting transport-agnostic gets you both.
 ## Module map
 
 ```
+src/main.ts              plugin entry: the views, commands, ribbon and settings tab
+src/settings.ts          the settings tab, which mounts SettingsPanel.svelte
+src/settings-data.ts     GarminSettings, DEFAULT_SETTINGS, SETTINGS_VERSION — pure
+src/plugin-data.ts       owns data.json: settings, the session, Home's state; the group migrations
 src/http.ts              HttpClient, CookieJar                — imports nothing
-src/log.ts               the Log interface + probe renderer
+src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
+src/log.ts               the Log interface, the diagnostics renderer, redaction
+src/probe.ts             the diagnostics: fingerprint, login, session persistence, fitness endpoints
 src/garmin/
   constants.ts           endpoints, client IDs, native headers
-  errors.ts              typed failures (Auth / Blocked / RateLimit / Api / Network)
+  errors.ts              typed failures (Auth / Blocked / RateLimit / Api / Network / MFA)
   auth.ts                sign-in: login, MFA, ticket exchange
   tokens.ts              TokenStore, expiry, refresh
   client.ts              authenticated transport: refresh, 401 retry
-  endpoints.ts           typed API wrappers (extends client)
+  endpoints.ts           typed API wrappers (extends client), the GraphQL gateway included
 src/sync/
-  metrics.ts             Garmin payloads → properties     — pure
+  metrics.ts             Garmin payloads → properties; groups, labels, the request budget — pure
+  numbers.ts             num / isFiniteNumber, for Garmin's nulls and stray strings — pure
   diff.ts                the dirty check                  — pure
   bases-view.ts          generates the Bases table view   — pure
   link.ts                the graph hub link               — pure
-  engine.ts              orchestration, MultiTarget, the history pager — pure
+  engine.ts              orchestration, MultiTarget, the history walks — pure
+  progress.ts            what a sync reports while it runs: the Notice's bar — pure
+  intraday.ts            intraday payloads → the day's series file — pure
+  account.ts             account.json: profile, watch, latest values, plans, records — pure
   activity-index.ts      the activity index: rows, merging, year files — pure
   daily-stats.ts         the daily stats index: rows, merging, year files — pure
+  sleep-index.ts         the sleep index: a row a night — pure
   day-index.ts           defineDayIndex: a Health Stats day index from its description — pure
   day-indexes.ts         DAY_INDEXES, the registered day indexes — pure
+  <stat>-index.ts        the nine Health Stats day indexes and their intraday extras
+                         (health-snapshot-index.ts has extras only) — pure
   intraday-registry.ts   on-view intraday loads: the series file's own blocks, extras, loadDay — pure
   intraday-extras.ts     INTRADAY_EXTRAS, the registered extras — pure
   series-store.ts        series files, account.json, every index on disk
   daily-note.ts          NoteTarget: your daily notes
   data-folder.ts         NoteTarget: one note per day
   frontmatter.ts         shared dirty-checked write
-  runner.ts              settings → a run, and reporting
+  runner.ts              settings → a run, the history walks in turn, reporting
 src/dashboard/
-  series.ts              rows → series, stats, formatting  — pure
-  scales.ts              chart geometry, ticks, paths      — pure
-  metrics.ts             what is shown and how it behaves  — pure
+  home-view.ts           the Home ItemView: rows, series files, account.json, the indexes
+  legacy-view.ts         turns a saved tab of the retired classic dashboard into Home
+  routes.ts              the page stack inside the Home view, and reading it back — pure
   collect.ts             reads days back out of the vault
+  series.ts              DayRow, shiftDate, duration       — pure
   day.ts                 day-row lookups and date/number wording — pure
+  periods.ts             the periods a range stat pages through: spans, 1y weeks, card routes,
+                         labels, means, and the shared month and weekday names — pure
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
   totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
   stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
   stats-charts.ts        their charts' geometry, measured off the app — pure
+  sleep-pages.ts         Sleep: the night, its factors, the Sleep Coach, 7d / 4w / 1y — pure
+  sleep-charts.ts        the Sleep charts' geometry — pure
   health-stats.ts        HEALTH_STATS: the Health Stats in the app's order, ranges, groups — pure
-  periods.ts             the periods a range stat pages through: spans, 1y weeks, card routes, labels, means — pure
   stat-charts.ts         a Health Stats chart's box: frames, gridlines, the axis, gap-breaking lines — pure
-  stress-pages.ts        Stress: the 1d, 7d, 4w and 1y view model — pure
-  stress-charts.ts       Stress's chart frames and marks, and its ring — pure
-  routes.ts              the page stack inside the Home view, and reading it back — pure
-  home-view.ts           the Home ItemView: rows + series files + account.json + both indexes
-  view.ts                the classic dashboard's ItemView, mounts Svelte
-src/ui/svelte/           components; none import Obsidian except via an action
-src/ui/svelte/home/      the Home screen, one component per Garmin card; SeeAll.svelte is
+  <stat>-pages.ts        each Health Stats page's view model — pure
+  <stat>-charts.ts       its chart frames and marks — pure
+  <stat>-copy.ts         wording Garmin keeps in the app's phrase tables, not the API
+                         (sleep, stress, body battery) — pure
+src/ui/
+  icon.ts                the Garmin Connect ribbon icon
+  sport-icons.ts         sport figures (Tabler, MIT) registered as Obsidian icons
+  login-modal.ts         Sign in to Garmin Connect (LoginForm.svelte)
+  probe-modal.ts         Run diagnostics (ProbePanel.svelte), and saving a run to the log folder
+  sync-range-modal.ts    Sync a date range… (SyncRangeForm.svelte)
+  add-stat-modal.ts      Add a Stat, the picker See All's edit mode opens
+  sleep-history-modal.ts the Sleep Coach's Sleep History sheet
+src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel and SyncRangeForm, and one folder
+                         per area below. Obsidian comes in through actions (obsidian-setting.ts,
+                         home/lucide.ts), apart from SettingsPanel's Notice and the Activities
+                         sub-type Menu
+  home/                  the Home screen, one component per Garmin card; SeeAll.svelte is
                          At a Glance's See All page and its edit mode; PageBar.svelte is the
                          back / title / action bar every page inside the view shares
-src/ui/svelte/activities/ More, the Activities hub, a sport's page, a month, Personal Records
-                         and All Activities, with their parts
-src/ui/svelte/stats/     the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
+  activities/            More, the Activities hub, a sport's page, a month, Personal Records
+                         and All Activities, with their parts; HistoryBanner.svelte
+  stats/                 the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
-src/ui/svelte/health/    the Health Stats hub, HEALTH_PAGES and the props every stat page gets, and
+  sleep/                 the Sleep pages: the night, the factor pages, the Sleep Coach, the periods
+  health/                the Health Stats hub, HEALTH_PAGES and the props every stat page gets, and
                          the parts a stat page is built from (see "Building a stat page")
-src/ui/svelte/stress/    the Stress page: its 1d and period bodies, the ring, the timeline, its colours
-src/ui/sport-icons.ts    sport figures (Tabler, MIT) registered as Obsidian icons
-src/ui/add-stat-modal.ts Add a Stat, the picker the edit mode opens
-src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
-src/probe.ts             the four diagnostic probes
-src/main.ts              plugin entry, commands, ribbon
+  <stat>/                each Health Stats page: stress, heart-rate, body-battery, respiration,
+                         health-status, fitness-age, health-snapshot, weight, pulse-ox,
+                         pulse-ox-acclimation, blood-pressure, lifestyle-logging
 ```
 
-Modules marked **pure** have no Obsidian import, no network and no clock beyond
-what is passed in. That is what makes them directly testable, and it is worth
-preserving when adding to them.
+Modules marked **pure** have no Obsidian import, no network of their own (a
+client is passed in) and no clock beyond what is passed in. That is what makes
+them directly testable, and it is worth preserving when adding to them.
+
+The plugin registers two views. `garmin-home` is everything: Home and every
+page opened from it. `garmin-dashboard` belonged to the classic dashboard,
+retired in 0.2; `legacy-view.ts` keeps the type registered for one release so
+a workspace saved with that tab opens Home instead of a dead leaf.
 
 ## Request flow for one sync
 
 ```
 runner.ts        reads settings → builds SyncOptions, picks the NoteTarget(s)
    │
-engine.ts        walks the range NEWEST → OLDEST
-   │               ├─ target.exists(date)?  no, and not creating → skip, no request
-   │               ├─ endpointsFor(groups) → only the calls this config needs
-   │               ├─ per-day calls: summary, sleep, hrv, readiness, endurance
-   │               └─ range calls (once for the whole window): maxMetrics,
-   │                  racePredictions, activities
-   │                     └─ the same listing is merged into the activity index
-   │                        (series-store.ts), even when no note in the range is due
-   │               └─ after the days: the summaries' steps, floors and minutes go to
-   │                  the daily stats index; days without a note come from the range
-   │                  endpoints (3 requests per 28 days)
-   │               └─ then each registered day index whose group is on (see the
-   │                  Health Stats foundation below)
+engine.ts        syncRange: endpointsFor(groups) → only the calls this config needs
+   │               ├─ target.exists(date)? no, and not creating → skip, no request
+   │               ├─ the activity list (workouts), merged into the activity index
+   │               │  (series-store.ts) even when no note in the range is due
+   │               ├─ range calls, once for the window: maxMetrics and racePredictions
+   │               │  (a request per 365 days), hillScores, runningTolerance and
+   │               │  healthSnapshots (a request per 28 days)
+   │               ├─ then the days, NEWEST → OLDEST. Per day: summary (it serves
+   │               │  activity, heart, stress, respiration and spo2), sleep, hrv,
+   │               │  readiness, endurance and fitnessAge (fitness), training, body,
+   │               │  health
+   │               ├─ intraday, for the newest INTRADAY_DAYS (7) only: stress (with
+   │               │  Body Battery), heartRate, steps, floors, intensity minutes,
+   │               │  Body Battery events → the day's series file
+   │               └─ after the days: the daily stats index (steps, floors and
+   │                  minutes from the summaries; the range endpoints for days without
+   │                  a note, 3 requests per 28 days), the sleep index, then each
+   │                  registered day index whose group is on (see the Health Stats
+   │                  foundation below)
    │
 metrics.ts       mapDay(payloads) → canonical properties     (pure)
    │
@@ -138,6 +174,9 @@ frontmatter.ts   diff against existing frontmatter
    │               └─ nothing would change → "unchanged", file untouched
    │
 target.write()   data-folder note, daily note, or both
+   │
+runner.ts        after the days: account.json (profile, about nine requests a
+                 sync), and the Bases view the first time a note is written
 ```
 
 Two details in there carry real weight:
@@ -145,9 +184,11 @@ Two details in there carry real weight:
 - **`exists()` is consulted before any request.** A day with nowhere to go costs
   nothing, which is what makes a sparse daily-notes range cheap.
 - **Range endpoints are called once for the window, not once per day.**
-  `maxMetrics`, `racePredictions` and the activity list all take a range or page,
-  so the request budget is roughly *groups needed × days with notes*, plus a
-  small constant.
+  `maxMetrics`, `racePredictions`, the activity list and the other range calls
+  all take a range or a page, so the request budget is roughly *per-day calls ×
+  days with notes*, plus six intraday calls for each of the newest seven days,
+  plus a small constant. The settings tab shows each group's share
+  (`REQUESTS_PER_DAY`, `FREE_GROUPS`, `REQUESTS_PER_SYNC`, `RANGE_GROUPS`).
 
 ## The activity index and the pages inside Home
 
@@ -198,11 +239,11 @@ computer's. `SyncRunner.onStatsHistory` reports the history sync to their banner
 
 Home is a stack of pages (`routes.ts`): Home at the bottom, then See All, More,
 Activities, a sport, a month, Personal Records, All Activities, Steps, Floors
-or Intensity Minutes, Health Stats, Sleep, or any other Health Stats page. Back pops one;
-a filter or a tab replaces the top rather than adding a step. The stack is the
-view's state (`getState` / `setState`), so a reload comes back to the same page,
-and the **Open activities**, **Open steps**, **Open floors** and **Open intensity
-minutes** commands open the view through the same `setState`.
+or Intensity Minutes, Health Stats, Sleep, or any other Health Stats page. Back
+pops one; a filter or a tab replaces the top rather than adding a step. The
+stack is the view's state (`getState` / `setState`), so a reload comes back to
+the same page, and every **Open …** command (Open activities, Open sleep, Open
+stress and the rest) opens the view through the same `setState`.
 
 ## Health Stats foundation
 
@@ -241,11 +282,10 @@ export const HEALTH_PAGES: … = { stress: StressPage };
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
 | `HEALTH_PAGES` | the stat's row in the hub, an **Open <stat>** command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
 
-`HEALTH_STATS` (`src/dashboard/health-stats.ts`) already lists every stat in
-the app's order with its title, ranges, default range, settings group and At a
-Glance cards. Ranges are provisional until a stat's spec confirms them; a
-builder's integration note corrects its line. Stats reuse the settings'
-existing groups, so no vault needs a migration.
+`HEALTH_STATS` (`src/dashboard/health-stats.ts`) lists every stat in the app's
+order with its title, ranges, default range, settings group and At a Glance
+cards. Stats reuse the settings' existing groups, so adding one needs no
+migration.
 
 ### The route
 
@@ -286,9 +326,10 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
   empty loses its row either way.
 - **`windowDays`** is 28 unless a definition says otherwise: most range
   endpoints answer 400 for a 29-day range. An endpoint that takes more is
-  given its own cap (the respiration range 31, fitness age 29, HRV 367, the
-  weekly weight and blood pressure ranges 364; Health Status's range has none),
-  up to 3660. `emptyWindowsToStop` windows in a row without a row end a
+  given its own window, up to 3660: respiration 31, fitness age 29, and 3660
+  for the four whose range has no cap (weight, blood pressure, pulse ox,
+  Health Status), which fetch the whole history in one request.
+  `emptyWindowsToStop` windows in a row without a row end a
   history walk, once it is past the oldest activity; `maxHistoryDays` stops it
   where Garmin stops keeping the stat.
 - **`refreshDays`** (0 by default) has every routine sync fetch the index's
@@ -367,7 +408,7 @@ from it, not from a copy of it.
 
 | Shared part | What it gives a stat |
 | --- | --- |
-| `src/dashboard/periods.ts` | `periodOf` (7d, 4w, 1y rolling back from today, offsets a whole period), `rollingWeeks` and `weeksOf` (the 1y's 52 rolling weeks, each the rounded mean of its days), `switchRange`, `stepRoute`, `dayCardRoute`, `weekCardRoute`, the labels (`dayLabel` "Today" / "Wednesday, October 7", `periodLabel` "Oct 2 - 8" / "Oct 16-22, 2025", `yearLabel`, `weekTitle`, `cardDate`), the axes (`dayAxis` with its "MM-DD" ends, `monthAxis`), and `meanOf(values, rounding)`: `"floor"` for Stress, `"round"` (half up) for Body Battery, Heart Rate and Respiration |
+| `src/dashboard/periods.ts` | `periodOf` (7d, 4w, 1y rolling back from today, offsets a whole period), `rollingWeeks` and `weeksOf` (the 1y's 52 rolling weeks, each the rounded mean of its days), `switchRange`, `stepRoute`, `dayCardRoute`, `weekCardRoute`, the labels (`dayLabel` "Today" / "Wednesday, October 7", `periodLabel` "Oct 2 - 8" / "Oct 16-22, 2025", `yearLabel`, `weekTitle`, `cardDate`), the axes (`dayAxis` with its "MM-DD" ends, `monthAxis`), `meanOf(values, rounding)` (`"floor"` for Stress, `"round"`, half up, for Body Battery, Heart Rate and Respiration) and the plain `mean`, and the date words every page shares: `longDate`, `weekdayOf`, `daysBetween`, `shiftMonth`, `lastDayOfMonth`, `MONTHS`, `WEEKDAYS`, `SHORT_MONTHS`. Import these rather than copying them |
 | `src/dashboard/stat-charts.ts` | `ChartFrame` (a chart's insets and heights, measured off the stat's Figma frame, one for the phone and one for a pane's 748pt column), `plotBox(frame, width, ticks, axis)` (gridlines, y labels, the axis' dots and labels, and the scale for the stat's marks) and `linePath` (a line that breaks at a missing value) |
 | `health/StatPageShell.svelte` | the sticky header — back and the stat's title, the range control with the stat's ranges from `HEALTH_STATS`, the period stepper (‹ disabled at the start of history, › only on a past period) — the history banner, and the phone and pane containers (640 and 1000pt) |
 | `health/StatChart.svelte` | a chart under its title: the box at the width it gets, with `under` and `over` snippets for the stat's marks and a `footer` for its key |
@@ -391,7 +432,10 @@ rounding, its copy), its chart frames (measured off its own twin) and marks,
 and anything only it draws — Stress's ring, colours and timeline stay in
 `src/ui/svelte/stress/`.
 
-A 7d / 4w page, sketched for a stat like Respiration:
+A 7d / 4w page in outline, simplified from Respiration's. The real one
+(`averagesPlot` in `src/dashboard/respiration-charts.ts`, and
+`src/ui/svelte/respiration/`) draws a sleep line and an awake line; the outline
+keeps one:
 
 ```ts
 // src/dashboard/respiration-charts.ts — its frames, measured off its twin
@@ -484,16 +528,32 @@ declining. Different problems, different errors.
 1. Add the field to the payload interface in `src/garmin/endpoints.ts`.
 2. Map it in `mapDay` in `src/sync/metrics.ts`, using `metric()` so negative
    sentinels are dropped.
-3. Add the key to `byGroup` in `keysFor`, in display order.
-4. Add a label to `METRIC_LABELS`, or the column header falls back to the raw key.
-5. If the value is a duration in seconds, add it to `DURATION_KEYS`.
+3. Add a label to `METRIC_LABELS`, or a Bases column header falls back to the
+   raw key.
+4. If it deserves a column in the generated Bases view, add it to its group's
+   list in `PRIMARY`. Every other property is still written and queryable.
+5. If the endpoint is in the daily contract check, add the field's path to
+   `reads` on its entry in `api/endpoints.json` (`critical` if the plugin cannot
+   do without it). See [api/README.md](../api/README.md).
 6. Add a test in `tests/metrics.test.ts`.
 7. Update [docs/properties.md](properties.md).
 
 ### Add a metric group
 
-As above, plus a new member of `MetricGroup` and `ALL_GROUPS`, and an entry in
-`endpointsFor()` so the request is only made when the group is on.
+As above, plus:
+
+1. A new member of `MetricGroup` and `ALL_GROUPS` (display order), its `PRIMARY`
+   entry, and an entry in `endpointsFor()` so its requests are only made when
+   the group is on — all in `src/sync/metrics.ts`.
+2. Its cost for the settings tab, in the same file: `REQUESTS_PER_DAY`, or
+   `FREE_GROUPS` when it rides along in the daily summary, `REQUESTS_PER_SYNC`
+   for a once-a-sync group, `RANGE_GROUPS` for one range request a sync.
+3. Its label in `GROUP_LABELS` (`src/ui/svelte/SettingsPanel.svelte`).
+4. Bump `SETTINGS_VERSION` (`src/settings-data.ts`) and add the group to
+   `migrate()` in `src/plugin-data.ts`, so an existing vault gets it switched on
+   once while a group someone turned off stays off. Extend
+   `tests/plugin-data.test.ts`.
+5. The group on the endpoint's entry in `api/endpoints.json` (`groups`).
 
 ### Add a storage target
 
@@ -523,20 +583,36 @@ sections instead of rebuilding the pane and losing your scroll position.
 ## Testing
 
 Tests bundle with esbuild and run on Node's built-in runner — no network, no
-Obsidian. `FixtureHttpClient` replays canned responses in order, which is how
-sequences like "401, then refresh, then success" and "first DI client ID
-rejected, second accepted" are expressed.
+Obsidian. `pretest` clears `tests/.build` first, so a deleted test cannot keep
+passing from an old bundle. `FixtureHttpClient` (`tests/support/fixture-http.ts`)
+replays canned responses in order, which is how sequences like "401, then
+refresh, then success" and "first DI client ID rejected, second accepted" are
+expressed.
 
 Nothing of ours is mocked. The fixtures sit at the **transport** seam and the
 engine's doubles sit at the **note-target** seam, so what is under test is the
 real code. That is the payoff from the two seams.
 
+What the suite pins down beyond the seams:
+
+- **Golden numbers.** Each page's view-model tests assert the figures the
+  phone showed when the page was specified. A change that moves one needs a
+  reason, not a new expected value.
+- **`data.json`.** `tests/plugin-data.test.ts` covers the allowlist read, the
+  group migrations and what a save may carry.
+- **The API catalogue, offline.** `tests/api-catalogue.test.ts` and its
+  neighbours check `api/endpoints.json` against the probes and the recorded
+  shapes, with no account.
+- **Release notes.** `tests/release-notes.test.ts` reads the real
+  `CHANGELOG.md`, so a release can always find its notes.
+
 ```bash
-npm test                   # the suite, no network
-npm run build              # typecheck → svelte-check → tests → bundle → mobile check
-npm run preview:dashboard  # real Dashboard.svelte in a browser, synthetic data
-npm run probe:node         # the real auth module under Node, step 0 only
+npm test                          # the suite, no network
+npm run build                     # typecheck → svelte-check → tests → bundle → mobile check
+scripts/dev/test.sh 'stress-*'    # only the matching tests, in tests/.build-<slug>/,
+                                  # so runs in parallel do not overwrite each other
 ```
 
-`npm run build` fails if a node or electron require reaches the bundle. Keep
-that in CI — it is what backs `isDesktopOnly: false`.
+`npm run build` fails if a node or electron require reaches the bundle — that
+is what backs `isDesktopOnly: false`. CI runs it on every pull request and every
+push to `main` (`.github/workflows/ci.yml`).

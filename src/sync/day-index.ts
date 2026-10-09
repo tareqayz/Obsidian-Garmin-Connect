@@ -99,9 +99,10 @@ export interface DayIndexSpec<R extends DayRow> {
 	/** The settings group the index belongs to: nothing is fetched while it is off. */
 	group: MetricGroup;
 	/**
-	 * Days a window request covers: 28 unless the endpoint takes more (the
-	 * respiration range 31, fitness age 29, HRV 367, the weekly weight and
-	 * blood pressure ranges 364; Health Status's has no cap). At most 3660.
+	 * Days a window request covers: 28 unless the endpoint takes more
+	 * (respiration's range 31, fitness age's 29). Weight, blood pressure, pulse
+	 * ox and Health Status have no cap, so they ask for the most and get the
+	 * whole history in one request. At most `MAX_WINDOW_DAYS` (3660).
 	 */
 	windowDays?: number;
 	/**

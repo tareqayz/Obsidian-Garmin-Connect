@@ -1,11 +1,12 @@
 # CLAUDE.md
 
-Obsidian plugin that syncs Garmin Connect data into the vault. `CONTRIBUTING.md` is the full
+Obsidian plugin that syncs Garmin Connect data into the vault and rebuilds Garmin Connect's
+pages (Home, Activities, Health Stats) inside Obsidian. `docs/CONTRIBUTING.md` is the full
 rulebook; this file is the short version that matters while making changes.
 
 ## UI
 
-Any updated to UI should be managed in the relevant figma file : https://www.figma.com/design/8D338zFIJ1a2zrsuligjva/Obsidian-Garmin?m=auto&t=8zZKo7uGo4sDw9Sv-6
+Any update to UI should be managed in the relevant figma file: https://www.figma.com/design/8D338zFIJ1a2zrsuligjva/Obsidian-Garmin?m=auto&t=8zZKo7uGo4sDw9Sv-6
 
 This is relevant for:
 - Designing new components
@@ -40,8 +41,13 @@ Always cross-check UI implementations by verifying using the [obsidian CLI comma
 The working tree is `.obsidian/plugins/garmin-connect` in a real vault.
 
 - `data.json` here holds live Garmin credentials and tokens. It is gitignored. Never commit,
-  print, or paste its contents.
-- Switching branches hot-swaps the running plugin. Prefer `git worktree` for parallel work.
+  print, or paste its contents. The same goes for `.garmin-token.json` (a refresh token from
+  `npm run api:token`) and `ref/` (personal phone screenshots and specs).
+- A build here replaces the live plugin's `main.js`. Hot Reload is not enabled, so it takes
+  effect on `obsidian plugin:reload id=garmin-connect`, and iCloud carries it to the phone.
+  Prefer a `git worktree` outside iCloud for parallel work.
+- `node_modules` is kept out of iCloud with `xattr -w 'com.apple.fileprovider.ignore#P' 1
+  node_modules`. `npm ci` recreates the folder, so re-apply it after one.
 
 ## Build
 
