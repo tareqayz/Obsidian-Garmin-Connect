@@ -23,7 +23,7 @@
 
 import { writeFileSync } from "node:fs";
 
-import { FetchHttpClient } from "../../src/fetch-http";
+import { FetchHttpClient } from "./fetch-http";
 import { GarminApi } from "../../src/garmin/endpoints";
 import { GarminRateLimitError } from "../../src/garmin/errors";
 import { DI_CLIENT_IDS } from "../../src/garmin/constants";

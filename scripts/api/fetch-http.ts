@@ -1,8 +1,9 @@
-import { buildUrl, type HttpClient, type HttpRequest, type HttpResponse } from "./http";
+import { buildUrl, type HttpClient, type HttpRequest, type HttpResponse } from "../../src/http";
 
 /**
- * `fetch` adapter — used by the Node harness and by tests, never by the plugin.
- * Its only reason to exist is to prove the Garmin logic has no Obsidian in it.
+ * `fetch` adapter — used by the API scripts (`api:check`, `api:token`) and by
+ * tests, never by the plugin. It lets the Garmin logic run outside Obsidian, which
+ * also proves that logic has no Obsidian in it.
  */
 export class FetchHttpClient implements HttpClient {
 	async request(req: HttpRequest): Promise<HttpResponse> {

@@ -19,7 +19,7 @@ import { writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 
-import { FetchHttpClient } from "../../src/fetch-http";
+import { FetchHttpClient } from "./fetch-http";
 import { GarminClient } from "../../src/garmin/client";
 import { MemoryTokenStore } from "../../src/garmin/tokens";
 

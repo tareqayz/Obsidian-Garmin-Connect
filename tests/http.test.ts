@@ -78,7 +78,7 @@ describe("parseJson", () => {
 describe("FetchHttpClient", () => {
 	it("keeps every Set-Cookie, not just the last one", async () => {
 		const { createServer } = await import("node:http");
-		const { FetchHttpClient } = await import("../src/fetch-http");
+		const { FetchHttpClient } = await import("../scripts/api/fetch-http");
 		const server = createServer((_req, res) => {
 			res.setHeader("Set-Cookie", [
 				"SESSION=s-9; Path=/",
