@@ -10,6 +10,8 @@ GitHub release takes its notes from the matching section here — see
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-09
+
 The plugin is now Garmin Connect, rebuilt inside Obsidian: the phone app's
 Home, Activities, daily stats, Sleep and Health Stats pages, drawn from data
 the sync keeps in your vault. The configurable dashboard that came before it is
@@ -152,5 +154,6 @@ development builds before it.
 - The graph view can struggle when many day notes link to one hub note. Turn
   off "Link every day to the table view" if it does.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.1.0-beta.1...0.2.0
 [0.1.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/releases/tag/0.1.0-beta.1
