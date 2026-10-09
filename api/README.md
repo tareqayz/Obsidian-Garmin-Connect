@@ -10,7 +10,7 @@ a job that checks it against the live one every day.
 | File | What it is |
 | --- | --- |
 | [`endpoints.json`](endpoints.json) | Every endpoint, its request shape, and what this plugin does with it. |
-| [`schema/`](schema/) | The response shape actually observed, one file per checked endpoint. |
+| [`schema/`](schema/) | The response shapes actually observed: 68 files for the 69 checked endpoints. `blood-pressure-last` has none, because it only ever returned an empty list on the recording account. |
 
 ## endpoints.json
 
@@ -41,12 +41,12 @@ marking them retired, and their `upstream.summary` says where they were seen.
 
   // Everything below here is hand-written and survives regeneration.
   "plugin": "GarminApi.dailySummary",
-  "groups": ["activity", "heart", "stress"],
+  "groups": ["activity", "heart", "stress", "respiration", "spo2"],
   "cadence": "day",
   "check": true,
   "critical": ["calendarDate", "totalSteps", "…"],
   "schema": "schema/user-summary.json",
-  "notes": "Serves three metric groups from one request."
+  "notes": "Serves five metric groups from one request."
 }
 ```
 
@@ -95,6 +95,19 @@ plugin. 69 endpoints and about 500 response paths, sampling the last three
 complete days and a fourteen-day range. The weekly routes ask for their usual 52
 weeks, and the weight and blood pressure ranges for 52 weeks too: the weekly
 forms accept no other span, and a rare weigh-in needs the wider net.
+
+Eighteen of the 69 have no caller in the plugin yet. They are routes the
+Health Stats work catalogued for pages still to be built, and until they are
+wired up or unchecked the check spends a request on each:
+
+`activities-for-day`, `blood-pressure-day`, `blood-pressure-last`,
+`daily-events`, `health-snapshot-detail`, `health-status-summary`,
+`heart-rate-zones`, `hrv-data-range`, `lifestyle-logging-data`, `naps`,
+`rhr-day`, `weekly-blood-pressure`, `weekly-fitnessage`, `weekly-heart-rate`,
+`weekly-stress`, `weekly-weigh-ins`, `weight-goal`, `weight-latest`.
+
+[`docs/garmin-api.md`](../docs/garmin-api.md#available-but-unused) lists their
+methods.
 
 Each endpoint comes back with one verdict:
 
