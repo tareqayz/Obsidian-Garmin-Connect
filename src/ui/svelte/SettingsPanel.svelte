@@ -297,8 +297,7 @@
 				.setDesc(
 					"Writes a link property on each day's note pointing at the Bases view, so the " +
 						"days hang off one hub instead of floating loose. Note that the graph view " +
-						"only draws edges between notes — a .base file is not one, so change the " +
-						"link target below to a note if you want the graph to show it.",
+						"only draws edges between notes, and a .base file is not one.",
 				)
 				.addToggle((t) =>
 					t.setValue(s.linkToBase).onChange((v) => {
@@ -326,8 +325,8 @@
 
 <h3>Metrics</h3>
 <p class="hint">
-	Each group marked with a request count costs that many Garmin calls per day synced. The rest come out
-	of a request another group already makes, so they are free once anything above them is on.
+	Each group says what it costs in Garmin requests: most per day synced, a few once per sync. The free
+	ones share the daily summary request, so one request a day covers all of them.
 </p>
 
 {#each ALL_GROUPS as group (group)}
