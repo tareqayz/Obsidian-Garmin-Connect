@@ -5,10 +5,10 @@ import {
 	applyPrefix,
 	bucketWorkoutsByDate,
 	endpointsFor,
-	keysFor,
 	localDateOf,
 	mapDay,
 	METRIC_LABELS,
+	primaryKeysFor,
 	toLocalDateTime,
 	type DayData,
 	type MapOptions,
@@ -275,17 +275,13 @@ describe("applyPrefix", () => {
 	});
 });
 
-describe("keysFor", () => {
-	it("lists keys grouped and in a stable order", () => {
-		assert.deepEqual(keysFor(["heart"]), ["resting_hr", "resting_hr_7d", "min_hr", "max_hr"]);
+describe("labels", () => {
+	it("labels every column the Bases view opens with", () => {
+		for (const key of primaryKeysFor(ALL_GROUPS)) assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
 	});
 
-	it("orders groups consistently regardless of how they are passed in", () => {
-		assert.deepEqual(keysFor(["heart", "activity"]), keysFor(["activity", "heart"]));
-	});
-
-	it("covers every key mapDay can produce for a group", () => {
-		// Guards against a new metric being mapped but never reaching the table.
+	it("labels every key mapDay writes for a day", () => {
+		// Guards against a new metric being mapped but reaching the table unnamed.
 		const produced = Object.keys(
 			mapDay(
 				{
@@ -303,8 +299,8 @@ describe("keysFor", () => {
 				opts({ groups: ["activity"] }),
 			),
 		);
-		const known = new Set(keysFor(["activity"]));
-		for (const key of produced) assert.ok(known.has(key), `keysFor is missing "${key}"`);
+		assert.ok(produced.length > 0);
+		for (const key of produced) assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
 	});
 });
 
@@ -770,13 +766,5 @@ describe("mapDay — fitness extras", () => {
 		);
 		assert.equal(live.endurance_feedback, 55);
 		assert.equal(live.endurance_elite_from, 8800);
-	});
-});
-
-describe("keysFor — new keys have labels", () => {
-	it("labels every fixed key", () => {
-		for (const key of keysFor(ALL_GROUPS)) {
-			assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
-		}
 	});
 });

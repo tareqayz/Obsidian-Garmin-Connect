@@ -26,7 +26,7 @@ export function basesView(opts: BasesViewOptions): string {
 	const groups = opts.groups.length ? opts.groups : ALL_GROUPS;
 	const wanted = opts.units === "imperial" ? "distance_mi" : "distance_km";
 	// The headline keys only. Every other synced property is still on the note
-	// and still queryable; a view eighty columns wide would just be unusable.
+	// and still queryable; a view two hundred columns wide would just be unusable.
 	const columns = primaryKeysFor(groups).filter(
 		(key) => !key.startsWith("distance_") || key === wanted,
 	);

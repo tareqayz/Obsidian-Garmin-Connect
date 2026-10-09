@@ -1,5 +1,4 @@
 import type { Chart, RangeId } from "./activities";
-import { barPath } from "./scales";
 
 /**
  * Where the marks of a "<Metric> Totals" chart go, measured off the app.
@@ -80,4 +79,14 @@ export function chartGeometry(chart: Chart, width: number): ChartGeometry {
 		: [0, n - 1].filter((i, k, all) => n > 0 && all.indexOf(i) === k).map((i) => ({ x: x(i), y: 324, text: chart.slots[i]!.label, rotated: false }));
 
 	return { width, gridlines, bars, dots, labels };
+}
+
+/** Rounded at the data end, square at the baseline. */
+export function barPath(x: number, y: number, w: number, h: number, r = 4): string {
+	const radius = Math.min(r, w / 2, Math.max(0, h));
+	const bottom = y + h;
+	return (
+		`M${x},${bottom} L${x},${y + radius} Q${x},${y} ${x + radius},${y} ` +
+		`L${x + w - radius},${y} Q${x + w},${y} ${x + w},${y + radius} L${x + w},${bottom} Z`
+	);
 }

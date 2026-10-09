@@ -100,7 +100,7 @@ export class DailyNoteTarget implements NoteTarget {
 			this.byName = null;
 		}
 
-		// `date` rides along so the dashboard can read a day back out of a note
+		// `date` rides along so Home can read a day back out of a note
 		// whose filename format it does not have to parse.
 		return writeFrontmatter(
 			this.app,
