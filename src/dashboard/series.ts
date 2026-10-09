@@ -5,6 +5,8 @@
  * Pure: no Obsidian, no DOM, no clock except what is passed in.
  */
 
+import { DAY_MS } from "./day";
+
 /** One synced day, as Home reads it back out of frontmatter. */
 export interface DayRow {
 	date: string;
@@ -19,8 +21,6 @@ export interface DayRow {
 	/** The day's Health Snapshots, as `mapSnapshot` wrote them. */
 	snapshots?: Array<Record<string, unknown>>;
 }
-
-const DAY_MS = 86_400_000;
 
 /** `YYYY-MM-DD` moved by whole days, in UTC so a DST change cannot skip or repeat one. */
 export function shiftDate(iso: string, days: number): string {

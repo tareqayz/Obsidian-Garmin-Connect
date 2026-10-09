@@ -2,6 +2,7 @@ import type { DailyStatRow, FitnessAge } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
 import type { DaySeries } from "./intraday";
 import { defineIntraday } from "./intraday-registry";
+import { num } from "./numbers";
 
 /**
  * Fitness Age: the day index the 7d, 4w and 1y trends read, and the intraday
@@ -96,8 +97,6 @@ export interface FitnessAgeDay {
 }
 
 export const FITNESS_AGE_DAY_KEY = "fitnessAgeDay";
-
-const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
 export function fitnessAgeDayOf(payload: FitnessAge | null | undefined): FitnessAgeDay | null {
 	if (!payload || typeof payload !== "object") return null;

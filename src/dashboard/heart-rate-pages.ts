@@ -22,6 +22,7 @@ import {
 	type Span,
 	type SpanRange,
 } from "./periods";
+import { shortDate } from "./day";
 
 /**
  * Garmin Connect's Heart Rate page, worked out from the heart rate index
@@ -307,8 +308,6 @@ function shiftDay(date: string, days: number): string {
 	return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const short = (date: string) => `${SHORT_MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`;
 
 /**
  * The phone's week card: "Oct 1 - 7", "Aug 27 - Sep 2" this year; "Dec 25-31,
@@ -316,9 +315,9 @@ const short = (date: string) => `${SHORT_MONTHS[Number(date.slice(5, 7)) - 1]} $
  */
 export function heartRateWeekTitle(from: string, to: string, today: string): string {
 	const sameMonth = from.slice(0, 7) === to.slice(0, 7);
-	const end = sameMonth ? String(Number(to.slice(8, 10))) : short(to);
-	if (to.slice(0, 4) === today.slice(0, 4)) return `${short(from)} - ${end}`;
-	return `${short(from)}${sameMonth ? "-" : " - "}${end}, ${to.slice(0, 4)}`;
+	const end = sameMonth ? String(Number(to.slice(8, 10))) : shortDate(to);
+	if (to.slice(0, 4) === today.slice(0, 4)) return `${shortDate(from)} - ${end}`;
+	return `${shortDate(from)}${sameMonth ? "-" : " - "}${end}, ${to.slice(0, 4)}`;
 }
 
 /* ------------------------------------------------------------------ */

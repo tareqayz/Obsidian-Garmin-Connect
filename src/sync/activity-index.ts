@@ -1,4 +1,5 @@
 import type { Activity } from "../garmin/endpoints";
+import { num } from "./numbers";
 
 /**
  * The activity index: every activity on the account, one short row each, in
@@ -235,6 +236,3 @@ function setPositive(row: ActivityRow, key: "distance" | "duration" | "ascent" |
 	if (n !== undefined && n > 0) row[key] = Math.round(n * 100) / 100;
 }
 
-function num(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}

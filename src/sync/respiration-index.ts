@@ -2,6 +2,7 @@ import type { RespirationDay, RespirationStatRow } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
 import { epochOf, type DaySeries } from "./intraday";
 import { defineIntraday } from "./intraday-registry";
+import { isFiniteNumber } from "./numbers";
 
 /**
  * Respiration: the day index the Respiration pages' 7d and 4w views read, and
@@ -96,13 +97,9 @@ const HOUR_MS = 3_600_000;
 const MAX_OFFSET_MS = 14 * HOUR_MS;
 const QUARTER_HOUR_MS = 900_000;
 
-function finite(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
-}
-
 /** Whole brpm, or undefined for null or a negative code. */
 function brpm(value: unknown): number | undefined {
-	return finite(value) && value >= 0 ? Math.round(value) : undefined;
+	return isFiniteNumber(value) && value >= 0 ? Math.round(value) : undefined;
 }
 
 function offsetOf(local: unknown, gmt: number | undefined): number | undefined {
@@ -115,7 +112,7 @@ function offsetOf(local: unknown, gmt: number | undefined): number | undefined {
 function hoursOf(rows: unknown): RespirationHour[] {
 	const out: RespirationHour[] = [];
 	for (const row of Array.isArray(rows) ? rows : []) {
-		if (!Array.isArray(row) || !finite(row[0]) || !finite(row[1])) continue;
+		if (!Array.isArray(row) || !isFiniteNumber(row[0]) || !isFiniteNumber(row[1])) continue;
 		const avg = Math.round(row[1] * 100) / 100;
 		const measured = avg >= 0;
 		out.push([row[0], avg, measured ? (brpm(row[2]) ?? null) : null, measured ? (brpm(row[3]) ?? null) : null]);
@@ -154,10 +151,10 @@ export function respirationDayOf(payload: RespirationDay | null | undefined): Re
 /** The day's rows as its series file keeps them, or null when it has none or a block it cannot read. */
 export function respirationDayIn(series: DaySeries | null | undefined): RespirationDayData | null {
 	const raw = series?.extra?.[RESPIRATION_DAY_KEY] as Partial<Record<keyof RespirationDayData, unknown>> | undefined;
-	if (!raw || typeof raw !== "object" || !finite(raw.start) || !finite(raw.end) || raw.end <= raw.start) return null;
+	if (!raw || typeof raw !== "object" || !isFiniteNumber(raw.start) || !isFiniteNumber(raw.end) || raw.end <= raw.start) return null;
 	const day: RespirationDayData = { start: raw.start, end: raw.end, hours: hoursOf(raw.hours) };
 	for (const key of ["startOffset", "endOffset", "sleepStart", "sleepEnd", "nextSleepStart", "nextSleepEnd"] as const) {
-		if (finite(raw[key])) day[key] = raw[key];
+		if (isFiniteNumber(raw[key])) day[key] = raw[key];
 	}
 	for (const key of ["lowest", "highest", "awake"] as const) {
 		const value = brpm(raw[key]);

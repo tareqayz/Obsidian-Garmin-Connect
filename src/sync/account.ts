@@ -3,6 +3,7 @@ import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { silentLog, type Log } from "../log";
 import { epochOf } from "./intraday";
 import { pace } from "./metrics";
+import { num } from "./numbers";
 
 /**
  * The account file: facts that belong to no day.
@@ -365,10 +366,6 @@ function lactateOf(
 }
 
 /* ------------------------------------------------------------------ */
-
-function num(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
 
 function obj(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object" && !Array.isArray(value)
