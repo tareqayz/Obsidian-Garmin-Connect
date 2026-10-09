@@ -23,8 +23,6 @@ export interface ActivitiesData {
 	units: Units;
 }
 
-export const NO_ACTIVITIES: ActivitiesData = { rows: [], complete: false, records: [], units: "metric" };
-
 export type CategoryId = "running" | "cycling" | "gym" | "swimming" | "hiking" | "multisport" | "other";
 export type MetricId = "distance" | "time" | "ascent" | "calories";
 export type RangeId = "7d" | "4w" | "1y";

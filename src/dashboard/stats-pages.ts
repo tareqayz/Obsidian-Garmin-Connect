@@ -52,8 +52,6 @@ export interface StatsData {
 	calories: Readonly<Record<string, number>>;
 }
 
-export const NO_STATS: StatsData = { rows: [], complete: false, units: "metric", weekStart: 1, calories: {} };
-
 export interface StatsRoute {
 	stat: StatId;
 	range: StatRange;

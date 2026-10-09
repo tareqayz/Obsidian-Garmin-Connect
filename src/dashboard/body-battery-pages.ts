@@ -16,7 +16,6 @@ import {
 	spread,
 	weekdayOf,
 	type PeriodAxis,
-	type PeriodRange,
 	type PeriodRoute,
 	type Rounding,
 } from "./periods";
@@ -45,7 +44,6 @@ import { dayLength, duration, timelineOf, type StressTimeline } from "./stress-p
  */
 
 /** Body Battery pages through three ranges on the shared route. */
-export type BatteryRange = Exclude<PeriodRange, "1y">;
 export type BatteryRoute = PeriodRoute;
 
 /** Means round half up (floor fits the weekly route on 59 values of 104). */
@@ -58,8 +56,6 @@ export interface BatteryData {
 	/** Whether the index holds the whole history yet. */
 	complete: boolean;
 }
-
-export const NO_BATTERY: BatteryData = { rows: [], complete: false };
 
 export interface BatteryInput {
 	data: BatteryData;

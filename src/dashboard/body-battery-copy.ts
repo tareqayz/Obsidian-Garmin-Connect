@@ -55,9 +55,6 @@ const COPY: Readonly<Record<string, BatteryFeedback>> = {
 /** The types that say the watch had too little to go on (inferred: none was seen on a 1d page yet). */
 const NO_DATA = new Set(["NO_DATA", "EARLY_MORNING_NO_DATA"]);
 
-/** The feedback types whose wording is known. */
-export const KNOWN_FEEDBACK: readonly string[] = Object.keys(COPY);
-
 /**
  * The short type a long type was made from: the long type is the short one
  * with `_AND_BB_LOW` or `_AND_BB_LOW_MORNING_AND_NOW` added, or HARD_EXERCISE

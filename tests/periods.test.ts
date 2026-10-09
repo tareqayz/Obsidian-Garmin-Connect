@@ -15,7 +15,6 @@ import {
 	offsetOfDay,
 	periodLabel,
 	periodOf,
-	periodSeriesDays,
 	rangeLabel,
 	rollingWeeks,
 	stepRoute,
@@ -95,8 +94,6 @@ describe("routes", () => {
 		assert.deepEqual(dayCardRoute("2026-10-05", TODAY), { range: "1d", offset: -3 });
 		assert.equal(weekOffset("2025-10-22", "2026-10-07"), -50);
 		assert.deepEqual(weekCardRoute({ range: "1y", offset: 0, date: "2026-10-05" }, "2026-10-01", TODAY), { range: "7d", offset: -1, date: "2026-10-05" });
-		assert.deepEqual(periodSeriesDays({ range: "1d", offset: -1 }, TODAY), ["2026-10-07"]);
-		assert.deepEqual(periodSeriesDays({ range: "1y", offset: 0 }, TODAY), []);
 	});
 });
 

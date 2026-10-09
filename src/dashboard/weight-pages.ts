@@ -47,8 +47,6 @@ export interface WeightPageData {
 	complete: boolean;
 }
 
-export const NO_WEIGHT: WeightPageData = { rows: [], complete: false };
-
 export interface WeightInput {
 	data: WeightPageData;
 	route: WeightRoute;

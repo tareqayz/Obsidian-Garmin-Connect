@@ -61,8 +61,6 @@ export interface SleepData {
 	units: Units;
 }
 
-export const NO_SLEEP: SleepData = { rows: [], complete: false, units: "metric" };
-
 export interface SleepRoute {
 	range: SleepRange;
 	/** Days, weeks, four weeks or years back from the current one: 0 or less. */

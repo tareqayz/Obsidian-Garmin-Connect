@@ -5,8 +5,6 @@ import {
 	heartRatePeriodView,
 	heartRateView,
 	heartRateWeeks,
-	zoneFloorsOf,
-	zoneOf,
 	type HeartRateDayView,
 	type HeartRatePageData,
 	type HeartRatePeriodView,
@@ -14,7 +12,6 @@ import {
 	type HeartRateStat,
 } from "../src/dashboard/heart-rate-pages";
 import { dayCardRoute, meanOf, stepRoute, switchRange, weekCardRoute } from "../src/dashboard/periods";
-import type { HeartRateZones } from "../src/garmin/endpoints";
 import type { HeartDay, HeartRateRow } from "../src/sync/heart-rate-index";
 
 /** The capture day: everything below is in true dates (ref/health-stats/heart-rate/README.md). */
@@ -507,26 +504,5 @@ describe("moving between pages", () => {
 		assert.equal(heartRateView({ data: data(), route: { range: "1d", offset: 0 }, today: TODAY }).range, "1d");
 		assert.equal(heartRateView({ data: data(), route: { range: "4w", offset: 0 }, today: TODAY }).range, "4w");
 		assert.equal(heartRateView({ data: data(), route: { range: "1y", offset: 0 }, today: TODAY }).range, "1y");
-	});
-});
-
-describe("zones, a hook for the line's colours", () => {
-	/** `heartRateZones/` as the web fetched it (web body 04). */
-	const ZONES: HeartRateZones[] = [
-		{ trainingMethod: "HR_MAX", restingHeartRateUsed: null, zone1Floor: 102, zone2Floor: 122, zone3Floor: 143, zone4Floor: 163, zone5Floor: 184, maxHeartRateUsed: 204, sport: "DEFAULT" },
-		{ trainingMethod: "HR_MAX", restingHeartRateUsed: null, zone1Floor: 99, zone2Floor: 118, zone3Floor: 138, zone4Floor: 158, zone5Floor: 177, maxHeartRateUsed: 197, sport: "CYCLING" },
-	];
-
-	it("reads the DEFAULT sport's floors and places a bpm in its zone", () => {
-		const floors = zoneFloorsOf(ZONES)!;
-		assert.deepEqual(floors, [102, 122, 143, 163, 184]);
-		assert.deepEqual([45, 101, 102, 108, 143, 188].map((bpm) => zoneOf(bpm, floors)), [0, 0, 1, 1, 3, 5]);
-	});
-
-	it("finds no floors without a DEFAULT sport or with floors out of order", () => {
-		assert.equal(zoneFloorsOf([ZONES[1]!]), undefined);
-		assert.equal(zoneFloorsOf([{ ...ZONES[0]!, zone3Floor: 120 }]), undefined);
-		assert.equal(zoneFloorsOf([{ ...ZONES[0]!, zone5Floor: null }]), undefined);
-		assert.equal(zoneFloorsOf(null), undefined);
 	});
 });

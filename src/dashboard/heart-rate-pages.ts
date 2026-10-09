@@ -1,4 +1,3 @@
-import type { HeartRateZones } from "../garmin/endpoints";
 import type { HeartDay, HeartRateRow } from "../sync/heart-rate-index";
 import {
 	canStepBack,
@@ -19,7 +18,6 @@ import {
 	weekdayOf,
 	yearLabel,
 	type PeriodAxis,
-	type PeriodRange,
 	type PeriodRoute,
 	type Span,
 	type SpanRange,
@@ -47,7 +45,6 @@ import {
  */
 
 /** Heart Rate pages through all four ranges, on the shared route. */
-export type HeartRateRange = PeriodRange;
 export type HeartRateRoute = PeriodRoute;
 /** The day's figures. A period averages the first three. */
 export type HeartRateMetric = "resting" | "high" | "low" | "avg7";
@@ -76,8 +73,6 @@ export interface HeartRatePageData {
 	/** Whether the index holds the whole history yet. */
 	complete: boolean;
 }
-
-export const NO_HEART_RATE: HeartRatePageData = { rows: [], complete: false };
 
 /** A figure: "49 bpm / Resting", "113 bpm / Avg High". */
 export interface HeartRateStat {
@@ -305,34 +300,6 @@ function hourTicks(hours: number): HeartRateTimeline["ticks"] {
 		ticks.push(large ? { x: h / hours, large, label: clockLabel(hours === 24 ? h : 0) } : { x: h / hours, large });
 	}
 	return ticks;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Zones                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * The DEFAULT sport's five zone floors, ascending, from `heartRateZones()`;
- * undefined when it sent none to use. A hook: the web shades the 1d line by
- * bpm from these (grey to blue through zone 1), but the gradient's stops and
- * the colours above zone 1 are unseen, and the phone's line is still to be
- * captured (README to-do 3), so nothing colours by zone yet.
- */
-export function zoneFloorsOf(zones: readonly HeartRateZones[] | null | undefined): number[] | undefined {
-	const zone = (Array.isArray(zones) ? zones : []).find((z) => z?.sport === "DEFAULT");
-	if (!zone) return undefined;
-	const floors = [zone.zone1Floor, zone.zone2Floor, zone.zone3Floor, zone.zone4Floor, zone.zone5Floor];
-	if (!floors.every((f): f is number => typeof f === "number" && Number.isFinite(f) && f > 0)) return undefined;
-	return floors.every((f, i) => i === 0 || f > floors[i - 1]!) ? floors : undefined;
-}
-
-/** The zone a bpm falls in under those floors: 0 below zone 1, else 1 to 5. */
-export function zoneOf(bpm: number, floors: readonly number[]): number {
-	let zone = 0;
-	floors.forEach((floor, i) => {
-		if (bpm >= floor) zone = i + 1;
-	});
-	return zone;
 }
 
 /** `YYYY-MM-DD` moved by whole days. */

@@ -5,7 +5,6 @@ import {
 	dayCardRoute,
 	dayLabel,
 	periodLabel,
-	periodSeriesDays,
 	stepRoute,
 	switchRange,
 	weekCardRoute,
@@ -476,9 +475,7 @@ describe("moving between pages", () => {
 		assert.deepEqual(weekCardRoute({ range: "1y", offset: 0, date: "2026-10-05" }, "2026-10-01", "2026-10-08"), { range: "7d", offset: -1, date: "2026-10-05" });
 	});
 
-	it("loads readings for a 1d page's day only", () => {
-		assert.deepEqual(periodSeriesDays({ range: "1d", offset: -1 }, TODAY), ["2026-10-07"]);
-		assert.deepEqual(periodSeriesDays({ range: "7d", offset: 0 }, TODAY), []);
+	it("builds the view the route asks for", () => {
 		assert.equal(stressView({ data: data(), route: { range: "1d", offset: 0 }, today: TODAY }).range, "1d");
 		assert.equal(stressView({ data: data(), route: { range: "4w", offset: 0 }, today: TODAY }).range, "4w");
 	});

@@ -139,11 +139,6 @@ export function weekCardRoute(route: PeriodRoute, weekEnd: string, today: string
 	return route.date ? { range: "7d", offset, date: route.date } : { range: "7d", offset };
 }
 
-/** The days whose series a page loads: a 1d page's day. */
-export function periodSeriesDays(route: PeriodRoute, today: string): string[] {
-	return route.range === "1d" ? [dayOf(route, today)] : [];
-}
-
 /* ------------------------------------------------------------------ */
 /*  Labels                                                             */
 /* ------------------------------------------------------------------ */

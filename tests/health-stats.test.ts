@@ -4,7 +4,6 @@ import { GLANCE_STATS } from "../src/dashboard/glance";
 import {
 	HEALTH_RANGES,
 	HEALTH_STATS,
-	HEALTH_STAT_IDS,
 	glanceStat,
 	healthStat,
 	hubStats,
@@ -15,21 +14,24 @@ import { ALL_GROUPS } from "../src/sync/metrics";
 
 describe("HEALTH_STATS", () => {
 	it("lists the stats in the phone's order", () => {
-		assert.deepEqual(HEALTH_STAT_IDS, [
-			"sleep",
-			"health-status",
-			"lifestyle-logging",
-			"weight",
-			"pulse-ox",
-			"pulse-ox-acclimation",
-			"respiration",
-			"heart-rate",
-			"blood-pressure",
-			"stress",
-			"body-battery",
-			"fitness-age",
-			"health-snapshot",
-		]);
+		assert.deepEqual(
+			HEALTH_STATS.map((s) => s.id),
+			[
+				"sleep",
+				"health-status",
+				"lifestyle-logging",
+				"weight",
+				"pulse-ox",
+				"pulse-ox-acclimation",
+				"respiration",
+				"heart-rate",
+				"blood-pressure",
+				"stress",
+				"body-battery",
+				"fitness-age",
+				"health-snapshot",
+			],
+		);
 		assert.deepEqual(
 			HEALTH_STATS.map((s) => s.title),
 			[

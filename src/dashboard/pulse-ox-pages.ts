@@ -32,15 +32,12 @@ import {
  * - Readings stopped on 2026-06-27: later days show "--".
  */
 
-export type PulseOxRange = "1d" | "7d" | "4w";
 export type Spo2Band = "high" | "mid" | "low" | "poor" | "none";
 
 export interface PulseOxPageData {
 	rows: readonly PulseOxRow[];
 	complete: boolean;
 }
-
-export const NO_PULSE_OX: PulseOxPageData = { rows: [], complete: false };
 
 export interface PulseOxInput {
 	data: PulseOxPageData;

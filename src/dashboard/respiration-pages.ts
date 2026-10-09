@@ -34,15 +34,12 @@ import {
  *   (inside the day) and a clock where it ended; an evening's night a "zz".
  */
 
-export type RespirationRange = "1d" | "7d" | "4w";
 export type RespirationRoute = PeriodRoute;
 
 export interface RespirationPageData {
 	rows: readonly RespirationRow[];
 	complete: boolean;
 }
-
-export const NO_RESPIRATION: RespirationPageData = { rows: [], complete: false };
 
 /** A figure: "7 brpm / Lowest". */
 export interface RespirationStat {
