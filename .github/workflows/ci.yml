@@ -1,0 +1,33 @@
+# Builds every pull request and every push to main with the same `npm run build`
+# the release workflow runs: tsc, svelte-check, the unit tests, the production
+# bundle and the mobile-safety check. A broken build shows up here, not on the
+# day a release tag is pushed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
