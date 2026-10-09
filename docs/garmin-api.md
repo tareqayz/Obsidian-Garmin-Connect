@@ -286,6 +286,29 @@ without failing the run.
 - **Rate limits are per IP** for login attempts, and repeated failures can lock
   an account.
 
+## TLS fingerprints
+
+`python-garminconnect` installs `curl_cffi` to forge TLS fingerprints, and sleeps
+10–20 s before login POSTs so Cloudflare's WAF does not flag the burst. From
+Obsidian you get `requestUrl` — Electron's stack on the desktop, the OS HTTP
+client on mobile — and you do not choose the fingerprint.
+
+Measured 2026-09-12, both platforms authenticate end to end:
+
+| | Desktop (Electron) | iOS (OS stack) | curl |
+| --- | --- | --- | --- |
+| JA4 | `t13d1516h2_8daaf6152771_02713d6af862` | `t13d2013h2_a09f3c656075_7f0f34a4126d` | — |
+| UA override honoured | yes | yes | n/a |
+| Login POST | 200 `SUCCESSFUL` | 200 `SUCCESSFUL` | 405 on GET |
+
+Three different fingerprints all passed — including the desktop's, which is
+Chromium TLS carrying an iPhone `User-Agent`, a mismatch Cloudflare did not
+punish. **Garmin is not enforcing TLS fingerprinting on `/mobile/api/*`**, which
+is why this works without `curl_cffi`. The human-facing sign-in page at
+`/portal/sso/en-US/sign-in` returns a 403 challenge even to plain curl: the two
+paths are in different protection buckets. Android, a third native stack, is
+still unmeasured.
+
 ## If the edge tightens
 
 Cheap things to try, all present in `python-garminconnect`, none needing TLS

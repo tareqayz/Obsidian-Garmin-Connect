@@ -503,15 +503,22 @@ examples.
 
 ### Add a chart
 
-The dashboard components import nothing from Obsidian, which is what lets
-`npm run preview:dashboard` mount the real `Dashboard.svelte` in a plain browser
-with synthetic data. Charts are hand-drawn SVG — no chart library, because a
-plugin cannot load external scripts and a bundled library would be dead weight
-on a phone.
+The UI is **Svelte 5**, set up the way [Obsidian's guide][svelte-guide]
+prescribes: `esbuild-svelte` in the build, components mounted with `mount()`
+and torn down with `unmount()`. Charts are hand-drawn SVG — no chart library,
+because a plugin cannot load external scripts and a bundled library would be
+dead weight on a phone. A chart is markup, and its geometry (where the marks
+go) lives in a pure `*-charts.ts` module beside the page's view model, so it is
+unit-tested without a DOM.
 
-Conventions worth keeping: no dual-axis charts (two scales get two charts);
-colour never carries meaning alone; ordered scales get an ordinal ramp of one
-hue rather than categorical colours; deltas know which direction is good.
+**Settings keep native controls.** The settings panel is a Svelte component,
+but every row is built with Obsidian's own `Setting` API through a small action
+(`src/ui/svelte/obsidian-setting.ts`). Hand-rolled toggles and sliders would
+re-implement Obsidian's look and its mobile behaviour and get both subtly wrong.
+Svelte decides which rows exist, so switching storage mode shows and hides
+sections instead of rebuilding the pane and losing your scroll position.
+
+[svelte-guide]: https://docs.obsidian.md/Plugins/Getting+started/Use+Svelte+in+your+plugin
 
 ## Testing
 

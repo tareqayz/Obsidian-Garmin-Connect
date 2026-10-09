@@ -20,8 +20,8 @@ Jump straight to the section you want. I think we all hate reading long docs...
 
 | Page | What it answers |
 | --- | --- |
-| [Architecture](docs/ARCHITECTURE.update.md) | Understanding the codebase and what happens under the hood |
-| [Garmin API](docs/GARMIN-API.update.md) | Every endpoint called, which metric group triggers it, and the request budget. |
+| [Architecture](docs/architecture.md) | Understanding the codebase and what happens under the hood |
+| [Garmin API](docs/garmin-api.md) | Every endpoint called, which metric group triggers it, and the request budget. |
 | [Contributing](docs/CONTRIBUTING.md) | A guide to contributing – branch conventions, commit format, and both release runbooks |
 
 ### Elsewhere in the repo
