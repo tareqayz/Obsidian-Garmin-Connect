@@ -38,11 +38,11 @@ export default class GarminPlugin extends Plugin {
 		this.registerView(GARMIN_HOME_VIEW, (leaf: WorkspaceLeaf) => new GarminHomeView(leaf, this));
 		this.registerView(LEGACY_DASHBOARD_VIEW, (leaf: WorkspaceLeaf) => new LegacyDashboardView(leaf));
 
-		this.addRibbonIcon(GARMIN_ICON, "Open Garmin dashboard", () => void this.openView(GARMIN_HOME_VIEW));
+		this.addRibbonIcon(GARMIN_ICON, "Open Garmin Home", () => void this.openView(GARMIN_HOME_VIEW));
 
 		this.addCommand({
 			id: "open-dashboard",
-			name: "Open dashboard",
+			name: "Open home",
 			callback: () => void this.openView(GARMIN_HOME_VIEW),
 		});
 		this.addCommand({
@@ -110,7 +110,7 @@ export default class GarminPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "rebuild-table-view",
-			name: "Rebuild the Garmin table view",
+			name: "Rebuild the table view",
 			callback: async () => {
 				const path = await this.sync.rewriteBasesView();
 				new Notice(`Rebuilt ${path}`);
@@ -123,7 +123,7 @@ export default class GarminPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "run-probe",
-			name: "Run connectivity probe",
+			name: "Run diagnostics",
 			callback: () => new ProbeModal(this.app, this).open(),
 		});
 

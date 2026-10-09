@@ -84,6 +84,12 @@ export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 	health: 1,
 };
 
+/**
+ * Groups whose only request is a range one: a single call covers a sync's whole
+ * window (one per year of a longer backfill), for the budget note in settings.
+ */
+export const RANGE_GROUPS: MetricGroup[] = ["races", "workouts"];
+
 /** Groups billed per sync rather than per day, for the budget note in settings. */
 export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
 	profile: 9,

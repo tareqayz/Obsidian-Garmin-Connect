@@ -91,6 +91,6 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// otherwise keep asking, four requests a day, until Garmin rate-limits it.
 	stopAfterEmptyDays: 45,
 
-	logFolder: "garmin-probe-logs",
+	logFolder: "Garmin/diagnostics",
 	autoSaveLog: true,
 };

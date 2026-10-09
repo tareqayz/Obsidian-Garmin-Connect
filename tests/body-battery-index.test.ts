@@ -131,7 +131,7 @@ describe("BODY_BATTERY_INDEX — the definition", () => {
 		assert.ok(DAY_INDEXES.includes(BODY_BATTERY_INDEX));
 		assert.deepEqual(
 			[BODY_BATTERY_INDEX.kind, BODY_BATTERY_INDEX.folder, BODY_BATTERY_INDEX.title, BODY_BATTERY_INDEX.group, BODY_BATTERY_INDEX.version],
-			["body-battery", "body-battery", "Body Battery", "stress", 1],
+			["body-battery", "body-battery", "body battery", "stress", 1],
 		);
 		assert.deepEqual([BODY_BATTERY_INDEX.windowDays, BODY_BATTERY_INDEX.emptyWindowsToStop, BODY_BATTERY_INDEX.refreshDays], [28, 2, 0]);
 		assert.deepEqual(BODY_BATTERY_INDEX.keys, ["high", "low", "charged", "drained", "latest", "atWake", "feedback"]);

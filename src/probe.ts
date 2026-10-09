@@ -213,17 +213,16 @@ function verdictFor(outcome: LoginOutcome): Verdict {
 
 const ADVICE: Record<Verdict, string[]> = {
 	success: [
-		"Obsidian's HTTP stack can authenticate against Garmin on this platform.",
-		"Run the same probe on the other platform before committing to the design.",
+		"Obsidian's HTTP stack can sign in to Garmin on this platform.",
+		"If syncing still fails, the trouble is past sign-in: see the troubleshooting guide.",
 	],
 	blocked: [
-		"Garmin's edge refused this HTTP client — the TLS/bot wall, not your password.",
-		"This is the outcome the project hinges on. Two things to check:",
+		"Garmin's edge refused this HTTP client — its bot wall, not your password.",
+		"Retrying straight away will not help. Two things worth putting in an issue:",
 		"  - Did step 0 pass? If step 0 got a 405 but step 1 got a 403, the path is open",
-		"    and it is the credential POST that is being scored. Retrying will not help;",
-		"    the request needs to look more like the app (headers, HTTP version, TLS).",
-		"  - Compare the JA4 from the fingerprint probe on desktop vs mobile. If only one",
-		"    platform is blocked, ship for that one first.",
+		"    and it is the credential POST that is being scored: the request needs to",
+		"    look more like the app (headers, HTTP version, TLS).",
+		"  - Whether the other platform (desktop or mobile) is blocked too.",
 	],
 	"rate-limited": [
 		"Rate limited (429). Not a verdict — wait 15-30 minutes and re-run.",
@@ -243,8 +242,8 @@ const ADVICE: Record<Verdict, string[]> = {
 	cancelled: ["Stopped at the MFA prompt. Re-run when you have the code to hand."],
 	failed: [
 		"Login did not complete. Read the step that failed above.",
-		"If step 3 failed but step 1 succeeded, the DI client IDs have rotated —",
-		"re-check DI_CLIENT_IDS against python-garminconnect master.",
+		"If step 3 failed but step 1 succeeded, Garmin has probably rotated its client",
+		"IDs: save this run and open an issue with it.",
 	],
 };
 
