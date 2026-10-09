@@ -3,7 +3,7 @@ import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import { DEFAULT_LAYOUTS, readLayouts, type LayoutsState } from "./dashboard/layouts";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
-import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings";
+import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings-data";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 
 /* Readers that accept only what they recognise, so nothing unexpected survives

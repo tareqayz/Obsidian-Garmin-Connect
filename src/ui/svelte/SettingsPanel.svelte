@@ -6,7 +6,7 @@
 	import { ALL_GROUPS, FREE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
 	import type { StorageMode } from "../../sync/runner";
-	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings";
+	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
 
 	let { plugin }: { plugin: GarminPlugin } = $props();

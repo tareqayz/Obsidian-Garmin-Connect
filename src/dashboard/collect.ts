@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import type { GarminSettings } from "../settings";
+import type { GarminSettings } from "../settings-data";
 import { trimSlashes } from "../sync/frontmatter";
 import type { DayRow } from "./series";
 
