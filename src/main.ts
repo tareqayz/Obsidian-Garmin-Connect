@@ -35,14 +35,6 @@ export default class GarminPlugin extends Plugin {
 		this.buildClient();
 		await this.garmin.restore();
 
-		if (this.data.migratedAwayFromStoredPassword) {
-			new Notice(
-				"Garmin Connect: a password left in data.json by the phase 0 probe has " +
-					"been deleted. Consider changing your Garmin password.",
-				10000,
-			);
-		}
-
 		this.registerView(
 			GARMIN_DASHBOARD_VIEW,
 			(leaf: WorkspaceLeaf) => new GarminDashboardView(leaf, this),

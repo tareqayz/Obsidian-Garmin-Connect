@@ -73,8 +73,6 @@ export class PluginData implements TokenStore {
 
 	private plugin: Plugin;
 	private auth: PersistedAuth | null = null;
-	/** True when a legacy password was found and removed on load. */
-	migratedAwayFromStoredPassword = false;
 
 	constructor(plugin: Plugin) {
 		this.plugin = plugin;
@@ -84,14 +82,11 @@ export class PluginData implements TokenStore {
 		const raw = (await this.plugin.loadData()) as Record<string, unknown> | null;
 		if (!raw) return;
 
-		// Phase 0 wrote settings flat at the top level; anything with a `settings`
-		// key is already the current shape.
-		const legacy = !("settings" in raw);
-		const source = (legacy ? raw : ((raw.settings ?? {}) as Record<string, unknown>));
+		const source = (raw.settings ?? {}) as Record<string, unknown>;
 
-		// Read by allowlist rather than spreading. Phase 0 could store the Garmin
-		// password, and picking known keys means a stray secret cannot survive a
-		// load no matter what is sitting in the file.
+		// Read by allowlist rather than spreading: picking known keys means a stray
+		// value — a secret, or something a later build wrote — never survives into
+		// the next save, whatever is sitting in the file.
 		const d = DEFAULT_SETTINGS;
 		this.settings = {
 			settingsVersion: int(source.settingsVersion, 1, 1, SETTINGS_VERSION),
@@ -127,7 +122,6 @@ export class PluginData implements TokenStore {
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
-		this.migratedAwayFromStoredPassword = Boolean(source.password);
 		const migrated = this.migrate();
 
 		// Same allowlist treatment as settings: a block this build cannot draw is
@@ -146,7 +140,7 @@ export class PluginData implements TokenStore {
 		const auth = raw.auth as PersistedAuth | null | undefined;
 		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
 
-		if (legacy || migrated || this.migratedAwayFromStoredPassword) await this.flush();
+		if (migrated) await this.flush();
 	}
 
 	/**
