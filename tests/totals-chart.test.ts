@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { periodFor } from "../src/dashboard/activities";
-import { chartGeometry } from "../src/dashboard/totals-chart";
+import { barPath, chartGeometry } from "../src/dashboard/totals-chart";
 
 const round = (n: number) => Math.round(n * 10) / 10;
 
@@ -27,5 +27,21 @@ describe("chartGeometry", () => {
 		assert.equal(g.labels.length, 12);
 		assert.ok(g.labels.every((l) => l.rotated));
 		assert.equal(g.gridlines[0]!.x2, 352);
+	});
+});
+
+describe("barPath", () => {
+	it("is rounded at the data end and square at the baseline", () => {
+		const d = barPath(10, 20, 24, 60);
+		// Starts at the baseline, curves at the top, returns to the baseline.
+		assert.ok(d.startsWith("M10,80"), d);
+		assert.equal((d.match(/Q/g) ?? []).length, 2);
+		assert.ok(d.endsWith("Z"));
+	});
+
+	it("never rounds more than the bar can carry", () => {
+		// A 1px-tall bar must not produce a radius bigger than itself.
+		assert.ok(barPath(0, 0, 2, 1).includes("Q"));
+		assert.doesNotThrow(() => barPath(0, 0, 1, 0));
 	});
 });

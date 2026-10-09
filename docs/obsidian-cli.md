@@ -1,3 +1,27 @@
+# Obsidian CLI
+
+What `obsidian help` printed on 2026-09-19, from the command-line interface that
+ships inside Obsidian (`/Applications/Obsidian.app/Contents/MacOS/obsidian` on
+macOS). It talks to the app that is already running, which is how this repo
+checks a change in the live vault: reload the plugin, open a page, read the DOM,
+capture a screenshot. The listing below is verbatim; run `obsidian help` for
+the current one.
+
+The commands this repo leans on:
+
+- `plugin:reload id=garmin-connect` after a build. Hot Reload is not enabled,
+  so a new `main.js` does nothing until then.
+- `eval`, wrapped by [`scripts/dev/ev.sh`](../scripts/dev/ev.sh), which retries
+  when the CLI drops its output.
+- `dev:debug` and `dev:cdp`, used by [`scripts/dev/click.sh`](../scripts/dev/click.sh)
+  for real clicks, since synthetic ones do not reach Svelte 5 handlers.
+- [`scripts/dev/capture-view.sh`](../scripts/dev/capture-view.sh) builds a page
+  capture out of `eval`.
+
+How a page is checked end to end is in
+[.claude/skills/garmin-page/verify.md](../.claude/skills/garmin-page/verify.md).
+
+```text
 Usage: obsidian <command> [options]
 
 Options:
@@ -472,3 +496,4 @@ Developer:
 
   eval                  Execute JavaScript and return result
     code=<javascript>   - JavaScript code to execute (required)
+```

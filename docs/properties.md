@@ -1,8 +1,9 @@
 # Property reference
 
 Every frontmatter property the sync can write, what it comes from, and what its
-value means. Generated from `src/sync/metrics.ts` — if the two ever disagree,
-the code is right.
+value means, followed by the files the sync keeps beside the notes for the
+pages. Maintained by hand from `src/sync/metrics.ts`, where the labels live
+(`METRIC_LABELS`). If the two ever disagree, the code is right.
 
 ## Naming and prefixes
 
@@ -173,10 +174,11 @@ From `/wellness-service/wellness/dailySleepData/{displayName}`, the
 | `sleep_need_training_feedback` | string | — | `sleepNeed.trainingFeedback` |
 | `sleep_need_history_adjustment` / `_hrv_adjustment` / `_nap_adjustment` | string | — | `sleepNeed.{sleepHistoryAdjustment, hrvAdjustment, napAdjustment}` |
 
-The sub-score verdicts and the Sleep Coach fields are read from the same sleep
-payload as everything above — no extra request — but their names come from
-public client libraries, not an observed response. Anything that never appears
-in a note is a key Garmin does not send; `npm run api:record` settles it.
+The sub-score verdicts and the Sleep Coach fields come from the same sleep
+payload as everything above, at no extra request, and the recorded responses
+in `api/schema/` confirm them. A key that never appears in your notes is one
+Garmin does not send for your watch: the overnight SpO2 pair, for one, needs
+pulse ox switched on during sleep.
 
 `sleep_body_battery_change` is the one metric allowed to go **negative**: a night
 that drained rather than recharged is information, not a sentinel. It is also the
@@ -253,7 +255,6 @@ From `/metrics-service/metrics/trainingreadiness/{date}`, first entry.
 | `readiness_hrv_factor` | integer | % | `[0].hrvFactorPercent` |
 | `recovery_time_hours` | number, 1 dp | hours | `[0].recoveryTime` ÷ 60 |
 | `acute_load` | integer | load | `[0].acuteLoad` |
-
 | `readiness_feedback` / `readiness_feedback_long` | string | — | `[0].feedbackShort` / `feedbackLong` |
 | `readiness_context` | string | — | `[0].inputContext` |
 | `readiness_<factor>_factor` | integer | % | `[0].<factor>FactorPercent` |
@@ -302,10 +303,6 @@ their day on `generic.calendarDate` (and `cycling.` / `heatAltitudeAcclimation.`
 rather than on the row. When that call has nothing for a day and the `training`
 group is on, training status's `mostRecentVO2Max` fills in — but only if its own
 `calendarDate` is that day, so a backfill never smears one reading across a year.
-
-> **Fixed.** `vo2max` never populated before, because the range rows were
-> indexed by a top-level `calendarDate` Garmin does not send. Confirmed on a
-> live account: rows appear on the days Garmin recorded a new value.
 
 ## respiration
 
@@ -376,7 +373,6 @@ From `/metrics-service/metrics/trainingstatus/aggregated/{date}`.
 | `load_aerobic_low` / `load_aerobic_high` / `load_anaerobic` | integer | load | `<balance>.monthlyLoad{AerobicLow, AerobicHigh, Anaerobic}` |
 | `load_<bucket>_target_min` / `_max` | integer | load | `<balance>.monthlyLoad<Bucket>TargetMin` / `TargetMax` |
 | `load_focus` | string | — | `<balance>.trainingBalanceFeedbackPhrase` |
-
 | `running_tolerance` | integer | load | `runningtolerance/stats` `acuteTolerance` |
 | `running_tolerance_load` | integer | load | `acuteImpactLoad` |
 | `running_tolerance_distance_km` / `_mi` | number, 2 dp | km / mi | `acuteDistance` (metres) |
@@ -393,10 +389,6 @@ account sends it there), and `<balance>` is
 Both maps are keyed by **device id**, and an account with a watch and a bike
 computer has several — none of them knowable in advance. The mapper takes the
 entry marked `primaryTrainingDevice: true`, or whichever is there.
-
-Before this layout was known the mapper read `latestTrainingStatusData` and
-`acuteTrainingLoadDTO` at the top level, which is why no note had a `training_*`
-property.
 
 Acute load is roughly the last week of training and chronic is roughly the last
 month. The ratio between them is the single most useful training number Garmin
@@ -474,7 +466,10 @@ One property reaches the note:
 | `hr_latest` | integer | bpm | last non-null reading in `heartRateValues` |
 
 Everything else goes to a **series file** per day, beside the notes, because a day
-of heart rate is hundreds of points and frontmatter is the wrong place for it:
+of heart rate is hundreds of points and frontmatter is the wrong place for it.
+Every day a sync writes gets one while `intraday` is on; only the newest seven
+spend the six requests, and the rest carry what the day's other payloads hold,
+such as the night's sleep.
 
 ```
 <dataFolder>/series/2026-09-20.json
@@ -498,12 +493,27 @@ of heart rate is hundreds of points and frontmatter is the wrong place for it:
   "dayStart":    1789848000000,
   // level: Garmin's stage code, believed 0 deep, 1 light, 2 REM, 3 awake.
   "sleepLevels": [{ "start": 1789855080000, "end": 1789856880000, "level": 1 }],
-  "bodyBatteryEvents": [{ "type": "SLEEP", "start": 1789855080000, "minutes": 464, "impact": 52, "feedback": "…" }]
+  "bodyBatteryEvents": [{ "type": "SLEEP", "start": 1789855080000, "minutes": 464, "impact": 52, "feedback": "…" }],
+  // The night that ended this day, for the Sleep pages: scores, stages, factors,
+  // Sleep Coach need, and the overnight heart rate, HRV, stress and respiration.
+  "sleep":       { "start": 1789855080000, "end": 1789884900000, "score": 84, "quality": "GOOD", "factors": { "…": "…" } },
+  // Blocks a Health Stats page loaded on view, by the key it registered.
+  "extra":       { "heartDay": { "…": "…" }, "spo2Day": { "…": "…" } },
+  // Keys loaded on view, data or not, so a day Garmin had nothing for is not asked again.
+  "checked":     ["heartDay", "spo2Day"]
 }
 ```
 
 Every timestamp is epoch milliseconds, UTC. A key is left out when Garmin had
 nothing for it. The file is rewritten only when its content changes.
+
+A Health Stats page opening a day the sync did not cover asks for that day's
+blocks then, and keeps them under `extra`: `stressDay`, `heartDay`,
+`respirationDay`, `spo2Day`, `fitnessAgeDay`, `snapshotList` and
+`snapshotDay`. A sync's own write of the day starts the file afresh, so those
+are fetched again the next time the page is opened. Files written before
+2026-10-07 have no `sleep` block, and before 2026-10-04 no floors, intensity
+or `dayStart`; they fill in as a sync covers those days again.
 
 `account.json` belongs to the `profile` group — see above.
 
@@ -616,6 +626,68 @@ How it fills:
 Multisport legs are not in the list, so they are not in the index either: a
 triathlon counts once, under Multisport.
 
+## History indexes
+
+The pages inside Home read neither the notes nor their properties. A week,
+four weeks or a year of the app's charts needs every day of that span, which the
+notes only have once a sync has reached each one. So the sync keeps an index
+per page beside the notes, with Garmin's own daily figures: a file per year and
+an `index.json`, in a folder under the data folder.
+
+```
+<dataFolder>/<folder>/index.json
+<dataFolder>/<folder>/2025.json
+<dataFolder>/<folder>/2026.json
+```
+
+These are JSON, not notes, so Bases and Dataview do not see them. They are
+listed here because they are part of what the plugin writes.
+
+| Folder | Group | Pages | A row holds |
+| --- | --- | --- | --- |
+| `activities/` | `workouts` | Activities | One activity: see [the activity index](#the-activity-index--activities) |
+| `daily-stats/` | `activity` | Steps, Floors, Intensity Minutes | One day: see [the daily stats index](#the-daily-stats-index--daily-stats) |
+| `sleep/` | `sleep` | Sleep | One night, filed under the day it ended |
+| `stress/` | `stress` | Stress | `level`, and the seconds at `rest`, `low`, `medium` and `high` stress; `qualifier` |
+| `body-battery/` | `stress` | Body Battery | `high`, `low`, `charged`, `drained`, `latest`, `atWake`, and the day's `feedback` key |
+| `heart-rate/` | `heart` | Heart Rate | `resting`, `high`, `low` (two-minute averages), `avg7` (Garmin's seven-day resting average) |
+| `respiration/` | `respiration` | Respiration | `awake` and `sleep` averages, breaths a minute |
+| `health-status/` | `health` | Health Status | Per metric (`hr`, `hrv`, `resp`, `skin`, `spo2`): the value, the baseline `Lo`/`Hi`, the ring `Pct` and the `St`atus; `out`, the night's outlier count |
+| `fitness-age/` | `fitness` | Fitness Age | `age`, `achievable`, `rhr`, `vigDays`, `bmi`, on the days Garmin recalculated it |
+| `weight/` | `body` | Weight | In grams: `w` (the day's latest weigh-in), `lo`, `hi`, `avg`, `d` (Garmin's change); `n` weigh-ins, `ins` (each one), `h` (height, cm) |
+| `pulse-ox/` | `spo2` | Pulse Ox, Pulse Ox Acclimation | `avg`, `low`, `latest` (%), `elev` (mean elevation, m) |
+| `blood-pressure/` | `body` | Blood Pressure | `sys`, `dia`, `sysLo`, `diaLo`, `pulse`, `n` readings, `cat` (Garmin's category) |
+
+A sleep row has the night's `score` and `quality`, the `seconds` asleep and
+in each stage (`deep`, `light`, `rem`, `awake`), the Sleep Coach `need` in
+minutes, `bed` and `wake` as seconds from that day's midnight (negative before
+it), overnight `hr`, `rhr`, `bb` (Body Battery gained), `resp`, `spo2`,
+`skinC`/`skinF`, `hrv`, `hrv7d`, `hrvStatus`, and the `align` verdict with
+its `alignStart`/`alignEnd` window.
+
+In the day-by-day indexes rows are oldest first, one a line, keys always in the
+same order, and a day with nothing has no row. `index.json` holds `from` and `to`, the stretch
+fetched end to end, and `complete`, whether fetching further back found
+nothing.
+
+How they fill:
+
+- **Every sync** keeps each index current. Days the run's daily summaries
+  already describe cost nothing. Anything else in the run is asked of the
+  index's range request, one request per window, and so is any stretch between
+  the index's newest day and the run, so a vault left closed for a fortnight
+  has no hole. Some indexes ask their last few days again on every sync,
+  because Garmin revises them late: 28 days for Health Status, 7 for Fitness
+  Age, Weight and Blood Pressure, 2 for Respiration.
+- **The whole history** comes once. After the first sync of a session, each
+  index whose group is on walks back from the oldest day it holds, one window
+  at a time, until a run of empty windows says the account's history has
+  started. A window is 28 days for most indexes, 29 for Fitness Age and 31 for
+  Respiration; Health Status, Weight, Pulse Ox and Blood Pressure take up to
+  ten years a request. The **Sync … history** commands start one by hand. A run
+  cut short by a 429 carries on from where it stopped next session.
+- A year file is rewritten only when its text changes.
+
 ## Querying
 
 Because everything is a real property rather than a markdown table, both Bases
@@ -642,6 +714,7 @@ In daily-notes mode every key above needs the `garmin_` prefix.
 ## Display labels
 
 `METRIC_LABELS` in `src/sync/metrics.ts` maps each canonical key to the human
-label used by the Bases view and the dashboard (`resting_hr` → "Resting HR").
+label the Bases view shows as its column name (`resting_hr` → "Resting HR").
 Adding a property means adding a label there too, or the column header falls
-back to the raw key.
+back to the raw key. `tests/metrics.test.ts` fails if a column the view opens
+with, or a key `mapDay` writes for its sample day, has none.

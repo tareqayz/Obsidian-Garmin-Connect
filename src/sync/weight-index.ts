@@ -1,5 +1,6 @@
 import type { WeighIn, WeighInRange } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
+import { isFiniteNumber } from "./numbers";
 
 /**
  * Weight: the day index the Weight pages read (ref/health-stats/weight/README.md).
@@ -58,18 +59,14 @@ export function wallClock(ms: unknown): string | undefined {
 	return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
-function finite(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
-}
-
 /** A day's weigh-ins, oldest first. */
 function entriesOf(list: readonly WeighIn[]): Array<WeighInEntry & { at: number }> {
 	const out: Array<WeighInEntry & { at: number }> = [];
 	for (const m of list) {
 		const rec = m as Record<string, unknown>;
 		const time = wallClock(rec.date);
-		if (!time || !finite(rec.weight)) continue;
-		out.push({ at: rec.date as number, time, grams: Math.round(rec.weight), delta: finite(rec.weightDelta) ? Math.round(rec.weightDelta) : null });
+		if (!time || !isFiniteNumber(rec.weight)) continue;
+		out.push({ at: rec.date as number, time, grams: Math.round(rec.weight), delta: isFiniteNumber(rec.weightDelta) ? Math.round(rec.weightDelta) : null });
 	}
 	return out.sort((a, b) => a.at - b.at);
 }
@@ -116,7 +113,7 @@ export function rowsOfWeighIns(payload: WeighInRange | null | undefined, height?
 export function heightOf(settings: unknown): number | undefined {
 	const user = (settings as { userData?: { height?: unknown } } | null | undefined)?.userData;
 	const h = user?.height;
-	return finite(h) && h > 50 && h < 300 ? h : undefined;
+	return isFiniteNumber(h) && h > 50 && h < 300 ? h : undefined;
 }
 
 const whole = {};

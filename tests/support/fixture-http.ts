@@ -1,4 +1,4 @@
-import { buildUrl, type HttpClient, type HttpRequest, type HttpResponse } from "../http";
+import { buildUrl, type HttpClient, type HttpRequest, type HttpResponse } from "../../src/http";
 
 export interface FixtureRule {
 	/** Restrict to one method. Omit to match any. */

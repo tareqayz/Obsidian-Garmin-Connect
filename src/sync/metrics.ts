@@ -65,7 +65,7 @@ export const ALL_GROUPS: MetricGroup[] = [
 	"profile",
 ];
 
-/** Groups that need a request of their own, for the budget note in settings. */
+/** Groups that ride on the daily summary request and cost nothing extra, for the budget note in settings. */
 export const FREE_GROUPS: MetricGroup[] = ["activity", "heart", "stress", "respiration", "spo2"];
 
 /**
@@ -83,6 +83,12 @@ export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 	intraday: 6,
 	health: 1,
 };
+
+/**
+ * Groups whose only request is a range one: a single call covers a sync's whole
+ * window (one per year of a longer backfill), for the budget note in settings.
+ */
+export const RANGE_GROUPS: MetricGroup[] = ["races", "workouts"];
 
 /** Groups billed per sync rather than per day, for the budget note in settings. */
 export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
@@ -871,7 +877,7 @@ export function pace(
 	return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Human labels for the canonical keys. Shared by the Bases view and the dashboard. */
+/** Human labels for the canonical keys: the Bases view's column names. */
 export const METRIC_LABELS: Record<string, string> = {
 	date: "Date",
 	steps: "Steps",
@@ -1089,216 +1095,11 @@ export function applyPrefix(properties: Properties, prefix: string): Properties 
 }
 
 /**
- * Every canonical key a set of groups can produce, in display order.
- *
- * Both distance keys are listed even though only one is ever written — the
- * caller filters to whichever unit is in play.
- */
-export function keysFor(groups: readonly MetricGroup[]): string[] {
-	const byGroup: Record<MetricGroup, string[]> = {
-		activity: [
-			"steps",
-			"steps_goal",
-			"distance_km",
-			"distance_mi",
-			"calories",
-			"calories_active",
-			"calories_bmr",
-			"calories_consumed",
-			"floors",
-			"floors_descended",
-			"floors_goal",
-			"intensity_minutes",
-			"intensity_moderate",
-			"intensity_vigorous",
-			"intensity_goal",
-			"active_minutes",
-			"highly_active_minutes",
-			"sedentary_minutes",
-		],
-		heart: ["resting_hr", "resting_hr_7d", "min_hr", "max_hr"],
-		sleep: [
-			"sleep_hours",
-			"sleep_score",
-			"sleep_quality",
-			"sleep_deep_hours",
-			"sleep_light_hours",
-			"sleep_rem_hours",
-			"sleep_awake_hours",
-			"sleep_start",
-			"sleep_end",
-			"sleep_resting_hr",
-			"sleep_avg_stress",
-			"sleep_awake_count",
-			"sleep_restless_moments",
-			"sleep_respiration",
-			"sleep_spo2",
-			"sleep_spo2_low",
-			"sleep_body_battery_change",
-			"nap_hours",
-			"sleep_quality_duration",
-			"sleep_quality_stress",
-			"sleep_quality_awakenings",
-			"sleep_quality_rem",
-			"sleep_quality_light",
-			"sleep_quality_deep",
-			"sleep_quality_restlessness",
-			"sleep_feedback",
-			"sleep_insight",
-			"sleep_need_hours",
-			"sleep_need_baseline_hours",
-			"sleep_need_next_hours",
-			"sleep_need_feedback",
-			"sleep_need_training_feedback",
-			"sleep_need_history_adjustment",
-			"sleep_need_hrv_adjustment",
-			"sleep_need_nap_adjustment",
-		],
-		stress: [
-			"stress_avg",
-			"stress_max",
-			"stress_qualifier",
-			"stress_rest_minutes",
-			"stress_low_minutes",
-			"stress_medium_minutes",
-			"stress_high_minutes",
-			"body_battery_high",
-			"body_battery_low",
-			"body_battery_latest",
-			"body_battery_charged",
-			"body_battery_drained",
-		],
-		hrv: [
-			"hrv_avg",
-			"hrv_high",
-			"hrv_weekly_avg",
-			"hrv_status",
-			"hrv_baseline_low",
-			"hrv_baseline_high",
-		],
-		readiness: [
-			"training_readiness",
-			"training_readiness_level",
-			"readiness_sleep_score",
-			"readiness_hrv_factor",
-			"recovery_time_hours",
-			"acute_load",
-			"readiness_feedback",
-			"readiness_feedback_long",
-			"readiness_context",
-			"readiness_sleep_factor",
-			"readiness_sleep_feedback",
-			"readiness_recovery_factor",
-			"readiness_recovery_feedback",
-			"readiness_hrv_feedback",
-			"readiness_load_factor",
-			"readiness_load_feedback",
-			"readiness_sleep_history_factor",
-			"readiness_sleep_history_feedback",
-			"readiness_stress_history_factor",
-			"readiness_stress_history_feedback",
-			"readiness_hrv_weekly_avg",
-		],
-		// `fitness_age_<component>` keys are left out: they are named after
-		// whatever Garmin sends, so there is no fixed list to put here.
-		fitness: [
-			"vo2max",
-			"vo2max_cycling",
-			"fitness_age",
-			"fitness_age_achievable",
-			"fitness_age_previous",
-			"fitness_age_updated",
-			"chronological_age",
-			"endurance_score",
-			"endurance_classification",
-			"endurance_feedback",
-			"endurance_gauge_low",
-			"endurance_gauge_high",
-			"endurance_intermediate_from",
-			"endurance_trained_from",
-			"endurance_well_trained_from",
-			"endurance_expert_from",
-			"endurance_superior_from",
-			"endurance_elite_from",
-			"hill_score",
-			"hill_score_strength",
-			"hill_score_endurance",
-			"hill_score_classification",
-			"hill_score_feedback",
-			"heat_acclimation_pct",
-			"heat_acclimation_trend",
-			"altitude_acclimation_m",
-			"altitude_acclimation_ft",
-			"altitude_acclimation_trend",
-		],
-		races: ["race_5k", "race_10k", "race_half", "race_marathon"],
-		respiration: ["respiration_avg", "respiration_min", "respiration_max", "respiration_latest"],
-		spo2: ["spo2_avg", "spo2_low", "spo2_latest"],
-		body: [
-			"weight_kg",
-			"weight_lb",
-			"bmi",
-			"body_fat_pct",
-			"body_water_pct",
-			"muscle_mass_kg",
-			"muscle_mass_lb",
-			"bone_mass_kg",
-			"bone_mass_lb",
-		],
-		training: [
-			"training_status",
-			"training_load_weekly",
-			"training_load_acute",
-			"training_load_chronic",
-			"training_load_ratio",
-			"training_load_status",
-			"training_load_feedback",
-			"training_load_optimal_min",
-			"training_load_optimal_max",
-			"training_load_tunnel_min",
-			"training_load_tunnel_max",
-			"training_status_since",
-			"fitness_trend",
-			"load_aerobic_low",
-			"load_aerobic_low_target_min",
-			"load_aerobic_low_target_max",
-			"load_aerobic_high",
-			"load_aerobic_high_target_min",
-			"load_aerobic_high_target_max",
-			"load_anaerobic",
-			"load_anaerobic_target_min",
-			"load_anaerobic_target_max",
-			"load_focus",
-			"running_tolerance",
-			"running_tolerance_load",
-			"running_tolerance_distance_km",
-			"running_tolerance_distance_mi",
-			"running_tolerance_feedback",
-		],
-		workouts: ["workouts"],
-		intraday: ["hr_latest"],
-		health: [
-			"health_status_outliers",
-			...["hrv", "hr", "spo2", "respiration", "skin_temp_c", "skin_temp_f"].flatMap((m) => [
-				`health_${m}`,
-				`health_${m}_status`,
-				`health_${m}_baseline_low`,
-				`health_${m}_baseline_high`,
-			]),
-			"health_snapshots",
-		],
-		profile: [],
-	};
-	const wanted = new Set(groups);
-	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => byGroup[g]);
-}
-
-/**
  * The subset of each group worth a column in the generated Bases view.
  *
- * `keysFor` now returns around eighty keys, and a table eighty columns wide is
- * not a table anyone reads. Everything left out is still written to the note and
- * still queryable — this only decides what the generated view opens with.
+ * A day note carries about two hundred keys, and a table that wide is not one
+ * anyone reads. Everything left out is still written to the note and still
+ * queryable — this only decides what the generated view opens with.
  */
 const PRIMARY: Record<MetricGroup, string[]> = {
 	activity: [
@@ -1330,9 +1131,6 @@ export function primaryKeysFor(groups: readonly MetricGroup[]): string[] {
 	const wanted = new Set(groups);
 	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => PRIMARY[g]);
 }
-
-/** Keys whose value is a duration in seconds rather than a plain number. */
-export const DURATION_KEYS = new Set(["race_5k", "race_10k", "race_half", "race_marathon"]);
 
 /** Groups activities by the local calendar day they started on. */
 export function bucketWorkoutsByDate(activities: readonly Activity[]): Map<string, Activity[]> {

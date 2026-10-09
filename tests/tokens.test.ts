@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { FixtureHttpClient, fakeJwt } from "../src/testing/fixture-http";
+import { FixtureHttpClient, fakeJwt } from "./support/fixture-http";
 import { GarminAuthError, GarminNetworkError, GarminRateLimitError } from "../src/garmin/errors";
 import {
 	MemoryTokenStore,

@@ -2,6 +2,7 @@ import type { DailyStatsRow } from "../sync/daily-stats";
 import type { DaySeries } from "../sync/intraday";
 import { formatDistance } from "./activities";
 import { shortDate } from "./day";
+import { daysBetween, lastDayOfMonth, longDate, MONTHS, SHORT_MONTHS, shiftMonth, WEEKDAYS, weekdayOf } from "./periods";
 import { shiftDate } from "./series";
 import type { BarTone, ChartSpec, FrameId } from "./stats-charts";
 
@@ -51,8 +52,6 @@ export interface StatsData {
 	/** The day notes' calories, for days the index has none of its own. */
 	calories: Readonly<Record<string, number>>;
 }
-
-export const NO_STATS: StatsData = { rows: [], complete: false, units: "metric", weekStart: 1, calories: {} };
 
 export interface StatsRoute {
 	stat: StatId;
@@ -159,9 +158,6 @@ interface Span {
 	label: string;
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
 /** The first day of the week `date` falls in. */
 export function weekStartOf(date: string, weekStart: number): string {
 	const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -215,21 +211,6 @@ function calendarWeeks(weeks: number, offset: number, today: string, weekStart: 
 function yearOfWeeks(offset: number, today: string, weekStart: number): Span {
 	const span = calendarWeeks(52, offset, today, weekStart);
 	return { ...span, label: `${shortDate(span.from)}, ${span.from.slice(0, 4)} - ${shortDate(span.to)}, ${span.to.slice(0, 4)}` };
-}
-
-function addMonths(month: string, n: number): string {
-	const [y, m] = month.split("-").map(Number);
-	const t = y! * 12 + (m! - 1) + n;
-	return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
-}
-
-function lastDayOf(month: string): string {
-	const [y, m] = month.split("-").map(Number);
-	return `${month}-${String(new Date(Date.UTC(y!, m!, 0)).getUTCDate()).padStart(2, "0")}`;
-}
-
-function daysBetween(from: string, to: string): number {
-	return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
 
 /* ------------------------------------------------------------------ */
@@ -297,22 +278,12 @@ const whole = (n: number) => Math.round(n).toLocaleString();
 const minutes = (n: number) => `${whole(n)} min`;
 const percent = (value: number, goal: number) => Math.floor((value * 100) / goal);
 
-/** "October 4". */
-function longDate(day: string): string {
-	return `${MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
-}
-
-function weekday(day: string): string {
-	return WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]!;
-}
-
 /** "9-28": the ends of a day chart. Intensity's four weeks write "09-07". */
 function axisDay(day: string, padMonth = false): string {
 	const month = day.slice(5, 7);
 	return `${padMonth ? month : Number(month)}-${day.slice(8, 10)}`;
 }
 
-const MONTH_ABBR = MONTHS.map((m) => m.slice(0, 3));
 
 /* ------------------------------------------------------------------ */
 /*  Shared                                                             */
@@ -357,11 +328,11 @@ function endDots(n: number): ChartSpec["dots"] {
 /** Dots and upright labels for a year: one per month, spread evenly across the plot. */
 function monthMarks(from: string, to: string): Pick<ChartSpec, "dots" | "xLabels"> {
 	const months: string[] = [];
-	for (let m = from.slice(0, 7); m <= to.slice(0, 7); m = addMonths(m, 1)) months.push(m);
+	for (let m = from.slice(0, 7); m <= to.slice(0, 7); m = shiftMonth(m, 1)) months.push(m);
 	const n = months.length;
 	return {
 		dots: months.map((_, i) => ({ x: n > 1 ? i / (n - 1) : 0, large: true })),
-		xLabels: months.map((m, i) => ({ x: n > 1 ? i / (n - 1) : 0, text: MONTH_ABBR[Number(m.slice(5)) - 1]!, rotated: true })),
+		xLabels: months.map((m, i) => ({ x: n > 1 ? i / (n - 1) : 0, text: SHORT_MONTHS[Number(m.slice(5)) - 1]!, rotated: true })),
 	};
 }
 
@@ -544,7 +515,7 @@ function stepsView(input: StatsInput): StatsView {
 				const ring = goalRing(r?.steps, r?.stepGoal);
 				return {
 					key: d,
-					title: weekday(d),
+					title: weekdayOf(d),
 					detail: `${longDate(d)}${pct}`,
 					value: r?.steps !== undefined ? whole(r.steps) : "--",
 					...(ring ? { ring } : {}),
@@ -557,11 +528,11 @@ function stepsView(input: StatsInput): StatsView {
 
 	// A year, by the month or by the week.
 	if (route.totals === "monthly") {
-		const last = addMonths(today.slice(0, 7), 12 * offset);
-		const months = Array.from({ length: 12 }, (_, i) => addMonths(last, i - 11));
+		const last = shiftMonth(today.slice(0, 7), 12 * offset);
+		const months = Array.from({ length: 12 }, (_, i) => shiftMonth(last, i - 11));
 		const from = `${months[0]}-01`;
-		const to = lastDayOf(last);
-		const span: Span = { from, to, label: `${MONTH_ABBR[Number(months[0]!.slice(5)) - 1]} ${months[0]!.slice(0, 4)} - ${MONTH_ABBR[Number(last.slice(5)) - 1]} ${last.slice(0, 4)}` };
+		const to = lastDayOfMonth(last);
+		const span: Span = { from, to, label: `${SHORT_MONTHS[Number(months[0]!.slice(5)) - 1]} ${months[0]!.slice(0, 4)} - ${SHORT_MONTHS[Number(last.slice(5)) - 1]} ${last.slice(0, 4)}` };
 		const length = daysBetween(from, to);
 		const inYear = data.rows.filter((r) => r.date >= from && r.date <= to);
 		const total = inYear.reduce((s, r) => s + (r.steps ?? 0), 0);
@@ -580,7 +551,7 @@ function stepsView(input: StatsInput): StatsView {
 				bars: months.map((m, i) => ({ x: daysBetween(from, `${m}-01`) / length, from: 0, to: monthly[i]!, tone: "green" as BarTone })),
 				lines: [],
 				dots: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, large: true })),
-				xLabels: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, text: MONTH_ABBR[Number(m.slice(5)) - 1]!, rotated: true })),
+				xLabels: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, text: SHORT_MONTHS[Number(m.slice(5)) - 1]!, rotated: true })),
 				markers: [],
 			},
 			stats: [
@@ -762,7 +733,7 @@ function floorsView(input: StatsInput): StatsView {
 						const ring = goalRing(r?.floorsUp, r?.floorsGoal);
 						return {
 							key: d!,
-							title: weekday(d!),
+							title: weekdayOf(d!),
 							detail: longDate(d!),
 							value: r?.floorsUp !== undefined ? `${whole(r.floorsUp)}↑` : "--",
 							...(ring ? { ring } : {}),
@@ -880,7 +851,7 @@ function intensityView(input: StatsInput): StatsView {
 				lines: [{ points, tone: "normal" }],
 				goal,
 				dots: week.map((_, i) => ({ x: i / 7, large: true })),
-				xLabels: week.map((d, i) => ({ x: i / 7, text: weekday(d).slice(0, 3) })),
+				xLabels: week.map((d, i) => ({ x: i / 7, text: weekdayOf(d).slice(0, 3) })),
 				markers: goalCrossing(points, goal),
 				legend: ["weekly-goal"],
 			},
@@ -1000,7 +971,7 @@ function intensityView(input: StatsInput): StatsView {
 
 /** A day's minutes, newest first; a day opens on its own page. */
 function dayCards(days: readonly string[], row: Lookup): Card[] {
-	return [...days].reverse().map((d) => ({ key: d, title: weekday(d), detail: longDate(d), value: whole(intensityOf(row(d))), day: d }));
+	return [...days].reverse().map((d) => ({ key: d, title: weekdayOf(d), detail: longDate(d), value: whole(intensityOf(row(d))), day: d }));
 }
 
 /** The check where a running total first reaches the goal. */

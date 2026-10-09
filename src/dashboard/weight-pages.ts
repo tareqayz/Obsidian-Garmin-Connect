@@ -5,6 +5,7 @@ import {
 	dayLabel,
 	dayOf,
 	daysOf,
+	mean,
 	monthAxis,
 	offsetOfDay,
 	periodLabel,
@@ -46,8 +47,6 @@ export interface WeightPageData {
 	rows: readonly WeightRow[];
 	complete: boolean;
 }
-
-export const NO_WEIGHT: WeightPageData = { rows: [], complete: false };
 
 export interface WeightInput {
 	data: WeightPageData;
@@ -107,10 +106,6 @@ export function changeText(grams: number | null | undefined, units: WeightUnits 
 export function clockText(time: string): string {
 	const h = Number(time.slice(0, 2));
 	return `${h % 12 || 12}:${time.slice(3, 5)} ${h < 12 ? "AM" : "PM"}`;
-}
-
-function mean(values: readonly number[]): number | undefined {
-	return values.length ? values.reduce((a, b) => a + b, 0) / values.length : undefined;
 }
 
 /** The newest height the index holds. */

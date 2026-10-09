@@ -4433,7 +4433,9 @@
 			"groups": [
 				"activity",
 				"heart",
-				"stress"
+				"stress",
+				"respiration",
+				"spo2"
 			],
 			"cadence": "day",
 			"check": true,
@@ -4455,7 +4457,7 @@
 				"bodyBatteryLowestValue"
 			],
 			"schema": "schema/user-summary.json",
-			"notes": "Serves three metric groups from one request, and the daily stats index for the days a sync writes. A `privacyProtected: true` body means the session is not fully authorised; `includesWellnessData: false`, with every count null, is a day the watch recorded nothing.",
+			"notes": "Serves five metric groups from one request, and the daily stats index for the days a sync writes. A `privacyProtected: true` body means the session is not fully authorised; `includesWellnessData: false`, with every count null, is a day the watch recorded nothing.",
 			"reads": [
 				"bmrKilocalories",
 				"floorsDescended",

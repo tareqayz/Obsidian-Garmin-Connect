@@ -2,6 +2,7 @@ import type { AcclimationStats, Spo2Acclimation } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
 import { epochOf, type DaySeries } from "./intraday";
 import { defineIntraday } from "./intraday-registry";
+import { isFiniteNumber } from "./numbers";
 
 /**
  * Pulse Ox: the day index the Pulse Ox and Pulse Ox Acclimation pages read,
@@ -31,10 +32,6 @@ export interface PulseOxRow {
 	elev?: number;
 }
 
-function finite(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
-}
-
 /** The rows of an `acclimationDaily` payload. */
 export function rowsOfAcclimation(payload: AcclimationStats | null | undefined): Array<DayRowInput<PulseOxRow>> {
 	const rows = new Map<string, DayRowInput<PulseOxRow>>();
@@ -44,7 +41,7 @@ export function rowsOfAcclimation(payload: AcclimationStats | null | undefined):
 	}
 	const sums = new Map<string, { sum: number; n: number }>();
 	for (const sample of payload?.monitoringEnvironmentValuesArray ?? []) {
-		if (!Array.isArray(sample) || !finite(sample[0]) || !finite(sample[1])) continue;
+		if (!Array.isArray(sample) || !isFiniteNumber(sample[0]) || !isFiniteNumber(sample[1])) continue;
 		const day = new Date(sample[0]).toISOString().slice(0, 10);
 		const acc = sums.get(day) ?? { sum: 0, n: 0 };
 		acc.sum += sample[1];
@@ -105,8 +102,8 @@ const HOUR_MS = 3_600_000;
 function hoursOf(rows: unknown): Spo2Hour[] {
 	const out: Spo2Hour[] = [];
 	for (const row of Array.isArray(rows) ? rows : []) {
-		if (!Array.isArray(row) || !finite(row[0])) continue;
-		out.push([row[0], finite(row[1]) && row[1] > 0 ? Math.round(row[1]) : null]);
+		if (!Array.isArray(row) || !isFiniteNumber(row[0])) continue;
+		out.push([row[0], isFiniteNumber(row[1]) && row[1] > 0 ? Math.round(row[1]) : null]);
 	}
 	return out.sort((a, b) => a[0] - b[0]);
 }
@@ -131,7 +128,7 @@ export function spo2DayOf(payload: Spo2Acclimation | null | undefined): Spo2DayD
 		["avg7", payload.lastSevenDaysAvgSpO2],
 		["sleepAvg", payload.avgSleepSpO2],
 	];
-	for (const [key, value] of figures) if (finite(value) && value > 0) (day as unknown as Record<string, number>)[key] = value;
+	for (const [key, value] of figures) if (isFiniteNumber(value) && value > 0) (day as unknown as Record<string, number>)[key] = value;
 	const time = clockOf(payload.latestSpO2TimestampLocal);
 	if (time && day.latest !== undefined) day.latestTime = time;
 	return day;
@@ -140,9 +137,9 @@ export function spo2DayOf(payload: Spo2Acclimation | null | undefined): Spo2DayD
 /** The day's block as the series file keeps it, or null. */
 export function spo2DayIn(series: DaySeries | null | undefined): Spo2DayData | null {
 	const raw = series?.extra?.[SPO2_DAY_KEY] as Partial<Record<keyof Spo2DayData, unknown>> | undefined;
-	if (!raw || typeof raw !== "object" || !finite(raw.start) || !finite(raw.end) || raw.end <= raw.start) return null;
+	if (!raw || typeof raw !== "object" || !isFiniteNumber(raw.start) || !isFiniteNumber(raw.end) || raw.end <= raw.start) return null;
 	const day: Spo2DayData = { start: raw.start, end: raw.end, hours: hoursOf(raw.hours) };
-	for (const key of ["avg", "low", "latest", "avg7", "sleepAvg"] as const) if (finite(raw[key])) day[key] = raw[key];
+	for (const key of ["avg", "low", "latest", "avg7", "sleepAvg"] as const) if (isFiniteNumber(raw[key])) day[key] = raw[key];
 	if (typeof raw.latestTime === "string") day.latestTime = raw.latestTime;
 	return day;
 }

@@ -7,7 +7,8 @@ tools: Bash, Read, Write, Edit
 You turn captures into a spec a builder can implement without seeing the phone. Read
 `.claude/skills/garmin-page/spec-template.md` and `api.md` first.
 
-Inputs: `ref/<area>/<stat>/phone/` (shots, `.ocr.json`, `INDEX.md`), `.../web/`
+Inputs: `ref/<area>/<stat>/phone/` (shots, `.ocr.json`, `INDEX.md` — the user's screenshots
+indexed and OCR'd, or Mirroring shots), `.../web/`
 (`endpoints.md`, `bodies/`, `text-*.txt`), and comparable specs (Sleep in
 `ref/health-stats/README.md`, Steps in `ref/activities/README.md`).
 

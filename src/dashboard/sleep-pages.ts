@@ -1,6 +1,7 @@
 import type { DaySeries, SeriesPoint, SleepDetail, SleepFactorKey, SleepLevel } from "../sync/intraday";
 import type { SleepRow } from "../sync/sleep-index";
 import { shortDate } from "./day";
+import { daysBetween, longDate, mean, SHORT_MONTHS, weekdayOf } from "./periods";
 import { shiftDate } from "./series";
 import {
 	NEED_FACTOR_TITLE,
@@ -60,8 +61,6 @@ export interface SleepData {
 	complete: boolean;
 	units: Units;
 }
-
-export const NO_SLEEP: SleepData = { rows: [], complete: false, units: "metric" };
 
 export interface SleepRoute {
 	range: SleepRange;
@@ -152,10 +151,6 @@ function signed(value: number, digits = 0): string {
 
 function round(value: number): number {
 	return Math.round(value);
-}
-
-function mean(values: readonly number[]): number | undefined {
-	return values.length ? values.reduce((a, b) => a + b, 0) / values.length : undefined;
 }
 
 const DASH = "--";
@@ -870,7 +865,7 @@ function daysView(input: SleepPeriodInput, range: "7d" | "4w"): SleepPeriodView 
 			.map((night) => ({
 				key: night.date,
 				title: weekdayOf(night.date),
-				detail: monthDay(night.date),
+				detail: longDate(night.date),
 				score: night.row!.score !== undefined ? String(night.row!.score) : DASH,
 				duration: night.row!.seconds !== undefined ? hm(night.row!.seconds) : DASH,
 				day: night.date,
@@ -939,18 +934,6 @@ export function timesAxis(beds: readonly number[]): { top: number; labels: strin
 function hourLabel(hoursFromMidnight: number): string {
 	const h = ((hoursFromMidnight % 24) + 24) % 24;
 	return `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
-}
-
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
-
-function weekdayOf(date: string): string {
-	return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]!;
-}
-
-function monthDay(date: string): string {
-	return `${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8))}`;
 }
 
 function fmt(value: number | undefined): string {
@@ -1093,10 +1076,6 @@ function yearView(input: SleepPeriodInput): SleepPeriodView {
 /** "Oct 1 - 7", "Aug 27 - Sep 2". */
 export function weekRange(from: string, to: string): string {
 	return from.slice(0, 7) === to.slice(0, 7) ? `${shortDate(from)} - ${Number(to.slice(8))}` : `${shortDate(from)} - ${shortDate(to)}`;
-}
-
-function daysBetween(a: string, b: string): number {
-	return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
 
 function nextMonth(firstOfMonth: string): string {

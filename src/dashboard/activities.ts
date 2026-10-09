@@ -2,6 +2,7 @@ import type { AccountInfo } from "../sync/account";
 import { PR_TYPES } from "../sync/account";
 import type { ActivityRow } from "../sync/activity-index";
 import { shortDate, titleCase } from "./day";
+import { lastDayOfMonth, MONTHS, shiftMonth } from "./periods";
 import { duration, shiftDate } from "./series";
 
 /**
@@ -22,8 +23,6 @@ export interface ActivitiesData {
 	records: AccountInfo["personalRecords"];
 	units: Units;
 }
-
-export const NO_ACTIVITIES: ActivitiesData = { rows: [], complete: false, records: [], units: "metric" };
 
 export type CategoryId = "running" | "cycling" | "gym" | "swimming" | "hiking" | "multisport" | "other";
 export type MetricId = "distance" | "time" | "ascent" | "calories";
@@ -176,7 +175,6 @@ export interface Period {
 	slots: Slot[];
 }
 
-const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /**
  * 7d is the week ending today, 4w the 28 days ending today, 1y the twelve
@@ -185,10 +183,10 @@ const MONTH = ["January", "February", "March", "April", "May", "June", "July", "
 export function periodFor(range: RangeId, offset: number, today: string): Period {
 	const step = Math.min(0, Math.trunc(offset));
 	if (range === "1y") {
-		const last = addMonths(today.slice(0, 7), step * 12);
+		const last = shiftMonth(today.slice(0, 7), step * 12);
 		const slots = Array.from({ length: 12 }, (_, i) => {
-			const month = addMonths(last, i - 11);
-			return { from: `${month}-01`, to: lastDayOf(month), label: MONTH[Number(month.slice(5)) - 1]!.slice(0, 3) };
+			const month = shiftMonth(last, i - 11);
+			return { from: `${month}-01`, to: lastDayOfMonth(month), label: MONTHS[Number(month.slice(5)) - 1]!.slice(0, 3) };
 		});
 		const first = slots[0]!.from;
 		return {
@@ -220,20 +218,10 @@ function dayRangeLabel(from: string, to: string, today: string): string {
 
 /** "September 2026", or "Sep 2026" when `short`. */
 export function monthLabel(month: string, short = false): string {
-	const name = MONTH[Number(month.slice(5, 7)) - 1] ?? month;
+	const name = MONTHS[Number(month.slice(5, 7)) - 1] ?? month;
 	return `${short ? name.slice(0, 3) : name} ${month.slice(0, 4)}`;
 }
 
-function addMonths(month: string, n: number): string {
-	const [y, m] = month.split("-").map(Number);
-	const t = y! * 12 + (m! - 1) + n;
-	return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
-}
-
-function lastDayOf(month: string): string {
-	const [y, m] = month.split("-").map(Number);
-	return `${month}-${String(new Date(Date.UTC(y!, m!, 0)).getUTCDate()).padStart(2, "0")}`;
-}
 
 function dayOf(row: ActivityRow): string {
 	return row.start.slice(0, 10);

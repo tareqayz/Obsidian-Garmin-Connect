@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import type { GarminSettings } from "../settings";
+import type { GarminSettings } from "../settings-data";
 import { trimSlashes } from "../sync/frontmatter";
 import type { DayRow } from "./series";
 
@@ -8,7 +8,7 @@ import type { DayRow } from "./series";
  *
  * Everything comes from the metadata cache rather than file reads, so a year of
  * notes costs nothing to scan. Keys are stripped of their prefix here, which is
- * what lets the dashboard work the same whichever storage mode wrote them.
+ * what lets Home work the same whichever storage mode wrote them.
  */
 export function collectRows(app: App, settings: GarminSettings): DayRow[] {
 	const sources: Array<{ folder: string | null; prefix: string }> = [];
@@ -60,7 +60,7 @@ function rowFrom(app: App, file: TFile, prefix: string): DayRow | null {
 		if (typeof value === "number" && Number.isFinite(value)) values[name] = value;
 		// Garmin's qualitative properties — "BALANCED", "PRODUCTIVE_1" — and the
 		// day's activity list. Both were dropped before, which is why a workout
-		// could be synced into a note and still be invisible on the dashboard.
+		// could be synced into a note and still be invisible on Home.
 		else if (typeof value === "string" && value) text[name] = value;
 		else if (name === "workouts" && Array.isArray(value)) workouts = objects(value);
 		else if (name === "health_snapshots" && Array.isArray(value)) snapshots = objects(value);

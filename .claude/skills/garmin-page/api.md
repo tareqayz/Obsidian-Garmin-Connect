@@ -36,6 +36,8 @@ spans (stats daily ranges: 28 days, 29 → HTTP 400) and note how missing days a
 6. If the sync stores it: a `defineDayIndex` / intraday registration (see the foundation's
    docs in `docs/architecture.md`), gated by an existing `MetricGroup`.
 
-Range endpoints cap at 28 days; days with no watch data are omitted, not zero-filled.
-GraphQL (`POST /graphql-gateway/graphql`) is the only route to Health Status, Health
-Snapshots, cycling ability and My Day events.
+Range caps differ by endpoint — 28 days for most `stats` routes, others 29, 31, 367, exactly
+52 weeks, or none — so every spec proves its own; days with no watch data are omitted, not
+zero-filled. GraphQL (`POST /graphql-gateway/graphql`) is the only route to cycling ability
+and My Day events. Health Status and Health Snapshots have REST routes too, and the pages use
+those (`healthStatusSummary` / `healthStatusRange`, `healthSnapshotList` / `Detail` / `Epochs`).

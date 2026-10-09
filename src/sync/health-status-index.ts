@@ -19,8 +19,6 @@ import { defineDayIndex, type DayRowInput } from "./day-index";
  * Pure: no Obsidian import.
  */
 
-export type HealthMetricStatus = "IN_RANGE" | "ABOVE" | "BELOW" | "ONBOARDING" | "UNKNOWN";
-
 export interface HealthStatusRow {
 	date: string;
 	hr?: number;

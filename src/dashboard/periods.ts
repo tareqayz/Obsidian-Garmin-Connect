@@ -1,4 +1,4 @@
-import { shortDate } from "./day";
+import { DAY_MS, shortDate } from "./day";
 import type { HealthRange } from "./health-stats";
 import { shiftDate } from "./series";
 
@@ -46,8 +46,6 @@ export interface Span {
 	to: string;
 }
 
-const DAY_MS = 86_400_000;
-
 /* ------------------------------------------------------------------ */
 /*  Days and spans                                                     */
 /* ------------------------------------------------------------------ */
@@ -64,6 +62,19 @@ export function addMonths(date: string, months: number): string {
 	const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 	const day = Math.min(Number(date.slice(8, 10)), last);
 	return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** A `YYYY-MM` month moved by whole months. */
+export function shiftMonth(month: string, n: number): string {
+	const [y, m] = month.split("-").map(Number);
+	const t = y! * 12 + (m! - 1) + n;
+	return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
+
+/** A `YYYY-MM` month's last day, as `YYYY-MM-DD`. */
+export function lastDayOfMonth(month: string): string {
+	const [y, m] = month.split("-").map(Number);
+	return `${month}-${String(new Date(Date.UTC(y!, m!, 0)).getUTCDate()).padStart(2, "0")}`;
 }
 
 /** Periods back as an offset: never above 0, and never −0, which a saved route would keep. */
@@ -139,18 +150,13 @@ export function weekCardRoute(route: PeriodRoute, weekEnd: string, today: string
 	return route.date ? { range: "7d", offset, date: route.date } : { range: "7d", offset };
 }
 
-/** The days whose series a page loads: a 1d page's day. */
-export function periodSeriesDays(route: PeriodRoute, today: string): string[] {
-	return route.range === "1d" ? [dayOf(route, today)] : [];
-}
-
 /* ------------------------------------------------------------------ */
 /*  Labels                                                             */
 /* ------------------------------------------------------------------ */
 
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
+export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
 
 const yearOf = (date: string) => date.slice(0, 4);
 
@@ -272,6 +278,11 @@ export function monthAxis(from: string): { axis: PeriodAxis; x: (date: string) =
 export type Rounding = "floor" | "round";
 
 /** The mean of `values`, rounded the stat's way; undefined for none. */
+/** The plain mean, unrounded; undefined without values. */
+export function mean(values: readonly number[]): number | undefined {
+	return values.length ? values.reduce((a, b) => a + b, 0) / values.length : undefined;
+}
+
 export function meanOf(values: readonly number[], rounding: Rounding): number | undefined {
 	if (!values.length) return undefined;
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;

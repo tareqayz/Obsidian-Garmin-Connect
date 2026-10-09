@@ -18,7 +18,6 @@ import {
 	weeksOf,
 	yearLabel,
 	type PeriodAxis,
-	type PeriodRange,
 	type PeriodRoute,
 	type PeriodWeek,
 	type SpanRange,
@@ -43,7 +42,6 @@ import { stressCopy } from "./stress-copy";
  */
 
 /** Stress pages through all four ranges, on the shared route. */
-export type StressRange = PeriodRange;
 export type StressRoute = PeriodRoute;
 export type StressPart = "rest" | "low" | "medium" | "high";
 
@@ -63,8 +61,6 @@ export interface StressData {
 	/** Whether the index holds the whole history yet. */
 	complete: boolean;
 }
-
-export const NO_STRESS: StressData = { rows: [], complete: false };
 
 /** A category's share of the day's measured time. An empty ring is a day without any: drawn grey. */
 export interface RingPart {

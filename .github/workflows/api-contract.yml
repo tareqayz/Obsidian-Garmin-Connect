@@ -47,18 +47,19 @@ jobs:
     name: Catalogue and offline checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: npm
 
       - run: npm ci
 
-      # tsc, svelte-check and the unit tests, including tests/api-catalogue.test.ts:
-      # ids unique, every checked endpoint has a probe, every `plugin` name still
-      # resolves on GarminApi, every `critical` path exists in the recorded shape.
+      # tsc and the unit tests, including tests/api-catalogue.test.ts: ids unique,
+      # every checked endpoint has a probe, every `plugin` name still resolves on
+      # GarminApi, every `critical` path exists in the recorded shape. The full
+      # build, svelte-check included, runs on every pull request in ci.yml.
       - name: Typecheck and test
         run: |
           npx tsc -noEmit -skipLibCheck
@@ -95,9 +96,9 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: npm

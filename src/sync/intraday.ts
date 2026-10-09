@@ -8,6 +8,7 @@ import type {
 	StepsChartEntry,
 	ValueDescriptor,
 } from "../garmin/endpoints";
+import { num } from "./numbers";
 
 /**
  * Garmin's intraday payloads → the per-day series file.
@@ -227,7 +228,7 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 	for (const entry of payloads.steps ?? []) {
 		const start = epochOf(entry?.startGMT);
 		const end = epochOf(entry?.endGMT);
-		const count = finite(entry?.steps);
+		const count = num(entry?.steps);
 		if (start === undefined || end === undefined || count === undefined) continue;
 		const bucket: StepsBucket = { start, end, steps: count };
 		if (typeof entry.primaryActivityLevel === "string" && entry.primaryActivityLevel) {
@@ -251,8 +252,8 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 			if (!Array.isArray(row)) continue;
 			const start = epochOf(row[at.start]);
 			const end = epochOf(row[at.end]);
-			const up = finite(row[at.up]) ?? 0;
-			const down = finite(row[at.down]) ?? 0;
+			const up = num(row[at.up]) ?? 0;
+			const down = num(row[at.down]) ?? 0;
 			if (start === undefined || end === undefined || (up <= 0 && down <= 0)) continue;
 			buckets.push({ start, end, up: Math.max(0, up), down: Math.max(0, down) });
 		}
@@ -278,7 +279,7 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 		const row = entry as Record<string, unknown> | null;
 		const start = epochOf(row?.startGMT);
 		const end = epochOf(row?.endGMT);
-		const level = finite(row?.activityLevel);
+		const level = num(row?.activityLevel);
 		if (start === undefined || end === undefined || level === undefined) continue;
 		levels.push({ start, end, level });
 	}
@@ -294,16 +295,16 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 		assignText(marker, "type", event?.eventType);
 		const start = epochOf(event?.eventStartTimeGmt);
 		if (start !== undefined) marker.start = start;
-		const ms = finite(event?.durationInMilliseconds);
+		const ms = num(event?.durationInMilliseconds);
 		if (ms !== undefined) marker.minutes = Math.round(ms / 60_000);
-		const impact = finite(event?.bodyBatteryImpact);
+		const impact = num(event?.bodyBatteryImpact);
 		if (impact !== undefined) marker.impact = impact;
 		assignText(marker, "feedback", event?.shortFeedback ?? event?.feedbackType);
 		assignText(marker, "activity", entry?.activityName);
 		assignText(marker, "activityType", entry?.activityType);
-		const id = finite(entry?.activityId);
+		const id = num(entry?.activityId);
 		if (id !== undefined) marker.activityId = id;
-		const avg = finite(entry?.averageStress);
+		const avg = num(entry?.averageStress);
 		if (avg !== undefined && avg >= 0) marker.averageStress = avg;
 		if (Object.keys(marker).length) markers.push(marker);
 	}
@@ -332,12 +333,12 @@ export function mapSleepDetail(sleep: SleepData): SleepDetail | null {
 	const dto = (sleep.dailySleepDTO ?? {}) as Record<string, unknown>;
 	const top = sleep as Record<string, unknown>;
 	const pick = (key: string): unknown => (top[key] !== undefined && top[key] !== null ? top[key] : dto[key]);
-	const start = finite(dto.sleepStartTimestampGMT);
-	const end = finite(dto.sleepEndTimestampGMT);
+	const start = num(dto.sleepStartTimestampGMT);
+	const end = num(dto.sleepEndTimestampGMT);
 	if (start === undefined || end === undefined || end <= start) return null;
 
 	const out: SleepDetail = { start, end };
-	const local = finite(dto.sleepStartTimestampLocal);
+	const local = num(dto.sleepStartTimestampLocal);
 	if (local !== undefined) out.offset = local - start;
 
 	const scores = (dto.sleepScores ?? {}) as Record<string, Record<string, unknown> | undefined>;
@@ -377,7 +378,7 @@ export function mapSleepDetail(sleep: SleepData): SleepDetail | null {
 	assignNumber(out, "avgStress", pick("avgSleepStress"));
 	assignNumber(out, "avgHr", pick("avgHeartRate"));
 	assignNumber(out, "restingHr", pick("restingHeartRate"));
-	const battery = finite(pick("bodyBatteryChange"));
+	const battery = num(pick("bodyBatteryChange"));
 	if (battery !== undefined) out.bodyBatteryChange = battery;
 	assignNumber(out, "respAvg", pick("averageRespirationValue"));
 	assignNumber(out, "respLow", pick("lowestRespirationValue"));
@@ -385,8 +386,8 @@ export function mapSleepDetail(sleep: SleepData): SleepDetail | null {
 	assignNumber(out, "spo2Low", pick("lowestSpO2Value"));
 	assignNumber(out, "hrv", pick("avgOvernightHrv"));
 	assignText(out, "hrvStatus", pick("hrvStatus"));
-	const skinC = finite(pick("avgSkinTempDeviationC"));
-	const skinF = finite(pick("avgSkinTempDeviationF"));
+	const skinC = num(pick("avgSkinTempDeviationC"));
+	const skinF = num(pick("avgSkinTempDeviationF"));
 	if (skinC !== undefined) out.skinC = skinC;
 	if (skinF !== undefined) out.skinF = skinF;
 	assignNumber(out, "awakeCount", pick("awakeCount"));
@@ -418,7 +419,7 @@ export function mapSleepDetail(sleep: SleepData): SleepDetail | null {
 		for (const item of list) {
 			const row = item as Record<string, unknown> | null;
 			const t = epochOf(row?.[at]);
-			const v = finite(row?.[value]);
+			const v = num(row?.[value]);
 			if (t === undefined || !within(t)) continue;
 			found.push([t, v === undefined || (!keepNegative && v < 0) ? null : v]);
 		}
@@ -501,9 +502,9 @@ function column(
 	const points: SeriesPoint[] = [];
 	for (const row of rows) {
 		if (!Array.isArray(row)) continue;
-		const ts = finite(row[timeIndex]);
+		const ts = num(row[timeIndex]);
 		if (ts === undefined) continue;
-		const value = finite(row[index]);
+		const value = num(row[index]);
 		points.push([ts, value === undefined || (negativeIsGap && value < 0) ? null : value]);
 	}
 	return points;
@@ -527,10 +528,6 @@ export function epochOf(value: unknown): number | undefined {
 	if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(text)) text += "Z";
 	const ms = Date.parse(text);
 	return Number.isFinite(ms) ? ms : undefined;
-}
-
-function finite(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function assignText<T extends object>(target: T, key: keyof T, value: unknown): void {

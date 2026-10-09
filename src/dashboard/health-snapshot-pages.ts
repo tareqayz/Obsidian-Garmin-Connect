@@ -1,4 +1,5 @@
 import type { SnapshotMetric, SnapshotRow, SnapshotSample } from "../sync/health-snapshot-index";
+import { longDate } from "./periods";
 
 /**
  * Garmin Connect's Health Snapshot pages (ref/health-stats/health-snapshot/README.md):
@@ -14,7 +15,6 @@ import type { SnapshotMetric, SnapshotRow, SnapshotSample } from "../sync/health
  * Pure.
  */
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DASH = "--";
 
 /** "12:07 PM" from "…T12:07:35". */
@@ -26,7 +26,7 @@ export function clock12(local: string): string {
 
 /** "September 24, 2026". */
 export function fullDate(date: string): string {
-	return `${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}, ${date.slice(0, 4)}`;
+	return `${longDate(date)}, ${date.slice(0, 4)}`;
 }
 
 export interface SnapshotListItem {

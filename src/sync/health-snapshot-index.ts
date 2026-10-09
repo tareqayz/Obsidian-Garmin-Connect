@@ -1,6 +1,7 @@
 import type { GarminApi, HealthSnapshotEpochs, HealthSnapshotSummary, ValueDescriptor } from "../garmin/endpoints";
 import type { DaySeries } from "./intraday";
 import { defineIntraday } from "./intraday-registry";
+import { num } from "./numbers";
 
 /**
  * Health Snapshot: no day index (a day can hold two snapshots, 2025-09-09),
@@ -39,7 +40,6 @@ export interface SnapshotRow {
 	deviceVersion?: string;
 }
 
-const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 export function snapshotRowOf(raw: HealthSnapshotSummary | null | undefined): SnapshotRow | null {

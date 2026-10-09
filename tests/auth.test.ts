@@ -11,7 +11,7 @@ import {
 } from "../src/garmin/auth";
 import { CookieJar } from "../src/http";
 import { silentLog } from "../src/log";
-import { FixtureHttpClient, type FixtureRule } from "../src/testing/fixture-http";
+import { FixtureHttpClient, type FixtureRule } from "./support/fixture-http";
 
 function contextWith(rules: FixtureRule[]) {
 	const http = new FixtureHttpClient(rules);

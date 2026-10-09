@@ -110,7 +110,7 @@ function feedbackOf(event: unknown): unknown {
 
 export const BODY_BATTERY_INDEX = defineDayIndex<BatteryRow>({
 	kind: "body-battery",
-	title: "Body Battery",
+	title: "body battery",
 	folder: "body-battery",
 	version: 1,
 	columns: { high: {}, low: {}, charged: {}, drained: {}, latest: {}, atWake: {}, feedback: { text: true } },

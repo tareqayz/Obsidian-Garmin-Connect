@@ -14,6 +14,7 @@ import {
 	type PeriodAxis,
 	type PeriodRoute,
 } from "./periods";
+import { readingDate } from "./day";
 
 /**
  * Garmin Connect's Respiration page, worked out from the respiration index
@@ -34,15 +35,12 @@ import {
  *   (inside the day) and a clock where it ended; an evening's night a "zz".
  */
 
-export type RespirationRange = "1d" | "7d" | "4w";
 export type RespirationRoute = PeriodRoute;
 
 export interface RespirationPageData {
 	rows: readonly RespirationRow[];
 	complete: boolean;
 }
-
-export const NO_RESPIRATION: RespirationPageData = { rows: [], complete: false };
 
 /** A figure: "7 brpm / Lowest". */
 export interface RespirationStat {
@@ -65,7 +63,6 @@ const UNIT = "brpm";
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const MAX_DAY_MS = 50 * HOUR_MS;
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function stat(value: number | undefined, label: string): RespirationStat {
 	return value !== undefined ? { value: String(value), unit: UNIT, label } : { value: DASH, label };
@@ -74,12 +71,6 @@ function stat(value: number | undefined, label: string): RespirationStat {
 /** "13 brpm", or "--". */
 export function brpmText(value: number | undefined): string {
 	return value !== undefined ? `${value} ${UNIT}` : DASH;
-}
-
-/** "Oct 8"; another year's "Oct 8, 2025". */
-export function shortDay(date: string, today: string): string {
-	const text = `${SHORT_MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`;
-	return date.slice(0, 4) === today.slice(0, 4) ? text : `${text}, ${date.slice(0, 4)}`;
 }
 
 function shiftDay(date: string, days: number): string {
@@ -239,7 +230,7 @@ export function respirationDayView(input: RespirationInput): RespirationDayView 
 	for (const night of [date, shiftDay(date, 1)]) {
 		const value = rows.get(night)?.sleep;
 		if (value === undefined || night > today) continue;
-		sleep.push({ date: night, weekday: weekdayOf(night), detail: shortDay(night, today), value: brpmText(value), sleepOffset: offsetOfDay(night, today) });
+		sleep.push({ date: night, weekday: weekdayOf(night), detail: readingDate(night, today), value: brpmText(value), sleepOffset: offsetOfDay(night, today) });
 	}
 	return {
 		range: "1d",
@@ -326,7 +317,7 @@ export function respirationPeriodView(input: RespirationInput): RespirationPerio
 		stats: [stat(averages.sleep, "Sleep Avg"), stat(averages.awake, "Awake Avg")],
 		days: [...days].reverse().map((date) => {
 			const row = rows.get(date);
-			return { date, weekday: weekdayOf(date), detail: shortDay(date, today), sleep: brpmText(row?.sleep), awake: brpmText(row?.awake), offset: offsetOfDay(date, today) };
+			return { date, weekday: weekdayOf(date), detail: readingDate(date, today), sleep: brpmText(row?.sleep), awake: brpmText(row?.awake), offset: offsetOfDay(date, today) };
 		}),
 	};
 }

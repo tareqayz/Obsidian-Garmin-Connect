@@ -3,10 +3,10 @@
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
 	import { DAILY_NOTE_DEFAULTS, coreDailyNoteOptions } from "../../sync/daily-note";
-	import { ALL_GROUPS, FREE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
+	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
 	import type { StorageMode } from "../../sync/runner";
-	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings";
+	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
 
 	let { plugin }: { plugin: GarminPlugin } = $props();
@@ -53,6 +53,7 @@
 	// Five of these ride along in the daily summary, so turning them on is free.
 	// Saying which is the difference between an informed choice and a guess.
 	const freeGroups = new Set<MetricGroup>(FREE_GROUPS);
+	const rangeGroups = new Set<MetricGroup>(RANGE_GROUPS);
 
 	function costOf(group: MetricGroup): string {
 		if (freeGroups.has(group)) return "Free — shares the daily summary request";
@@ -61,6 +62,7 @@
 		}
 		const perSync = REQUESTS_PER_SYNC[group];
 		if (perSync) return `About ${perSync} requests per sync, not per day — saved to account.json`;
+		if (rangeGroups.has(group)) return "1 request per sync, not per day";
 		const n = REQUESTS_PER_DAY[group] ?? 1;
 		return n === 1 ? "1 request per day" : `${n} requests per day`;
 	}
@@ -295,8 +297,7 @@
 				.setDesc(
 					"Writes a link property on each day's note pointing at the Bases view, so the " +
 						"days hang off one hub instead of floating loose. Note that the graph view " +
-						"only draws edges between notes — a .base file is not one, so change the " +
-						"link target below to a note if you want the graph to show it.",
+						"only draws edges between notes, and a .base file is not one.",
 				)
 				.addToggle((t) =>
 					t.setValue(s.linkToBase).onChange((v) => {
@@ -324,8 +325,8 @@
 
 <h3>Metrics</h3>
 <p class="hint">
-	Each group marked with a request count costs that many Garmin calls per day synced. The rest come out
-	of a request another group already makes, so they are free once anything above them is on.
+	Each group says what it costs in Garmin requests: most per day synced, a few once per sync. The free
+	ones share the daily summary request, so one request a day covers all of them.
 </p>
 
 {#each ALL_GROUPS as group (group)}
@@ -415,7 +416,7 @@
 	></div>
 {/if}
 
-<h3>Diagnostics</h3>
+<h3>Advanced</h3>
 
 <div
 	use:obsidianSetting={(setting) =>
@@ -459,8 +460,8 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
-			.setName("Save every probe run to the vault")
-			.setDesc("The only practical way to read probe output from a phone.")
+			.setName("Save every diagnostics run to the vault")
+			.setDesc("The only practical way to read the diagnostics from a phone.")
 			.addToggle((t) =>
 				t.setValue(s.autoSaveLog).onChange((v) => {
 					s.autoSaveLog = v;
@@ -473,6 +474,7 @@
 	use:obsidianSetting={(setting) =>
 		setting
 			.setName("Log folder")
+			.setDesc("Where saved diagnostics runs go.")
 			.addText((t) =>
 				t
 					.setPlaceholder(DEFAULT_SETTINGS.logFolder)

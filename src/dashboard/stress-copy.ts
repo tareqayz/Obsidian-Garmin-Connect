@@ -31,9 +31,6 @@ const COPY: Readonly<Record<string, Copy>> = {
 	UNKNOWN: { today: UNKNOWN, past: UNKNOWN },
 };
 
-/** The qualifiers whose wording is known. */
-export const KNOWN_QUALIFIERS: readonly string[] = Object.keys(COPY);
-
 /**
  * The copy line. By the qualifier when its wording is known, so a day still
  * short of measured time reads UNKNOWN's sentence even with a level; then the

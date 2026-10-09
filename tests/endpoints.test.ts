@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { FixtureHttpClient, type FixtureRule } from "../src/testing/fixture-http";
+import { FixtureHttpClient, type FixtureRule } from "./support/fixture-http";
 import { GarminApi, assertIsoDate, toIsoDate } from "../src/garmin/endpoints";
 import { GarminAuthError } from "../src/garmin/errors";
 import { MemoryTokenStore } from "../src/garmin/tokens";

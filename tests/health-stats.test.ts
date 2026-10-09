@@ -4,7 +4,6 @@ import { GLANCE_STATS } from "../src/dashboard/glance";
 import {
 	HEALTH_RANGES,
 	HEALTH_STATS,
-	HEALTH_STAT_IDS,
 	glanceStat,
 	healthStat,
 	hubStats,
@@ -15,21 +14,24 @@ import { ALL_GROUPS } from "../src/sync/metrics";
 
 describe("HEALTH_STATS", () => {
 	it("lists the stats in the phone's order", () => {
-		assert.deepEqual(HEALTH_STAT_IDS, [
-			"sleep",
-			"health-status",
-			"lifestyle-logging",
-			"weight",
-			"pulse-ox",
-			"pulse-ox-acclimation",
-			"respiration",
-			"heart-rate",
-			"blood-pressure",
-			"stress",
-			"body-battery",
-			"fitness-age",
-			"health-snapshot",
-		]);
+		assert.deepEqual(
+			HEALTH_STATS.map((s) => s.id),
+			[
+				"sleep",
+				"health-status",
+				"lifestyle-logging",
+				"weight",
+				"pulse-ox",
+				"pulse-ox-acclimation",
+				"respiration",
+				"heart-rate",
+				"blood-pressure",
+				"stress",
+				"body-battery",
+				"fitness-age",
+				"health-snapshot",
+			],
+		);
 		assert.deepEqual(
 			HEALTH_STATS.map((s) => s.title),
 			[
@@ -78,6 +80,15 @@ describe("HEALTH_STATS", () => {
 	it("keeps Health Status to a day at a time, as the phone has it", () => {
 		assert.deepEqual(healthStat("health-status")?.ranges, ["1d"]);
 	});
+
+	it("sets each stat's ranges from its spec", () => {
+		assert.deepEqual(healthStat("lifestyle-logging")?.ranges, ["1d"]);
+		assert.deepEqual(healthStat("weight")?.ranges, ["1d", "7d", "4w", "1y"]);
+		assert.deepEqual(healthStat("pulse-ox")?.ranges, ["1d", "7d", "4w"]);
+		assert.deepEqual(healthStat("pulse-ox-acclimation")?.ranges, ["7d", "4w"]);
+		assert.equal(healthStat("pulse-ox-acclimation")?.defaultRange, "7d");
+		assert.deepEqual(healthStat("blood-pressure")?.ranges, ["1d", "7d", "4w", "1y"]);
+	});
 });
 
 describe("registered pages", () => {
@@ -105,6 +116,15 @@ describe("registered pages", () => {
 			hubStats(["fitness-age", "heart-rate"]).map((s) => s.id),
 			["sleep", "heart-rate", "fitness-age"],
 		);
+	});
+
+	it("lists the Lifestyle Logging placeholder in the hub and the commands, in the app's order", () => {
+		const registered = ["weight", "pulse-ox", "pulse-ox-acclimation", "blood-pressure", "lifestyle-logging"];
+		assert.deepEqual(
+			hubStats(registered).map((s) => s.id),
+			["sleep", "lifestyle-logging", "weight", "pulse-ox", "pulse-ox-acclimation", "blood-pressure"],
+		);
+		assert.ok(pageStats(registered).some((s) => s.id === "lifestyle-logging"));
 	});
 
 	it("opens a glance card's page once the page is built", () => {

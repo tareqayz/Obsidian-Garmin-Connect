@@ -2,6 +2,7 @@ import type { DailyStatRow, DailySummary, HeartRateData, ValueDescriptor } from 
 import { defineDayIndex, type DayRowInput } from "./day-index";
 import { epochOf, type DaySeries } from "./intraday";
 import { defineIntraday } from "./intraday-registry";
+import { isFiniteNumber } from "./numbers";
 
 /**
  * Heart Rate: the day index the Heart Rate pages' 7d, 4w and 1y views read,
@@ -200,11 +201,11 @@ export function heartDayOf(payload: HeartRateData | null | undefined): HeartDay 
 export function heartDayIn(series: DaySeries | null | undefined): HeartDay | null {
 	const raw = series?.extra?.[HEART_DAY_KEY] as Partial<Record<keyof HeartDay, unknown>> | undefined;
 	if (!raw || typeof raw !== "object") return null;
-	if (!finite(raw.start) || !finite(raw.end) || !finite(raw.step) || raw.step <= 0 || raw.end <= raw.start) return null;
+	if (!isFiniteNumber(raw.start) || !isFiniteNumber(raw.end) || !isFiniteNumber(raw.step) || raw.step <= 0 || raw.end <= raw.start) return null;
 	if (!Array.isArray(raw.values)) return null;
 	const day: HeartDay = { start: raw.start, end: raw.end, step: raw.step, values: raw.values.map((v) => bpm(v) ?? null) };
-	if (finite(raw.startOffset)) day.startOffset = raw.startOffset;
-	if (finite(raw.endOffset)) day.endOffset = raw.endOffset;
+	if (isFiniteNumber(raw.startOffset)) day.startOffset = raw.startOffset;
+	if (isFiniteNumber(raw.endOffset)) day.endOffset = raw.endOffset;
 	for (const key of ["resting", "avg7", "high", "low"] as const) {
 		const value = bpm(raw[key]);
 		if (value !== undefined) day[key] = value;
@@ -233,7 +234,7 @@ function samplesOf(rows: unknown, timeAt: number, valueAt: number): Sample[] {
 	for (const row of Array.isArray(rows) ? rows : []) {
 		if (!Array.isArray(row)) continue;
 		const t = row[timeAt];
-		if (!finite(t)) continue;
+		if (!isFiniteNumber(t)) continue;
 		out.push([t, bpm(row[valueAt]) ?? null]);
 	}
 	return out.sort((a, b) => a[0] - b[0]);
@@ -241,11 +242,7 @@ function samplesOf(rows: unknown, timeAt: number, valueAt: number): Sample[] {
 
 /** Whole bpm, or undefined for null, a non-number, or Garmin's negative "not measured". */
 function bpm(value: unknown): number | undefined {
-	return finite(value) && value >= 0 ? Math.round(value) : undefined;
-}
-
-function finite(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
+	return isFiniteNumber(value) && value >= 0 ? Math.round(value) : undefined;
 }
 
 /** Where a named column sits, per Garmin's descriptor list, or the known default. */

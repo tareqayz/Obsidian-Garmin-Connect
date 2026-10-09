@@ -1,8 +1,9 @@
 # Builds and publishes a release whenever a tag is pushed.
 #
 # Two channels, told apart by the tag alone:
-#   1.2.0         → draft release, for community-directory users. You add notes and publish.
+#   1.2.0         → draft release, for community-directory users. You check it and publish.
 #   1.2.0-beta.1  → published pre-release, for BRAT testers.
+# Either way the notes come from CHANGELOG.md (see the Release notes step).
 #
 # A beta's version is stamped into manifest.json here, in the runner, and never committed.
 # Obsidian reads manifest.json at HEAD of the default branch to decide the published
@@ -23,12 +24,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      # No dependency cache: these assets are attested, and a cache is one more
+      # input a release build would have to trust.
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.x"
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -80,6 +82,21 @@ jobs:
             manifest.json
             styles.css
 
+      # The notes are CHANGELOG.md's section for this tag: its own, its version's, or
+      # [Unreleased] for a beta of a version still being written. GitHub's generated
+      # notes are the fallback, with a warning, rather than an empty release.
+      - name: Release notes
+        id: notes
+        env:
+          TAG: ${{ steps.channel.outputs.tag }}
+        run: |
+          if npm run --silent release:notes -- "$TAG" > release-notes.md; then
+            echo "args=--notes-file=release-notes.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::CHANGELOG.md has no notes for $TAG — using GitHub's generated notes"
+            echo "args=--generate-notes" >> "$GITHUB_OUTPUT"
+          fi
+
       # Assets must be attached individually. Obsidian downloads these three by name and
       # cannot read a zip.
       - name: Create release
@@ -87,11 +104,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.channel.outputs.tag }}
           PRERELEASE: ${{ steps.channel.outputs.prerelease }}
+          NOTES: ${{ steps.notes.outputs.args }}
         run: |
           if [ "$PRERELEASE" = "true" ]; then
             visibility="--prerelease"   # published: BRAT cannot see drafts
           else
-            visibility="--draft"        # you write the notes, then publish
+            visibility="--draft"        # check the notes, then publish
           fi
-          gh release create "$TAG" --title="$TAG" $visibility \
+          gh release create "$TAG" --title="$TAG" $visibility $NOTES \
             main.js manifest.json styles.css

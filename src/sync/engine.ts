@@ -309,7 +309,7 @@ export function dateRange(from: string, to: string): string[] {
  */
 export const RANGE_CHUNK_DAYS = 365;
 
-/** See `SyncOptions.intradayDays`. A week covers the dashboard's today and yesterday, and the Intensity Minutes week, with room to spare. */
+/** See `SyncOptions.intradayDays`. A week covers Home's today and yesterday, and the Intensity Minutes week, with room to spare. */
 export const INTRADAY_DAYS = 7;
 
 /**

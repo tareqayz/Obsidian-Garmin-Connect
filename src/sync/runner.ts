@@ -859,8 +859,8 @@ export function describe(report: SyncReport): string {
  *
  * A fragment rather than a string because a bar is not something a string can
  * say, and setMessage takes either. The toast is Obsidian's own chrome and
- * lives outside .gcd-root, so the rail's two colours come from styles.css
- * rather than the dashboard tokens.
+ * lives outside the plugin's views, so the rail's two colours come from
+ * styles.css.
  */
 function noticeBody(progress: SyncProgress): DocumentFragment {
 	const fragment = document.createDocumentFragment();

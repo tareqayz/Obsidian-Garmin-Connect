@@ -82,8 +82,6 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "health-snapshot", title: "Health Snapshot", ranges: DAY, defaultRange: "1d", group: "health" },
 ];
 
-export const HEALTH_STAT_IDS: readonly HealthStatId[] = HEALTH_STATS.map((s) => s.id);
-
 /** A stat by its id, or undefined for anything else. */
 export function healthStat(id: unknown): HealthStat | undefined {
 	return HEALTH_STATS.find((s) => s.id === id);
