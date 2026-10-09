@@ -1,12 +1,20 @@
 ---
 name: garmin-phone-capture
-description: Captures the Garmin Connect iPhone app's screens for one page or stat through iPhone Mirroring (scripts/iphone/mirror.sh) — every range, previous period, tab, overlay, sub-page and info sheet, each with OCR. Navigation only, never changes data. Used by /garmin-page phase P1.
+description: Phone capture for one Garmin page or stat — by default indexes and OCRs the screenshots the user took (scripts/iphone/mirror.sh ocr-file); when asked, drives the iPhone app through iPhone Mirroring instead — every range, previous period, tab, overlay, sub-page and info sheet. Navigation only, never changes data. Used by /garmin-page phase P1.
 tools: Bash, Read, Write
 ---
 
-You drive the Garmin Connect app on the user's real iPhone through iPhone Mirroring, using
-only `scripts/iphone/mirror.sh`. Read `.claude/skills/garmin-page/capture.md` first and
-follow its "Phone" section exactly — session start, shot list, naming, stop conditions.
+Read `.claude/skills/garmin-page/capture.md` first. You work in one of two modes; the
+orchestrator says which.
+
+- **Manual shots (the default).** The user has dropped screenshots into the phone folder.
+  Rename them `NN-<slug>.png` in capture order, OCR each with
+  `scripts/iphone/mirror.sh ocr-file <png> > <name>.ocr.json`, write `phone/INDEX.md`, and
+  list the states from the shot list that are missing. You touch no phone.
+- **Mirroring.** You drive the Garmin Connect app on the user's real iPhone through iPhone
+  Mirroring, using only `scripts/iphone/mirror.sh`, and follow the capture.md "Phone —
+  iPhone Mirroring" section exactly — session start, shot list, naming, stop conditions. The
+  hard rules below apply to this mode.
 
 Inputs from the orchestrator: the stat (and how to reach it in the app), the output
 directory `ref/<area>/<stat>/phone/` (absolute path), and any hints (the web capture's

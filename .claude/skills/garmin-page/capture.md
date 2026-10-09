@@ -1,13 +1,54 @@
 # Capture: phone and web
 
-> **Default capture is manual phone screenshots** (user decision 2026-10-08): the user force-quits and reopens Garmin Connect, then drops shots in `ref/<area>/<stat>/phone/<range>/`, no write-ups. The iPhone Mirroring helper below is optional — it worked but cost hours and many tokens per stat.
-
-
 The phone is the **visual source of truth** and the primary source of golden numbers (OCR).
 The web app is the **network source**: which endpoints and GraphQL operations each view
 calls, their payloads, and a cross-check of the numbers.
 
-## Phone — `scripts/iphone/mirror.sh`
+## Phone — manual screenshots (the default)
+
+Since 2026-10-08 the user takes the phone shots by hand.
+
+1. **Relaunch Garmin Connect first.** The app can get stuck a day behind: after a sync between
+   local midnight and 04:00, "Today" shows the previous day and every label is one day off,
+   and only a relaunch clears it. The user force-quits the app (swipe it away in the App
+   Switcher), reopens it, and checks that Stress "Today" matches today's web numbers.
+2. **The user shoots the list below** and drops the PNGs, in order and without write-ups, into
+   `ref/<area>/<stat>/phone/<range>[-prev]/` (sub-pages in `sub-<slug>/`).
+3. **You index them.** Rename to `NN-<slug>.png` in capture order, then OCR each one:
+   `scripts/iphone/mirror.sh ocr-file <png> > <same name>.ocr.json`.
+   - `ocr-file` needs no permissions, only the helper built once with `npm run iphone:build`.
+   - It reports boxes in phone points. Native shots are 3x (1206 × 2622 px for the
+     402 × 874 pt frame).
+   - Write `phone/INDEX.md` as below.
+4. **Missing states go back to the user** as a short list. Don't block on them: build the frame
+   from the web capture and mark it Inferred.
+
+### Shot list for one stat page
+
+The same list whoever takes the shots. For **each range** the page offers (1d, 7d, 4w, 1y —
+whatever the app shows) and for **offset 0 and −1** (the previous period, via the period arrow
+left of the date):
+1. The top of the page.
+2. A screen further down at a time, to the end of the page. Overlap is fine. (Mirroring:
+   `scroll down 550`, then `shot`, until a shot's OCR is unchanged.)
+3. Every tab or segmented control (e.g. Score/Coach, Timeline/Stages): switch, re-shoot the
+   affected section.
+4. Every overlay chip on a chart: tap it, shoot the chart.
+5. Every tappable card/row that opens a sub-page (factor pages, history sheets, detail
+   pages): open it, shoot it fully (and its ranges, if it has them), go back.
+6. Each info (i) sheet once, for its copy. Bottom sheets (e.g. Sleep History) close with a
+   downward drag or their close button. Day/week cards on stat pages switch the same page to
+   that day/week rather than opening a new page — shoot the switched state and switch back.
+
+Naming: `ref/<area>/<stat>/phone/<range>[-prev]/NN-<slug>.png` + `NN-<slug>.ocr.json`
+(e.g. `stress/phone/7d-prev/03-scroll-2.png`). Sub-pages:
+`phone/<range>/sub-<slug>/NN-….png`. Write `phone/INDEX.md`: one line per shot — file,
+capture time, the date label on screen (`Oct 7`, `Oct 1–7`), what it shows.
+
+## Phone — iPhone Mirroring (optional)
+
+The Mirroring helper drives the phone from the Mac. It works, but it cost hours and many
+tokens per stat, so it is the fallback when the user cannot take the shots.
 
 The helper is a signed background app (`npm run iphone:build`, lives in
 `~/Library/Application Support/garmin-mirror/`). macOS Screen Recording and Accessibility
@@ -69,28 +110,6 @@ Stop, Reset, Connect, Pair, Upgrade, Subscribe, Buy, Done, Clear, Share, Send, R
 Measure, Sign/Log out, "+", and anything in the navigation bar's right side (⋮, +, pencil).
 It pauses (`USER_ACTIVE`) if someone used the Mac in the last 20 s, refuses when iPhone
 Mirroring is not frontmost or is covered, and logs every input to `input.log`.
-
-### Shot list for one stat page
-
-For **each range** the page offers (1d, 7d, 4w, 1y — whatever the app shows) and for
-**offset 0 and −1** (the previous period, via the period arrow left of the date):
-1. Top of the page: `shot`.
-2. Scroll down ~550 pt at a time, `shot` after each scroll, until a shot's OCR is unchanged
-   (end of page). Overlap is fine.
-3. Every tab or segmented control (e.g. Score/Coach, Timeline/Stages): switch, re-shoot the
-   affected section.
-4. Every overlay chip on a chart: tap it, shoot the chart.
-5. Every tappable card/row that opens a sub-page (factor pages, history sheets, detail
-   pages): open, shoot it fully (and its ranges, if it has them), `back`.
-6. Each info (i) sheet once, for its copy; close it with `back` or the sheet's close/Cancel.
-   Bottom sheets (e.g. Sleep History) ignore Escape: close them with a downward drag or the
-   sheet's close button. Day/week cards on stat pages switch the same page to that day/week
-   rather than opening a new page — shoot the switched state and switch back.
-
-Naming: `ref/<area>/<stat>/phone/<range>[-prev]/NN-<slug>.png` + `NN-<slug>.ocr.json`
-(e.g. `stress/phone/7d-prev/03-scroll-2.png`). Sub-pages:
-`phone/<range>/sub-<slug>/NN-….png`. Write `phone/INDEX.md`: one line per shot — file,
-capture time, the date label on screen (`Oct 7`, `Oct 1–7`), what it shows.
 
 Stop and report (don't improvise) on: a sheet or dialog you don't recognise, a blank or
 locked frame, three `USER_ACTIVE` in a row (wait 30 s between), or anything that looks like

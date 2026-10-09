@@ -2,15 +2,17 @@
 
 The CLI is `/Applications/Obsidian.app/Contents/MacOS/obsidian`; `docs/obsidian-cli.md` has
 its help. Helpers: `scripts/dev/ev.sh` (eval with retries), `capture-view.sh`, `click.sh`,
-`compare.py`.
+`compare.py` (needs Pillow: `pip3 install pillow`).
 
 ## Reload once per wave
 
-- There is no hot reload. `npm run build`, then `obsidian plugin:reload id=garmin-connect`
+- Hot Reload is not enabled. `npm run build`, then `obsidian plugin:reload id=garmin-connect`
   **once**: it prints nothing — check `app.plugins.plugins['garmin-connect']` with `ev.sh`
   instead of looping on its output.
-- Every plugin load runs the startup sync (~50 Garmin requests, writes notes) and then any
-  history backfills. Batch fixes; never reload per tweak.
+- A plugin load runs the startup sync (~50 Garmin requests, writes notes) when Sync on
+  startup is on — check `app.plugins.plugins['garmin-connect'].data.settings.syncOnStartup`
+  with `ev.sh`, never `data.json` — and the history walks follow the first sync of a session.
+  Batch fixes; never reload per tweak.
 - **Stale Svelte CSS** after a reload: `ev.sh "document.querySelectorAll('style').forEach(s => s.id?.startsWith('svelte-') && s.remove())"`,
   detach the Garmin leaves, reopen with `obsidian command id=garmin-connect:open-dashboard`.
   Check `getComputedStyle` when something looks unstyled or off by a few px.
