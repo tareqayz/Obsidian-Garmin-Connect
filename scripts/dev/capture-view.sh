@@ -2,7 +2,7 @@
 # usage: scripts/dev/capture-view.sh KEY 'STACK_JSON' WIDTH ZOOM OUTPREFIX [light|dark] [PREP_JS]
 # Opens the Garmin Home view at STACK (a JSON route stack; '' keeps the current
 # page), forces .gch-root to WIDTH at ZOOM (402 1 = phone layout, 1190 0.4 =
-# wide pane), un-sticks the header and captures the page in slices
+# wide pane), un-sticks every sticky element and captures the page in slices
 # OUTPREFIX-<k>.png. Prints {"tops":[…],"total":…,"visH":…,"dpr":…} for
 # `compare.py stitch`. Afterwards it puts back everything it changed: the
 # theme classes, .gch-root's width/zoom/margin, sticky headers, the scroll
@@ -18,11 +18,11 @@ JS="(()=>{window.__p0=window.__p0||{}; if(window.__p0['$KEY']!==undefined) retur
  const v=leaf.view; const before=v.getState(); const wasDark=document.body.classList.contains('theme-dark');
  const setTheme=(dark)=>{document.body.classList.toggle('theme-dark',dark);document.body.classList.toggle('theme-light',!dark);};
  if('$THEME'==='light') setTheme(false); if('$THEME'==='dark') setTheme(true);
- if('$STACK'!=='') { await v.setState({stack: $STACK}, {}); await wait(700); }
+ if('$STACK'!=='') { await v.setState({stack: ${STACK:-null}}, {}); await wait(700); }
  const root=v.contentEl.querySelector('.gch-root'); const saved={w:root.style.width,z:root.style.zoom,m:root.style.margin};
  root.style.width='${W}px'; root.style.zoom='$Z'; root.style.margin='0';
  const sc=v.contentEl; const savedTop=sc.scrollTop; sc.style.scrollBehavior='auto';
- const sticky=[...root.querySelectorAll('.sticky')]; sticky.forEach(e=>e.style.position='static');
+ const sticky=[...root.querySelectorAll('*')].filter(e=>getComputedStyle(e).position==='sticky'); sticky.forEach(e=>e.style.position='static');
  $PREP
  await wait(900);
  const wc=require('electron').remote.getCurrentWebContents(); wc.setBackgroundThrottling(false);
