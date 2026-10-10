@@ -10,6 +10,30 @@ GitHub release takes its notes from the matching section here — see
 
 ## [Unreleased]
 
+### Added
+
+- **Activity details for runs.** A run opens its own page from its sport's
+  page, a month, All Activities, Personal Records or Home's Today's Activity,
+  as in Garmin's app:
+  - **Overview**: the route on a map with the weather, the headline figures,
+    the Primary Benefit, how it felt and the device it was recorded on;
+  - **Stats**, **Laps** and **Gear**;
+  - **Charts** against time or distance — pace, heart rate, elevation, power,
+    stamina, running dynamics, time in zones and more — and any of them full
+    size with a second metric to compare.
+
+  The page loads from Garmin the first time it opens and is kept in the vault,
+  in `activity-details/`.
+- **Activity maps.** OpenStreetMap under the route, coloured by pace (or grade-
+  adjusted pace, heart rate, power, elevation or run/walk), with lap markers.
+  The full-screen map pans and pinches. **Settings → Maps → Map tiles** turns
+  the tiles off and draws the route alone.
+
+### Changed
+
+- **Network use.** Activity maps load tiles from `tile.openstreetmap.org`,
+  which sees which part of the map you open. See the README.
+
 ## [0.2.0] — 2026-10-09
 
 The plugin is now Garmin Connect, rebuilt inside Obsidian: the phone app's

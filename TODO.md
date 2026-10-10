@@ -8,16 +8,17 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats and the activity detail screen.**
+- **Performance Stats.**
   - The classic dashboard, retired in 0.2 (d32f311), was the only place with
     history charts for HRV, training readiness, recovery, training status and
-    load, VO₂ max, endurance and race predictions. It also had the
-    per-activity detail (splits, heart-rate zones, elevation).
+    load, VO₂ max, endurance and race predictions.
   - Home's At a Glance cards show the latest values, and the notes keep the
     history.
-  - Rebuild them as Garmin's Performance Stats pages and activity detail,
-    through `/garmin-page`.
-  - Activity and record rows are not clickable until the detail exists.
+  - Rebuild them as Garmin's Performance Stats pages, through `/garmin-page`.
+- **Activity details for the other sports.** Runs have their page (see
+  "Activity details" under Activities); every other sport's rows still open
+  nothing. Each needs its own phone shots: cycling, swimming, strength and
+  multisport differ the most.
 - **Edit Home**: choosing the cards for Essentials and In Focus.
 - **An in-app way to backfill.** The classic dashboard's "Backfill…" button was
   the only one; "Sync a date range…" is now reachable from the command palette
@@ -87,6 +88,48 @@ Known gaps and open questions, by area.
   (Road Cycling, Pool Swimming); others may differ from the app.
 - On macOS the sub-type picker is Obsidian's menu, which follows the "Native
   menus" setting, so it can look nothing like the Figma sheet.
+
+## Activity details
+
+Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
+(`ref/activity-details/outdoor-run/`, Figma `364:2` and twin `402:2`).
+
+- **Check on the phone:**
+  - the map: tiles load, a finger scrolls the page past the Overview map, the
+    full-screen map pinches and pans without Obsidian's sidebar swipe taking
+    over, and offline it draws the route alone;
+  - a treadmill run's page (no map, no weather; respiration, GCT balance and
+    step speed loss rows; whether the phone keeps the Impact Load Factor chart
+    as the web does);
+  - the Power (W/kg) chart's axis and labels.
+- **Inferred**, no shot to check against:
+  - the Gear tab, empty (the web's "No gear added" copy) and filled;
+  - the Overview below Devices & Apps, how notes show, and whether Devices &
+    Apps lists sensors (the web lists the HRM);
+  - every Data Overlay but Pace on the full map, their legends, and Laps off;
+  - the landscape chips past Heart Rate Zones, the chart Avg Pace opens, and
+    whether a chip toggles off;
+  - Zone 1 and Zone 5 bar colours; the Heart Rate Zones line's colour stops;
+  - Feel words other than Normal; Perceived Effort words other than 4 and 6,
+    and the dot's colour per value; Primary Benefit names other than Threshold
+    and Tempo, and their sheet copy;
+  - weather icons other than a clear day's sun, and the wind's unit (shown as
+    knots × 1.852 because 5 shows "9");
+  - the lock for `subscribers` and `public` activities.
+- **Help copy not captured:** the nine Stats HELP sheets and the twelve Charts
+  "?" sheets. Their links are left out until it is; only the Primary Benefit
+  "?" opens a sheet.
+- **Axis rules not settled:** Stride, Vertical Ratio and GCT start at their
+  first sample, which reads 0:08 where the phone shows 0:09; Run/Walk drops its
+  last time label; Power's top (≈1.66 × max) and Impact Load Factor's (≈2 ×
+  max); the Distance ticks (nice steps — shooting the 8.01 km run of Oct 3
+  would settle it).
+- **The map's pace colours** bin in equal steps of pace from the best pace to a
+  slow end mirrored about the average (84% of the phone's samples exactly, 95%
+  within a slot); the exact slow end is not proved.
+- **Left out on purpose:** writing anything to Garmin (rename, notes, likes,
+  photos, sharing, self-evaluation), Garmin's map provider, Map / Satellite /
+  Terrain, Running Reports (no plugin page), the watch's product image.
 
 ## Steps, Floors and Intensity Minutes
 
