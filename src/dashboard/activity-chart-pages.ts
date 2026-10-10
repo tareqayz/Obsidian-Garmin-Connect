@@ -62,11 +62,12 @@ export const CHART_COLOURS: Readonly<Record<ChartColour, string>> = {
 	sky: "#3994ef",
 	crimson: "#ff0035",
 	"deep-orange": "#ea670e",
-	// Zone 1 and Zone 5 had no time on the captured run: grey and red are Inferred.
-	"zone-1": "#a6a6a6",
-	"zone-2": "#1975d0",
+	// The twin's zone fills (406:1707–1709, 407:700; the shots sample #1975d0 and #e8660e). Zone 1
+	// and Zone 5 had no time on the captured run: grey (the scale's) and red are Inferred.
+	"zone-1": "#6c6c6c",
+	"zone-2": "#1976d2",
 	"zone-3": "#0b963f",
-	"zone-4": "#e8660e",
+	"zone-4": "#ea670e",
 	"zone-5": "#e02c2c",
 };
 

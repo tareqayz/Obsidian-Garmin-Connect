@@ -15,18 +15,22 @@ import { linePath, r2 } from "./stat-charts";
 
 /**
  * Where the Charts tab's marks go: each card's plot at the width it gets, and
- * the landscape chart's. Measured off the phone's shots (402 pt portrait,
- * 874 × 402 landscape); phase 2 matches the frames to the Obsidian twin, so
- * every inset and height is a constant here, in one place.
+ * the expanded chart's at the view's size. The frames are the Obsidian twin's
+ * (Figma 8D338zFIJ1a2zrsuligjva, page 402:2: phone Charts · Time 406:474, pane
+ * 415:3254, expanded 411:1340 and 416:86199), all in one place below.
  *
- * A portrait box starts under the card's figures (or its title when it has
- * none) and runs to the card's end; the plot stretches across the width and
- * keeps the phone's heights.
+ * A card's chart box starts under its figures (the twin's 120.47 pt in a
+ * section) and runs to the card's end; the plot stretches across the width
+ * and keeps the twin's heights. A pane card (≥ 640 pt) has a 1 pt border, and
+ * its frame is in the box inside it.
  *
  * Pure.
  */
 
-/** A portrait chart's frame: box coordinates, y down from the box's top. */
+/** The phone's sections, or the bordered cards of a pane (640 pt and up). */
+export type ChartLayout = "phone" | "pane";
+
+/** A card chart's frame: box coordinates, y down from the box's top. */
 export interface ChartFrame {
 	/** The plot's left edge, and its right edge's inset from the box's. */
 	left: number;
@@ -48,69 +52,107 @@ export interface ChartFrame {
 }
 
 /**
- * The phone's frames. Plot 137 pt tall, its bottom 11.8 pt above the dots;
- * left edge 39.7 pt (Pace's 44.7: its labels sit 5 pt further right, though
- * Grade-Adjusted and Lap Average Pace's do not), right edge 379.7 pt. Labels
- * end 5.5 pt short of the plot. Stamina's plot is 89 pt; Run/Walk's three
- * lanes are 30.1 pt apart from 46.7 to 382.9 pt. The gap above the plot (30 pt
- * under the figures) is the twin's to settle.
+ * The twin's phone section (Heart Rate 406:1830): plot 39.83–379.83 pt, its top
+ * 25.2 pt under the figures and 137 pt tall, the dots 11.83 pt under it, the
+ * labels 13.04 and the axis title 32.81 under the dots, the section's end
+ * 49.83 under them. Labels end 7 pt short of the plot.
  */
-const CHART: ChartFrame = {
-	left: 39.7,
-	inset: 22.3,
-	top: 30,
+const PHONE_CHART: ChartFrame = {
+	left: 39.83,
+	inset: 22.17,
+	top: 25.2,
 	height: 137,
-	labelRight: 34.2,
-	dotGap: 11.8,
-	labelGap: 13.2,
-	titleGap: 34.2,
-	keyGap: 57.3,
-	foot: 48,
-	keyFoot: 18,
+	labelRight: 32.83,
+	dotGap: 11.83,
+	labelGap: 13.04,
+	titleGap: 32.81,
+	keyGap: 58.1,
+	foot: 49.83,
+	keyFoot: 41.66,
 };
 
-export const FRAMES = {
-	chart: CHART,
-	pace: { ...CHART, left: 44.7, labelRight: 39.4 },
-	stamina: { ...CHART, height: 89, dotGap: 9 },
-	runWalk: { ...CHART, left: 46.7, inset: 19.1, height: 90.3, labelRight: 41.9, dotGap: 9.6 },
-} as const satisfies Record<string, ChartFrame>;
-
-/** The x axis' dots: 7.7 pt across, grey. */
-export const AXIS_DOT_R = 3.85;
-/** A dot chart's dots: 4.7 pt across on the phone, 5 pt in landscape. */
-export const MARK_R = 2.35;
-export const LANDSCAPE_MARK_R = 2.5;
-/** The narrowest a Run/Walk bar is drawn: the 3.8 s walk is a hairline on the phone. */
-export const MIN_BAR = 0.5;
+/** The twin's pane card (Heart Rate 415:3321), inside its border: 7 pt more on the left, 25 pt on the right. */
+const PANE_CHART: ChartFrame = { ...PHONE_CHART, left: 46.83, inset: 25, labelRight: 39.83, foot: 52.9, keyFoot: 44.66 };
 
 /**
- * The landscape chart at 874 × 402 pt: the plot from 117.7 to 768.7 pt with an
- * overlay (780.7 alone, where no right axis needs the room), 73.3 to 276.6 pt
- * down; the left labels end at 110.6 pt, the right ones start at 760.4 pt.
+ * Each layout's frames. Pace's plot starts 5 pt further right (406:1801; the
+ * twin keeps Grade-Adjusted and Lap Average Pace at the usual 39.83), the
+ * forced labels (Vertical Ratio, Ground Contact Time) end 2 pt further right,
+ * Power's plot sits 19.7 pt higher with the room under its axis instead
+ * (406:1426, as the phone draws it), Stamina's plot is 89.33 pt, and Run/Walk's
+ * three lanes are 30.22 pt apart from 46.83 pt (406:1667, 415:3749).
  */
-export const LANDSCAPE = {
-	width: 874,
-	height: 402,
-	left: 117.67,
-	/** The plot's right inset with an overlay, and alone. */
-	inset: 105.33,
-	insetAlone: 93.33,
-	top: 73.3,
-	bottom: 276.6,
-	leftLabelRight: 110.6,
-	/** The right labels' left edge, short of the plot's right edge. */
-	rightLabelInset: 8.27,
-	dotY: 291.83,
-	labelY: 304.6,
-	titleY: 325.1,
-} as const;
+export const FRAMES = {
+	phone: {
+		chart: PHONE_CHART,
+		pace: { ...PHONE_CHART, left: 44.83, labelRight: 37.83 },
+		forced: { ...PHONE_CHART, labelRight: 34.83 },
+		power: { ...PHONE_CHART, top: 5.5, foot: 69.86 },
+		stamina: { ...PHONE_CHART, height: 89.33, dotGap: 9.57 },
+		runWalk: { ...PHONE_CHART, left: 46.83, inset: 18.92, top: 23.86, height: 90.67, labelRight: 40.5, dotGap: 9.84, labelGap: 12.9, titleGap: 32.77, keyGap: 57.83 },
+	},
+	pane: {
+		chart: PANE_CHART,
+		pace: { ...PANE_CHART, left: 51.83, labelRight: 44.83 },
+		forced: { ...PANE_CHART, labelRight: 41.83 },
+		power: { ...PANE_CHART, top: 5.5, foot: 72.93 },
+		stamina: { ...PANE_CHART, height: 89.33, dotGap: 9.57 },
+		runWalk: { ...PANE_CHART, left: 53.85, inset: 24.94, top: 23.86, height: 90.67, labelRight: 47.5, dotGap: 9.84, labelGap: 12.9, titleGap: 32.77, keyGap: 57.83 },
+	},
+} as const satisfies Record<ChartLayout, Record<string, ChartFrame>>;
 
-/** Training Effect's scales: 16 pt in from each side, five segments with 6 pt gaps and a 7.3 pt cap, 8 pt tall. */
-export const TE_FRAME = { inset: 16, gap: 6, cap: 7.33, height: 8, knobR: 9.65, ring: 3.7 } as const;
+/** A chart with no figures (Performance Condition) starts its box this far under its title, where the figures would end. */
+export const NO_FIGURES_GAP = 18.75;
 
-/** A zone row's bar track: from 16 pt to 112.7 pt short of the right edge (16–289.3 pt on the phone). */
+/** The x axis' dots: 8.33 pt across. */
+export const AXIS_DOT_R = 4.165;
+/** A dot chart's dots: 4.7 pt across on the phone, 5 pt in the expanded chart. */
+export const MARK_R = 2.35;
+export const EXPANDED_MARK_R = 2.5;
+/** The narrowest a Run/Walk bar is drawn: the 3.8 s walk is a hairline. */
+export const MIN_BAR = 0.67;
+
+/** The expanded chart's frame: box coordinates from under its page bar, the plot's height from the view's. */
+export interface ExpandedFrame {
+	/** The plot's left edge and right inset; the labels' edges. */
+	left: number;
+	inset: number;
+	leftLabelRight: number;
+	/** The overlay's labels start this far short of the plot's right edge, over its end as on the phone. */
+	rightLabelInset: number;
+	/** The plot's top under the bar. */
+	top: number;
+	dotGap: number;
+	labelGap: number;
+	titleGap: number;
+	/** The chip row under the axis title's centre, its height, and the room under it. */
+	chipsGap: number;
+	chips: number;
+	bottom: number;
+}
+
+/**
+ * The twin's expanded chart (page state): phone 411:1340 (402 × 874), pane
+ * 416:86199 (1190 × 664). The twin draws the tick row past the plot's right
+ * end, as Garmin's landscape chart does; here the ticks stay on the plot, so a
+ * label sits over the sample it names.
+ */
+export const EXPANDED = {
+	phone: { left: 46.76, inset: 40.86, leftLabelRight: 38, rightLabelInset: 1.14, top: 62.14, dotGap: 25.35, labelGap: 11.63, titleGap: 31.13, chipsGap: 40.4, chips: 36, bottom: 32 },
+	pane: { left: 85.19, inset: 58.92, leftLabelRight: 70, rightLabelInset: 11.08, top: 64.95, dotGap: 24.58, labelGap: 11.63, titleGap: 31.13, chipsGap: 52.4, chips: 36, bottom: 32 },
+} as const satisfies Record<ChartLayout, ExpandedFrame>;
+
+/** The expanded plot's least height, on a short view. */
+export const MIN_EXPANDED_PLOT = 160;
+
+/** Training Effect's scales: in from each side, five segments with 6 pt gaps and a 7.33 pt cap, 8 pt tall. */
+export const TE_FRAME = { inset: 16, gap: 6, cap: 7.33, height: 8, knobR: 10, haloR: 14 } as const;
+
+/** A zone row's bar track: from 16 pt to 112.67 pt short of the row's right edge (403:72). */
 export const ZONE_TRACK = { left: 16, inset: 112.67 } as const;
+
+/** Where the page turns from the phone's layout to a pane's: the container queries' 640 pt. */
+export const PANE_WIDTH = 640;
 
 /* ------------------------------------------------------------------ */
 
@@ -160,9 +202,10 @@ export interface SeriesPlot extends ChartMarks, AxisMarks {
 	keyY?: number;
 }
 
-/** A portrait chart at `width`. */
-export function seriesPlot(chart: SeriesChart, width: number): SeriesPlot {
-	const f = chart.metric === "pace" ? FRAMES.pace : chart.metric === "stamina" ? FRAMES.stamina : FRAMES.chart;
+/** A card's chart at `width`, on the phone or in a pane's card. */
+export function seriesPlot(chart: SeriesChart, width: number, layout: ChartLayout = "phone"): SeriesPlot {
+	const frames = FRAMES[layout];
+	const f = frameOf(frames, chart);
 	const plot = rectOf(f, width);
 	const dotY = plot.bottom + f.dotGap;
 	const out: SeriesPlot = {
@@ -174,6 +217,24 @@ export function seriesPlot(chart: SeriesChart, width: number): SeriesPlot {
 	};
 	if (chart.legend) out.keyY = r2(dotY + f.keyGap);
 	return out;
+}
+
+/** The chart's frame in a layout: Pace's, Power's, Stamina's, the forced labels' (Vertical Ratio, GCT), or the usual one. */
+function frameOf(frames: (typeof FRAMES)[ChartLayout], chart: SeriesChart): ChartFrame {
+	switch (chart.metric) {
+		case "pace":
+			return frames.pace;
+		case "power":
+		case "power-per-kg":
+			return frames.power;
+		case "stamina":
+			return frames.stamina;
+		case "vertical-ratio":
+		case "ground-contact-time":
+			return frames.forced;
+		default:
+			return frames.chart;
+	}
 }
 
 function rectOf(f: ChartFrame, width: number): PlotRect {
@@ -366,8 +427,8 @@ export interface RunWalkPlot extends AxisMarks {
 	keyY: number;
 }
 
-export function runWalkPlot(chart: RunWalkChart, width: number): RunWalkPlot {
-	const f = FRAMES.runWalk;
+export function runWalkPlot(chart: RunWalkChart, width: number, layout: ChartLayout = "phone"): RunWalkPlot {
+	const f = FRAMES[layout].runWalk;
 	const plot = rectOf(f, width);
 	const dotY = plot.bottom + f.dotGap;
 	// The lanes are its labels: no value axis.
@@ -435,8 +496,11 @@ export function zoneBars(chart: ZonesChart, width: number): ZoneBar[] {
 /* ------------------------------------------------------------------ */
 
 export interface ExpandedPlot extends Omit<AxisMarks, "labelRight" | "yLabels" | "xTitle"> {
+	layout: ChartLayout;
 	width: number;
+	/** The box's height, to the axis title; the chip row's top under the box's top. */
 	height: number;
+	chipsTop: number;
 	plot: PlotRect;
 	/** The left axis' labels: the primary's values, or Run/Walk's lane names. */
 	leftLabelRight: number;
@@ -457,32 +521,43 @@ export interface ExpandedPlot extends Omit<AxisMarks, "labelRight" | "yLabels" |
 	rightLabels: Array<{ y: number; text: string }>;
 }
 
-export function expandedPlot(view: ExpandedChartView, width: number = LANDSCAPE.width): ExpandedPlot {
-	const L = LANDSCAPE;
-	const inset = view.secondary ? L.inset : L.insetAlone;
-	const plot: PlotRect = { left: L.left, right: r2(Math.max(L.left + 120, width - inset)), top: L.top, bottom: L.bottom };
+/**
+ * The expanded chart in the room its view leaves under the page bar: `width`
+ * and `height` are that room's. The plot takes the height the axis, the chip
+ * row and their gaps leave, never under `MIN_EXPANDED_PLOT`.
+ */
+export function expandedPlot(view: ExpandedChartView, width: number, height: number): ExpandedPlot {
+	const layout: ChartLayout = width >= PANE_WIDTH ? "pane" : "phone";
+	const E = EXPANDED[layout];
+	const below = E.dotGap + E.titleGap + E.chipsGap + E.chips + E.bottom;
+	const plotHeight = Math.max(MIN_EXPANDED_PLOT, height - E.top - below);
+	const plot: PlotRect = { left: E.left, right: r2(Math.max(E.left + 120, width - E.inset)), top: E.top, bottom: r2(E.top + plotHeight) };
 	const xOf = (at: number) => r2(plot.left + at * (plot.right - plot.left));
 	const ticks = view.x?.ticks ?? [];
+	const dotY = r2(plot.bottom + E.dotGap);
+	const titleY = r2(dotY + E.titleGap);
 	const out: ExpandedPlot = {
+		layout,
 		width,
-		height: L.height,
+		height: r2(titleY + 8),
+		chipsTop: r2(titleY + E.chipsGap),
 		plot,
-		leftLabelRight: L.leftLabelRight,
+		leftLabelRight: E.leftLabelRight,
 		leftLabels: [],
-		dots: ticks.map((t) => ({ x: xOf(t.at), y: L.dotY, r: AXIS_DOT_R })),
-		xLabels: ticks.map((t) => ({ x: xOf(t.at), y: L.labelY, text: t.text })),
-		xTitle: view.x ? { x: r2((plot.left + plot.right) / 2), y: L.titleY, text: view.x.title } : null,
+		dots: ticks.map((t) => ({ x: xOf(t.at), y: dotY, r: AXIS_DOT_R })),
+		xLabels: ticks.map((t) => ({ x: xOf(t.at), y: r2(dotY + E.labelGap), text: t.text })),
+		xTitle: view.x ? { x: r2((plot.left + plot.right) / 2), y: titleY, text: view.x.title } : null,
 		primary: {},
 		dim: view.dim,
 		secondary: null,
-		rightLabelLeft: r2(plot.right - L.rightLabelInset),
+		rightLabelLeft: r2(plot.right - E.rightLabelInset),
 		rightLabels: [],
 	};
 	const primary = view.primary;
 	if (primary.kind === "series") {
 		const left = rawY(primary.y, plot);
 		out.leftLabels = primary.y.labels.map((l) => ({ y: r2(left(l.value)), text: l.text }));
-		out.primary = marksOf(primary, plot, LANDSCAPE_MARK_R);
+		out.primary = marksOf(primary, plot, EXPANDED_MARK_R);
 	} else if (primary.kind === "run-walk") {
 		const { lanes, bars } = lanesIn(primary, plot);
 		out.lanes = lanes;
@@ -506,7 +581,7 @@ function overlayMarks(series: OverlaySeries, plot: PlotRect): ChartMarks {
 	const yOf = clampedY(series.y, plot);
 	switch (series.mark) {
 		case "dots":
-			return { scatter: dotPaths(series.points, series.colours, series.colour, xOf, yOf), scatterR: LANDSCAPE_MARK_R };
+			return { scatter: dotPaths(series.points, series.colours, series.colour, xOf, yOf), scatterR: EXPANDED_MARK_R };
 		case "steps":
 			return { line: stepLine(series.points, xOf, yOf) };
 		case "zones": {
