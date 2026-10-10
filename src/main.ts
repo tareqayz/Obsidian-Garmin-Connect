@@ -14,6 +14,7 @@ import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
+import { removeLeafletStyles } from "./ui/map/leaflet";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 
@@ -28,6 +29,8 @@ export default class GarminPlugin extends Plugin {
 	async onload(): Promise<void> {
 		registerGarminIcon();
 		registerSportIcons();
+		// The activity maps add Leaflet's stylesheet when they first draw.
+		this.register(removeLeafletStyles);
 
 		this.data = new PluginData(this);
 		await this.data.init();

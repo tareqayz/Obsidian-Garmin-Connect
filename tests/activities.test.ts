@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
 	allActivities,
+	runIdFor,
 	axisTicks,
 	categoryOf,
 	categoryView,
@@ -248,7 +249,7 @@ describe("allActivities", () => {
 			activity("2026-09-30T06:10:00", { name: "Yoga", type: "yoga", typeId: 163, parentTypeId: 29, duration: 1800 }),
 		];
 		assert.deepEqual(allActivities(rows, "metric"), [
-			{ id: rows[1]!.id, name: "Morning Run", when: "2026-10-03, 2:59 PM", glyph: "run", time: "41:34", distance: "8.01 km" },
+			{ id: rows[1]!.id, name: "Morning Run", when: "2026-10-03, 2:59 PM", glyph: "run", time: "41:34", distance: "8.01 km", opens: true },
 			{ id: rows[2]!.id, name: "Yoga", when: "2026-09-30, 6:10 AM", glyph: "yoga", time: "30:00" },
 			{ id: rows[0]!.id, name: "Pool Swim", when: "2026-09-14, 11:50 PM", glyph: "swimming", time: "31:40", distance: "1.10 km" },
 		]);
@@ -257,7 +258,7 @@ describe("allActivities", () => {
 
 describe("recordsView", () => {
 	const records = [
-		{ type: "run_1k", typeId: 1, value: 162.502, date: "2026-03-09" },
+		{ type: "run_1k", typeId: 1, value: 162.502, date: "2026-03-09", activityId: 12345678901 },
 		{ type: "run_1mile", typeId: 2, value: 324.862, date: "2026-03-09" },
 		{ type: "run_5k", typeId: 3, value: 1108.811, date: "2025-10-08" },
 		{ type: "run_10k", typeId: 4, value: 2624.221, date: "2025-09-12" },
@@ -273,7 +274,7 @@ describe("recordsView", () => {
 
 	it("fills the tab's slots, rounding times to the second", () => {
 		assert.deepEqual(recordsView(records, "running", "metric"), [
-			{ typeId: 1, title: "1 km", value: "2:43", date: "2026-03-09" },
+			{ typeId: 1, title: "1 km", value: "2:43", date: "2026-03-09", activityId: 12345678901 },
 			{ typeId: 2, title: "1 mi", value: "5:25", date: "2026-03-09" },
 			{ typeId: 3, title: "5K", value: "18:29", date: "2025-10-08" },
 			{ typeId: 4, title: "10K", value: "43:44", date: "2025-09-12" },
@@ -291,5 +292,24 @@ describe("recordsView", () => {
 		assert.deepEqual(cycling.map((r) => r.value), [undefined, "1,166 m", "211 W", undefined]);
 		assert.equal(recordsView(records, "swimming", "metric")[0]!.value, "1,925 m");
 		assert.equal(recordsView(records, "strength", "metric").length, 12);
+	});
+});
+
+describe("runIdFor", () => {
+	const rows = [
+		run("2026-10-10T08:19:48", 10.009, 3360.82, { name: "Dubai Running" }),
+		activity("2026-10-10T08:19:10", { name: "Yoga", type: "yoga", typeId: 163, parentTypeId: 29 }),
+		run("2026-10-10T18:05:02", 5, 1800, { name: "Evening Run" }),
+	];
+
+	it("finds the run a day note's workout is, by its start to the minute and its name", () => {
+		assert.equal(runIdFor(rows, "2026-10-10T08:19", "Dubai Running"), rows[0]!.id);
+		assert.equal(runIdFor(rows, "2026-10-10T18:05", "Renamed since"), rows[2]!.id);
+	});
+
+	it("matches nothing that isn't a run, or a minute with no run", () => {
+		assert.equal(runIdFor(rows, "2026-10-10T07:00", "Dubai Running"), null);
+		assert.equal(runIdFor(rows, undefined, "Dubai Running"), null);
+		assert.equal(runIdFor([rows[1]!], "2026-10-10T08:19", "Yoga"), null);
 	});
 });

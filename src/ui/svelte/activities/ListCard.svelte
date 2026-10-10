@@ -3,8 +3,8 @@
 
 	/**
 	 * A rounded card in a category's list: an activity (name, when, value) or,
-	 * over a year, a month (month, how many, total) that opens the month.
-	 * Activities are not clickable until there is an activity screen to open.
+	 * over a year, a month (month, how many, total) that opens the month. A
+	 * run opens its activity page; like Garmin's cards it has no chevron.
 	 */
 	interface Props {
 		title: string;
@@ -13,9 +13,11 @@
 		/** Months are muted under their title; an activity's date is not. */
 		muted?: boolean;
 		onclick?: () => void;
+		/** A clickable card's chevron: a month's, not an activity's. */
+		chevron?: boolean;
 	}
 
-	let { title, detail, value, muted = false, onclick }: Props = $props();
+	let { title, detail, value, muted = false, onclick, chevron = true }: Props = $props();
 </script>
 
 {#snippet body()}
@@ -24,7 +26,7 @@
 		<span class="detail" class:muted>{detail}</span>
 	</span>
 	<span class="value">{value}</span>
-	{#if onclick}<span class="chev" use:lucide={"chevron-right"}></span>{/if}
+	{#if onclick && chevron}<span class="chev" use:lucide={"chevron-right"}></span>{/if}
 {/snippet}
 
 {#if onclick}

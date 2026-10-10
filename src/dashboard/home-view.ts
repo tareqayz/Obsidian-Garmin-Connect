@@ -1,5 +1,5 @@
 import { ItemView, TAbstractFile, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
-import { mount, unmount } from "svelte";
+import { mount, unmount, type Component } from "svelte";
 import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
 import type { DayIndexData, ReadIndex } from "../sync/day-index";
@@ -8,6 +8,10 @@ import { describe } from "../sync/runner";
 import { VaultSeriesStore } from "../sync/series-store";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
+import { SheetModal, type OpenSheet, type SheetBodyProps } from "../ui/sheet-modal";
+import { openStreetMapTiles } from "../ui/map/tiles";
+import type { TileSource } from "../ui/map/tile-source";
+import type { ActivityDetail, ActivityLoad } from "../sync/activity-detail";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import type { ActivitiesData } from "./activities";
@@ -25,6 +29,9 @@ export const GARMIN_HOME_VIEW = "garmin-home";
 
 /** The series files' entry among the versions: not a name an index can have. */
 const SERIES = "#series";
+
+/** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
+const REMEMBERED_ACTIVITIES = 8;
 
 /**
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
@@ -49,6 +56,8 @@ export class GarminHomeView extends ItemView {
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
 	private indexCache = new Map<string, { version: number; data: Promise<DayIndexData> }>();
+	private activities = new Map<number, ActivityDetail>();
+	private tileSource: TileSource | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GarminPlugin) {
 		super(leaf);
@@ -124,6 +133,11 @@ export class GarminHomeView extends ItemView {
 				readSeries: (days: string[]) => this.readSeries(days),
 				readIndex: ((kind: string) => this.readIndex(kind)) as ReadIndex,
 				loadIntraday: (date: string, keys: readonly string[]) => this.plugin.sync.loadIntraday(date, keys),
+				loadActivity: (id: number) => this.loadActivity(id),
+				cachedActivity: (id: number) => this.activities.get(id) ?? null,
+				tiles: () => this.tiles(),
+				openSheet: (<P extends SheetBodyProps>(body: Component<P>, props: Omit<P, "onClose">) =>
+					new SheetModal(this.app, body, props).open()) as OpenSheet,
 			},
 		});
 
@@ -162,6 +176,27 @@ export class GarminHomeView extends ItemView {
 			unmount(this.component);
 			this.component = undefined;
 		}
+	}
+
+	/** `this.plugin.sync` read each time: signing in again replaces the runner. */
+	private async loadActivity(id: number): Promise<ActivityLoad> {
+		const load = await this.plugin.sync.loadActivity(id);
+		if (load.detail) {
+			this.activities.delete(id);
+			this.activities.set(id, load.detail);
+			for (const oldest of this.activities.keys()) {
+				if (this.activities.size <= REMEMBERED_ACTIVITIES) break;
+				this.activities.delete(oldest);
+			}
+		}
+		return load;
+	}
+
+	/** OpenStreetMap's tiles, or none when the setting is off. Read when a map draws. */
+	private tiles(): TileSource | null {
+		if (!this.plugin.data.settings.mapTiles) return null;
+		this.tileSource ??= openStreetMapTiles(this.plugin.manifest.version);
+		return this.tileSource;
 	}
 
 	private store(): VaultSeriesStore {

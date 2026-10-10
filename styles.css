@@ -7,6 +7,13 @@
 .gch-sleep-history .modal-header,
 .gch-sleep-history .modal-title { display: none; }
 .gch-sleep-history .modal-content { padding: 0; }
+/* The activity page's sheets (info, pickers, Map Settings): the body draws the header. */
+.gch-sheet { width: 402px; max-width: 100%; padding: 0; overflow: hidden; }
+.gch-sheet .modal-header-button,
+.gch-sheet .modal-close-button,
+.gch-sheet .modal-header,
+.gch-sheet .modal-title { display: none; }
+.gch-sheet .modal-content { padding: 0; }
 
 /* ==================================================================
    Sync Notice

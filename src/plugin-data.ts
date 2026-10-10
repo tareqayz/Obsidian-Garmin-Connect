@@ -112,6 +112,7 @@ export class PluginData implements TokenStore {
 			dailyNoteFormat: text(source.dailyNoteFormat, d.dailyNoteFormat),
 			createMissingNotes: bool(source.createMissingNotes, d.createMissingNotes),
 			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
+			mapTiles: bool(source.mapTiles, d.mapTiles),
 			pauseBetweenDays: int(source.pauseBetweenDays, d.pauseBetweenDays, 0, 5000),
 			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 

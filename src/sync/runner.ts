@@ -26,6 +26,7 @@ import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
+import { loadActivity, type ActivityLoad } from "./activity-detail";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
@@ -102,6 +103,8 @@ export class SyncRunner {
 	private chainActive = false;
 	/** On-view intraday loads waiting for the runner to be free, one job a day. */
 	private intradayJobs = new DayJobs<IntradayLoad>();
+	/** On-view activity loads waiting the same way, one job an activity. */
+	private activityJobs = new DayJobs<ActivityLoad>();
 	private draining = false;
 	/** The history sync starts itself once a session, after the first sync, until it has finished once. */
 	private historyTried = false;
@@ -126,7 +129,7 @@ export class SyncRunner {
 
 	/**
 	 * One thing talks to Garmin at a time. Whatever waited for the runner —
-	 * an on-view intraday load — gets its turn once the current work is done,
+	 * an on-view intraday or activity load — gets its turn once the current work is done,
 	 * on a later task, so a sync that hands over to the history walks keeps
 	 * the runner until they are done.
 	 */
@@ -136,7 +139,7 @@ export class SyncRunner {
 
 	private set running(value: boolean) {
 		this.busy = value;
-		if (!value && this.intradayJobs.size) window.setTimeout(() => this.kickIntraday(), 0);
+		if (!value && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 	}
 
 	syncRecent(log?: Log): Promise<SyncReport | null> {
@@ -667,37 +670,81 @@ export class SyncRunner {
 		});
 	}
 
+	/**
+	 * An activity's page, for the page: its detail file, with whatever blocks it
+	 * lacks fetched and written into it first — every block for an activity
+	 * opened for the first time, or one renamed or trimmed since (the index
+	 * says). Queued like `loadIntraday`, and like it never rejects.
+	 */
+	async loadActivity(id: number): Promise<ActivityLoad> {
+		let now: ActivityLoad;
+		try {
+			now = withoutActivityFatal(await this.loadActivityFor(id, false));
+		} catch (err) {
+			return { detail: null, reason: "failed", error: explain(err) };
+		}
+		if (now.reason !== "signed-out" || !this.api.isAuthenticated) return now;
+		const pending = this.activityJobs.add(String(id), []);
+		this.kickIntraday();
+		return pending;
+	}
+
+	/** One activity's load. With `fetch` false, only what the file has and why the rest is missing. */
+	private async loadActivityFor(id: number, fetch: boolean): Promise<ActivityLoad & { fatal?: unknown }> {
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		const row = (await store.readActivities()).rows.find((r) => r.id === id);
+		return loadActivity(this.api, store, id, {
+			signedIn: fetch && this.api.isAuthenticated,
+			groups: settings.groups,
+			row: row ? { name: row.name, distance: row.distance, duration: row.duration } : null,
+		});
+	}
+
+	private get loadsWaiting(): boolean {
+		return this.intradayJobs.size > 0 || this.activityJobs.size > 0;
+	}
+
 	private kickIntraday(): void {
-		if (this.running || this.chainActive || this.draining || !this.intradayJobs.size) return;
+		if (this.running || this.chainActive || this.draining || !this.loadsWaiting) return;
 		void this.drainIntraday();
 	}
 
 	/**
-	 * Runs the waiting loads one day at a time, holding the runner, with the
-	 * usual pause between days. A sync that starts in a pause goes first; the
-	 * rest wait for it. A 429 or a dead session answers every load still
-	 * waiting without asking Garmin again.
+	 * Runs the waiting loads one at a time — days first, then activities —
+	 * holding the runner, with the usual pause between them. A sync that
+	 * starts in a pause goes first; the rest wait for it. A 429 or a dead
+	 * session answers every load still waiting without asking Garmin again.
 	 */
 	private async drainIntraday(): Promise<void> {
 		if (this.draining) return;
 		this.draining = true;
 		try {
-			for (let first = true; !this.running && this.intradayJobs.size; first = false) {
+			for (let first = true; !this.running && this.loadsWaiting; first = false) {
 				const pause = this.settings().pauseBetweenDays;
 				if (!first && pause > 0) {
 					await pauseFor(pause);
 					if (this.running) break;
 				}
-				const job = this.intradayJobs.take();
-				if (!job) break;
+				const day = this.intradayJobs.take();
+				const activity = day ? undefined : this.activityJobs.take();
+				if (!day && !activity) break;
 				this.running = true;
 				let fatal: unknown;
 				try {
-					const load = await this.loadDayFor(job.date, job.keys, true);
-					fatal = load.fatal;
-					job.resolve(fatal === undefined ? withoutFatal(load) : { ...withoutFatal(load), error: explain(fatal) });
+					if (day) {
+						const load = await this.loadDayFor(day.date, day.keys, true);
+						fatal = load.fatal;
+						day.resolve(fatal === undefined ? withoutFatal(load) : { ...withoutFatal(load), error: explain(fatal) });
+					} else if (activity) {
+						const load = await this.loadActivityFor(Number(activity.date), true);
+						fatal = load.fatal;
+						const page = withoutActivityFatal(load);
+						activity.resolve(fatal === undefined ? page : { ...page, error: explain(fatal) });
+					}
 				} catch (err) {
-					job.resolve({ series: null, missing: [...job.keys], reason: "failed", error: explain(err) });
+					day?.resolve({ series: null, missing: [...day.keys], reason: "failed", error: explain(err) });
+					activity?.resolve({ detail: null, reason: "failed", error: explain(err) });
 				} finally {
 					this.running = false;
 				}
@@ -707,6 +754,11 @@ export class SyncRunner {
 					const series = now?.series ?? null;
 					const missing = now ? now.missing : [...rest.keys];
 					rest.resolve(missing.length ? { series, missing, reason: "failed", error: explain(fatal) } : { series, missing });
+				}
+				for (let rest = this.activityJobs.take(); rest; rest = this.activityJobs.take()) {
+					const now = await this.loadActivityFor(Number(rest.date), false).catch(() => null);
+					const detail = now?.detail ?? null;
+					rest.resolve(now && !now.reason ? { detail } : { detail, reason: "failed", error: explain(fatal) });
 				}
 			}
 		} finally {
@@ -976,6 +1028,14 @@ function shiftDay(date: string, days: number): string {
 
 function pauseFor(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** An activity load as a page gets it: the queue's fatal error stays behind. */
+function withoutActivityFatal(load: ActivityLoad & { fatal?: unknown }): ActivityLoad {
+	const out: ActivityLoad = { detail: load.detail };
+	if (load.reason) out.reason = load.reason;
+	if (load.error !== undefined) out.error = load.error;
+	return out;
 }
 
 /** A load as a page gets it: the queue's fatal error stays behind. */

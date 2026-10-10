@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { allActivities, type ActivitiesData } from "../../../dashboard/activities";
+	import { allActivities, type ActivitiesData, type AllItem } from "../../../dashboard/activities";
+	import { activityRoute, type Route } from "../../../dashboard/routes";
 	import { sportIcon } from "../../sport-icons";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
@@ -7,13 +8,15 @@
 	/**
 	 * Every activity, newest first. Drawn a page at a time as the list scrolls:
 	 * years of history is hundreds of rows, and nobody reads them all at once.
+	 * A run opens its activity page.
 	 */
 	interface Props {
 		data: ActivitiesData;
 		onBack: () => void;
+		go: (route: Route) => void;
 	}
 
-	let { data, onBack }: Props = $props();
+	let { data, onBack, go }: Props = $props();
 
 	const PAGE = 60;
 	let items = $derived(allActivities(data.rows, data.units));
@@ -35,23 +38,29 @@
 	});
 </script>
 
+{#snippet row(item: AllItem)}
+	<span class="icon" use:lucide={sportIcon(item.glyph)}></span>
+	<div class="text">
+		<span class="name">{item.name}</span>
+		<span class="when">{item.when}</span>
+		{#if item.time || item.distance}
+			<span class="figures">
+				{#if item.time}<span>{item.time}</span>{/if}
+				{#if item.distance}<span>{item.distance}</span>{/if}
+			</span>
+		{/if}
+	</div>
+{/snippet}
+
 <PageBar title="All Activities" {onBack} />
 
 <div class="rows">
 	{#each shown as item (item.id)}
-		<div class="row">
-			<span class="icon" use:lucide={sportIcon(item.glyph)}></span>
-			<div class="text">
-				<span class="name">{item.name}</span>
-				<span class="when">{item.when}</span>
-				{#if item.time || item.distance}
-					<span class="figures">
-						{#if item.time}<span>{item.time}</span>{/if}
-						{#if item.distance}<span>{item.distance}</span>{/if}
-					</span>
-				{/if}
-			</div>
-		</div>
+		{#if item.opens}
+			<button class="row" onclick={() => go(activityRoute(item.id))}>{@render row(item)}</button>
+		{:else}
+			<div class="row">{@render row(item)}</div>
+		{/if}
 	{:else}
 		<p class="empty">No activities synced yet.</p>
 	{/each}
@@ -63,6 +72,21 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		background: var(--background-secondary);
+	}
+	button.row {
+		width: 100%;
+		height: auto;
+		margin: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	button.row:hover {
+		background: var(--background-modifier-hover);
 	}
 	.row {
 		display: flex;
@@ -127,7 +151,8 @@
 			padding: 16px 32px 32px;
 			background: none;
 		}
-		.row {
+		.row,
+		button.row {
 			border-radius: 8px;
 		}
 		.empty,

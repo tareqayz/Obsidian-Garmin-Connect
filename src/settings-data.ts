@@ -45,6 +45,11 @@ export interface GarminSettings {
 	createMissingNotes: boolean;
 
 	syncOnStartup: boolean;
+	/**
+	 * Draw OpenStreetMap's map under an activity's route. Off, the route is
+	 * drawn alone and no tile is ever asked for.
+	 */
+	mapTiles: boolean;
 	pauseBetweenDays: number;
 	stopAfterEmptyDays: number;
 
@@ -86,6 +91,9 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// notes in someone's daily-note folder is not.
 	createMissingNotes: false,
 	syncOnStartup: false,
+	// On: a route with no streets or coastline under it is hard to read. The
+	// README and the setting say what the tile server sees.
+	mapTiles: true,
 	pauseBetweenDays: 250,
 	// A backfill that reaches past the start of your Garmin history would
 	// otherwise keep asking, four requests a day, until Garmin rate-limits it.

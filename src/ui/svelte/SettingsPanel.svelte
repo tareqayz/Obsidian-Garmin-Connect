@@ -416,6 +416,23 @@
 	></div>
 {/if}
 
+<h3>Maps</h3>
+
+<div
+	use:obsidianSetting={(setting) =>
+		setting
+			.setName("Map tiles")
+			.setDesc(
+				"Draws OpenStreetMap's map under an activity's route. The tiles come from tile.openstreetmap.org, which sees the area of each activity you open. Off, the route is drawn on its own.",
+			)
+			.addToggle((t) =>
+				t.setValue(s.mapTiles).onChange((v) => {
+					s.mapTiles = v;
+					save();
+				}),
+			)}
+></div>
+
 <h3>Advanced</h3>
 
 <div

@@ -19,6 +19,9 @@ const context = await esbuild.context({
 	],
 	entryPoints: ["src/main.ts"],
 	bundle: true,
+	// Leaflet's stylesheet, as a string the map injects (src/ui/map/leaflet.ts):
+	// Obsidian loads styles.css and nothing else.
+	loader: { ".css": "text" },
 	// `browser` makes esbuild refuse to shim node builtins instead of silently
 	// bundling a polyfill that only works under Electron.
 	platform: "browser",
