@@ -354,6 +354,52 @@ function bodyBatteryRows(v: Get): StatsRow[] {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Stats in columns                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Heights off the Obsidian twin (Stats · Pane, Figma 414:2918): a section's
+ * header band, a row, the two-line Primary Benefit row, and the gap between
+ * two cards in a column.
+ */
+export const STATS_LAYOUT = { header: 41.67, row: 36, twoLine: 58, gap: 16 } as const;
+
+export function sectionHeight(section: StatsSection): number {
+	return section.rows.reduce<number>((height, row) => height + (row.sub !== undefined ? STATS_LAYOUT.twoLine : STATS_LAYOUT.row), STATS_LAYOUT.header);
+}
+
+/**
+ * Where each column after the first starts when the sections fill `count`
+ * columns in reading order: the cut whose tallest column is shortest, the
+ * earliest of equals. The pane's three columns hold 5 · 4 · 6 sections of the
+ * outdoor run, as the twin does; the page forces its column breaks there
+ * rather than leave the split to the browser's balancing, which a third of a
+ * point decides for this run.
+ */
+export function columnStarts(sections: readonly StatsSection[], count: number): number[] {
+	const heights = sections.map(sectionHeight);
+	const n = heights.length;
+	const columns = Math.min(Math.max(1, Math.floor(count)), n);
+	if (columns <= 1) return [];
+	const span = (from: number, to: number) => heights.slice(from, to).reduce((sum, h) => sum + h, 0) + STATS_LAYOUT.gap * (to - from - 1);
+	let tallestBest = Infinity;
+	let startsBest: number[] = [];
+	const cut = (from: number, left: number, starts: number[], tallest: number): void => {
+		if (left === 1) {
+			const height = Math.max(tallest, span(from, n));
+			if (height < tallestBest - 1e-6) {
+				tallestBest = height;
+				startsBest = starts;
+			}
+			return;
+		}
+		for (let to = from + 1; to <= n - left + 1; to += 1) cut(to, left - 1, [...starts, to], Math.max(tallest, span(from, to)));
+	};
+	cut(0, columns, [], 0);
+	return startsBest;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Laps                                                               */
 /* ------------------------------------------------------------------ */
 

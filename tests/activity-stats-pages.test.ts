@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { gearView, lapsView, lapTime, NO_GEAR, statsView, type StatsSection } from "../src/dashboard/activity-stats-pages";
+import { columnStarts, gearView, lapsView, lapTime, NO_GEAR, sectionHeight, statsView, type StatsSection } from "../src/dashboard/activity-stats-pages";
 import { pace } from "../src/sync/metrics";
 import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-detail";
 
@@ -346,6 +346,25 @@ describe("statsView, edge states", () => {
 		assert.equal(text("Avg Stride Length"), "3.42 ft");
 		assert.equal(text("Avg Vertical Oscillation"), "3.5 in");
 		assert.equal(text("Est. Sweat Loss"), "32 oz");
+	});
+});
+
+describe("columnStarts", () => {
+	const sections = statsView(outdoor(), "metric");
+
+	it("splits the run's sections 5 · 4 · 6 across the pane's three columns, as the twin does", () => {
+		assert.deepEqual(columnStarts(sections, 3), [5, 9]);
+		assert.deepEqual([sections[5]!.title, sections[9]!.title], ["Stamina", "Impact Load"]);
+		// The twin's cards: Pace 185.67 tall, Training Effect 207.67 with its two-line row.
+		assert.equal(sectionHeight(sections[0]!).toFixed(2), "185.67");
+		assert.equal(sectionHeight(sections[6]!).toFixed(2), "207.67");
+	});
+
+	it("balances two columns the same way, and needs no break for one", () => {
+		assert.deepEqual(columnStarts(sections, 2), [7]);
+		assert.deepEqual(columnStarts(sections, 1), []);
+		assert.deepEqual(columnStarts(sections.slice(0, 2), 3), [1]);
+		assert.deepEqual(columnStarts([], 3), []);
 	});
 });
 
