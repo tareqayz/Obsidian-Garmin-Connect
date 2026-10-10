@@ -1,0 +1,35 @@
+{
+	"endpoint": "activity-power-in-timezones",
+	"path": "/activity-service/activity/{activityId}/powerTimeInZones",
+	"plugin": "GarminApi.activityPowerZones",
+	"firstRecorded": "2026-10-10T16:41:42.590Z",
+	"updatedAt": "2026-10-10T16:41:42.590Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"secsInZone": {
+					"type": [
+						"number"
+					]
+				},
+				"zoneLowBoundary": {
+					"type": [
+						"number"
+					]
+				},
+				"zoneNumber": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

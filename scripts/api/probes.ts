@@ -75,6 +75,30 @@ async function newestSnapshot(
 }
 
 /**
+ * The activity page's routes need a real id: the newest run with a GPS track,
+ * so the map, weather and running dynamics all have something to return. Looked
+ * up once per run of the check, not once per probe.
+ */
+const newestRuns = new WeakMap<GarminApi, Promise<number | null>>();
+
+async function newestRun(api: GarminApi, fetch: (id: number) => Promise<unknown>): Promise<unknown[]> {
+	let lookup = newestRuns.get(api);
+	if (!lookup) {
+		lookup = api.activities(0, 20).then((list) => {
+			const run = list.find(
+				(a) => (a.activityType?.typeId === 1 || a.activityType?.parentTypeId === 1) && a.hasPolyline === true,
+			);
+			return run?.activityId ?? null;
+		});
+		newestRuns.set(api, lookup);
+	}
+	const id = await lookup;
+	if (id === null) return [];
+	await sleep(PAUSE_MS);
+	return [await fetch(id)];
+}
+
+/**
  * Keyed by catalogue id. Intraday endpoints take one day rather than the whole
  * window: their payloads run to thousands of points and a second day adds
  * nothing the first did not already show.
@@ -150,6 +174,22 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"daily-events": (api, w) => perDay(w, (d) => api.dailyEvents(d)),
 	"activities-for-day": (api, w) => perDay(w, (d) => api.activitiesForDay(d)),
 	"lifestyle-logging-data": async (api, w) => [await api.lifestyleLog(w.days[0]!)],
+	// The activity details page.
+	"activity": (api) => newestRun(api, (id) => api.activity(id)),
+	"activity-details": (api) => newestRun(api, (id) => api.activityDetails(id)),
+	"activity-splits": (api) => newestRun(api, (id) => api.activitySplits(id)),
+	"activity-typed-splits": (api) => newestRun(api, (id) => api.activityTypedSplits(id)),
+	"activity-hr-in-timezones": (api) => newestRun(api, (id) => api.activityHrZones(id)),
+	"activity-power-in-timezones": (api) => newestRun(api, (id) => api.activityPowerZones(id)),
+	"activity-weather": (api) => newestRun(api, (id) => api.activityWeather(id)),
+	"activity-gear": (api) => newestRun(api, (id) => api.activityGear(id)),
+	"device-app-info": (api) =>
+		newestRun(api, async (id) => {
+			const versionPk = (await api.activity(id))?.metadataDTO?.deviceMetaDataDTO?.deviceVersionPk;
+			if (!versionPk) return null;
+			await sleep(PAUSE_MS);
+			return api.deviceAppInfo(versionPk);
+		}),
 };
 
 /**

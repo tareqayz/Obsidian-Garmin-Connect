@@ -1,0 +1,273 @@
+{
+	"endpoint": "device-app-info",
+	"path": "/device-service/deviceservice/app-info/{deviceVersionPk}",
+	"plugin": "GarminApi.deviceAppInfo",
+	"firstRecorded": "2026-10-10T17:47:19.656Z",
+	"updatedAt": "2026-10-10T17:47:19.656Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"actualProductSku": {
+				"type": [
+					"null"
+				]
+			},
+			"appSupport": {
+				"type": [
+					"boolean"
+				]
+			},
+			"applicationKey": {
+				"type": [
+					"string"
+				]
+			},
+			"bestInClassVideoLink": {
+				"type": [
+					"null"
+				]
+			},
+			"bluetoothClassicDevice": {
+				"type": [
+					"boolean"
+				]
+			},
+			"bluetoothLowEnergyDevice": {
+				"type": [
+					"boolean"
+				]
+			},
+			"buildMajor": {
+				"type": [
+					"string"
+				]
+			},
+			"buildMinor": {
+				"type": [
+					"string"
+				]
+			},
+			"capabilities": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"deviceTypeCapabilityId": {
+							"type": [
+								"number"
+							]
+						},
+						"name": {
+							"type": [
+								"string"
+							]
+						},
+						"supportData": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"deviceCategories": {
+				"type": [
+					"array"
+				]
+			},
+			"deviceEmbedVideoLink": {
+				"type": [
+					"null"
+				]
+			},
+			"deviceSettingsFile": {
+				"type": [
+					"null"
+				]
+			},
+			"deviceTags": {
+				"type": [
+					"null"
+				]
+			},
+			"deviceTypePk": {
+				"type": [
+					"null"
+				]
+			},
+			"deviceTypeSimpleName": {
+				"type": [
+					"null"
+				]
+			},
+			"deviceVideoPageLink": {
+				"type": [
+					"null"
+				]
+			},
+			"displayOrder": {
+				"type": [
+					"null"
+				]
+			},
+			"gcmSettingsFile": {
+				"type": [
+					"null"
+				]
+			},
+			"golfDisplayOrder": {
+				"type": [
+					"null"
+				]
+			},
+			"hasOpticalHeartRate": {
+				"type": [
+					"boolean"
+				]
+			},
+			"hasPowerButton": {
+				"type": [
+					"boolean"
+				]
+			},
+			"highlighted": {
+				"type": [
+					"boolean"
+				]
+			},
+			"hybrid": {
+				"type": [
+					"boolean"
+				]
+			},
+			"imageUrl": {
+				"type": [
+					"string"
+				]
+			},
+			"incompatibleApplications": {
+				"type": [
+					"array"
+				]
+			},
+			"minGCMAndroidVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"minGCMHarmonyVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"minGCMWindowsVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"minGCMiOSVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"minGolfAppAndroidVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"minGolfAppiOSVersion": {
+				"type": [
+					"number"
+				]
+			},
+			"partNumber": {
+				"type": [
+					"string"
+				]
+			},
+			"primary": {
+				"type": [
+					"boolean"
+				]
+			},
+			"primaryApplication": {
+				"type": [
+					"null"
+				]
+			},
+			"productDisplayName": {
+				"type": [
+					"string"
+				]
+			},
+			"productSku": {
+				"type": [
+					"null"
+				]
+			},
+			"released": {
+				"type": [
+					"boolean"
+				]
+			},
+			"supportsSecondaryUsers": {
+				"type": [
+					"boolean"
+				]
+			},
+			"unitId": {
+				"type": [
+					"null"
+				]
+			},
+			"versionMajor": {
+				"type": [
+					"string"
+				]
+			},
+			"versionMajorMinor": {
+				"type": [
+					"string"
+				]
+			},
+			"versionMinor": {
+				"type": [
+					"string"
+				]
+			},
+			"versionString": {
+				"type": [
+					"string"
+				]
+			},
+			"wasp": {
+				"type": [
+					"boolean"
+				]
+			},
+			"weightScale": {
+				"type": [
+					"boolean"
+				]
+			},
+			"wellness": {
+				"type": [
+					"boolean"
+				]
+			},
+			"wifi": {
+				"type": [
+					"boolean"
+				]
+			}
+		}
+	}
+}
