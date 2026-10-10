@@ -34,6 +34,11 @@ GitHub release takes its notes from the matching section here — see
 - **Network use.** Activity maps load tiles from `tile.openstreetmap.org`,
   which sees which part of the map you open. See the README.
 
+### Fixed
+
+- Sleep History showed two close buttons on Obsidian 1.14, which renamed the
+  modal's own.
+
 ## [0.2.0] — 2026-10-09
 
 The plugin is now Garmin Connect, rebuilt inside Obsidian: the phone app's
