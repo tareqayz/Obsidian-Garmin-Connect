@@ -86,6 +86,7 @@ folder (`Garmin/data` by default) whatever the storage mode:
 | `series/<date>.json` | A day's curves: heart rate, stress, Body Battery, steps, floors, intensity, the sleep hypnogram | `intraday` |
 | `account.json` | Facts that belong to no day: the watch, personal records, lactate threshold, training plan | `profile` |
 | `activities/` | Every activity on the account | `workouts` |
+| `activity-details/` | One file per run whose page you opened: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens |
 | `daily-stats/` | Steps, floors and intensity minutes | `activity` |
 | `sleep/` | A row per night | `sleep` |
 | `stress/`, `body-battery/` | Stress and Body Battery | `stress` |
@@ -119,7 +120,8 @@ hill score), training and health one each (running tolerance, Health
 Snapshots). The settings screen shows each group's cost beside its switch.
 
 With everything on, a day costs nine requests. On top of that come the intraday
-and per-sync requests, and the history fills described above.
+and per-sync requests, the history fills described above, and ten requests the
+first time you open a run's page (see [Activities](#activities)).
 
 ## Home
 
@@ -188,12 +190,34 @@ activities**.
 - **View Personal Records** opens the records for that sport: Steps, Running,
   Cycling, Swimming and Strength, with every distance Garmin keeps a record for,
   whether you have one or not.
-- Activity rows don't open anything yet: there is no activity detail screen.
+- **A run opens its page**: from its sport's page, a month, All Activities, a
+  running record or Home's Today's Activity. It has the app's five tabs:
+  - **Overview**: the route map and the weather, the headline figures,
+    Evaluation (Primary Benefit, Feel, Perceived Effort), links to running
+    records and all running activities, and the watch it was recorded on;
+  - **Stats**: every figure the app lists, in its groups;
+  - **Laps**;
+  - **Charts**: pace, heart rate, elevation, power, stamina, performance
+    condition, running dynamics, training effect, run/walk and time in zones,
+    against **Time** or **Distance**;
+  - **Gear**.
+
+  A chart icon beside a figure opens its chart full size, where the chips lay a
+  second measure over it. Tapped, the map opens full screen: it pans and zooms,
+  and its layers button colours the route by another measure or hides the lap
+  numbers. Other sports' rows don't open anything yet.
+- The first time a run's page opens it costs ten requests, made between syncs,
+  never during one. The answer is kept in `activity-details/`, so the page opens
+  again without asking. It needs a session and the `workouts` group.
+- The map's tiles come from OpenStreetMap, which sees roughly where the run was.
+  **Map tiles** under **Settings → Maps** turns them off, and the route is drawn
+  on its own, as it is offline. A treadmill run has no map.
 - The pages read the activity index (`activities/`). Filling it costs about one
   request per hundred activities; after that, routine syncs keep it current with
   the request they already make.
 - Panes from 1000px wide put the controls on one row, the totals beside the chart
-  and the lists three across.
+  and the lists three across. A run's page puts its map beside the figures, and
+  its stats and charts three across.
 
 ## Steps, Floors and Intensity Minutes
 

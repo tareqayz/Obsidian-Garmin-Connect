@@ -34,6 +34,7 @@ default), into your daily notes, or both:
 | --- | --- | --- |
 | Day notes | the data folder, your daily notes, or both | the day's numbers as properties |
 | Series files | `<data folder>/series/<date>.json` | the day's heart rate, stress, Body Battery and other curves, sleep stages, and what the pages loaded on view |
+| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened: its samples, laps, zones and weather, and its GPS route — where you ran |
 | Indexes | `<data folder>/activities/`, `daily-stats/`, `sleep/`, and one folder per Health Stats index (`stress/`, `heart-rate/`, `weight/`, `blood-pressure/` and the rest) | your activities, and a row a day of each metric's history |
 | Account file | `<data folder>/account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP, running economy, cycling ability, training plans, upcoming events and personal records |
 
@@ -70,6 +71,7 @@ control, treat it as a live credential.
 | --- | --- | --- |
 | `sso.garmin.com`, `diauth.garmin.com`, `connectapi.garmin.com` | Sign-in and sync | Credentials at sign-in; bearer token thereafter |
 | `tls.peet.ws` | Only when you run **Network fingerprint** in the diagnostics | A User-Agent string. Nothing else. |
+| `tile.openstreetmap.org` | When a page draws an activity's map, while **Map tiles** is on | Requests for the map tiles around the route — so, roughly where the activity was — and a User-Agent naming this plugin. Nothing else. |
 
 `tls.peet.ws` is a third-party TLS echo service. It is in the diagnostics to report
 what your platform looks like on the wire, which is the first thing you need when
@@ -78,7 +80,10 @@ diagnosing a bot-wall refusal. It is never contacted during a normal sync.
 Set the `domain` setting to `garmin.cn` for Garmin China accounts; every host
 changes accordingly.
 
-The pages load no images or scripts from anywhere. A few of them link to Garmin
+The pages load no scripts from anywhere, and no images but the map tiles above.
+Tiles are kept on the device that drew them, outside the vault, for a week or
+as long as the server allows, so a map opened again asks for nothing. With
+**Map tiles** off the route is drawn on its own. A few pages link to Garmin
 Connect's website or to a health reference; those open in your browser only
 when you click them.
 
@@ -121,7 +126,8 @@ failures**.
 - A `privacyProtected` daily summary is treated as an authorisation failure
   rather than silently mapped as empty data.
 - The plugin loads no external scripts. Charts are hand-drawn SVG precisely
-  because an Obsidian plugin cannot and should not pull in a CDN.
+  because an Obsidian plugin cannot and should not pull in a CDN. The activity
+  maps' Leaflet is bundled, not fetched.
 - `npm run build` fails if a node or electron require reaches the bundle.
 
 ## For contributors

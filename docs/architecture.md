@@ -77,7 +77,8 @@ src/sync/
                          (health-snapshot-index.ts has extras only) — pure
   intraday-registry.ts   on-view intraday loads: the series file's own blocks, extras, loadDay — pure
   intraday-extras.ts     INTRADAY_EXTRAS, the registered extras — pure
-  series-store.ts        series files, account.json, every index on disk
+  activity-detail.ts     an activity's page file: its blocks, building it, loadActivity — pure
+  series-store.ts        series files, account.json, every index and activity file on disk
   daily-note.ts          NoteTarget: your daily notes
   data-folder.ts         NoteTarget: one note per day
   frontmatter.ts         shared dirty-checked write
@@ -94,6 +95,13 @@ src/dashboard/
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
+  activity-map.ts        an activity's map as data: route points, overlay runs, lap markers — pure
+  activity-labels.ts     the words the activity tabs share: sport, date, benefit, feel, effort — pure
+  activity-overview.ts   the Overview tab's view model — pure
+  activity-stats-pages.ts the Stats, Laps and Gear tabs' view models — pure
+  activity-chart-pages.ts the Charts tab and the expanded chart's view models — pure
+  activity-charts.ts     their geometry, measured off the phone and the twin — pure
+  activity-copy.ts       the benefit sheet's wording, from the app — pure
   totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
   stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
   stats-charts.ts        their charts' geometry, measured off the app — pure
@@ -113,6 +121,10 @@ src/ui/
   sync-range-modal.ts    Sync a date range… (SyncRangeForm.svelte)
   add-stat-modal.ts      Add a Stat, the picker See All's edit mode opens
   sleep-history-modal.ts the Sleep Coach's Sleep History sheet
+  sheet-modal.ts         SheetModal: any Svelte body as one of Garmin's bottom sheets
+  map/                   the activity maps: Leaflet, loaded with the first map (leaflet.ts);
+                         OpenStreetMap's tiles through requestUrl, cached in IndexedDB
+                         (tiles.ts); the TileSource the pages see (tile-source.ts, pure)
 src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel and SyncRangeForm, and one folder
                          per area below. Obsidian comes in through actions (obsidian-setting.ts,
                          home/lucide.ts), apart from SettingsPanel's Notice and the Activities
@@ -122,6 +134,12 @@ src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel and SyncRangeForm,
                          back / title / action bar every page inside the view shares
   activities/            More, the Activities hub, a sport's page, a month, Personal Records
                          and All Activities, with their parts; HistoryBanner.svelte
+  activity/              an activity's page (ActivityPage.svelte: bar, tabs, the expanded chart
+                         in place of the page) and a component per tab, the full-screen map
+                         (ActivityMapPage.svelte) and RouteMap.svelte; overview/ (weather chip,
+                         figures, Evaluation, the benefit sheet), map/ (legend, Map Settings,
+                         pins and lap markers), stats/ (sections, rows, the chart badge) and
+                         charts/ (sections, axes, marks, zones, the expanded plot and its chips)
   stats/                 the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
   sleep/                 the Sleep pages: the night, the factor pages, the Sleep Coach, the periods
@@ -238,9 +256,11 @@ file's `dayStart` puts the chart on the watch's clock, which need not be this
 computer's. `SyncRunner.onStatsHistory` reports the history sync to their banner.
 
 Home is a stack of pages (`routes.ts`): Home at the bottom, then See All, More,
-Activities, a sport, a month, Personal Records, All Activities, Steps, Floors
-or Intensity Minutes, Health Stats, Sleep, or any other Health Stats page. Back
-pops one; a filter or a tab replaces the top rather than adding a step. The
+Activities, a sport, a month, Personal Records, All Activities, an activity and
+its full-screen map, Steps, Floors or Intensity Minutes, Health Stats, Sleep, or
+any other Health Stats page. Back pops one; a filter or a tab replaces the top
+rather than adding a step; a link to a page already on the stack goes back down
+to it (`pushOrReturn`). The
 stack is the view's state (`getState` / `setState`), so a reload comes back to
 the same page, and every **Open …** command (Open activities, Open sleep, Open
 stress and the rest) opens the view through the same `setState`.
@@ -389,6 +409,34 @@ and resolves with the day's series.
 A day page reads its series, and when `missingKeys(series, keys)` is not empty
 shows the day's summary from its index while `loadIntraday` runs, as Sleep's
 day view does before the night's file is in.
+
+### Activity details on view
+
+An activity's page is never synced: `loadActivity(id)` fetches it the first time
+the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
+(`activity-detail.ts`), outside `activities/` so the write does not rebuild Home.
+
+- Ten blocks, one request each: the summary, the samples (`details`, kept as
+  named columns — `time`, `distance`, `hr`, `speed`, `lat`, `lon` and the rest —
+  plus `clock`, seconds since the start), the laps, the typed splits (run/walk),
+  heart rate and power zones, weather and gear go together; then the device as
+  it was (its firmware id is in the summary) and the weight on the activity's
+  day, for Power (W/kg). Each costs a request once.
+- `checked` lists the blocks fetched, data or not: a block whose request failed
+  is asked for again on the next view; one Garmin had nothing for is not. A file
+  whose activity the index shows renamed or trimmed is fetched afresh, and a file
+  of another `version` reads as missing.
+- The loads queue with the intraday ones, in the same runner: never beside a
+  sync, the usual pause between them, and a 429 or a dead session answers every
+  waiting load without asking again. Gated on the `workouts` group.
+- The view keeps the last few details in memory, so a page coming back (Back
+  from the map) draws at once and its scroll position holds.
+
+The map draws the route from the `lat` and `lon` columns, so it needs nothing
+from the network. Its tiles come from OpenStreetMap through `src/ui/map/`
+(`requestUrl`, a User-Agent naming the plugin, an IndexedDB cache of a week at
+least); with the **Map tiles** setting off, offline, or refused, the route draws
+alone.
 
 ### What a page gets
 
@@ -567,9 +615,13 @@ The UI is **Svelte 5**, set up the way [Obsidian's guide][svelte-guide]
 prescribes: `esbuild-svelte` in the build, components mounted with `mount()`
 and torn down with `unmount()`. Charts are hand-drawn SVG — no chart library,
 because a plugin cannot load external scripts and a bundled library would be
-dead weight on a phone. A chart is markup, and its geometry (where the marks
-go) lives in a pure `*-charts.ts` module beside the page's view model, so it is
-unit-tested without a DOM.
+dead weight on a phone. The one exception is the activity map's Leaflet
+(`src/ui/map/leaflet.ts`): panning and pinching a tiled map on a phone is where
+hand-rolled code breaks. It is bundled, evaluated only when the first map
+draws, and its ES module build leaves `window.L` to whichever plugin owns it.
+A chart is markup, and its geometry (where the marks go) lives in a pure
+`*-charts.ts` module beside the page's view model, so it is unit-tested
+without a DOM.
 
 **Settings keep native controls.** The settings panel is a Svelte component,
 but every row is built with Obsidian's own `Setting` API through a small action

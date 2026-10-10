@@ -32,6 +32,11 @@ Everything stays in your vault as ordinary files:
   - The one exception is the **Run diagnostics** network check, which asks
     `tls.peet.ws` what your connection looks like. It runs only when you
     press it.
+  - **Activity maps** draw OpenStreetMap's map under a run's route, from
+    `tile.openstreetmap.org`. That server sees which part of the map you open
+    — roughly where the activity was — and each request names this plugin.
+    Turn **Map tiles** off in the settings and the route is drawn on its own,
+    with no request at all.
   - There is no telemetry or analytics.
 - **It is in beta.** Install it with BRAT. See [Installation](docs/INSTALLATION.md).
 - **Obsidian 1.9.10 or later**, the first release with Bases.
@@ -70,3 +75,8 @@ and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
   reverse-engineering work.
 - [Tabler Icons](https://tabler.io/icons) (MIT): the sport figures on the
   Activities pages. Everything else uses Obsidian's own Lucide icons.
+- [Leaflet](https://leafletjs.com) (BSD-2-Clause): the activity maps, bundled
+  with the plugin.
+- [OpenStreetMap](https://www.openstreetmap.org/copyright): the map under a
+  route, © OpenStreetMap contributors, available under the Open Database
+  License.
