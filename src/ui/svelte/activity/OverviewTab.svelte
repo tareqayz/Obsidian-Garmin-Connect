@@ -1,51 +1,423 @@
 <script lang="ts">
-	import { duration } from "../../../dashboard/series";
-	import { formatDistance } from "../../../dashboard/activities";
-	import { hasRoute } from "../../../dashboard/activity-map";
+	import { benefitMessage } from "../../../dashboard/activity-copy";
+	import { mapLegend, overlayFor } from "../../../dashboard/activity-map";
+	import { overviewView, type OverviewLink } from "../../../dashboard/activity-overview";
 	import { activityMapRoute } from "../../../dashboard/routes";
+	import { toIsoDate } from "../../../garmin/endpoints";
+	import { sportIcon } from "../../sport-icons";
+	import { lucide } from "../home/lucide";
+	import MapLegend from "./map/MapLegend.svelte";
+	import BenefitSheet from "./overview/BenefitSheet.svelte";
+	import Evaluation from "./overview/Evaluation.svelte";
+	import OverviewStat from "./overview/OverviewStat.svelte";
+	import WeatherChip from "./overview/WeatherChip.svelte";
 	import RouteMap from "./RouteMap.svelte";
 	import type { ActivityTabProps } from "./types";
 
 	/**
-	 * Overview: the route map, then the activity's name and headline figures.
-	 * The foundation's version, enough to open the map; the Overview build
-	 * replaces it with Garmin's layout.
+	 * Overview, as the phone lays it out: the route map (static: a tap opens
+	 * the full-screen map), the date line, the name, the distance and four
+	 * figures, Evaluation, Navigation and the device. A pane puts the map over
+	 * two columns with the rest beside it; between the two, the map runs across
+	 * and the sections pair up below it.
+	 *
+	 * Read-only, as the plugin is: no rename, notes, likes, photo or share, and
+	 * Feel and Perceived Effort are shown, never edited. Only the Primary
+	 * Benefit's "?" opens a sheet.
 	 */
-	let { detail, units, tiles, go }: ActivityTabProps = $props();
+	let { detail, route, units, tiles, go, swap, reach, openSheet, loading = false }: ActivityTabProps & { loading?: boolean } = $props();
 
-	let distance = $derived(typeof detail.summary.distance === "number" ? formatDistance(detail.summary.distance, units, 2, true) : null);
-	let time = $derived(typeof detail.summary.duration === "number" ? duration(Math.round(detail.summary.duration)) : null);
+	/** This device's day: an activity from another year shows its year on the date line. */
+	const today = toIsoDate();
+	let view = $derived(overviewView(detail, units, today));
+	/** The phone's Overview map is in the Pace overlay; a run without speeds draws plain. */
+	let overlay = $derived(overlayFor(detail, "pace"));
+	let legend = $derived(mapLegend(overlay));
+	let hasEvaluation = $derived(!!(view.benefit || view.feel || view.effort));
+
+	function openChart(chart: string) {
+		swap({ ...route, sub: `chart:${chart}` });
+	}
+
+	function openBenefit() {
+		const benefit = view.benefit;
+		if (benefit) openSheet(BenefitSheet, { benefit, message: benefitMessage(detail.summary.trainingEffectLabel) });
+	}
+
+	function linkIcon(link: OverviewLink): string {
+		return link.icon === "medal" ? "trophy" : sportIcon("run");
+	}
 </script>
 
-{#if hasRoute(detail)}
-	<div class="inline-map">
-		<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} onOpen={() => go(activityMapRoute(detail.id))} />
-	</div>
-{/if}
-<div class="overview">
-	<div class="when">{detail.start.replace("T", " ").slice(0, 16)}</div>
-	<h2 class="name">{detail.name}</h2>
-	{#if distance}<div class="figure">{distance}</div>{/if}
-	{#if time}<div class="figure">{time}</div>{/if}
+<div class="ov" class:has-map={view.map || view.routeMissing}>
+	{#if view.map}
+		<div class="ov-map">
+			<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} {overlay} onOpen={() => go(activityMapRoute(detail.id))}>
+				{#if legend}<div class="ov-legend"><MapLegend {legend} /></div>{/if}
+				{#if view.weather}<div class="ov-weather"><WeatherChip chip={view.weather} /></div>{/if}
+			</RouteMap>
+		</div>
+	{:else if view.routeMissing}
+		<div class="ov-map is-empty">{loading ? "Loading the map…" : "The map didn’t load."}</div>
+	{/if}
+
+	<section class="ov-summary">
+		<div class="when">
+			<span class="glyph" use:lucide={sportIcon(view.glyph)}></span>
+			<span class="when-text">{view.when}</span>
+			{#if view.private}
+				<span class="lock" use:lucide={"lock"}></span>
+				<span class="gc-hidden">Private</span>
+			{/if}
+		</div>
+		<h2 class="title">{view.title}</h2>
+		{#if view.notes}<div class="notes">{view.notes}</div>{/if}
+		{#if view.distance}
+			<div class="distance">
+				<span class="distance-value">{view.distance.value}</span>
+				<span class="distance-unit">{view.distance.unit}</span>
+			</div>
+			<div class="sub">Distance</div>
+		{/if}
+		{#if view.figures.length}
+			<div class="figures">
+				{#each view.figures as figure (figure.label)}
+					<OverviewStat {figure} onChart={openChart} />
+				{/each}
+			</div>
+		{/if}
+	</section>
+
+	{#if hasEvaluation}
+		<section class="ov-eval">
+			<Evaluation benefit={view.benefit} feel={view.feel} effort={view.effort} onBenefit={openBenefit} />
+		</section>
+	{/if}
+
+	{#if view.links.length}
+		<section class="ov-nav">
+			<h3 class="gc-ov-heading">Navigation</h3>
+			<div class="links">
+				{#each view.links as link (link.label)}
+					<button class="link" onclick={() => reach(link.route)}>
+						<span class="link-icon" use:lucide={linkIcon(link)}></span>
+						<span class="link-label">{link.label}</span>
+						<span class="chev" use:lucide={"chevron-right"}></span>
+					</button>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if view.device}
+		<section class="ov-device">
+			<h3 class="gc-ov-heading">Devices &amp; Apps</h3>
+			<div class="device">
+				<span class="watch" use:lucide={"watch"}></span>
+				<div class="device-text">
+					<div class="device-name">{view.device.name}</div>
+					{#if view.device.firmware}<div class="sub">{view.device.firmware}</div>{/if}
+				</div>
+			</div>
+		</section>
+	{/if}
 </div>
 
 <style>
-	.inline-map {
-		height: 260px;
+	/* The phone: one column, 16pt in from the edges; the map and the
+	   Navigation rows run edge to edge. */
+	.ov {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas: "map" "summary" "eval" "nav" "device";
+		padding: 0 16px 41px;
+		color: var(--text-normal);
 	}
-	.overview {
-		padding: 16px;
+	.ov-map {
+		grid-area: map;
+		position: relative;
+		height: 206px;
+		margin: 0 -16px;
+		background: var(--background-secondary);
 	}
-	.when {
-		color: var(--text-muted);
+	/* The map takes the cell's size, which a pane gets from the column beside it. */
+	.ov-map > :global(.gc-route-map) {
+		position: absolute;
+		inset: 0;
+		height: auto;
+	}
+	.ov-map.is-empty {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		font-size: 14px;
+		color: var(--text-muted);
 	}
-	.name {
-		margin: 8px 0;
-		font-size: 24px;
+	/* Over the map: the legend top left, the weather top right. */
+	.ov-legend,
+	.ov-weather {
+		position: absolute;
+		top: var(--gc-map-inset, 8px);
 	}
-	.figure {
-		font-size: 20px;
-		margin: 4px 0;
+	.ov-legend {
+		left: var(--gc-map-inset, 8px);
+	}
+	.ov-weather {
+		right: var(--gc-map-inset, 8px);
+	}
+	.ov-summary {
+		grid-area: summary;
+		padding-top: 24px;
+	}
+	.ov.has-map .ov-summary {
+		padding-top: 36.2px;
+	}
+	.ov-eval {
+		grid-area: eval;
+		padding-top: 32.2px;
+	}
+	.ov-nav {
+		grid-area: nav;
+		padding-top: 23px;
+	}
+	.ov-device {
+		grid-area: device;
+		padding-top: 22.7px;
+	}
+	.ov :global(.gc-ov-heading) {
+		margin: 0;
+		font-size: 22px;
+		line-height: 28px;
+		font-weight: 600;
+	}
+
+	.when {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 16px;
+		padding-right: 14px;
+		font-size: 12px;
+		line-height: 16px;
+	}
+	.when-text {
+		flex: 1;
+		min-width: 0;
+	}
+	.glyph,
+	.lock {
+		display: inline-flex;
+		flex: none;
+	}
+	.glyph {
+		color: var(--text-muted);
+	}
+	.lock {
+		color: var(--text-faint);
+	}
+	.glyph :global(svg),
+	.lock :global(svg) {
+		width: 16px;
+		height: 16px;
+	}
+	.gc-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.title {
+		margin: 23.4px 0 0;
+		font-size: 22px;
+		line-height: 28px;
+		font-weight: 600;
+		overflow-wrap: anywhere;
+	}
+	.notes {
+		margin-top: 8px;
+		font-size: 15px;
+		line-height: 20px;
+		color: var(--text-muted);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.distance {
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		margin-top: 18px;
+	}
+	.distance-value {
+		font-size: 34px;
+		line-height: 40px;
+		font-variant-numeric: tabular-nums;
+	}
+	.distance-unit {
+		font-size: 15px;
+		line-height: 19px;
+	}
+	.sub {
+		margin-top: 3.6px;
+		font-size: 13px;
+		line-height: 16px;
+		color: var(--text-muted);
+	}
+	.figures {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 15px 16px;
+		margin-top: 17.7px;
+	}
+
+	.links {
+		margin: 9.4px -16px 0;
+		overflow: hidden;
+	}
+	.link {
+		display: flex;
+		align-items: center;
+		gap: 13px;
+		box-sizing: border-box;
+		width: 100%;
+		height: 56px;
+		margin: 0;
+		padding: 0 21px 0 16px;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--background-secondary);
+		color: var(--text-normal);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.link:hover {
+		background: var(--background-modifier-hover);
+	}
+	.link-icon,
+	.chev {
+		display: inline-flex;
+		flex: none;
+	}
+	.link-icon :global(svg) {
+		width: 24px;
+		height: 24px;
+	}
+	.link-label {
+		flex: 1;
+		min-width: 0;
+		font-size: 17px;
+		line-height: 22px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.chev {
+		color: var(--text-faint);
+	}
+	.chev :global(svg) {
+		width: 16px;
+		height: 16px;
+	}
+
+	.device {
+		display: flex;
+		align-items: center;
+		gap: 20px;
+		margin-top: 25.7px;
+		padding-left: 4px;
+	}
+	.watch {
+		display: inline-flex;
+		flex: none;
+		color: var(--text-muted);
+	}
+	.watch :global(svg) {
+		width: 28px;
+		height: 28px;
+	}
+	.device-text {
+		min-width: 0;
+	}
+	.device-name {
+		font-size: 17px;
+		line-height: 22px;
+	}
+	.device-text .sub {
+		margin-top: 1.2px;
+	}
+
+	/* 640pt and up: the map across the top, rounded, and the sections in two columns under it. */
+	@container (min-width: 640px) {
+		.ov {
+			--gc-map-inset: 12px;
+			box-sizing: content-box;
+			max-width: 1126px;
+			margin: 0 auto;
+			padding: 24px 32px 32px;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			grid-template-areas: "map map" "summary eval" "nav device";
+			column-gap: 32px;
+		}
+		.ov-map {
+			height: 360px;
+			margin: 0;
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.ov-summary,
+		.ov-eval {
+			padding-top: 0;
+		}
+		.ov.has-map .ov-summary,
+		.ov.has-map .ov-eval {
+			padding-top: 24px;
+		}
+		.ov-nav,
+		.ov-device {
+			padding-top: 32px;
+		}
+		.links {
+			margin: 9.4px 0 0;
+			border-radius: 8px;
+		}
+	}
+
+	/* A pane: the map over two of the three 370pt columns, as tall as the third beside it. */
+	@container (min-width: 1000px) {
+		.ov {
+			grid-template-columns: minmax(0, 1fr) 370px;
+			grid-template-rows: auto auto auto 1fr;
+			grid-template-areas: "map summary" "map eval" "map nav" "map device";
+			column-gap: 8px;
+		}
+		.ov-map {
+			height: auto;
+			min-height: 480px;
+		}
+		.ov.has-map .ov-summary {
+			padding-top: 2px;
+		}
+		.ov.has-map .ov-eval {
+			padding-top: 32.2px;
+		}
+		.ov-nav {
+			padding-top: 23px;
+		}
+		.ov-device {
+			padding-top: 22.7px;
+		}
+		/* No map: three columns from the top. */
+		.ov:not(.has-map) {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			grid-template-rows: auto 1fr;
+			grid-template-areas: "summary eval nav" "summary eval device";
+			column-gap: 32px;
+		}
+		.ov:not(.has-map) .ov-nav {
+			padding-top: 0;
+		}
 	}
 </style>

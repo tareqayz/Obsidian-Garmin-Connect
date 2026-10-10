@@ -1,5 +1,5 @@
 import type { ActivityDetail } from "../sync/activity-detail";
-import type { MapOverlay } from "./routes";
+import { MAP_OVERLAYS, type MapOverlay } from "./routes";
 
 /**
  * What an activity's map draws, as data: the route's points, the runs of it
@@ -198,3 +198,76 @@ export const RUN_WALK_RAMP: readonly string[] = ["#54a9fe", "#60d275", "#f5bf2a"
 
 /** The route with no overlay (Inferred: the ramp's blue). */
 export const ROUTE_BASE = "#54a9fe";
+
+/** Map Settings' Data Overlay rows, worded as the phone's sheet words them. */
+export const OVERLAY_LABELS: Readonly<Record<MapOverlay, string>> = {
+	none: "None",
+	pace: "Pace",
+	gap: "Grade-Adjusted Pace",
+	"heart-rate": "Heart Rate",
+	power: "Power",
+	elevation: "Elevation",
+	"run-walk": "Run/Walk",
+};
+
+/** The sample column each value overlay reads, and whether only values above zero count as data. */
+const OVERLAY_COLUMN: Record<Exclude<MapOverlay, "none" | "run-walk">, [string, boolean]> = {
+	pace: ["speed", true],
+	gap: ["gap", true],
+	"heart-rate": ["hr", true],
+	power: ["power", true],
+	elevation: ["elevation", false],
+};
+
+const RUN_WALK_TYPES: readonly string[] = ["RWD_RUN", "RWD_WALK", "RWD_STAND"];
+
+/**
+ * The Data Overlay choices an activity has data for, in the sheet's order.
+ * None is always there; a run without a power meter offers no Power, as the
+ * page leaves out every metric it has no value for (Inferred for the sheet:
+ * the captured run has them all).
+ */
+export function mapOverlays(detail: ActivityDetail): MapOverlay[] {
+	return MAP_OVERLAYS.filter((overlay) => {
+		if (overlay === "none") return true;
+		if (overlay === "run-walk") return detail.segments.some((s) => RUN_WALK_TYPES.includes(s.type));
+		const [column, positive] = OVERLAY_COLUMN[overlay];
+		return (detail.samples[column] ?? []).some((v) => typeof v === "number" && Number.isFinite(v) && (!positive || v > 0));
+	});
+}
+
+/** The overlay a map draws: the one asked for when the activity has its data, else none. */
+export function overlayFor(detail: ActivityDetail, wanted: MapOverlay): MapOverlay {
+	return mapOverlays(detail).includes(wanted) ? wanted : "none";
+}
+
+export interface LegendKey {
+	label: string;
+	color: string;
+}
+
+/** What the map's legend pill shows: the ramp between two words, or a swatch per colour. */
+export type MapLegend = { kind: "ramp"; low: string; high: string; colors: readonly string[] } | { kind: "keys"; keys: LegendKey[] };
+
+/**
+ * The legend for an overlay. Pace and Grade-Adjusted Pace read "Slower" to
+ * "Faster", as on the phone; Run/Walk names its three colours, as its chart's
+ * legend does; Heart Rate, Power and Elevation run from "Lower" to "Higher"
+ * (Inferred: no shot). No overlay, no legend.
+ */
+export function mapLegend(overlay: MapOverlay): MapLegend | null {
+	switch (overlay) {
+		case "none":
+			return null;
+		case "pace":
+		case "gap":
+			return { kind: "ramp", low: "Slower", high: "Faster", colors: PACE_RAMP };
+		case "run-walk":
+			return {
+				kind: "keys",
+				keys: ["Run", "Walk", "Idle"].map((label, i) => ({ label, color: RUN_WALK_RAMP[i]! })),
+			};
+		default:
+			return { kind: "ramp", low: "Lower", high: "Higher", colors: PACE_RAMP };
+	}
+}

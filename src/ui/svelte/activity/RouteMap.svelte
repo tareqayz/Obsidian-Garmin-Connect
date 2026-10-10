@@ -1,21 +1,30 @@
 <script lang="ts">
 	import type * as L from "leaflet";
+	import type { Snippet } from "svelte";
 	import { PACE_RAMP, ROUTE_BASE, RUN_WALK_RAMP, lapMarkers, routeBounds, routeEnds, routePoints, routeRuns } from "../../../dashboard/activity-map";
 	import type { MapOverlay } from "../../../dashboard/routes";
 	import type { ActivityDetail } from "../../../sync/activity-detail";
 	import { loadLeaflet, type Leaflet } from "../../map/leaflet";
 	import type { TileSource } from "../../map/tile-source";
+	import { LAP_ANCHOR, LAP_SIZE, PIN_ANCHOR, PIN_SIZE, PIN_Z, lapZ, pinHtml, type PinKind } from "./map/markers";
 
 	/**
 	 * An activity's route on a map: OpenStreetMap's tiles when there are any,
-	 * the route coloured by the Data Overlay, lap numbers and the start and end.
+	 * the route coloured by the Data Overlay over a thin dark outline, lap
+	 * numbers, and the start and end pins.
 	 *
 	 * The same component on a desktop and a phone. A static map (Overview's)
 	 * takes no gestures, so a finger scrolls the page past it, and a tap opens
 	 * the full-screen one, which pans and pinches. Without tiles — the setting
 	 * off, offline, refused — the route draws alone.
 	 *
-	 * Leaflet waits for the map to have a size, and every resize after.
+	 * What sits over the map (the legend, the weather chip, the layers button)
+	 * comes in as `children`, placed by the page. In a dark theme only the tiles
+	 * are darkened; the route, its markers and those overlays keep their colours.
+	 *
+	 * Leaflet waits for the map to have a size, and every resize after. A resize
+	 * fits the route again: always on a static map, which can't be moved, and on
+	 * the full-screen one until someone moves it.
 	 */
 	interface Props {
 		detail: ActivityDetail;
@@ -26,9 +35,11 @@
 		laps?: boolean;
 		/** A static map's tap. */
 		onOpen?: () => void;
+		/** Overlays over the map, positioned by the page; they let drags through to the map. */
+		children?: Snippet;
 	}
 
-	let { detail, tiles, interactive, overlay = "pace", laps = true, onOpen }: Props = $props();
+	let { detail, tiles, interactive, overlay = "pace", laps = true, onOpen, children }: Props = $props();
 
 	let el = $state<HTMLDivElement | null>(null);
 	let lib = $state.raw<Leaflet | null>(null);
@@ -43,6 +54,10 @@
 		let alive = true;
 		let starting = false;
 		let created: L.Map | null = null;
+		let moved = false;
+		const touched = () => {
+			moved = true;
+		};
 		const start = async () => {
 			starting = true;
 			const leaflet = await loadLeaflet();
@@ -51,22 +66,38 @@
 			lib = leaflet;
 			map = created;
 		};
-		const resize = new ResizeObserver(() => {
-			if (created) created.invalidateSize();
-			else if (!starting && target.clientWidth > 0 && target.clientHeight > 0) void start();
-		});
+		// A frame later: resizing the map inside the observer's own callback is a layout loop.
+		const resize = new ResizeObserver(() =>
+			requestAnimationFrame(() => {
+				if (!alive) return;
+				if (!created) {
+					if (!starting && target.clientWidth > 0 && target.clientHeight > 0) void start();
+				} else if (moved) {
+					created.invalidateSize();
+				} else {
+					created.invalidateSize({ pan: false });
+					fit(created);
+				}
+			}),
+		);
 		resize.observe(target);
 		// On a phone the map keeps its drags: Obsidian's sidebar swipe must not see them.
 		const keep = (e: Event) => e.stopPropagation();
 		if (interactive) {
 			target.addEventListener("touchstart", keep, { passive: true });
 			target.addEventListener("touchmove", keep, { passive: true });
+			target.addEventListener("pointerdown", touched);
+			target.addEventListener("wheel", touched, { passive: true });
+			target.addEventListener("keydown", touched);
 		}
 		return () => {
 			alive = false;
 			resize.disconnect();
 			target.removeEventListener("touchstart", keep);
 			target.removeEventListener("touchmove", keep);
+			target.removeEventListener("pointerdown", touched);
+			target.removeEventListener("wheel", touched);
+			target.removeEventListener("keydown", touched);
 			created?.remove();
 			map = null;
 		};
@@ -88,9 +119,14 @@
 			m.attributionControl.setPrefix(false);
 			tileLayer(leaflet, tiles).addTo(m);
 		}
-		const bounds = routeBounds(points);
-		if (bounds) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 17 });
+		fit(m);
 		return m;
+	}
+
+	/** The whole route in view, clear of the edges. */
+	function fit(m: L.Map): void {
+		const bounds = routeBounds(points);
+		if (bounds) m.fitBounds(bounds, { padding: [24, 24], maxZoom: 17, animate: false });
 	}
 
 	/** Leaflet's grid, filled through the tile source rather than an `<img>` URL. */
@@ -153,18 +189,23 @@
 				.addTo(group);
 		}
 		if (laps) {
-			// Earlier laps on top: on an out-and-back route 6–10 sit under 1–5.
 			for (const lap of lapMarkers(detail)) {
-				const icon = leaflet.divIcon({ className: "gc-map-lap", html: String(lap.n), iconSize: [19, 19], iconAnchor: [9.5, 9.5] });
-				leaflet.marker(lap.at, { icon, interactive: false, keyboard: false, zIndexOffset: -lap.n }).addTo(group);
+				const icon = leaflet.divIcon({ className: "gc-map-lap", html: String(lap.n), iconSize: LAP_SIZE, iconAnchor: LAP_ANCHOR });
+				leaflet.marker(lap.at, { icon, interactive: false, keyboard: false, zIndexOffset: lapZ(lap.n) }).addTo(group);
 			}
 		}
 		const ends = routeEnds(points);
 		if (ends) {
-			const pin = (kind: string) => leaflet.divIcon({ className: `gc-map-pin ${kind}`, html: "", iconSize: [20, 20], iconAnchor: [10, 10] });
+			const pin = (kind: PinKind) =>
+				leaflet.marker(kind === "start" ? ends.start : ends.end, {
+					icon: leaflet.divIcon({ className: `gc-map-pin is-${kind}`, html: pinHtml(kind), iconSize: PIN_SIZE, iconAnchor: PIN_ANCHOR }),
+					interactive: false,
+					keyboard: false,
+					zIndexOffset: PIN_Z[kind],
+				});
 			// The start over the end, which a loop puts in the same place.
-			leaflet.marker(ends.end, { icon: pin("is-end"), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(group);
-			leaflet.marker(ends.start, { icon: pin("is-start"), interactive: false, keyboard: false, zIndexOffset: 1001 }).addTo(group);
+			pin("end").addTo(group);
+			pin("start").addTo(group);
 		}
 		group.addTo(m);
 		return () => {
@@ -175,6 +216,9 @@
 
 <div class="gc-route-map" class:is-static={!interactive}>
 	<div class="gc-map-canvas" bind:this={el}></div>
+	{#if children}
+		<div class="gc-map-overlays">{@render children()}</div>
+	{/if}
 	{#if !interactive && onOpen}
 		<button class="gc-map-open" onclick={onOpen}><span class="gc-visually-hidden">Open the map</span></button>
 	{/if}
@@ -184,8 +228,11 @@
 </div>
 
 <style>
+	/* Its own stacking context: Leaflet's panes (z-index 400 and up) stay
+	   inside the map rather than over the page's sticky header. */
 	.gc-route-map {
 		position: relative;
+		isolation: isolate;
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
@@ -193,6 +240,12 @@
 	.gc-map-canvas {
 		position: absolute;
 		inset: 0;
+	}
+	.gc-map-overlays {
+		position: absolute;
+		inset: 0;
+		z-index: 1000;
+		pointer-events: none;
 	}
 	.gc-map-open {
 		position: absolute;
@@ -202,20 +255,28 @@
 		margin: 0;
 		padding: 0;
 		border: none;
+		border-radius: 0;
 		box-shadow: none;
 		background: transparent;
 		cursor: pointer;
-		z-index: 500;
+		z-index: 1100;
+	}
+	.gc-map-open:focus-visible {
+		outline: 2px solid var(--background-modifier-border-focus);
+		outline-offset: -2px;
 	}
 	.gc-map-note {
 		position: absolute;
 		left: 50%;
-		bottom: 12px;
+		bottom: 28px;
 		transform: translateX(-50%);
-		z-index: 500;
+		z-index: 1000;
 		padding: 4px 10px;
-		border-radius: 12px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 13px;
 		font-size: 12px;
+		line-height: 16px;
+		white-space: nowrap;
 		background: var(--background-primary);
 		color: var(--text-muted);
 	}
@@ -231,25 +292,50 @@
 		background: var(--background-secondary);
 		font: inherit;
 	}
+	/* A fractional zoom (the Overview's 12.5) scales the tiles, and Chromium
+	   leaves hairlines between them. Leaflet's own fix, adding the tiles' edges
+	   together (plus-lighter), still shows a light line: each tile overlaps the
+	   next by a pixel instead, drawn over it normally. */
+	.gc-route-map :global(.leaflet-tile-container img.leaflet-tile) {
+		width: 257px !important;
+		height: 257px !important;
+		mix-blend-mode: normal;
+	}
+	/* The dark theme's map: the tiles only, so the route keeps its colours. */
+	:global(body.theme-dark) .gc-route-map :global(.leaflet-tile-pane) {
+		filter: invert(1) hue-rotate(180deg) saturate(0.5) brightness(0.85) contrast(0.85);
+	}
+	/* Leaflet's attribution as the twin's Map Attribution: bottom right, in the theme's colours. */
+	.gc-route-map :global(.leaflet-control-attribution) {
+		margin: 0;
+		padding: 2px 6px;
+		border-radius: 4px 0 0 0;
+		background: var(--background-primary);
+		color: var(--text-muted);
+		font-size: 11px;
+		line-height: 14px;
+	}
+	.gc-route-map :global(.leaflet-control-attribution a) {
+		color: var(--text-accent);
+		text-decoration: none;
+	}
 	.gc-route-map :global(.gc-map-lap) {
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		box-sizing: border-box;
+		border: 1px solid rgba(0, 0, 0, 0.35);
 		border-radius: 50%;
 		background: #fff;
 		color: #000;
-		border: 1px solid rgba(0, 0, 0, 0.35);
 		font-size: 12px;
 		font-weight: 600;
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
 	}
-	.gc-route-map :global(.gc-map-pin) {
-		border-radius: 50%;
-		border: 2px solid #fff;
-	}
-	.gc-route-map :global(.gc-map-pin.is-start) {
-		background: #3cb043;
-	}
-	.gc-route-map :global(.gc-map-pin.is-end) {
-		background: #e0312b;
+	.gc-route-map :global(.gc-map-pin svg) {
+		display: block;
+		overflow: visible;
+		filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.3));
 	}
 </style>

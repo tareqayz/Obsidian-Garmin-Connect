@@ -43,6 +43,12 @@ export interface OverviewLink {
 
 export interface OverviewView {
 	map: boolean;
+	/**
+	 * An outdoor activity whose samples haven't loaded (still on their way, or
+	 * the request failed): the map's place holds a note rather than closing up
+	 * as it does for a treadmill run.
+	 */
+	routeMissing: boolean;
 	weather: WeatherChip | null;
 	/** "Oct 10 @ 8:19 AM". */
 	when: string;
@@ -61,8 +67,10 @@ export interface OverviewView {
 
 export function overviewView(detail: ActivityDetail, units: Units, today?: string): OverviewView {
 	const s = detail.summary;
+	const map = hasRoute(detail);
 	const view: OverviewView = {
-		map: hasRoute(detail),
+		map,
+		routeMissing: !map && !detail.checked.includes("samples") && !INDOOR.test(detail.type),
 		weather: weatherChip(detail, units),
 		when: activityWhen(detail.start, today),
 		glyph: glyphOf({ type: detail.type, typeId: detail.typeId, parentTypeId: detail.parentTypeId }),
@@ -83,6 +91,9 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 	}
 	return view;
 }
+
+/** Sports recorded without GPS, whose page never has a map: `treadmill_running`, `indoor_running`, `virtual_run`. */
+const INDOOR = /treadmill|indoor|virtual/;
 
 /** Avg Heart Rate and Avg Pace (each with its chart badge), Total Time, Total Calories: those that have a value. */
 function figures(detail: ActivityDetail, units: Units): OverviewFigure[] {

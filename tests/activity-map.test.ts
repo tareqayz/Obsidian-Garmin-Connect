@@ -1,6 +1,22 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { PACE_RAMP, RAMP_SLOTS, hasRoute, lapMarkers, overlayBucket, routeBounds, routeEnds, routePoints, routeRuns } from "../src/dashboard/activity-map";
+import {
+	OVERLAY_LABELS,
+	PACE_RAMP,
+	RAMP_SLOTS,
+	RUN_WALK_RAMP,
+	hasRoute,
+	lapMarkers,
+	mapLegend,
+	mapOverlays,
+	overlayBucket,
+	overlayFor,
+	routeBounds,
+	routeEnds,
+	routePoints,
+	routeRuns,
+} from "../src/dashboard/activity-map";
+import { MAP_OVERLAYS } from "../src/dashboard/routes";
 import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-detail";
 
 // A made-up route around a made-up origin: no one's run.
@@ -113,5 +129,59 @@ describe("the pace ramp", () => {
 describe("lapMarkers", () => {
 	it("marks where each lap but the last ended", () => {
 		assert.deepEqual(lapMarkers(ROUTE), [{ n: 1, at: [10, 20.003] }]);
+	});
+});
+
+describe("Map Settings' Data Overlay", () => {
+	it("words the rows as the phone's sheet does, in its order", () => {
+		assert.deepEqual(
+			MAP_OVERLAYS.map((o) => OVERLAY_LABELS[o]),
+			["None", "Pace", "Grade-Adjusted Pace", "Heart Rate", "Power", "Elevation", "Run/Walk"],
+		);
+	});
+
+	it("offers only the overlays the activity has data for", () => {
+		// ROUTE has speed and run/walk segments, nothing else.
+		assert.deepEqual(mapOverlays(ROUTE), ["none", "pace", "run-walk"]);
+		const all = detailWith(
+			{ speed: [2, 3], gap: [2.1, 3.1], hr: [120, 150], power: [250, 300], elevation: [-21.8, -5.8] },
+			{ segments: [{ type: "RWD_RUN", start: 0, end: 10, duration: 10, distance: 30 }] },
+		);
+		assert.deepEqual(mapOverlays(all), [...MAP_OVERLAYS]);
+		// A power column of zeros is no power meter; elevation below zero is still data.
+		const zeros = detailWith({ speed: [0, 0], power: [0, 0], elevation: [-3, -2] });
+		assert.deepEqual(mapOverlays(zeros), ["none", "elevation"]);
+	});
+
+	it("draws the overlay asked for only when there is data for it", () => {
+		assert.equal(overlayFor(ROUTE, "pace"), "pace");
+		assert.equal(overlayFor(ROUTE, "power"), "none");
+	});
+});
+
+describe("mapLegend", () => {
+	it("reads Slower to Faster over Garmin's ramp for pace and Grade-Adjusted Pace", () => {
+		assert.deepEqual(mapLegend("pace"), { kind: "ramp", low: "Slower", high: "Faster", colors: PACE_RAMP });
+		assert.deepEqual(mapLegend("gap"), mapLegend("pace"));
+	});
+
+	it("names Run, Walk and Idle in the Run/Walk chart's colours", () => {
+		assert.deepEqual(mapLegend("run-walk"), {
+			kind: "keys",
+			keys: [
+				{ label: "Run", color: RUN_WALK_RAMP[0] },
+				{ label: "Walk", color: RUN_WALK_RAMP[1] },
+				{ label: "Idle", color: RUN_WALK_RAMP[2] },
+			],
+		});
+	});
+
+	it("has no legend without an overlay, and Lower to Higher for the value overlays", () => {
+		assert.equal(mapLegend("none"), null);
+		for (const overlay of ["heart-rate", "power", "elevation"] as const) {
+			const legend = mapLegend(overlay);
+			assert.equal(legend?.kind, "ramp");
+			assert.deepEqual(legend?.kind === "ramp" && [legend.low, legend.high], ["Lower", "Higher"]);
+		}
 	});
 });

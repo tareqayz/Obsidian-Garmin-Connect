@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { activityWhen, effortColor, effortOf, feelLabel, primaryBenefit, sportTitle } from "../src/dashboard/activity-labels";
+import { BENEFIT_CATEGORIES, BENEFIT_CLOSING, BENEFIT_MORE, benefitMessage } from "../src/dashboard/activity-copy";
+import { BENEFIT_COLOR, activityWhen, effortColor, effortOf, feelLabel, primaryBenefit, sportTitle } from "../src/dashboard/activity-labels";
 import { overviewView, weatherChip } from "../src/dashboard/activity-overview";
 import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-detail";
 
@@ -107,5 +108,45 @@ describe("activity labels", () => {
 		assert.equal(feelLabel(42), null);
 		assert.deepEqual(effortOf(40), { value: 4, score: "4/10", label: "Somewhat Hard" });
 		assert.equal(effortColor(6), "#f5bf2a");
+	});
+});
+
+describe("the map's place", () => {
+	it("holds a note for an outdoor run whose samples haven't loaded, not for a treadmill run", () => {
+		const outdoor = detail();
+		const noSamples = { ...outdoor, samples: {}, checked: outdoor.checked.filter((b) => b !== "samples") };
+		assert.equal(overviewView(noSamples, "metric").map, false);
+		assert.equal(overviewView(noSamples, "metric").routeMissing, true);
+		assert.equal(overviewView({ ...noSamples, type: "treadmill_running" }, "metric").routeMissing, false);
+		// Loaded, and no GPS in them: a treadmill-like page with no map and no note.
+		const indoor = overviewView(detail({ samples: { metricDescriptors: [], activityDetailMetrics: [] } }), "metric");
+		assert.equal(indoor.routeMissing, false);
+		assert.equal(overviewView(outdoor, "metric").routeMissing, false);
+	});
+});
+
+describe("This Activity's Benefit", () => {
+	it("has Threshold's paragraph verbatim, and none for a benefit not yet seen", () => {
+		assert.equal(
+			benefitMessage("LACTATE_THRESHOLD"),
+			"Nice! Activities like this improve your muscular endurance and fatigue resistance, allowing you to sustain a hard effort for longer time. It increased your high aerobic training load.",
+		);
+		assert.equal(benefitMessage("TEMPO"), null);
+		assert.equal(benefitMessage(undefined), null);
+	});
+
+	it("lists the categories in the sheet's order, each in a group the benefit labels know", () => {
+		assert.deepEqual(
+			BENEFIT_CATEGORIES.map((c) => [c.group, ...c.benefits]),
+			[
+				["Anaerobic", "Sprint", "Anaerobic Capacity"],
+				["High Aerobic", "VO₂ Max", "Threshold", "Tempo"],
+				["Low Aerobic", "Base", "Recovery"],
+			],
+		);
+		for (const { group } of BENEFIT_CATEGORIES) assert.ok(BENEFIT_COLOR[group]);
+		assert.equal(primaryBenefit("LACTATE_THRESHOLD")?.group, "High Aerobic");
+		assert.ok(BENEFIT_MORE.endsWith("one of the following categories:"));
+		assert.ok(BENEFIT_CLOSING.endsWith("such as increasing endurance or speed."));
 	});
 });
