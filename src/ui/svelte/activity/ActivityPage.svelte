@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ActivitiesData } from "../../../dashboard/activities";
+	import { sportTitle } from "../../../dashboard/activity-labels";
 	import { ACTIVITY_TABS, type ActivityRoute, type ActivityTab, type Route } from "../../../dashboard/routes";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
@@ -63,15 +64,6 @@
 	let detail = $derived(load?.detail ?? null);
 	let tabProps = $derived<ActivityTabProps | null>(detail ? { detail, route, units: data.units, tiles, go, swap, reach, openSheet } : null);
 	let title = $derived(detail ? sportTitle(detail.type) : "Activity");
-
-	/** Garmin's typeKey as the bar's title: `treadmill_running` → "Treadmill Running". */
-	function sportTitle(type: string): string {
-		return type
-			.split("_")
-			.filter(Boolean)
-			.map((word) => word[0]!.toUpperCase() + word.slice(1))
-			.join(" ");
-	}
 
 	/** Why there is nothing, or not everything, to show. */
 	let status = $derived.by(() => {

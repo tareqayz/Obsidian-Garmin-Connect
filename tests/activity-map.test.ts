@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { hasRoute, lapMarkers, routeBounds, routeEnds, routePoints, routeRuns } from "../src/dashboard/activity-map";
+import { PACE_RAMP, RAMP_SLOTS, hasRoute, lapMarkers, overlayBucket, routeBounds, routeEnds, routePoints, routeRuns } from "../src/dashboard/activity-map";
 import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-detail";
 
 // A made-up route around a made-up origin: no one's run.
@@ -52,11 +52,12 @@ describe("routePoints", () => {
 });
 
 describe("routeRuns", () => {
-	it("cuts the route where the pace bucket changes, each run starting where the last ended", () => {
-		const runs = routeRuns(ROUTE, "pace", 3);
+	it("cuts the route where the pace slot changes, each run starting where the last ended", () => {
+		// No summary here: best and average come from the samples (4 and 26/9 m/s).
+		const runs = routeRuns(ROUTE, "pace");
 		assert.deepEqual(
 			runs.map((r) => r.bucket),
-			[0, 1, 2],
+			[0, 5, 9],
 		);
 		assert.deepEqual(runs[1]!.points[0], runs[0]!.points.at(-1));
 		assert.deepEqual(runs[2]!.points.at(-1), [10, 20.007]);
@@ -64,20 +65,48 @@ describe("routeRuns", () => {
 
 	it("is one uncoloured run with no overlay, and colours run/walk by segment", () => {
 		assert.deepEqual(
-			routeRuns(ROUTE, "none", 9).map((r) => r.bucket),
+			routeRuns(ROUTE, "none").map((r) => r.bucket),
 			[null],
 		);
 		assert.deepEqual(
-			routeRuns(ROUTE, "run-walk", 3).map((r) => r.bucket),
+			routeRuns(ROUTE, "run-walk").map((r) => r.bucket),
 			[0, 1, 0],
 		);
 	});
 
 	it("has no colour where the overlay's column is missing", () => {
 		assert.deepEqual(
-			routeRuns(ROUTE, "power", 9).map((r) => r.bucket),
+			routeRuns(ROUTE, "power").map((r) => r.bucket),
 			[null],
 		);
+	});
+});
+
+describe("the pace ramp", () => {
+	// The captured run's summary: best 5:08 /km (3.247 m/s), average 5:36 (2.978 m/s).
+	const run = detailWith({ speed: [3.247, 3.19, 3.1, 2.978, 2.9, 2.8, 2.7, 0] }, { summary: { maxSpeed: 3.247, averageSpeed: 2.978 } });
+	const slotOf = overlayBucket(run, "pace");
+
+	it("has Garmin's ten slots, the two middle ones the same green", () => {
+		assert.equal(PACE_RAMP.length, RAMP_SLOTS);
+		assert.equal(PACE_RAMP[4], PACE_RAMP[5]);
+	});
+
+	it("puts the best pace in the fastest slot and the average between the greens", () => {
+		// 308–313 s/km is the fast slot on the phone's map.
+		assert.equal(slotOf(0), 9);
+		assert.equal(slotOf(1), 9);
+		assert.equal(slotOf(3), 5);
+		// Slower than the mirrored slow end (363.6 s/km): the slowest slot.
+		assert.equal(slotOf(6), 0);
+		// Standing still has no colour.
+		assert.equal(slotOf(7), null);
+	});
+
+	it("bins in steps of pace, not of speed", () => {
+		// 3.1 m/s = 322.6 s/km: slot 7 (318–323 on the phone); 2.9 m/s = 344.8 s/km: slot 3 (340–344).
+		assert.equal(slotOf(2), 7);
+		assert.equal(slotOf(4), 3);
 	});
 });
 

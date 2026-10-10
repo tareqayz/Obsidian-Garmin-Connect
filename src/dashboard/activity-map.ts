@@ -59,27 +59,32 @@ export interface RouteRun {
 	points: LatLon[];
 }
 
-/** The sample column an overlay colours by, and whether a higher value is "faster" (the ramp's hot end). */
-const OVERLAY_COLUMN: Record<Exclude<MapOverlay, "none" | "run-walk">, string> = {
-	pace: "speed",
-	gap: "gap",
-	"heart-rate": "hr",
-	power: "power",
-	elevation: "elevation",
+/** The ramp's slots, slow (or low) first: Garmin's legend has ten. */
+export const RAMP_SLOTS = 10;
+
+/** The sample column each value overlay colours by, and the summary's average and best for it. */
+const VALUE_OVERLAY: Record<"heart-rate" | "power" | "elevation", { column: string; average: string; best: string }> = {
+	"heart-rate": { column: "hr", average: "averageHR", best: "maxHR" },
+	power: { column: "power", average: "averagePower", best: "maxPower" },
+	elevation: { column: "elevation", average: "avgElevation", best: "maxElevation" },
 };
 
 /**
- * The route cut into runs of one colour. Values are binned into `buckets`
- * equal-count bins over the activity's own values (so the ramp spans the
- * activity, slowest to fastest), which is how the phone's legend reads —
- * the exact binning is the spec's to settle. `none` is one run; `run-walk`
- * is binned by segment type instead (0 run, 1 walk, 2 idle).
+ * The route cut into runs of one colour.
+ *
+ * Pace (and Grade-Adjusted Pace) is binned into ten equal steps of pace, from
+ * the run's best pace at the fast end to a slow end as far below the average as
+ * the best is above it, so the average falls between the two greens. Paces
+ * beyond either end take the end colour. The spec proved this on the phone's
+ * map (84% of samples exactly, 95% within a slot); the other value overlays use
+ * the same rule over their own column (Inferred). `none` is one run, and
+ * `run-walk` is coloured by segment (0 run, 1 walk, 2 idle).
  */
-export function routeRuns(detail: ActivityDetail, overlay: MapOverlay, buckets: number): RouteRun[] {
+export function routeRuns(detail: ActivityDetail, overlay: MapOverlay): RouteRun[] {
 	const points = routePoints(detail);
 	if (points.length < 2) return [];
 	if (overlay === "none") return [{ bucket: null, points: points.map((p) => p.at) }];
-	const bucketOf = overlay === "run-walk" ? runWalkBucket(detail) : valueBucket(detail.samples[OVERLAY_COLUMN[overlay]] ?? [], buckets);
+	const bucketOf = overlay === "run-walk" ? runWalkBucket(detail) : overlayBucket(detail, overlay);
 	const runs: RouteRun[] = [];
 	for (let i = 0; i < points.length; i += 1) {
 		const point = points[i]!;
@@ -96,45 +101,53 @@ export function routeRuns(detail: ActivityDetail, overlay: MapOverlay, buckets: 
 	return runs.filter((run) => run.points.length > 1);
 }
 
-/**
- * Equal-count bins over the column's values: the bucket of a sample, or null
- * without one. A value's place is the middle of its ties, so a run of equal
- * values lands in one bin and the slowest and fastest reach the ramp's ends.
- */
-function valueBucket(values: ReadonlyArray<number | null>, buckets: number): (sample: number) => number | null {
-	const sorted = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b);
-	if (!sorted.length || buckets < 1) return () => null;
-	const n = sorted.length;
+/** A sample's slot under a pace or value overlay, or null without a value. */
+export function overlayBucket(detail: ActivityDetail, overlay: Exclude<MapOverlay, "none" | "run-walk">): (sample: number) => number | null {
+	if (overlay === "pace" || overlay === "gap") {
+		const speeds = detail.samples[overlay === "pace" ? "speed" : "gap"] ?? [];
+		const moving = speeds.filter((v): v is number => typeof v === "number" && v > 0);
+		if (!moving.length) return () => null;
+		const summary = detail.summary;
+		const best = positive(overlay === "pace" ? summary.maxSpeed : undefined) ?? Math.max(...moving);
+		const average = positive(overlay === "pace" ? summary.averageSpeed : summary.avgGradeAdjustedSpeed) ?? mean(moving);
+		const fast = 1000 / best;
+		const slow = 2 * (1000 / average) - fast;
+		return (sample) => {
+			const speed = speeds[sample];
+			if (typeof speed !== "number" || speed <= 0) return null;
+			return slot((slow - 1000 / speed) / (slow - fast));
+		};
+	}
+	const { column, average: avgKey, best: bestKey } = VALUE_OVERLAY[overlay];
+	const values = detail.samples[column] ?? [];
+	const present = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+	if (!present.length) return () => null;
+	const best = finite(detail.summary[bestKey]) ?? Math.max(...present);
+	const average = finite(detail.summary[avgKey]) ?? mean(present);
+	const low = 2 * average - best;
 	return (sample) => {
 		const value = values[sample];
 		if (typeof value !== "number" || !Number.isFinite(value)) return null;
-		const rank = (firstAtLeast(sorted, value) + firstAbove(sorted, value) - 1) / 2;
-		return Math.min(buckets - 1, Math.floor(((rank + 0.5) / n) * buckets));
+		return slot((value - low) / (best - low));
 	};
 }
 
-/** The index of the first value not below `value`. */
-function firstAtLeast(sorted: readonly number[], value: number): number {
-	let lo = 0;
-	let hi = sorted.length;
-	while (lo < hi) {
-		const mid = (lo + hi) >> 1;
-		if (sorted[mid]! < value) lo = mid + 1;
-		else hi = mid;
-	}
-	return lo;
+/** A position along the ramp, 0 to 1, as one of its ten slots; the ends hold everything beyond them. */
+function slot(at: number): number {
+	if (!Number.isFinite(at)) return Math.floor(RAMP_SLOTS / 2);
+	return Math.max(0, Math.min(RAMP_SLOTS - 1, Math.floor(at * RAMP_SLOTS)));
 }
 
-/** The index of the first value above `value`. */
-function firstAbove(sorted: readonly number[], value: number): number {
-	let lo = 0;
-	let hi = sorted.length;
-	while (lo < hi) {
-		const mid = (lo + hi) >> 1;
-		if (sorted[mid]! <= value) lo = mid + 1;
-		else hi = mid;
-	}
-	return lo;
+function positive(value: unknown): number | undefined {
+	return typeof value === "number" && value > 0 ? value : undefined;
+}
+
+function finite(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function mean(values: readonly number[]): number {
+	return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 /** Run 0, walk 1, idle 2, by which run/walk segment a sample's clock falls in. */
@@ -175,10 +188,13 @@ export function routeEnds(points: readonly RoutePoint[]): { start: LatLon; end: 
 }
 
 /**
- * Garmin's Slower → Faster ramp, slowest first, as the phone's legend draws it.
- * Read off the screenshot; the spec measures the final values.
+ * Garmin's Slower → Faster ramp, ten slots slowest first, sampled off the
+ * phone's legend. Slots 5 and 6 are the same green, so a route shows nine.
  */
-export const PACE_RAMP: readonly string[] = ["#1f4fb4", "#2c6fd6", "#4b95ea", "#62b746", "#a6c33a", "#f0c330", "#f29a2e", "#e9652c", "#dd3a2d"];
+export const PACE_RAMP: readonly string[] = ["#004ba0", "#1976d2", "#3b97f3", "#54a9fe", "#82c91e", "#82c91e", "#faca48", "#f98925", "#ea670e", "#d32020"];
 
-/** Run, walk, idle, as the Run/Walk chart's legend colours them. */
-export const RUN_WALK_RAMP: readonly string[] = ["#4ea7ff", "#5fd06d", "#f5c33b"];
+/** Run, walk, idle, as the Run/Walk chart colours them. */
+export const RUN_WALK_RAMP: readonly string[] = ["#54a9fe", "#60d275", "#f5bf2a"];
+
+/** The route with no overlay (Inferred: the ramp's blue). */
+export const ROUTE_BASE = "#54a9fe";

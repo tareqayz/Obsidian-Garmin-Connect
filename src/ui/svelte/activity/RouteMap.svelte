@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type * as L from "leaflet";
-	import { PACE_RAMP, RUN_WALK_RAMP, lapMarkers, routeBounds, routeEnds, routePoints, routeRuns } from "../../../dashboard/activity-map";
+	import { PACE_RAMP, ROUTE_BASE, RUN_WALK_RAMP, lapMarkers, routeBounds, routeEnds, routePoints, routeRuns } from "../../../dashboard/activity-map";
 	import type { MapOverlay } from "../../../dashboard/routes";
 	import type { ActivityDetail } from "../../../sync/activity-detail";
 	import { loadLeaflet, type Leaflet } from "../../map/leaflet";
@@ -133,10 +133,17 @@
 		if (!m || !leaflet) return;
 		const ramp = overlay === "run-walk" ? RUN_WALK_RAMP : PACE_RAMP;
 		const group = leaflet.layerGroup();
-		for (const run of routeRuns(detail, overlay, ramp.length)) {
+		// A thin dark outline under the whole route, as Garmin draws it.
+		leaflet
+			.polyline(
+				points.map((p) => p.at),
+				{ color: "#1a1a1a", weight: 6, opacity: 0.55, lineCap: "round", lineJoin: "round", interactive: false },
+			)
+			.addTo(group);
+		for (const run of routeRuns(detail, overlay)) {
 			leaflet
 				.polyline(run.points, {
-					color: run.bucket === null ? "#3a7bd5" : ramp[run.bucket]!,
+					color: run.bucket === null ? ROUTE_BASE : ramp[run.bucket]!,
 					weight: 4,
 					opacity: 1,
 					lineCap: "round",
@@ -146,16 +153,18 @@
 				.addTo(group);
 		}
 		if (laps) {
+			// Earlier laps on top: on an out-and-back route 6–10 sit under 1–5.
 			for (const lap of lapMarkers(detail)) {
-				const icon = leaflet.divIcon({ className: "gc-map-lap", html: String(lap.n), iconSize: [22, 22], iconAnchor: [11, 11] });
-				leaflet.marker(lap.at, { icon, interactive: false, keyboard: false }).addTo(group);
+				const icon = leaflet.divIcon({ className: "gc-map-lap", html: String(lap.n), iconSize: [19, 19], iconAnchor: [9.5, 9.5] });
+				leaflet.marker(lap.at, { icon, interactive: false, keyboard: false, zIndexOffset: -lap.n }).addTo(group);
 			}
 		}
 		const ends = routeEnds(points);
 		if (ends) {
 			const pin = (kind: string) => leaflet.divIcon({ className: `gc-map-pin ${kind}`, html: "", iconSize: [20, 20], iconAnchor: [10, 10] });
-			leaflet.marker(ends.end, { icon: pin("is-end"), interactive: false, keyboard: false }).addTo(group);
-			leaflet.marker(ends.start, { icon: pin("is-start"), interactive: false, keyboard: false }).addTo(group);
+			// The start over the end, which a loop puts in the same place.
+			leaflet.marker(ends.end, { icon: pin("is-end"), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(group);
+			leaflet.marker(ends.start, { icon: pin("is-start"), interactive: false, keyboard: false, zIndexOffset: 1001 }).addTo(group);
 		}
 		group.addTo(m);
 		return () => {

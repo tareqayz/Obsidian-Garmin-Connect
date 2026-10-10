@@ -19,7 +19,7 @@
 
 {#if hasRoute(detail)}
 	<div class="inline-map">
-		<RouteMap {detail} tiles={tiles()} interactive={false} onOpen={() => go(activityMapRoute(detail.id))} />
+		<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} onOpen={() => go(activityMapRoute(detail.id))} />
 	</div>
 {/if}
 <div class="overview">
