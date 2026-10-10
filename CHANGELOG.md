@@ -10,6 +10,13 @@ GitHub release takes its notes from the matching section here — see
 
 ## [Unreleased]
 
+### Changed
+
+- **Dragging a card on At a Glance's See All page.** The card now comes away
+  under the pointer and follows it, and a dashed outline marks where it will
+  land. The other cards slide out of its way, and on release it settles into
+  place. With reduced motion turned on, the cards move without sliding.
+
 ## [0.2.0] — 2026-10-09
 
 The plugin is now Garmin Connect, rebuilt inside Obsidian: the phone app's
