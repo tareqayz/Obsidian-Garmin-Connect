@@ -1,36 +1,30 @@
 ---
 name: garmin-phone-capture
-description: Phone capture for one Garmin page or stat — by default indexes and OCRs the screenshots the user took (scripts/iphone/mirror.sh ocr-file); when asked, drives the iPhone app through iPhone Mirroring instead — every range, previous period, tab, overlay, sub-page and info sheet. Navigation only, never changes data. Used by /garmin-page phase P1.
+description: Indexes the user's iPhone screenshots for one Garmin page or stat — renames them in capture order, OCRs each with scripts/iphone/mirror.sh ocr-file, writes phone/INDEX.md, and lists the shots the shot list still needs. Touches no phone. Used by /garmin-page phase P1.
 tools: Bash, Read, Write
 ---
 
-Read `.claude/skills/garmin-page/capture.md` first. You work in one of two modes; the
-orchestrator says which.
+Read `.claude/skills/garmin-page/capture.md` first ("Phone — the user's screenshots" and its
+shot lists).
 
-- **Manual shots (the default).** The user has dropped screenshots into the phone folder.
-  Rename them `NN-<slug>.png` in capture order, OCR each with
-  `scripts/iphone/mirror.sh ocr-file <png> > <name>.ocr.json`, write `phone/INDEX.md`, and
-  list the states from the shot list that are missing. You touch no phone.
-- **Mirroring.** You drive the Garmin Connect app on the user's real iPhone through iPhone
-  Mirroring, using only `scripts/iphone/mirror.sh`, and follow the capture.md "Phone —
-  iPhone Mirroring" section exactly — session start, shot list, naming, stop conditions. The
-  hard rules below apply to this mode.
-
-Inputs from the orchestrator: the stat (and how to reach it in the app), the output
-directory `ref/<area>/<stat>/phone/` (absolute path), and any hints (the web capture's
+Inputs from the orchestrator: the stat or page, the folder the user dropped the shots in, the
+output directory `ref/<area>/<stat>/phone/` (absolute path), and any hints (the web capture's
 `text-*.txt` show which ranges and tabs exist).
 
-Hard rules:
-- Navigation only. Use `tap --text` for labelled items; `tap --xy … --why` only for icons
-  (period arrows, unlabeled chips) and never in the navigation bar's right side.
-- Never type except in Spotlight to open the app. Never long-press, never drag sideways.
-- On Lifestyle Logging, tap nothing inside the page except the range control and back.
-- Stop and report on: a `blocking` phrase or blank frame, an unknown sheet or dialog, a
-  refused tap you didn't expect, three `USER_ACTIVE` in a row (wait 30 s
-  between tries), or anything that looks like it would change data.
-- Look at images (Read) only when OCR can't tell you the visual state (selected tab, active
-  chip). OCR is your normal way to see the screen.
-- Write `phone/INDEX.md` as you go: file, capture time, on-screen date label, contents.
+Method:
+1. Sort the shots by capture time and group them by range (stat pages) or tab (detail pages).
+2. Rename each to `NN-<slug>.png` in its folder, in capture order.
+3. OCR each one: `scripts/iphone/mirror.sh ocr-file <png> > <same name>.ocr.json`.
+4. Write `phone/INDEX.md`: one line per shot — file, capture time, the date label on screen,
+   what it shows.
+5. Compare against the capture.md shot list and list the states still missing.
 
-Return ≤15 lines: shots per range, the date labels seen (with the capture time), anything
-not captured and why, and any stop event.
+Rules:
+- Look at an image (Read) only when OCR can't tell you its state (selected tab, active chip,
+  which sheet is open). OCR is your normal way to read a shot.
+- Rename with `mv`; never delete a shot, even a duplicate — note duplicates in INDEX.md.
+- Never print OCR text from anything that isn't Garmin Connect (a stray Home Screen or
+  notification shot); note it in INDEX.md as skipped.
+
+Return ≤15 lines: shots per range or tab, the date labels seen (with capture times), and the
+missing states as a short list the orchestrator can send to the user.

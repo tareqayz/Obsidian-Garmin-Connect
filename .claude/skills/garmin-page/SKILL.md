@@ -1,6 +1,6 @@
 ---
 name: garmin-page
-description: Rebuild a Garmin Connect page in this plugin end to end — capture the iPhone app (the user's screenshots, or iPhone Mirroring) and the web app's network calls, write the spec, build the 1:1 Garmin page and the Obsidian twin in Figma, implement, verify live and commit — with subagents and no approval stops. Use for "/garmin-page <area> <stat>", "/garmin-page resume", "rebuild the <stat> page", or any new Garmin screen (Health Stats, Activities, Home detail screens).
+description: Rebuild a Garmin Connect page in this plugin end to end — index the user's iPhone screenshots and capture the web app's network calls, write the spec, build the 1:1 Garmin page and the Obsidian twin in Figma, implement, verify live and commit — with subagents and no approval stops. Use for "/garmin-page <area> <stat>", "/garmin-page resume", "rebuild the <stat> page", or any new Garmin screen (Health Stats, Activities, Home detail screens).
 ---
 
 # /garmin-page — the Garmin page pipeline
@@ -17,7 +17,7 @@ print `data.json` or `.garmin-token.json`. `ref/` is local-only (gitignored: it 
 
 | Phase | Agent (`.claude/agents/`) | Output under `ref/<area>/<stat>/` | Done when |
 |---|---|---|---|
-| P1 phone | the user's screenshots, indexed and OCR'd (`capture.md`); or `garmin-phone-capture` through Mirroring — one at a time | `phone/<range>[-prev]/NN-slug.png` + `.ocr.json`, `phone/INDEX.md` | Every range at offsets 0 and −1, every tab / chip / overlay / sub-page / info sheet, scrolled to the end |
+| P1 phone | the user's screenshots, indexed and OCR'd by `garmin-phone-capture` (`capture.md`) | `phone/<range>[-prev]/NN-slug.png` + `.ocr.json`, `phone/INDEX.md` | Every range at offsets 0 and −1, every tab / chip / overlay / sub-page / info sheet, scrolled to the end; missing shots listed for the user |
 | P1 web | `garmin-web-capture` — one at a time | `web/text-*.txt`, `web/*.png`, `web/endpoints.md`, `web/bodies/` | Every web state captured, or "no web page" noted |
 | P2 spec | `garmin-spec` | `README.md` (template: `spec-template.md`) | Every golden number reproduces from the payloads; endpoints verified with `live-api.sh` |
 | P3 Figma Garmin | `figma-garmin-page` (parallel with P2) | Garmin page; ids in README | Side-by-side with the phone shots; frames annotated 1:1 / Inferred |
@@ -43,7 +43,7 @@ There is **no approval stop** between Figma and code. Frames not seen on the pho
 
 ## Concurrency and safety
 
-- One agent at a time on each of: the phone, the browser, the live vault, `live-api.sh`.
+- One agent at a time on each of: the browser, the live vault, `live-api.sh`.
 - At most 2 Figma agents and 3 spec/builder agents at once.
 - Builders work in `~/Dev/garmin-connect-wt/<stat>` (outside iCloud), never run git in the
   live tree, and own only their stat's files. **Only you** edit shared files (registries,
@@ -51,8 +51,6 @@ There is **no approval stop** between Figma and code. Frames not seen on the pho
   `tests/engine.test.ts`), build in the live tree, reload the plugin and commit.
 - Figma: stat-specific components live on the stat's own page; only you add shared
   components or variables (`figma.md`).
-- Phone through Mirroring: navigation only; allow-listed taps (`capture.md`). Lifestyle
-  Logging logs on a single tap — nothing inside it is tapped except the range control and back.
 - Web: `scripts/dev/b.sh` only (read-only wrapper, own profile outside iCloud).
 - Live API: `scripts/dev/live-api.sh` only (GET / GraphQL queries, locked, paced).
 

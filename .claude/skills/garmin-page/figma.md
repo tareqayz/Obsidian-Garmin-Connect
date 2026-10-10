@@ -10,7 +10,8 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   "Light mode preview" / "Dark mode preview" wrapper frames (explicit variable mode on the
   frame) and a wide **pane** frame: 1190 pt, content 1126 = 3×370 + 2×8 (the code's 640 /
   1000 container-query breakpoints).
-- Phone frames are **402 × 874 pt** (iPhone 16/17 Pro at 3x; mirrored shots are 2x).
+- Phone frames are **402 × 874 pt** (iPhone 16/17 Pro at 3x); landscape full-screen charts
+  are 874 × 402 pt.
 - Variables: collection `Garmin` (`VariableCollectionId:8:2`, one mode Dark `8:0`) and
   `Obsidian` (`VariableCollectionId:8:47`, Light `8:1` / Dark `8:2`; names = CSS variables,
   code syntax `var(--background-primary)`). Text styles `Garmin/*` and `Obsidian/*`, Inter.
@@ -37,8 +38,8 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   KNOWN GAPS.
 - Build the twin from the Garmin frames: same structure, Obsidian variables and text
   styles, Garmin brand colours only where the data needs them (stat colours).
-- Measure from the phone shots at 402 pt (mirrored 2x shots: divide pixels by `pxPerPt`
-  from the `.ocr.json`). Placing Inter text from a measured cap top:
+- Measure from the phone shots at 402 pt (native shots are 3x: divide pixels by 3; the
+  `.ocr.json` boxes are already in points). Placing Inter text from a measured cap top:
   `y = capTop − (lineHeight/2 − 0.3643 × fontSize)`.
 - Check each frame side by side: `get_screenshot` caps at 1x (402 wide); compose with
   `scripts/dev/compare.py sbs <phone.png> <figma.png> <out.png>`.
