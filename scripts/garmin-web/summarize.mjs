@@ -67,7 +67,9 @@ for (const r of responses) {
 	if (m && !DATE.test(m[1]) && !/^\d+$/.test(m[1]) && m[1].length >= 6) displayNames.add(decodeURIComponent(m[1]));
 }
 
-const PII_KEYS = /^(fullName|firstName|lastName|userName|displayName|email|emailAddress|profileImageUrl\w*|location|birthDate|phoneNumber)$/;
+// Case-insensitive, and any key ending in "fullName": Garmin writes `fullname`,
+// `ownerFullName` and `userProfileFullName` as well as `fullName`.
+const PII_KEYS = /^(\w*fullName|firstName|lastName|userName|displayName|email|emailAddress|profileImageUrl\w*|location|birthDate|phoneNumber)$/i;
 const redact = (value) => {
 	if (Array.isArray(value)) return value.map(redact);
 	if (value && typeof value === "object") {

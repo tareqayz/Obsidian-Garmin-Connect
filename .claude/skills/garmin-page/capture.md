@@ -110,3 +110,19 @@ node scripts/garmin-web/summarize.mjs --export "$RAW/capture.jsonl" --gql "$RAW/
 NEW, GarminApi wrapper or "no wrapper", response shapes) and scrubbed bodies in `bodies/`.
 Never run `cookies`, `storage`, `state` or `cookie-import`; `page-text.js` excludes the
 navigation (which shows the account name and devices).
+
+### Lessons from the activity page (2026-10-10)
+
+- **Start with `b.sh connect`.** Any other first command (even `status`) starts a headless
+  daemon without the signed-in profile, which then shows Garmin's sign-in or "private"
+  pages. If one is up, `b.sh stop`, then `connect`. Set the capture `MARK` after connecting.
+- **Never click a menu option by a remembered or substring ref.** On the activity page
+  `click @ref` for "Speed" resolved into the hidden activity-type `<select>`. Re-snapshot,
+  check with `b.sh wait`, and click options by exact role and name
+  (`internal:role=option[name="…"s]`).
+- **Some view switches are account settings.** The activity page stores its chart picks,
+  chart order and map provider as preferences (`activity_details_*_chart_selection`,
+  `map_provider_type`): leave those menus alone and note them.
+- `b.sh scroll @ref` ignores the ref unless a flag comes first: `scroll --wait 500 @ref`.
+- Pages that scroll an inner container screenshot only the first screen; scroll the
+  container and shoot again, or rely on `page-text.js`.
