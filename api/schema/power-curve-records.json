@@ -1,0 +1,60 @@
+{
+	"endpoint": "power-curve-records",
+	"path": "/fitnessstats-service/powerCurve",
+	"plugin": "GarminApi.cyclingPowerRecords",
+	"firstRecorded": "2026-10-11T19:31:12.775Z",
+	"updatedAt": "2026-10-11T19:31:12.775Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"endDate": {
+				"type": [
+					"null"
+				]
+			},
+			"entries": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"activityDate": {
+							"type": [
+								"null",
+								"string"
+							]
+						},
+						"activityId": {
+							"type": [
+								"null",
+								"number"
+							]
+						},
+						"duration": {
+							"type": [
+								"number"
+							]
+						},
+						"power": {
+							"type": [
+								"null",
+								"number"
+							]
+						}
+					}
+				}
+			},
+			"startDate": {
+				"type": [
+					"null"
+				]
+			}
+		}
+	}
+}

@@ -61,6 +61,11 @@ export function yearBefore(end: string): string {
 	return isoDay(363, new Date(`${end}T00:00:00Z`));
 }
 
+/** The day after `end`, for the power curve, whose end date is exclusive. */
+export function dayAfter(end: string): string {
+	return isoDay(-1, new Date(`${end}T00:00:00Z`));
+}
+
 /** The snapshot detail and epoch routes need a real id, so they start from the newest one listed. */
 async function newestSnapshot(
 	api: GarminApi,
@@ -159,6 +164,29 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(w.rangeStart, w.rangeEnd)],
 	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(w.rangeStart, w.rangeEnd)],
 	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(w.rangeStart, w.rangeEnd, "CYCLING")],
+	"training-status-daily": async (api, w) => [await api.trainingStatusDaily(w.days[0]!)],
+	"training-status-weekly": async (api, w) => [await api.trainingStatusWeekly(w.rangeStart, w.rangeEnd)],
+	"training-status-monthly": async (api, w) => [await api.trainingStatusMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"training-load-balance-latest": async (api, w) => [await api.trainingLoadBalance(w.days[0]!)],
+	"heat-altitude-acclimation-latest": async (api, w) => [await api.heatAltitudeAcclimation(w.days[0]!)],
+	"heat-altitude-acclimation-daily": async (api, w) => [await api.heatAltitudeAcclimationDaily(w.rangeStart, w.rangeEnd)],
+	"heat-altitude-acclimation-weekly": async (api, w) => [await api.heatAltitudeAcclimationWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"max-metrics-latest": async (api, w) => [await api.maxMetricsLatest(w.days[0]!)],
+	"max-metrics-weekly": async (api, w) => [await api.maxMetricsWeekly(w.rangeStart, w.rangeEnd)],
+	"max-metrics-monthly": async (api, w) => [await api.maxMetricsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"running-economy-daily": async (api, w) => [await api.runningEconomyDaily(w.rangeStart, w.rangeEnd)],
+	"running-economy-weekly": async (api, w) => [await api.runningEconomyWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	// The power curve's end is exclusive, so the span runs to the day after.
+	"power-curve": async (api, w) => [await api.cyclingPowerCurve(yearBefore(w.rangeEnd), dayAfter(w.rangeEnd))],
+	"power-curve-records": async (api) => [await api.cyclingPowerRecords()],
+	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "weekly")],
+	"critical-swim-speed-latest": async (api, w) => [await api.criticalSwimSpeedLatest(w.days[0]!)],
+	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(w.rangeStart, w.rangeEnd)],
+	"hill-score-stats": async (api, w) => [await api.hillScoreStats(w.rangeStart, w.rangeEnd, "daily")],
+	"hrv-stress-daily": async (api, w) => [await api.hrvStressDaily(w.rangeStart, w.rangeEnd)],
+	"race-predictions-latest": async (api) => [await api.racePredictionsLatest()],
+	"race-predictions-monthly": async (api, w) => [await api.racePredictionsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"graphql-training-readiness-range": async (api, w) => [await api.trainingReadinessRange(w.rangeStart, w.rangeEnd)],
 	"daily-fitnessage-stats": async (api, w) => [await api.fitnessAgeDaily(w.rangeStart, w.rangeEnd)],
 	"weekly-fitnessage": async (api, w) => [await api.fitnessAgeWeekly(w.rangeEnd)],
 	"weight-latest": async (api, w) => [await api.weightLatest(w.days[0]!)],

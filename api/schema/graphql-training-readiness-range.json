@@ -1,0 +1,167 @@
+{
+	"endpoint": "graphql-training-readiness-range",
+	"path": "/graphql-gateway/graphql",
+	"plugin": "GarminApi.trainingReadinessRange",
+	"firstRecorded": "2026-10-11T19:31:13.621Z",
+	"updatedAt": "2026-10-11T19:31:13.621Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"acuteLoad": {
+					"type": [
+						"number"
+					]
+				},
+				"acwrFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"acwrFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"deviceId": {
+					"type": [
+						"number"
+					]
+				},
+				"feedbackLong": {
+					"type": [
+						"string"
+					]
+				},
+				"feedbackShort": {
+					"type": [
+						"string"
+					]
+				},
+				"hrvFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"hrvFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"hrvWeeklyAverage": {
+					"type": [
+						"number"
+					]
+				},
+				"inputContext": {
+					"type": [
+						"string"
+					]
+				},
+				"level": {
+					"type": [
+						"string"
+					]
+				},
+				"primaryActivityTracker": {
+					"type": [
+						"boolean"
+					]
+				},
+				"recoveryTime": {
+					"type": [
+						"number"
+					]
+				},
+				"recoveryTimeChangePhrase": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"recoveryTimeFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"recoveryTimeFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"score": {
+					"type": [
+						"number"
+					]
+				},
+				"sleepHistoryFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"sleepHistoryFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"sleepScore": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"sleepScoreFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"sleepScoreFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"stressHistoryFactorFeedback": {
+					"type": [
+						"string"
+					]
+				},
+				"stressHistoryFactorPercent": {
+					"type": [
+						"number"
+					]
+				},
+				"timestamp": {
+					"type": [
+						"string"
+					]
+				},
+				"timestampLocal": {
+					"type": [
+						"string"
+					]
+				},
+				"userProfilePK": {
+					"type": [
+						"number"
+					]
+				},
+				"validSleep": {
+					"type": [
+						"boolean"
+					]
+				}
+			}
+		}
+	}
+}

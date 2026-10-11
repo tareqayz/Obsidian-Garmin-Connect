@@ -1,0 +1,95 @@
+{
+	"endpoint": "heat-altitude-acclimation-latest",
+	"path": "/metrics-service/metrics/heataltitudeacclimation/latest/{date}",
+	"plugin": "GarminApi.heatAltitudeAcclimation",
+	"firstRecorded": "2026-10-11T19:31:11.482Z",
+	"updatedAt": "2026-10-11T19:31:11.482Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"acclimationPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"altitudeAcclimation": {
+				"type": [
+					"number"
+				]
+			},
+			"altitudeAcclimationDate": {
+				"type": [
+					"string"
+				]
+			},
+			"altitudeAcclimationLocalTimestamp": {
+				"type": [
+					"string"
+				]
+			},
+			"altitudeTrend": {
+				"type": [
+					"null"
+				]
+			},
+			"calendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"currentAltitude": {
+				"type": [
+					"number"
+				]
+			},
+			"heatAcclimationDate": {
+				"type": [
+					"string"
+				]
+			},
+			"heatAcclimationPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"heatTrend": {
+				"type": [
+					"string"
+				]
+			},
+			"previousAcclimationPercentage": {
+				"type": [
+					"number"
+				]
+			},
+			"previousAltitude": {
+				"type": [
+					"number"
+				]
+			},
+			"previousAltitudeAcclimation": {
+				"type": [
+					"number"
+				]
+			},
+			"previousAltitudeAcclimationDate": {
+				"type": [
+					"string"
+				]
+			},
+			"previousHeatAcclimationDate": {
+				"type": [
+					"string"
+				]
+			},
+			"previousHeatAcclimationPercentage": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,60 @@
+{
+	"endpoint": "race-predictions-monthly",
+	"path": "/metrics-service/metrics/racepredictions/monthly/{displayName}",
+	"plugin": "GarminApi.racePredictionsMonthly",
+	"firstRecorded": "2026-10-11T19:31:13.479Z",
+	"updatedAt": "2026-10-11T19:31:13.479Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"fromCalendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"time10K": {
+					"type": [
+						"number"
+					]
+				},
+				"time5K": {
+					"type": [
+						"number"
+					]
+				},
+				"timeHalfMarathon": {
+					"type": [
+						"number"
+					]
+				},
+				"timeMarathon": {
+					"type": [
+						"number"
+					]
+				},
+				"toCalendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"userId": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

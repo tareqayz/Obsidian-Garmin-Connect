@@ -1,0 +1,213 @@
+{
+	"endpoint": "training-status-monthly",
+	"path": "/metrics-service/metrics/trainingstatus/monthly/{displayName}",
+	"plugin": "GarminApi.trainingStatusMonthly",
+	"firstRecorded": "2026-10-11T19:31:11.211Z",
+	"updatedAt": "2026-10-11T19:31:11.211Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"fromCalendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"recordedDevices": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"category": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceId": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceName": {
+							"type": [
+								"string"
+							]
+						},
+						"imageURL": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"reportData": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"3611994638": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"acuteTrainingLoadDTO": {
+									"type": [
+										"object"
+									],
+									"fields": {
+										"acwrPercent": {
+											"type": [
+												"number"
+											]
+										},
+										"acwrStatus": {
+											"type": [
+												"string"
+											]
+										},
+										"acwrStatusFeedback": {
+											"type": [
+												"string"
+											]
+										},
+										"dailyAcuteChronicWorkloadRatio": {
+											"type": [
+												"number"
+											]
+										},
+										"dailyTrainingLoadAcute": {
+											"type": [
+												"number"
+											]
+										},
+										"dailyTrainingLoadChronic": {
+											"type": [
+												"number"
+											]
+										},
+										"maxTrainingLoadChronic": {
+											"type": [
+												"number"
+											]
+										},
+										"minTrainingLoadChronic": {
+											"type": [
+												"number"
+											]
+										}
+									}
+								},
+								"calendarDate": {
+									"type": [
+										"string"
+									]
+								},
+								"deviceId": {
+									"type": [
+										"number"
+									]
+								},
+								"fitnessTrend": {
+									"type": [
+										"number"
+									]
+								},
+								"fitnessTrendSport": {
+									"type": [
+										"string"
+									]
+								},
+								"loadLevelTrend": {
+									"type": [
+										"null"
+									]
+								},
+								"loadTunnelMax": {
+									"type": [
+										"null"
+									]
+								},
+								"loadTunnelMin": {
+									"type": [
+										"null"
+									]
+								},
+								"primaryTrainingDevice": {
+									"type": [
+										"boolean"
+									]
+								},
+								"sinceDate": {
+									"type": [
+										"null"
+									]
+								},
+								"sport": {
+									"type": [
+										"string"
+									]
+								},
+								"subSport": {
+									"type": [
+										"string"
+									]
+								},
+								"timestamp": {
+									"type": [
+										"number"
+									]
+								},
+								"trainingPaused": {
+									"type": [
+										"boolean"
+									]
+								},
+								"trainingStatus": {
+									"type": [
+										"number"
+									]
+								},
+								"trainingStatusFeedbackPhrase": {
+									"type": [
+										"string"
+									]
+								},
+								"weeklyTrainingLoad": {
+									"type": [
+										"null"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"showSelector": {
+				"type": [
+					"boolean"
+				]
+			},
+			"toCalendarDate": {
+				"type": [
+					"string"
+				]
+			},
+			"userId": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

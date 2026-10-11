@@ -243,7 +243,11 @@ export interface FitnessAge {
 	[key: string]: unknown;
 }
 
-/** Heat and altitude acclimation. Rides along with VO2 Max in both places Garmin sends it. */
+/**
+ * Heat and altitude acclimation. Rides along with VO2 Max in both places Garmin
+ * sends it, and has routes of its own (`heatAltitudeAcclimation*`). Altitudes
+ * in metres; trends `ACCLIMATIZING`, `ACCLIMATIZED`, `DEACCLIMATIZING` or null.
+ */
 export interface Acclimation {
 	calendarDate?: string;
 	heatAcclimationPercentage?: number | null;
@@ -251,6 +255,12 @@ export interface Acclimation {
 	altitudeAcclimation?: number | null;
 	altitudeTrend?: string | null;
 	currentAltitude?: number | null;
+	/** The reading before, which Training Status's "Trending Up from 79%" compares against. */
+	previousHeatAcclimationPercentage?: number | null;
+	previousAltitudeAcclimation?: number | null;
+	/** The days the two values were last worked out, which can trail `calendarDate`. */
+	heatAcclimationDate?: string | null;
+	altitudeAcclimationDate?: string | null;
 	[key: string]: unknown;
 }
 
@@ -669,6 +679,164 @@ export interface BiometricChange {
 	[key: string]: unknown;
 }
 
+/**
+ * One device's training status on one day, in every training status route.
+ * `trainingStatus` is a code the feedback phrase spells out (`MAINTAINING_2`);
+ * seen so far: 1 detraining, 2 unproductive, 4 maintaining, 5 recovery,
+ * 6 peaking, 7 productive, 8 strained. The acute load DTO carries the acute
+ * and chronic load and their ratio.
+ */
+export interface TrainingStatusEntry {
+	calendarDate?: string;
+	/** The day the status began; null on history rows. */
+	sinceDate?: string | null;
+	trainingStatus?: number | null;
+	trainingStatusFeedbackPhrase?: string | null;
+	trainingPaused?: boolean | null;
+	/** Epoch ms. */
+	timestamp?: number | null;
+	deviceId?: number;
+	primaryTrainingDevice?: boolean;
+	sport?: string | null;
+	acuteTrainingLoadDTO?: AcuteTrainingLoad | null;
+	[key: string]: unknown;
+}
+
+/** A device the training status routes hold readings from. */
+export interface RecordedDevice {
+	deviceId?: number;
+	deviceName?: string | null;
+	imageURL?: string | null;
+	[key: string]: unknown;
+}
+
+/** `trainingstatus/daily/{date}`: each device's status that day, keyed by device id. */
+export interface TrainingStatusDay {
+	latestTrainingStatusData?: Record<string, TrainingStatusEntry> | null;
+	recordedDevices?: RecordedDevice[] | null;
+	lastPrimarySyncDate?: string | null;
+	[key: string]: unknown;
+}
+
+/** `trainingstatus/weekly` and `/monthly`: each device's rows, oldest first, keyed by device id. */
+export interface TrainingStatusHistory {
+	fromCalendarDate?: string;
+	toCalendarDate?: string;
+	reportData?: Record<string, TrainingStatusEntry[]> | null;
+	recordedDevices?: RecordedDevice[] | null;
+	[key: string]: unknown;
+}
+
+/**
+ * Load focus on one device: each band's exercise load over the month to the
+ * day, and its optimal range. The phrase is the copy key
+ * (`AEROBIC_LOW_SHORTAGE`).
+ */
+export interface TrainingLoadBalanceEntry {
+	calendarDate?: string;
+	deviceId?: number;
+	primaryTrainingDevice?: boolean;
+	monthlyLoadAerobicLow?: number | null;
+	monthlyLoadAerobicHigh?: number | null;
+	monthlyLoadAnaerobic?: number | null;
+	monthlyLoadAerobicLowTargetMin?: number | null;
+	monthlyLoadAerobicLowTargetMax?: number | null;
+	monthlyLoadAerobicHighTargetMin?: number | null;
+	monthlyLoadAerobicHighTargetMax?: number | null;
+	monthlyLoadAnaerobicTargetMin?: number | null;
+	monthlyLoadAnaerobicTargetMax?: number | null;
+	trainingBalanceFeedbackPhrase?: string | null;
+	[key: string]: unknown;
+}
+
+/** `trainingloadbalance/latest/{date}`, keyed by device id. */
+export interface TrainingLoadBalance {
+	metricsTrainingLoadBalanceDTOMap?: Record<string, TrainingLoadBalanceEntry> | null;
+	recordedDevices?: RecordedDevice[] | null;
+	[key: string]: unknown;
+}
+
+/**
+ * Running economy, lower is better: a day (`calendarDate`) or a week
+ * (`startDate` to `endDate`). The ranges send every day or week of the span,
+ * `score` and `classification` null where there is none.
+ */
+export interface RunningEconomyScore {
+	calendarDate?: string;
+	startDate?: string;
+	endDate?: string;
+	score?: number | null;
+	/** `INTERMEDIATE`, `TRAINED`… */
+	classification?: string | null;
+	[key: string]: unknown;
+}
+
+/** The best average power held for `duration` seconds, and the ride it came from. */
+export interface PowerCurvePoint {
+	duration?: number;
+	/** Watts; null, with no ride, for a duration no ride lasted. */
+	power?: number | null;
+	activityId?: number | null;
+	activityDate?: string | null;
+	[key: string]: unknown;
+}
+
+/** A cycling power curve: 15 durations from 1 s to 5 h. The all-time form has null dates. */
+export interface PowerCurve {
+	startDate?: string | null;
+	/** As asked: the day after the span. */
+	endDate?: string | null;
+	entries?: PowerCurvePoint[] | null;
+	[key: string]: unknown;
+}
+
+/** Critical swim speed over a span. No results on the recording account, so both lists' rows are unconfirmed. */
+export interface CriticalSwimSpeedRange {
+	from?: string;
+	until?: string;
+	criticalSwimSpeedDTOList?: Array<Record<string, unknown>> | null;
+	aggregatedResults?: Array<Record<string, unknown>> | null;
+	[key: string]: unknown;
+}
+
+/**
+ * Hill score over a span: the average per period, keyed by the period's first
+ * day (one key, the span's start, with daily aggregation; a month's 1st with
+ * monthly), the span's best, and with daily aggregation the days, newest first.
+ */
+export interface HillScoreStats {
+	startDate?: string;
+	endDate?: string;
+	periodAvgScore?: Record<string, number | null> | null;
+	maxScore?: number | null;
+	/** Null with weekly and monthly aggregation. */
+	hillScoreDTOList?: HillScore[] | null;
+	[key: string]: unknown;
+}
+
+/**
+ * One Training Readiness reading. A day can have several: on waking, after an
+ * activity, during the day (`inputContext`). Times are wall-clock strings
+ * without a zone, GMT and local.
+ */
+export interface TrainingReadinessReading {
+	calendarDate?: string;
+	timestamp?: string | null;
+	timestampLocal?: string | null;
+	score?: number | null;
+	/** `POOR`, `HIGH`… */
+	level?: string | null;
+	inputContext?: string | null;
+	feedbackShort?: string | null;
+	feedbackLong?: string | null;
+	sleepScore?: number | null;
+	/** Minutes. */
+	recoveryTime?: number | null;
+	acuteLoad?: number | null;
+	hrvWeeklyAverage?: number | null;
+	[key: string]: unknown;
+}
+
 /* Health Stats pages. Range rows leave out days (and weeks) without data
    rather than zero-filling them, and arrive oldest first. */
 
@@ -1007,6 +1175,11 @@ function assertActivityId(id: number): number {
 	return id;
 }
 
+/** A profile id from Garmin's profile: a positive integer, or it never reaches a URL. */
+function isProfilePk(value: unknown): value is number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
 /* ------------------------------------------------------------------ */
 /*  API                                                                */
 /* ------------------------------------------------------------------ */
@@ -1066,6 +1239,20 @@ export class GarminApi extends GarminClient {
 			throw new GarminApiError("Garmin profile has no display name", 200, "");
 		}
 		return encodeURIComponent(this.displayName);
+	}
+
+	/**
+	 * The account's numeric id, `profileId` in the profile and `userProfilePk`
+	 * to the few routes keyed by it. It arrives with the display name, so it
+	 * costs a request only when no profile has been fetched this session.
+	 */
+	async requireProfilePk(): Promise<number> {
+		if (!isProfilePk(this.lastProfile?.profileId)) await this.socialProfile();
+		const pk = this.lastProfile?.profileId;
+		if (!isProfilePk(pk)) {
+			throw new GarminApiError("Garmin profile has no profile id", 200, "");
+		}
+		return pk;
 	}
 
 	async userSettings(): Promise<Record<string, unknown>> {
@@ -1373,6 +1560,265 @@ export class GarminApi extends GarminClient {
 			{ query: { sport, aggregation: "daily", aggregationStrategy: "LATEST" } },
 		);
 		return data ?? [];
+	}
+
+	/* Performance Stats history, as the web's report pages ask for it (survey
+	   2026-10-11). No range cap was seen; each route's catalogue notes give the
+	   spans the web asks. */
+
+	/** Each device's training status, acute and chronic load on one day: the Training Status page's Current view. */
+	async trainingStatusDaily(date: string): Promise<TrainingStatusDay | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/trainingstatus/daily/${date}`);
+	}
+
+	/**
+	 * Training status **a day**, whatever the route's name says: a row per day
+	 * per device under `reportData`, each with its acute/chronic load and ratio.
+	 * The Training Status 4w view, and the 28 days behind Training Readiness's
+	 * acute load timeline.
+	 */
+	async trainingStatusWeekly(start: string, end: string): Promise<TrainingStatusHistory | null> {
+		return this.trainingStatusRange("weekly", start, end);
+	}
+
+	/**
+	 * Training status **a week**, whatever the route's name says: a row on every
+	 * seventh day counted from `start` (2026-05-01 gives 05-07, 05-14 …), and
+	 * one for the newest day. The 6m and 1y views, 24 and 50 rows.
+	 */
+	async trainingStatusMonthly(start: string, end: string): Promise<TrainingStatusHistory | null> {
+		return this.trainingStatusRange("monthly", start, end);
+	}
+
+	private async trainingStatusRange(route: "weekly" | "monthly", start: string, end: string): Promise<TrainingStatusHistory | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const who = await this.requireDisplayName();
+		return this.request(`/metrics-service/metrics/trainingstatus/${route}/${who}`, {
+			query: { fromCalendarDate: start, toCalendarDate: end },
+		});
+	}
+
+	/**
+	 * Load focus as of a day, per device: each band's load over the month to
+	 * it and its optimal range (the web's dialog shows Sep 13 – Oct 11 for
+	 * Oct 11, and steps a day at a time).
+	 */
+	async trainingLoadBalance(date: string): Promise<TrainingLoadBalance | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/trainingloadbalance/latest/${date}`);
+	}
+
+	/** Heat and altitude acclimation as of a day, with the previous reading. */
+	async heatAltitudeAcclimation(date: string): Promise<Acclimation | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/heataltitudeacclimation/latest/${date}`);
+	}
+
+	/** Heat and altitude acclimation a day: the Training Status 4w charts. */
+	async heatAltitudeAcclimationDaily(start: string, end: string): Promise<Acclimation[]> {
+		return this.acclimationRange("daily", start, end);
+	}
+
+	/**
+	 * The same a week: a row on every seventh day counted from `start`, and one
+	 * for the newest day, as `trainingStatusMonthly`. The 6m and 1y charts.
+	 */
+	async heatAltitudeAcclimationWeekly(start: string, end: string): Promise<Acclimation[]> {
+		return this.acclimationRange("weekly", start, end);
+	}
+
+	private async acclimationRange(route: "daily" | "weekly", start: string, end: string): Promise<Acclimation[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<Acclimation[] | null>(
+			`/metrics-service/metrics/heataltitudeacclimation/${route}/${start}/${end}`,
+		)) ?? [];
+	}
+
+	/**
+	 * The newest VO2 Max as of a day (running's under `generic`, and `cycling`)
+	 * with the day's acclimation. `sport` is the VO2 Max report's running or
+	 * cycling route; without it, its All route.
+	 */
+	async maxMetricsLatest(date: string, sport?: "running" | "cycling"): Promise<MaxMetrics | null> {
+		assertIsoDate(date);
+		return this.request(`/metrics-service/metrics/maxmet/latest/${date}`, sport ? { query: { sport } } : {});
+	}
+
+	/**
+	 * VO2 Max a week: each of the account's weeks (Sunday to Saturday here) that
+	 * has a reading gives its newest, dated on `generic`/`cycling` (the
+	 * acclimation by the week's last day), then the newest day. Weeks without
+	 * one are left out. The VO2 Max 4w view, and Training Status's 6m and 1y,
+	 * which start on the Sunday on or before the span's first day.
+	 */
+	async maxMetricsWeekly(start: string, end: string, sport?: "running" | "cycling"): Promise<MaxMetrics[]> {
+		return this.maxMetricsRange("weekly", start, end, sport);
+	}
+
+	/** VO2 Max a month: each month's newest reading, then the newest day. The 6m and 1y views. */
+	async maxMetricsMonthly(start: string, end: string, sport?: "running" | "cycling"): Promise<MaxMetrics[]> {
+		return this.maxMetricsRange("monthly", start, end, sport);
+	}
+
+	private async maxMetricsRange(
+		route: "weekly" | "monthly",
+		start: string,
+		end: string,
+		sport?: "running" | "cycling",
+	): Promise<MaxMetrics[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<MaxMetrics[] | null>(
+			`/metrics-service/metrics/maxmet/${route}/${start}/${end}`,
+			sport ? { query: { sport } } : {},
+		)) ?? [];
+	}
+
+	/** Running economy a day, every day of the span (28 for the 4w view), null where there is none. */
+	async runningEconomyDaily(start: string, end: string): Promise<RunningEconomyScore[]> {
+		return this.runningEconomyRange("daily", start, end);
+	}
+
+	/**
+	 * Running economy a week: seven-day weeks counted from `start`, the last
+	 * one running past `end`, each with null where there is none. The 12w and
+	 * 1y views (53 rows for 2025-10-12 → 2026-10-11).
+	 */
+	async runningEconomyWeekly(start: string, end: string): Promise<RunningEconomyScore[]> {
+		return this.runningEconomyRange("weekly", start, end);
+	}
+
+	private async runningEconomyRange(route: "daily" | "weekly", start: string, end: string): Promise<RunningEconomyScore[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<RunningEconomyScore[] | null>(
+			`/metrics-service/metrics/runningeconomy/${route}`,
+			{ query: { startDate: start, endDate: end } },
+		)) ?? [];
+	}
+
+	/**
+	 * The cycling power curve over a span: the best average power for 15
+	 * durations, 1 s to 5 h, and the ride each came from.
+	 *
+	 * **`endExclusive` is the day after the span.** The web asks 2026-09-14 →
+	 * 2026-10-12 for the four weeks ending 2026-10-11, and 2026-08-01 →
+	 * 2026-11-01 for August to October.
+	 */
+	async cyclingPowerCurve(start: string, endExclusive: string): Promise<PowerCurve | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(endExclusive, "endExclusive");
+		return this.request("/fitnessstats-service/powerCurve", {
+			query: { startDate: start, endDate: endExclusive, sport: "cycling" },
+		});
+	}
+
+	/** The all-time cycling power curve, behind the web's Record line and Power Records table. */
+	async cyclingPowerRecords(): Promise<PowerCurve | null> {
+		return this.request("/fitnessstats-service/powerCurve", { query: { sport: "cycling" } });
+	}
+
+	/**
+	 * W/kg over a span, as `functionalThresholdPowerRange`'s rows. Without a
+	 * sport, as the FTP page asks (always weekly), every sport comes in one
+	 * payload with `series` naming each; the Running Lactate Threshold page asks
+	 * `Running`, daily, weekly or monthly.
+	 */
+	async powerToWeightRange(
+		start: string,
+		end: string,
+		aggregation: "daily" | "weekly" | "monthly",
+		sport?: "Running" | "Cycling",
+	): Promise<BiometricChange[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return (await this.request<BiometricChange[] | null>(
+			`/biometric-service/stats/powerToWeight/range/${start}/${end}`,
+			{ query: sport ? { aggregation, sport } : { aggregation } },
+		)) ?? [];
+	}
+
+	/** The newest critical swim speed result as of a day; null (HTTP 204) without one. Shape unconfirmed. */
+	async criticalSwimSpeedLatest(date: string): Promise<Record<string, unknown> | null> {
+		assertIsoDate(date);
+		return this.request(`/biometric-service/criticalSwimSpeed/latest/${date}`);
+	}
+
+	/**
+	 * Critical swim speed over a span: each result for the 7d view, or
+	 * `aggregation: "weekly"` for 12w and 1y, a form the web sends with a
+	 * trailing slash on the path, which is kept.
+	 */
+	async criticalSwimSpeedRange(start: string, end: string, aggregation?: "weekly"): Promise<CriticalSwimSpeedRange | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const path = `/biometric-service/criticalSwimSpeed/range/${start}/${end}`;
+		return aggregation ? this.request(`${path}/`, { query: { aggregation } }) : this.request(path);
+	}
+
+	/**
+	 * Hill score by REST, as the Hill Score page's 4w (daily), 12w (weekly) and
+	 * 1y (monthly) views ask for it. `hillScores` is the GraphQL route the sync
+	 * uses for the days alone.
+	 */
+	async hillScoreStats(start: string, end: string, aggregation: "daily" | "weekly" | "monthly"): Promise<HillScoreStats | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request("/metrics-service/metrics/hillscore/stats", {
+			query: { startDate: start, endDate: end, aggregation },
+		});
+	}
+
+	/**
+	 * HRV stress test results a day, the HRV Stress report's 7d and 4w. Keyed by
+	 * the account's numeric id rather than its display name. Always `[]` on the
+	 * recording account, so a row's shape is unconfirmed.
+	 */
+	async hrvStressDaily(start: string, end: string): Promise<Array<Record<string, unknown>>> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const pk = await this.requireProfilePk();
+		return (await this.request<Array<Record<string, unknown>> | null>(
+			`/metrics-service/internal/manualstresslevel/daily/${pk}/${start}/${end}`,
+		)) ?? [];
+	}
+
+	/** The newest race predictions: the Race Predictor's Most Recent view. */
+	async racePredictionsLatest(): Promise<RacePrediction | null> {
+		const who = await this.requireDisplayName();
+		return this.request(`/metrics-service/metrics/racepredictions/latest/${who}`);
+	}
+
+	/**
+	 * Race predictions a month, dated by the month's last day (the current
+	 * month's by its newest), as the 6m and 1y views plot them. A year at most,
+	 * like `racePredictions`.
+	 */
+	async racePredictionsMonthly(start: string, end: string): Promise<RacePrediction[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const who = await this.requireDisplayName();
+		return (await this.request<RacePrediction[] | null>(
+			`/metrics-service/metrics/racepredictions/monthly/${who}`,
+			{ query: { fromCalendarDate: start, toCalendarDate: end } },
+		)) ?? [];
+	}
+
+	/**
+	 * Every Training Readiness reading over a span, newest first: several a
+	 * day, 72 for 28 days on the recording account. Readiness history exists
+	 * only as this Home GraphQL query; the web's readiness page shows one day.
+	 */
+	async trainingReadinessRange(start: string, end: string): Promise<TrainingReadinessReading[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.graphql<{ trainingReadinessRangeScalar?: TrainingReadinessReading[] | null }>(
+			`query{trainingReadinessRangeScalar(startDate:"${start}", endDate:"${end}")}`,
+		);
+		return data.trainingReadinessRangeScalar ?? [];
 	}
 
 	/* Current-state endpoints: one call each per sync, for the account file. */

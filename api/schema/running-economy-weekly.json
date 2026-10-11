@@ -1,0 +1,42 @@
+{
+	"endpoint": "running-economy-weekly",
+	"path": "/metrics-service/metrics/runningeconomy/weekly",
+	"plugin": "GarminApi.runningEconomyWeekly",
+	"firstRecorded": "2026-10-11T19:31:12.489Z",
+	"updatedAt": "2026-10-11T19:31:12.489Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"classification": {
+					"type": [
+						"null",
+						"string"
+					]
+				},
+				"endDate": {
+					"type": [
+						"string"
+					]
+				},
+				"score": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"startDate": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

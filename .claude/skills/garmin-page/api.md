@@ -26,7 +26,9 @@ spans (stats daily ranges: 28 days, 29 → HTTP 400) and note how missing days a
 3. `api/endpoints.json` entry: `plugin`, `check: true`, `critical` (paths the plugin can't
    do without — losing one fails the check), `reads` (paths it tolerates missing),
    `schema`, `groups`, `cadence`, `notes`. GraphQL / plugin-only paths need
-   `"source": "plugin"` so regeneration keeps them.
+   `"source": "plugin"` so regeneration keeps them; GraphQL entries also name their
+   query's root field in `"graphql"`, which `summarize.mjs` matches captures on.
+   `{userProfilePk}` paths take `requireProfilePk()` (the profile's `profileId`).
 4. Probe in `scripts/api/probes.ts` under the same id (`tests/api-catalogue.test.ts` fails
    if checked entries and probes disagree, or a `plugin` method doesn't exist).
 5. Schema **without a token**: save one or more responses through `live-api.sh`, then
