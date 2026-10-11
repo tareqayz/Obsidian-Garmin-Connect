@@ -1,4 +1,4 @@
-import type { PeriodAxis } from "./periods";
+import { axisDay, dayAxis, type PeriodAxis } from "./periods";
 
 /**
  * Chart geometry the Health Stats pages share: a chart's frame, measured off
@@ -11,6 +11,11 @@ import type { PeriodAxis } from "./periods";
  * Each chart keeps the phone's insets and heights and stretches its plot
  * across whatever width it gets; a pane, where the chart sits in a 748pt
  * column, has a frame of its own.
+ *
+ * The Performance Stats line charts (VO₂ Max, Hill Score and the rest) share
+ * a second kit below: a `LineChartFrame` measured off the stat's twin, and
+ * `linePlot`, which lays out the gridlines, the axis and the points; with
+ * `stepAxis` for an axis that marks every n-th day.
  *
  * Pure.
  */
@@ -119,4 +124,110 @@ export function linePath(points: ReadonlyArray<[number, number | null]>): string
 		pen = true;
 	}
 	return d.trim();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Line charts (Performance Stats)                                    */
+/* ------------------------------------------------------------------ */
+
+/** A line chart's box, measured off a twin. */
+export interface LineChartFrame {
+	/** The plot's first x, and its last one's inset from the box's right edge; the gridlines run the same. */
+	left: number;
+	inset: number;
+	/** The top and the bottom gridline. */
+	top: number;
+	baseline: number;
+	/** The y labels' right edge. */
+	labelRight: number;
+	/** The axis' dots under the plot: a day's (small) and an end's or a labelled day's (large), centre and radius. */
+	axisDots: { small: { y: number; r: number }; large: { y: number; r: number } };
+	/** The axis labels' centre. */
+	labelY: number;
+	/** A reading's dot. */
+	pointRadius: number;
+	/** The box's height, down to whatever follows the chart. */
+	height: number;
+}
+
+export interface LinePlot {
+	width: number;
+	height: number;
+	/** The plot's ends. */
+	left: number;
+	right: number;
+	top: number;
+	baseline: number;
+	labelRight: number;
+	/** Top first. */
+	grid: Array<{ y: number; x1: number; x2: number; label: string }>;
+	dots: Array<{ x: number; y: number; r: number }>;
+	labels: Array<{ x: number; y: number; text: string }>;
+	points: Array<{ x: number; y: number }>;
+	/** The points joined straight, in order; empty for fewer than two. */
+	line: string;
+	pointRadius: number;
+}
+
+/** What a line chart draws: ticks top first, the axis' marks and the points as fractions of the plot. */
+export interface LineInput {
+	ticks: readonly number[];
+	axis: PeriodAxis;
+	points: ReadonlyArray<{ x: number; value: number }>;
+}
+
+/** A line chart at `width`, its box laid out by `frame`. A value off the ticks is drawn at the nearest one. */
+export function linePlot(frame: LineChartFrame, width: number, input: LineInput): LinePlot {
+	const right = Math.max(frame.left + 60, width - frame.inset);
+	const span = right - frame.left;
+	const lo = input.ticks.length ? Math.min(...input.ticks) : 0;
+	const hi = input.ticks.length ? Math.max(...input.ticks) : 1;
+	const x = (fraction: number) => r2(frame.left + fraction * span);
+	const y = (value: number) => r2(frame.baseline - ((Math.min(hi, Math.max(lo, value)) - lo) / (hi - lo || 1)) * (frame.baseline - frame.top));
+	const points = input.points.map((p) => ({ x: x(p.x), y: y(p.value) }));
+	return {
+		width,
+		height: frame.height,
+		left: frame.left,
+		right: r2(right),
+		top: frame.top,
+		baseline: frame.baseline,
+		labelRight: frame.labelRight,
+		grid: input.ticks.map((v) => ({ y: y(v), x1: frame.left, x2: r2(right), label: String(v) })),
+		dots: input.axis.dots.map((d) => {
+			const dot = d.large ? frame.axisDots.large : frame.axisDots.small;
+			return { x: x(d.x), y: dot.y, r: dot.r };
+		}),
+		labels: input.axis.labels.map((l) => ({ x: x(l.x), y: frame.labelY, text: l.text })),
+		points,
+		line: points.length > 1 ? points.map((p, i) => `${i ? "L" : "M"}${p.x} ${p.y}`).join(" ") : "",
+		pointRadius: frame.pointRadius,
+	};
+}
+
+/** An axis that marks every n-th day of a period rather than each one. */
+export interface AxisSteps {
+	/** Days between two marks, from the period's first day. */
+	every: number;
+	/** How many marks at most before the last day's, which always ends the axis. */
+	count: number;
+	/** Large and labelled "MM-DD": the two ends only, or every mark. */
+	labelled: "ends" | "all";
+}
+
+/**
+ * An axis from a period's first day to its last that marks `every` days
+ * from the first, `count` of them at most, then the last day: VO₂ Max's 12w
+ * (every 7 days, the ends labelled) and 6m (every 36, all labelled). Fewer
+ * than two days fall back to `dayAxis`.
+ */
+export function stepAxis(days: readonly string[], steps: AxisSteps): PeriodAxis {
+	const n = days.length;
+	if (n < 2) return dayAxis(days);
+	const at = [...Array.from({ length: steps.count }, (_, k) => k * steps.every).filter((d) => d < n - 1), n - 1];
+	const marks = at.map((d, i) => ({ x: d / (n - 1), large: steps.labelled === "all" || i === 0 || i === at.length - 1, day: days[d]! }));
+	return {
+		dots: marks.map(({ x, large }) => ({ x, large })),
+		labels: marks.filter((m) => m.large).map((m) => ({ x: m.x, text: axisDay(m.day) })),
+	};
 }

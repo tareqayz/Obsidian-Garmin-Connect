@@ -2,10 +2,11 @@ import type { AccountInfo } from "../sync/account";
 import type { Vo2MaxRow } from "../sync/vo2-max-index";
 import { latestWith, num, shortDate } from "./day";
 import { VO2_CLASSES, VO2_PERCENTILES, vo2Class, vo2Scale, type Gauge, type Sex, type Tone } from "./gauges";
-import { axisDay, canStepBack, dayAxis, daysBetween, daysOf, weekdayOf, type PeriodAxis, type PeriodRange, type Span } from "./periods";
+import { canStepBack, dayAxis, daysBetween, daysOf, weekdayOf, type PeriodAxis, type PeriodRange, type Span } from "./periods";
 import { PERFORMANCE_REGISTRY } from "./performance-stats";
 import { healthStatRoute, type HealthStatRoute } from "./routes";
 import type { DayRow } from "./series";
+import { stepAxis, type AxisSteps } from "./stat-charts";
 import { segmentsFromAngles } from "./stat-dial";
 import { statPeriodLabel, statSpan } from "./stat-registry";
 
@@ -264,22 +265,15 @@ export function vo2Ticks(values: readonly number[]): number[] {
 }
 
 /** The x axis' days past 4w's one a day: `every` days from the first, `count` of them, then the last; the ends or all of them large and labelled. */
-const X_TICKS: Partial<Record<PeriodRange, { every: number; count: number; labelled: "ends" | "all" }>> = {
+const X_TICKS: Partial<Record<PeriodRange, AxisSteps>> = {
 	"12w": { every: 7, count: 12, labelled: "ends" },
 	"6m": { every: 36, count: 5, labelled: "all" },
 };
 
 /** The x axis under a range's line, from the period's first day to its last. */
 export function vo2Axis(range: PeriodRange, days: readonly string[]): PeriodAxis {
-	const ticks = X_TICKS[range];
-	const n = days.length;
-	if (!ticks || n < 2) return dayAxis(days);
-	const at = [...Array.from({ length: ticks.count }, (_, k) => k * ticks.every).filter((d) => d < n - 1), n - 1];
-	const marks = at.map((d, i) => ({ x: d / (n - 1), large: ticks.labelled === "all" || i === 0 || i === at.length - 1, day: days[d]! }));
-	return {
-		dots: marks.map(({ x, large }) => ({ x, large })),
-		labels: marks.filter((m) => m.large).map((m) => ({ x: m.x, text: axisDay(m.day) })),
-	};
+	const steps = X_TICKS[range];
+	return steps ? stepAxis(days, steps) : dayAxis(days);
 }
 
 /** A range's line: 4w every reading, 12w and 6m each block's last; null for a period without one. */
