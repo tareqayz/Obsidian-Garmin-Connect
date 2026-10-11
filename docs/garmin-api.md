@@ -145,7 +145,7 @@ Six requests a day, for the `intraday` group:
 | `intensityMinutesChart(date)` | `/wellness-service/wellness/daily/im/{date}` | intensity minutes, in 15-minute buckets |
 | `bodyBatteryEvents(date)` | `/wellness-service/wellness/bodyBattery/events/{date}` | Body Battery events |
 
-These go to `<dataFolder>/series/<date>.json`, not frontmatter. See
+These go to `<dataFolder>/series/<date>.json`, not the day files. See
 [properties → intraday](properties.md#intraday). `INTRADAY_DAYS` in
 `src/sync/engine.ts` sets the window. A Health Stats page opening an older day
 asks for that day's blocks when it opens, one day at a time, and only while
@@ -170,7 +170,7 @@ day it started on.
 
 ## History index endpoints
 
-The pages inside Home read history indexes the sync keeps beside the notes (see
+The pages inside Home read history indexes the sync keeps beside the day files (see
 [properties → history indexes](properties.md#history-indexes)). These routes
 fill the ones that are not Health Stats:
 
@@ -190,7 +190,7 @@ write, and for any gap since the index's newest day.
 ## Health Stats pages
 
 The Health Stats pages read routes the Garmin Connect web app uses, seen in its
-own traffic on 2026-10-08, not the note sync's. A range route per page fills
+own traffic on 2026-10-08, not the day sync's. A range route per page fills
 that page's history index. A few day routes fill a 1d page when it opens. None
 is GraphQL.
 
@@ -292,16 +292,14 @@ Wiring one in means a page or a property to put it in; see
 A sync costs roughly:
 
 ```
-(per-day requests) × (days with a writable note)
+(per-day requests) × (days in the range)
   + 6 × (the newest seven of those days, for intraday)
   + a few per sync
 ```
 
 - **Per day**, with every group on, **nine** requests: the daily summary
   (which alone serves five groups), sleep, HRV, readiness, endurance, fitness
-  age, training status, body composition and Health Status. Days that are not
-  writable cost **nothing at all**, because `exists()` is consulted before any
-  request is made.
+  age, training status, body composition and Health Status.
 - **Per sync**:
   - about nine for `profile`;
   - one each for `maxMetrics` and `racePredictions` (one per year of a longer

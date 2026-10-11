@@ -15,7 +15,6 @@ import type { ActivityDetail, ActivityLoad } from "../sync/activity-detail";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import type { ActivitiesData } from "./activities";
-import { collectRows } from "./collect";
 import { unitsOf } from "./day";
 import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
@@ -37,7 +36,7 @@ const REMEMBERED_ACTIVITIES = 8;
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
  * the pages that open from it.
  *
- * Reads the day notes' frontmatter, that day's series file, `account.json`,
+ * Reads the day files, that day's series file, `account.json`,
  * the activity index, the daily stats index and the sleep index, and rebuilds
  * whenever any of them changes. Which page is open is part of the view's state, so a reload
  * returns to it.
@@ -94,7 +93,7 @@ export class GarminHomeView extends ItemView {
 		this.contentEl.empty();
 		this.contentEl.addClass("gch-view");
 		const today = toIsoDate();
-		const rows = this.rows();
+		const rows = await this.rows();
 		const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
 		const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 		this.component = mount(Home, {
@@ -146,9 +145,7 @@ export class GarminHomeView extends ItemView {
 		this.register(this.plugin.sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)));
 		this.register(this.plugin.sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)));
 
-		// Frontmatter lands through the metadata cache; the JSON files do not,
-		// so watch those directly.
-		this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
+		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {
 			const store = this.store();
 			// A registered index reaches only the pages that read it.
@@ -203,8 +200,8 @@ export class GarminHomeView extends ItemView {
 		return new VaultSeriesStore(this.app, this.plugin.data.settings.dataFolder);
 	}
 
-	private rows(): DayRow[] {
-		return collectRows(this.app, this.plugin.data.settings);
+	private rows(): Promise<DayRow[]> {
+		return this.store().readDays();
 	}
 
 	/** Today, or the newest synced day before it when today has not synced yet. */
@@ -222,7 +219,7 @@ export class GarminHomeView extends ItemView {
 			rows: index.rows,
 			complete: index.meta?.complete === true,
 			records: account?.personalRecords ?? [],
-			// The sync records the account's units; before it has, the notes say.
+			// The sync records the account's units; before it has, the day files say.
 			units: index.meta?.units ?? unitsOf(rows),
 		};
 		if (index.meta?.total !== undefined) data.total = index.meta.total;
@@ -231,7 +228,7 @@ export class GarminHomeView extends ItemView {
 
 	/**
 	 * What the Steps, Floors and Intensity Minutes pages read. The index has
-	 * no calories for the days only a history sync reached, so the notes fill
+	 * no calories for the days only a history sync reached, so the day files fill
 	 * those in: the same daily summary figure.
 	 */
 	private async buildStats(rows: DayRow[], units: StatsData["units"]): Promise<StatsData> {
@@ -311,8 +308,8 @@ export class GarminHomeView extends ItemView {
 		window.clearTimeout(this.pending);
 		this.pending = window.setTimeout(() => {
 			const today = toIsoDate();
-			const rows = this.rows();
-			void Promise.all([this.build(today, rows), this.buildActivities(rows)]).then(async ([model, activities]) => {
+			void this.rows().then(async (rows) => {
+				const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
 				const [stats, sleep] = await Promise.all([this.buildStats(rows, activities.units), this.buildSleep(activities.units)]);
 				this.component?.setModel(model, today);
 				this.component?.setActivities(activities);

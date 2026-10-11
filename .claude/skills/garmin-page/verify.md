@@ -9,7 +9,7 @@ its help. Helpers: `scripts/dev/ev.sh` (eval with retries), `capture-view.sh`, `
 - Hot Reload is not enabled. `npm run build`, then `obsidian plugin:reload id=garmin-connect`
   **once**: it prints nothing — check `app.plugins.plugins['garmin-connect']` with `ev.sh`
   instead of looping on its output.
-- A plugin load runs the startup sync (~50 Garmin requests, writes notes) when Sync on
+- A plugin load runs the startup sync (~50 Garmin requests, writes the day files) when Sync on
   startup is on — check `app.plugins.plugins['garmin-connect'].data.settings.syncOnStartup`
   with `ev.sh`, never `data.json` — and the history walks follow the first sync of a session.
   Batch fixes; never reload per tweak.

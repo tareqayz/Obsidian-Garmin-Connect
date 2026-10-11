@@ -21,19 +21,19 @@ the edge:
 So the same auth and API code runs unchanged on a phone, in Node, and against
 recorded responses.
 
-**2. The note target is injected.** The sync engine talks to a `NoteTarget`:
+**2. The day target is injected.** The sync engine talks to a `DayTarget`:
 
 ```ts
-interface NoteTarget {
+interface DayTarget {
 	exists(date: string): boolean;
 	write(date: string, properties: Properties): Promise<WriteOutcome>;
 }
 ```
 
 That is the whole contract. It keeps the engine — dates, budgets, back-off,
-partial failures — pure and testable with no Obsidian at all. Adding the
-data-folder mode required **no engine change**: it is one more `NoteTarget`, and
-"both" is `MultiTarget` wrapping two.
+partial failures — pure and testable with no Obsidian at all. Moving the days
+from note frontmatter to JSON files only swapped the target: it is now
+`VaultSeriesStore.writeDay`, which answers yes to every `exists()`.
 
 The reason "build `node-garminconnect` first, then consume it" fails is not that
 libraries are wrong. It is that a Node library bakes in Node assumptions
@@ -59,12 +59,10 @@ src/garmin/
   client.ts              authenticated transport: refresh, 401 retry
   endpoints.ts           typed API wrappers (extends client), the GraphQL gateway included
 src/sync/
-  metrics.ts             Garmin payloads → properties; groups, labels, the request budget — pure
+  metrics.ts             Garmin payloads → properties; groups and the request budget — pure
   numbers.ts             num / isFiniteNumber, for Garmin's nulls and stray strings — pure
-  diff.ts                the dirty check                  — pure
-  bases-view.ts          generates the Bases table view   — pure
-  link.ts                the graph hub link               — pure
-  engine.ts              orchestration, MultiTarget, the history walks — pure
+  days.ts                the day files: merging a day, a year file's text and parsing it — pure
+  engine.ts              orchestration, the DayTarget, the history walks — pure
   progress.ts            what a sync reports while it runs: the Notice's bar — pure
   intraday.ts            intraday payloads → the day's series file — pure
   account.ts             account.json: profile, watch, latest values, plans, records — pure
@@ -78,16 +76,15 @@ src/sync/
   intraday-registry.ts   on-view intraday loads: the series file's own blocks, extras, loadDay — pure
   intraday-extras.ts     INTRADAY_EXTRAS, the registered extras — pure
   activity-detail.ts     an activity's page file: its blocks, building it, loadActivity — pure
-  series-store.ts        series files, account.json, every index and activity file on disk
-  daily-note.ts          NoteTarget: your daily notes
-  data-folder.ts         NoteTarget: one note per day
-  frontmatter.ts         shared dirty-checked write
+  series-store.ts        the day files, series files, account.json, every index and activity
+                         file on disk
+  import-notes.ts        the one-time copy of old builds' day notes into the day files
+  vault-paths.ts         ensureFolder, trimSlashes
   runner.ts              settings → a run, the history walks in turn, reporting
 src/dashboard/
   home-view.ts           the Home ItemView: rows, series files, account.json, the indexes
   legacy-view.ts         turns a saved tab of the retired classic dashboard into Home
   routes.ts              the page stack inside the Home view, and reading it back — pure
-  collect.ts             reads days back out of the vault
   series.ts              DayRow, shiftDate, duration       — pure
   day.ts                 day-row lookups and date/number wording — pure
   periods.ts             the periods a range stat pages through: spans, 1y weeks, card routes,
@@ -162,12 +159,11 @@ a workspace saved with that tab opens Home instead of a dead leaf.
 ## Request flow for one sync
 
 ```
-runner.ts        reads settings → builds SyncOptions, picks the NoteTarget(s)
+runner.ts        reads settings → builds SyncOptions and the DayTarget (the day files)
    │
 engine.ts        syncRange: endpointsFor(groups) → only the calls this config needs
-   │               ├─ target.exists(date)? no, and not creating → skip, no request
    │               ├─ the activity list (workouts), merged into the activity index
-   │               │  (series-store.ts) even when no note in the range is due
+   │               │  (series-store.ts)
    │               ├─ range calls, once for the window: maxMetrics and racePredictions
    │               │  (a request per 365 days), hillScores, runningTolerance and
    │               │  healthSnapshots (a request per 28 days)
@@ -179,39 +175,34 @@ engine.ts        syncRange: endpointsFor(groups) → only the calls this config 
    │               │  Body Battery), heartRate, steps, floors, intensity minutes,
    │               │  Body Battery events → the day's series file
    │               └─ after the days: the daily stats index (steps, floors and
-   │                  minutes from the summaries; the range endpoints for days without
-   │                  a note, 3 requests per 28 days), the sleep index, then each
+   │                  minutes from the summaries; the range endpoints for days whose
+   │                  summary failed, 3 requests per 28 days), the sleep index, then each
    │                  registered day index whose group is on (see the Health Stats
    │                  foundation below)
    │
 metrics.ts       mapDay(payloads) → canonical properties     (pure)
    │
-link.ts          withLink() adds the graph hub property      (pure)
-   │
-frontmatter.ts   diff against existing frontmatter
-   │               └─ nothing would change → "unchanged", file untouched
-   │
-target.write()   data-folder note, daily note, or both
+target.write()   series-store.ts writeDay: days.ts mergeDay over what the day held,
+   │               serializeDays → <dataFolder>/days/<year>.json
+   │               └─ same text → "unchanged", file untouched
    │
 runner.ts        after the days: account.json (profile, about nine requests a
-                 sync), and the Bases view the first time a note is written
+                 sync)
 ```
 
-Two details in there carry real weight:
+One detail in there carries real weight:
 
-- **`exists()` is consulted before any request.** A day with nowhere to go costs
-  nothing, which is what makes a sparse daily-notes range cheap.
 - **Range endpoints are called once for the window, not once per day.**
   `maxMetrics`, `racePredictions`, the activity list and the other range calls
   all take a range or a page, so the request budget is roughly *per-day calls ×
-  days with notes*, plus six intraday calls for each of the newest seven days,
+  days*, plus six intraday calls for each of the newest seven days,
   plus a small constant. The settings tab shows each group's share
   (`REQUESTS_PER_DAY`, `FREE_GROUPS`, `REQUESTS_PER_SYNC`, `RANGE_GROUPS`).
 
 ## The activity index and the pages inside Home
 
 The Activities pages need every activity with Garmin's raw numbers, which the
-day notes cannot give them (see `docs/properties.md`, "The activity index"). So
+day files cannot give them (see `docs/properties.md`, "The activity index"). So
 the activity list feeds a second store, `<dataFolder>/activities/`:
 
 ```
@@ -241,14 +232,14 @@ index"):
 ```
 engine.ts       rowFromSummary ← each day's summary, at no cost ──┐
                 feedDailyStats → the range endpoints, for days  ──┤
-                                 without a note and any gap         │
+                                 without a summary and any gap      │
                 fetchDailyStatsHistory → 28 days a window, back ──┤   (the history: ~40 requests / year)
                                                                     ▼
 daily-stats.ts      mergeDays · extendCoverage · serializeYear     (pure)
                                                                     ▼
 series-store.ts     mergeDailyStats: one file per year, rewritten only on change
                                                                     ▼
-home-view.ts        readDailyStats + the notes' calories → stats-pages.ts → the pages
+home-view.ts        readDailyStats + the day files' calories → stats-pages.ts → the pages
 ```
 
 A day's chart reads that day's series file, read when the page asks for it; the
@@ -584,22 +575,18 @@ declining. Different problems, different errors.
 1. Add the field to the payload interface in `src/garmin/endpoints.ts`.
 2. Map it in `mapDay` in `src/sync/metrics.ts`, using `metric()` so negative
    sentinels are dropped.
-3. Add a label to `METRIC_LABELS`, or a Bases column header falls back to the
-   raw key.
-4. If it deserves a column in the generated Bases view, add it to its group's
-   list in `PRIMARY`. Every other property is still written and queryable.
-5. If the endpoint is in the daily contract check, add the field's path to
+3. If the endpoint is in the daily contract check, add the field's path to
    `reads` on its entry in `api/endpoints.json` (`critical` if the plugin cannot
    do without it). See [api/README.md](../api/README.md).
-6. Add a test in `tests/metrics.test.ts`.
-7. Update [docs/properties.md](properties.md).
+4. Add a test in `tests/metrics.test.ts`.
+5. Update [docs/properties.md](properties.md).
 
 ### Add a metric group
 
 As above, plus:
 
-1. A new member of `MetricGroup` and `ALL_GROUPS` (display order), its `PRIMARY`
-   entry, and an entry in `endpointsFor()` so its requests are only made when
+1. A new member of `MetricGroup` and `ALL_GROUPS` (display order), and an
+   entry in `endpointsFor()` so its requests are only made when
    the group is on — all in `src/sync/metrics.ts`.
 2. Its cost for the settings tab, in the same file: `REQUESTS_PER_DAY`, or
    `FREE_GROUPS` when it rides along in the daily summary, `REQUESTS_PER_SYNC`
@@ -610,12 +597,6 @@ As above, plus:
    once while a group someone turned off stays off. Extend
    `tests/plugin-data.test.ts`.
 5. The group on the endpoint's entry in `api/endpoints.json` (`groups`).
-
-### Add a storage target
-
-Implement `NoteTarget` — two methods — and wire it in `runner.ts`. The engine
-needs no change. `src/sync/data-folder.ts` is the smaller of the two existing
-examples.
 
 ### Add a chart
 
@@ -635,8 +616,8 @@ without a DOM.
 but every row is built with Obsidian's own `Setting` API through a small action
 (`src/ui/svelte/obsidian-setting.ts`). Hand-rolled toggles and sliders would
 re-implement Obsidian's look and its mobile behaviour and get both subtly wrong.
-Svelte decides which rows exist, so switching storage mode shows and hides
-sections instead of rebuilding the pane and losing your scroll position.
+Svelte decides which rows exist, so a row can come and go without rebuilding
+the pane and losing your scroll position.
 
 [svelte-guide]: https://docs.obsidian.md/Plugins/Getting+started/Use+Svelte+in+your+plugin
 
@@ -650,7 +631,7 @@ refresh, then success" and "first DI client ID rejected, second accepted" are
 expressed.
 
 Nothing of ours is mocked. The fixtures sit at the **transport** seam and the
-engine's doubles sit at the **note-target** seam, so what is under test is the
+engine's doubles sit at the **day-target** seam, so what is under test is the
 real code. That is the payoff from the two seams.
 
 What the suite pins down beyond the seams:

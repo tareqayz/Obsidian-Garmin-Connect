@@ -42,44 +42,34 @@ a **Sync history** button. Each history also has its own command (below).
 
 ## Where the data goes
 
-**Settings → Storage → Where to put the data** picks the mode:
+Everything the sync writes is JSON in the data folder, `Garmin/data` by default
+(**Settings → Storage → Data folder**). It writes no notes, so your own notes
+are never touched, and every day is writable, so a backfill works from nothing.
 
-| Mode | Behaviour |
-| --- | --- |
-| **Data folder** (default) | One note per day, `Garmin/data/<date>.md`. Never touches notes you wrote, and every day is writable, so a backfill works from nothing. |
-| **Daily notes** | Properties go into your existing daily notes, prefixed `garmin_`. It writes only to notes that already exist unless you turn on **Create missing notes**. |
-| **Both** | Writes to each. |
+Each day's numbers go into a file per year, `days/<year>.json`, keyed by date,
+one day per line:
 
-A day note carries the day's numbers as frontmatter properties:
-
-```yaml
----
-date: 2026-09-12
-steps: 8432
-distance_km: 6.21
-resting_hr: 48
-sleep_hours: 7.5
-sleep_score: 82
-hrv_avg: 42
-training_readiness: 71
----
+```json
+{
+	"version": 1,
+	"year": 2026,
+	"days": {
+		"2026-09-12": {"steps":8432,"distance_km":6.21,"resting_hr":48,"sleep_hours":7.5,"sleep_score":82,"hrv_avg":42,"training_readiness":71}
+	}
+}
 ```
 
-Every property, with units and query examples, is in the
-[property reference](properties.md).
+Every key, with its units, is in the [property reference](properties.md).
 
-### The table view
-
-The first sync that writes something also creates a Bases table,
-`Garmin/Garmin Health.base`, so the notes read as one sortable table. It is
-created once and then left alone, so columns you change by hand survive. **Rebuild
-the table view** regenerates it from the current settings. In daily-notes mode
-there is no table view.
+Versions before this kept each day as a note with the numbers as properties,
+and generated a `Garmin Health.base` table view. The first load of a new build
+copies those days into the day files; see the
+[FAQ](FAQ.md#i-used-an-older-version-where-did-my-day-notes-go).
 
 ### History and series files
 
-The pages need more than a note per day can hold. These files sit under the data
-folder (`Garmin/data` by default) whatever the storage mode:
+The pages need more than a day's summary can hold. These files sit beside
+`days/` in the data folder:
 
 | Path | Holds | Filled by the group |
 | --- | --- | --- |
@@ -103,7 +93,7 @@ They are rewritten only when their content changes.
 ## What gets collected
 
 Sixteen metric groups, each switchable under **Settings → Metrics**, write
-about two hundred properties and fill the files above. Turning a group off stops
+about two hundred values into the day files and fill the files above. Turning a group off stops
 its requests, where it has any of its own:
 
 | Groups | Cost |
@@ -237,7 +227,7 @@ floors** and **Open intensity minutes**. Each has **1d / 7d / 4w / 1y** and
 
 - **Steps.**
   - A day's ring against its goal; the distance walked or run (not ridden or
-    swum, which is why it can be less than the note's `distance_km`);
+    swum, which is why it can be less than the day file's `distance_km`);
     calories; and the day's steps climbing through it.
   - A week or four weeks show each day against its goal, green when met, then
     the totals and the averages, which leave today out as the app does.
@@ -323,14 +313,11 @@ All are in the command palette under **Garmin Connect:**.
 
 | Other | What it does |
 | --- | --- |
-| **Rebuild the table view** | Regenerates `Garmin Health.base` from the current settings |
 | **Sign in to Garmin Connect** | Signs in, asking for an MFA code if Garmin wants one |
 | **Run diagnostics** | Four checks of sign-in and connectivity — see [Troubleshooting](troubleshooting.md#diagnostics) |
 
 ## How syncing behaves
 
-- **A day with nowhere to go costs nothing.** Whether a day is writable is
-  decided before any request is made.
 - **Re-syncing is free on disk.** If nothing would change, the file isn't
   touched, which matters with Obsidian Sync.
 - **It syncs more than one day on purpose.** Garmin keeps revising a day after

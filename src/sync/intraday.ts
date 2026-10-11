@@ -13,10 +13,10 @@ import { num } from "./numbers";
 /**
  * Garmin's intraday payloads → the per-day series file.
  *
- * Pure, like `metrics.ts`. The series cannot live in frontmatter: a day of
- * heart rate is several hundred points, and the metadata cache and every
- * frontmatter diff would carry all of them. So they go to a JSON file of their
- * own per day (see `series-store.ts`) and only a scalar or two reaches the note.
+ * Pure, like `metrics.ts`. The series cannot live in the day file: a day of
+ * heart rate is several hundred points, and every read of the days would carry
+ * all of them. So they go to a JSON file of their own per day (see
+ * `series-store.ts`) and only a scalar or two reaches the day's properties.
  *
  * Every timestamp is epoch milliseconds, UTC. Garmin mixes epoch numbers and
  * zone-less GMT strings across these endpoints; one convention on the way out
@@ -473,7 +473,7 @@ export function latestValue(points: readonly SeriesPoint[] | undefined): number 
  * The file body for one day.
  *
  * Stable output for the same input, so the store can skip a write by comparing
- * text — the same reason `writeFrontmatter` diffs before touching a note.
+ * text — a needless write bumps the file's mtime, which sync services propagate.
  */
 export function serializeSeries(date: string, series: DaySeries): string {
 	return `${JSON.stringify({ date, version: SERIES_VERSION, ...series })}\n`;

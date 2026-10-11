@@ -127,10 +127,10 @@ export function distanceOf(row: DayRow | undefined): { value: number; unit: "km"
 }
 
 /**
- * Which unit system the vault was synced in, read off the notes themselves.
+ * Which unit system the vault was synced in, read off the synced days themselves.
  *
  * The setting can say `auto`, which is only resolved at sync time, so the
- * newest note that carries a distance is the reliable answer.
+ * newest day that carries a distance is the reliable answer.
  */
 export function unitsOf(rows: readonly DayRow[]): "metric" | "imperial" {
 	for (let i = rows.length - 1; i >= 0; i--) {

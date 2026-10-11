@@ -15,7 +15,7 @@ import type {
 import { latestValue, type DaySeries } from "./intraday";
 
 /**
- * Garmin payloads → frontmatter properties.
+ * Garmin payloads → a day's properties, for the day file (`days.ts`).
  *
  * Pure: no Obsidian, no network, no clock beyond what is passed in. All the
  * fiddly decisions about units, sentinels and rounding live here so they can be
@@ -41,8 +41,7 @@ export type MetricGroup =
 	| "profile";
 
 /**
- * Display order, which is also the order properties land in a note and columns
- * in the Bases view. Grouped by what a reader is looking for rather than by
+ * Display order, which is also the order the settings list them in. Grouped by what a reader is looking for rather than by
  * which endpoint happens to serve it: `respiration` and `spo2` come out of the
  * same daily summary as `activity`, and cost nothing extra.
  */
@@ -244,7 +243,7 @@ function elevation(metres: number | undefined, units: MapOptions["units"]) {
  *
  * Garmin's qualitative fields come back as raw enum names — `BALANCED`,
  * `PRODUCTIVE_1`. They are left exactly as sent: they are stable enough to
- * filter a Bases view on, and prettifying them here would make the property
+ * filter on, and prettifying them here would make the property
  * unmatchable against Garmin's own vocabulary.
  */
 function label(value: unknown): string | undefined {
@@ -806,11 +805,11 @@ function height(stem: string, metres: number | undefined, units: MapOptions["uni
 }
 
 /**
- * One activity as a frontmatter row.
+ * One activity as a row of the day's `workouts` list.
  *
- * Deliberately a short row rather than everything Garmin sends: this lands
- * inside a list property in a note, and thirty keys per workout makes the
- * frontmatter unreadable for a person and slow for the metadata cache.
+ * Deliberately a short row rather than everything Garmin sends: the Activities
+ * pages read the activity index (`activity-index.ts`); this is only what Home's
+ * day needs.
  */
 function mapWorkout(activity: Activity, units: MapOptions["units"]): Record<string, unknown> {
 	const row: Record<string, unknown> = {};
@@ -875,261 +874,6 @@ export function pace(
 	if (!Number.isFinite(secondsPerUnit) || secondsPerUnit > 1800) return undefined;
 	const total = Math.round(secondsPerUnit);
 	return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-/** Human labels for the canonical keys: the Bases view's column names. */
-export const METRIC_LABELS: Record<string, string> = {
-	date: "Date",
-	steps: "Steps",
-	steps_goal: "Step goal",
-	distance_km: "Distance (km)",
-	distance_mi: "Distance (mi)",
-	calories: "Calories",
-	calories_active: "Active calories",
-	calories_bmr: "Resting calories",
-	calories_consumed: "Calories eaten",
-	floors: "Floors",
-	floors_descended: "Floors down",
-	floors_goal: "Floor goal",
-	intensity_minutes: "Intensity min",
-	intensity_moderate: "Moderate min",
-	intensity_vigorous: "Vigorous min",
-	intensity_goal: "Intensity goal",
-	active_minutes: "Active min",
-	highly_active_minutes: "Highly active min",
-	sedentary_minutes: "Sedentary min",
-	resting_hr: "Resting HR",
-	resting_hr_7d: "Resting HR (7d)",
-	min_hr: "Min HR",
-	max_hr: "Max HR",
-	sleep_hours: "Sleep (h)",
-	sleep_score: "Sleep score",
-	sleep_deep_hours: "Deep (h)",
-	sleep_light_hours: "Light (h)",
-	sleep_rem_hours: "REM (h)",
-	sleep_awake_hours: "Awake (h)",
-	sleep_start: "Sleep start",
-	sleep_end: "Sleep end",
-	sleep_quality: "Sleep quality",
-	sleep_quality_duration: "Sleep duration verdict",
-	sleep_quality_stress: "Sleep stress verdict",
-	sleep_quality_awakenings: "Awakenings verdict",
-	sleep_quality_rem: "REM verdict",
-	sleep_quality_light: "Light sleep verdict",
-	sleep_quality_deep: "Deep sleep verdict",
-	sleep_quality_restlessness: "Restlessness verdict",
-	sleep_feedback: "Sleep feedback",
-	sleep_insight: "Sleep insight",
-	sleep_need_hours: "Sleep need (h)",
-	sleep_need_baseline_hours: "Sleep need baseline (h)",
-	sleep_need_next_hours: "Sleep need tonight (h)",
-	sleep_need_feedback: "Sleep need feedback",
-	sleep_need_training_feedback: "Sleep need training",
-	sleep_need_history_adjustment: "Sleep need: history",
-	sleep_need_hrv_adjustment: "Sleep need: HRV",
-	sleep_need_nap_adjustment: "Sleep need: naps",
-	sleep_resting_hr: "Sleep resting HR",
-	sleep_avg_stress: "Sleep stress",
-	sleep_awake_count: "Awakenings",
-	sleep_restless_moments: "Restless moments",
-	sleep_respiration: "Sleep respiration",
-	sleep_spo2: "Sleep SpO2",
-	sleep_spo2_low: "Sleep SpO2 low",
-	sleep_body_battery_change: "Battery recharged",
-	nap_hours: "Naps (h)",
-	stress_avg: "Stress",
-	stress_max: "Stress max",
-	stress_qualifier: "Stress level",
-	stress_rest_minutes: "Rest min",
-	stress_low_minutes: "Low stress min",
-	stress_medium_minutes: "Medium stress min",
-	stress_high_minutes: "High stress min",
-	body_battery_high: "Body battery high",
-	body_battery_low: "Body battery low",
-	body_battery_latest: "Body battery now",
-	body_battery_charged: "Battery charged",
-	body_battery_drained: "Battery drained",
-	hrv_avg: "HRV",
-	hrv_high: "HRV high",
-	hrv_weekly_avg: "HRV weekly",
-	hrv_status: "HRV status",
-	hrv_baseline_low: "HRV baseline low",
-	hrv_baseline_high: "HRV baseline high",
-	training_readiness: "Readiness",
-	training_readiness_level: "Readiness level",
-	readiness_sleep_score: "Readiness sleep score",
-	readiness_hrv_factor: "Readiness HRV factor",
-	recovery_time_hours: "Recovery (h)",
-	acute_load: "Acute load",
-	readiness_feedback: "Readiness feedback",
-	readiness_feedback_long: "Readiness detail",
-	readiness_context: "Readiness context",
-	readiness_sleep_factor: "Readiness sleep factor",
-	readiness_sleep_feedback: "Readiness sleep",
-	readiness_recovery_factor: "Readiness recovery factor",
-	readiness_recovery_feedback: "Readiness recovery",
-	readiness_hrv_feedback: "Readiness HRV",
-	readiness_load_factor: "Readiness load factor",
-	readiness_load_feedback: "Readiness load",
-	readiness_sleep_history_factor: "Readiness sleep history factor",
-	readiness_sleep_history_feedback: "Readiness sleep history",
-	readiness_stress_history_factor: "Readiness stress history factor",
-	readiness_stress_history_feedback: "Readiness stress history",
-	readiness_hrv_weekly_avg: "Readiness HRV weekly",
-	vo2max: "VO2 Max",
-	vo2max_cycling: "VO2 Max (cycling)",
-	fitness_age: "Fitness age",
-	fitness_age_achievable: "Achievable fitness age",
-	fitness_age_previous: "Previous fitness age",
-	fitness_age_updated: "Fitness age updated",
-	chronological_age: "Age",
-	endurance_score: "Endurance score",
-	endurance_classification: "Endurance class",
-	endurance_feedback: "Endurance feedback",
-	endurance_gauge_low: "Endurance gauge low",
-	endurance_gauge_high: "Endurance gauge high",
-	endurance_intermediate_from: "Endurance: intermediate from",
-	endurance_trained_from: "Endurance: trained from",
-	endurance_well_trained_from: "Endurance: well trained from",
-	endurance_expert_from: "Endurance: expert from",
-	endurance_superior_from: "Endurance: superior from",
-	endurance_elite_from: "Endurance: elite from",
-	hill_score: "Hill score",
-	hill_score_strength: "Hill strength",
-	hill_score_endurance: "Hill endurance",
-	hill_score_classification: "Hill score class",
-	hill_score_feedback: "Hill score feedback",
-	heat_acclimation_pct: "Heat acclimation %",
-	heat_acclimation_trend: "Heat trend",
-	altitude_acclimation_m: "Altitude acclimation (m)",
-	altitude_acclimation_ft: "Altitude acclimation (ft)",
-	altitude_acclimation_trend: "Altitude trend",
-	race_5k: "5K prediction",
-	race_10k: "10K prediction",
-	race_half: "Half marathon",
-	race_marathon: "Marathon",
-	respiration_avg: "Respiration",
-	respiration_min: "Respiration min",
-	respiration_max: "Respiration max",
-	respiration_latest: "Respiration latest",
-	spo2_avg: "SpO2",
-	spo2_low: "SpO2 low",
-	spo2_latest: "SpO2 latest",
-	weight_kg: "Weight (kg)",
-	weight_lb: "Weight (lb)",
-	bmi: "BMI",
-	body_fat_pct: "Body fat %",
-	body_water_pct: "Body water %",
-	muscle_mass_kg: "Muscle (kg)",
-	muscle_mass_lb: "Muscle (lb)",
-	bone_mass_kg: "Bone (kg)",
-	bone_mass_lb: "Bone (lb)",
-	training_status: "Training status",
-	training_load_weekly: "Weekly load",
-	training_load_acute: "Acute load (7d)",
-	training_load_chronic: "Chronic load (28d)",
-	training_load_ratio: "Load ratio",
-	training_load_status: "Load status",
-	training_load_feedback: "Load feedback",
-	training_load_optimal_min: "Optimal load min",
-	training_load_optimal_max: "Optimal load max",
-	training_load_tunnel_min: "Load tunnel min",
-	training_load_tunnel_max: "Load tunnel max",
-	training_status_since: "Status since",
-	fitness_trend: "Fitness trend",
-	load_aerobic_low: "Low aerobic load",
-	load_aerobic_low_target_min: "Low aerobic target min",
-	load_aerobic_low_target_max: "Low aerobic target max",
-	load_aerobic_high: "High aerobic load",
-	load_aerobic_high_target_min: "High aerobic target min",
-	load_aerobic_high_target_max: "High aerobic target max",
-	load_anaerobic: "Anaerobic load",
-	load_anaerobic_target_min: "Anaerobic target min",
-	load_anaerobic_target_max: "Anaerobic target max",
-	load_focus: "Load focus",
-	running_tolerance: "Running tolerance",
-	running_tolerance_load: "Running impact load",
-	running_tolerance_distance_km: "Running tolerance distance (km)",
-	running_tolerance_distance_mi: "Running tolerance distance (mi)",
-	running_tolerance_feedback: "Running tolerance feedback",
-	health_status_outliers: "Health status outliers",
-	health_hrv: "Health: HRV",
-	health_hrv_status: "Health: HRV status",
-	health_hrv_baseline_low: "Health: HRV baseline low",
-	health_hrv_baseline_high: "Health: HRV baseline high",
-	health_hr: "Health: HR",
-	health_hr_status: "Health: HR status",
-	health_hr_baseline_low: "Health: HR baseline low",
-	health_hr_baseline_high: "Health: HR baseline high",
-	health_spo2: "Health: SpO2",
-	health_spo2_status: "Health: SpO2 status",
-	health_spo2_baseline_low: "Health: SpO2 baseline low",
-	health_spo2_baseline_high: "Health: SpO2 baseline high",
-	health_respiration: "Health: respiration",
-	health_respiration_status: "Health: respiration status",
-	health_respiration_baseline_low: "Health: respiration baseline low",
-	health_respiration_baseline_high: "Health: respiration baseline high",
-	health_skin_temp_c: "Health: skin temp (°C)",
-	health_skin_temp_c_status: "Health: skin temp status",
-	health_skin_temp_c_baseline_low: "Health: skin temp baseline low (°C)",
-	health_skin_temp_c_baseline_high: "Health: skin temp baseline high (°C)",
-	health_skin_temp_f: "Health: skin temp (°F)",
-	health_skin_temp_f_status: "Health: skin temp status",
-	health_skin_temp_f_baseline_low: "Health: skin temp baseline low (°F)",
-	health_skin_temp_f_baseline_high: "Health: skin temp baseline high (°F)",
-	health_snapshots: "Health snapshots",
-	workouts: "Workouts",
-	hr_latest: "Latest HR",
-};
-
-/**
- * Namespacing is the target's job, not the mapper's: a daily note needs the
- * prefix to stay out of the user's own properties, while a note in a dedicated
- * folder reads better without one.
- */
-export function applyPrefix(properties: Properties, prefix: string): Properties {
-	if (!prefix) return properties;
-	const out: Properties = {};
-	for (const [key, value] of Object.entries(properties)) out[`${prefix}${key}`] = value;
-	return out;
-}
-
-/**
- * The subset of each group worth a column in the generated Bases view.
- *
- * A day note carries about two hundred keys, and a table that wide is not one
- * anyone reads. Everything left out is still written to the note and still
- * queryable — this only decides what the generated view opens with.
- */
-const PRIMARY: Record<MetricGroup, string[]> = {
-	activity: [
-		"steps",
-		"distance_km",
-		"distance_mi",
-		"calories_active",
-		"floors",
-		"intensity_minutes",
-	],
-	heart: ["resting_hr", "max_hr"],
-	sleep: ["sleep_hours", "sleep_score", "sleep_deep_hours", "sleep_rem_hours"],
-	stress: ["stress_avg", "body_battery_high", "body_battery_low"],
-	hrv: ["hrv_avg", "hrv_status"],
-	readiness: ["training_readiness", "recovery_time_hours"],
-	fitness: ["vo2max", "fitness_age", "endurance_score"],
-	races: ["race_5k", "race_10k", "race_half", "race_marathon"],
-	respiration: ["respiration_avg"],
-	spo2: ["spo2_avg"],
-	body: ["weight_kg", "weight_lb", "body_fat_pct"],
-	training: ["training_status", "training_load_ratio"],
-	workouts: ["workouts"],
-	intraday: [],
-	health: ["health_hrv_status", "health_hr_status"],
-	profile: [],
-};
-
-export function primaryKeysFor(groups: readonly MetricGroup[]): string[] {
-	const wanted = new Set(groups);
-	return ALL_GROUPS.filter((g) => wanted.has(g)).flatMap((g) => PRIMARY[g]);
 }
 
 /** Groups activities by the local calendar day they started on. */

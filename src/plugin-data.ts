@@ -3,6 +3,7 @@ import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings-data";
+import type { LegacyNotes } from "./sync/import-notes";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 
 /* Readers that accept only what they recognise, so nothing unexpected survives
@@ -67,6 +68,12 @@ export class PluginData implements TokenStore {
 	 */
 	home: HomeState = { preset: DEFAULT_PRESET, hidden: [] };
 
+	/**
+	 * Where a build before JSON-only storage wrote day notes, read once from
+	 * what it saved, for the import (`import-notes.ts`). Never saved again.
+	 */
+	legacyNotes: LegacyNotes = { dataFolder: DEFAULT_SETTINGS.dataFolder, dataFolderPrefix: "", prefix: "garmin_" };
+
 	private plugin: Plugin;
 	private auth: PersistedAuth | null = null;
 
@@ -95,22 +102,7 @@ export class PluginData implements TokenStore {
 				source.units === "metric" || source.units === "imperial" || source.units === "auto"
 					? source.units
 					: d.units,
-			storageMode:
-				source.storageMode === "dailyNotes" || source.storageMode === "both"
-					? source.storageMode
-					: d.storageMode,
 			dataFolder: nonEmpty(source.dataFolder, d.dataFolder),
-			dataFolderPrefix: text(source.dataFolderPrefix, d.dataFolderPrefix),
-			createBasesView: bool(source.createBasesView, d.createBasesView),
-			basesFolder: nonEmpty(source.basesFolder, d.basesFolder),
-
-			linkToBase: bool(source.linkToBase, d.linkToBase),
-			linkProperty: nonEmpty(source.linkProperty, d.linkProperty),
-
-			prefix: text(source.prefix, d.prefix),
-			dailyNoteFolder: text(source.dailyNoteFolder, d.dailyNoteFolder),
-			dailyNoteFormat: text(source.dailyNoteFormat, d.dailyNoteFormat),
-			createMissingNotes: bool(source.createMissingNotes, d.createMissingNotes),
 			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
 			downloadRuns: bool(source.downloadRuns, d.downloadRuns),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
@@ -121,6 +113,11 @@ export class PluginData implements TokenStore {
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
 		const migrated = this.migrate();
+		this.legacyNotes = {
+			dataFolder: this.settings.dataFolder,
+			dataFolderPrefix: text(source.dataFolderPrefix, ""),
+			prefix: text(source.prefix, "garmin_"),
+		};
 
 		// Same allowlist treatment as settings: a card or section this build does
 		// not know is dropped rather than drawn.

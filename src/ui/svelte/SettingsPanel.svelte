@@ -2,10 +2,8 @@
 	import { Notice } from "obsidian";
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
-	import { DAILY_NOTE_DEFAULTS, coreDailyNoteOptions } from "../../sync/daily-note";
 	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
-	import type { StorageMode } from "../../sync/runner";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
 
@@ -20,14 +18,9 @@
 	// Only the values that change what is *shown* need to be reactive. Everything
 	// else is written straight through by the control's own onChange, which is
 	// why changing a toggle no longer rebuilds the whole pane.
-	// svelte-ignore state_referenced_locally
-	let storageMode = $state(s.storageMode);
 	let groups = $state<MetricGroup[]>([...s.groups]);
 	// svelte-ignore state_referenced_locally
 	let signedIn = $state(plugin.garmin.session !== null);
-
-	// svelte-ignore state_referenced_locally
-	let core = coreDailyNoteOptions(plugin.app);
 
 	const GROUP_LABELS: Record<MetricGroup, string> = {
 		activity: "Activity — steps, distance, calories, floors, intensity and active minutes",
@@ -213,133 +206,22 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
-			.setName("Where to put the data")
+			.setName("Data folder")
 			.setDesc(
-				"A data folder keeps one note per day in a folder of its own, which never touches " +
-					"notes you wrote and lets you backfill days that have no note yet. Daily notes " +
-					"put the properties in the note you already keep for that day.",
+				"Everything the sync writes is JSON in this folder — a file a year for the days in days/, " +
+					"intraday charts in series/, and the activity, sleep and health indexes. " +
+					"Moving it does not move files already written.",
 			)
-			.addDropdown((d) =>
-				d
-					.addOption("dataFolder", "Data folder (one note per day)")
-					.addOption("dailyNotes", "Daily notes")
-					.addOption("both", "Both")
-					.setValue(s.storageMode)
+			.addText((t) =>
+				t
+					.setPlaceholder(DEFAULT_SETTINGS.dataFolder)
+					.setValue(s.dataFolder)
 					.onChange((v) => {
-						s.storageMode = v as StorageMode;
-						storageMode = s.storageMode;
+						s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder;
 						save();
 					}),
 			)}
 ></div>
-
-{#if storageMode !== "dailyNotes"}
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Data folder")
-				.addText((t) =>
-					t
-						.setPlaceholder(DEFAULT_SETTINGS.dataFolder)
-						.setValue(s.dataFolder)
-						.onChange((v) => {
-							s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder;
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Table view folder")
-				.setDesc(
-					"Where \"Garmin Health.base\" lives. Keeping it above the data folder keeps " +
-						"the day notes out of the way. Moving it does not move an existing file.",
-				)
-				.addText((t) =>
-					t
-						.setPlaceholder(DEFAULT_SETTINGS.basesFolder)
-						.setValue(s.basesFolder)
-						.onChange((v) => {
-							s.basesFolder = v.trim() || DEFAULT_SETTINGS.basesFolder;
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Property prefix in the data folder")
-				.setDesc("Blank by default — nothing in a folder of its own to collide with.")
-				.addText((t) =>
-					t
-						.setPlaceholder("(none)")
-						.setValue(s.dataFolderPrefix)
-						.onChange((v) => {
-							s.dataFolderPrefix = v;
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Table view")
-				.setDesc(
-					"Creates a Bases view over the data folder on the first sync that writes " +
-						"something. It is never overwritten once it exists.",
-				)
-				.addToggle((t) =>
-					t.setValue(s.createBasesView).onChange((v) => {
-						s.createBasesView = v;
-						save();
-					}),
-				)
-				.addButton((b) =>
-					b
-						.setButtonText("Rebuild now")
-						.setTooltip("Replaces the view with one matching your current settings")
-						.onClick(async () => {
-							new Notice(`Rebuilt ${await plugin.sync.rewriteBasesView()}`);
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Link every day to the table view")
-				.setDesc(
-					"Writes a link property on each day's note pointing at the Bases view, so the " +
-						"days hang off one hub instead of floating loose. Note that the graph view " +
-						"only draws edges between notes, and a .base file is not one.",
-				)
-				.addToggle((t) =>
-					t.setValue(s.linkToBase).onChange((v) => {
-						s.linkToBase = v;
-						save();
-					}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Link property name")
-				.addText((t) =>
-					t
-						.setPlaceholder(DEFAULT_SETTINGS.linkProperty)
-						.setValue(s.linkProperty)
-						.onChange((v) => {
-							s.linkProperty = v.trim() || DEFAULT_SETTINGS.linkProperty;
-							save();
-						}),
-				)}
-	></div>
-{/if}
 
 <h3>Metrics</h3>
 <p class="hint">
@@ -358,81 +240,6 @@
 				)}
 	></div>
 {/each}
-
-{#if storageMode !== "dataFolder"}
-	<h3>Daily notes</h3>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Property prefix in daily notes")
-				.setDesc(
-					`Prepended to every property, so "steps" becomes "${s.prefix}steps". Clear it at ` +
-						"your own risk — an unprefixed key can collide with your own.",
-				)
-				.addText((t) =>
-					t
-						.setPlaceholder("garmin_")
-						.setValue(s.prefix)
-						.onChange((v) => {
-							s.prefix = v;
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Folder")
-				.setDesc(
-					`Leave blank to follow the core Daily Notes plugin (currently "${core.folder || "vault root"}").`,
-				)
-				.addText((t) =>
-					t
-						.setPlaceholder(core.folder || "vault root")
-						.setValue(s.dailyNoteFolder)
-						.onChange((v) => {
-							s.dailyNoteFolder = v.trim();
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Date format")
-				.setDesc(
-					`Moment tokens. Leave blank to follow Daily Notes (currently "${core.format || DAILY_NOTE_DEFAULTS.format}").`,
-				)
-				.addText((t) =>
-					t
-						.setPlaceholder(core.format || DAILY_NOTE_DEFAULTS.format)
-						.setValue(s.dailyNoteFormat)
-						.onChange((v) => {
-							s.dailyNoteFormat = v.trim();
-							save();
-						}),
-				)}
-	></div>
-
-	<div
-		use:obsidianSetting={(setting) =>
-			setting
-				.setName("Create missing notes")
-				.setDesc(
-					"Off by default. While off, days without a daily note are skipped before any " +
-						"request is made, which also keeps request counts down.",
-				)
-				.addToggle((t) =>
-					t.setValue(s.createMissingNotes).onChange((v) => {
-						s.createMissingNotes = v;
-						save();
-					}),
-				)}
-	></div>
-{/if}
 
 <h3>Maps</h3>
 

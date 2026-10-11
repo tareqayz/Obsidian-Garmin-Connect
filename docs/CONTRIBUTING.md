@@ -115,8 +115,9 @@ Each of these will fail the automated review or the guidelines it checks:
 - [x] `manifest.json` `name` has no `(probe)`.
 - [x] `manifest.json` `description` is user-facing: under 250 characters, opens with a verb,
       ends in a period, and does not say "Obsidian".
-- [x] `minAppVersion` is honest: 1.9.10, the first release with Bases, which the generated
-      table view needs.
+- [ ] `minAppVersion` is honest. It is 1.9.10, set when the plugin generated a Bases table
+      view. The plugin no longer does, so check which APIs it still needs and lower it if
+      it can.
 - [x] `isDesktopOnly: false` still holds. `scripts/check-mobile-safe.mjs` runs in `npm run
       build`, and CI runs that on every pull request.
 - [x] The release workflow can create releases: `release.yml` asks for `contents: write`,

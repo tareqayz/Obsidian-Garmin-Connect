@@ -49,7 +49,7 @@ export interface StatsData {
 	 * start its weeks on Sunday.
 	 */
 	weekStart: number;
-	/** The day notes' calories, for days the index has none of its own. */
+	/** The day files' calories, for days the index has none of its own. */
 	calories: Readonly<Record<string, number>>;
 }
 

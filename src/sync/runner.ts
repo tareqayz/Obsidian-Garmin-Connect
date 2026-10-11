@@ -1,15 +1,11 @@
-import { Notice, TFile, normalizePath, type App } from "obsidian";
+import { Notice, type App } from "obsidian";
 import type { GarminApi } from "../garmin/endpoints";
 import { toIsoDate } from "../garmin/endpoints";
 import { GarminAuthError, GarminBlockedError, GarminRateLimitError } from "../garmin/errors";
 import type { Log } from "../log";
-import { basesView } from "./bases-view";
-import { DailyNoteTarget, resolveDailyNoteOptions } from "./daily-note";
-import { DataFolderTarget } from "./data-folder";
 import type { DayIndexDef, IndexHistoryProgress } from "./day-index";
 import { DAY_INDEXES, dayIndex } from "./day-indexes";
 import {
-	MultiTarget,
 	fetchAllActivities,
 	fetchDailyStatsHistory,
 	fetchSleepHistory,
@@ -18,49 +14,31 @@ import {
 	walkHistory,
 	type DailyStatsSink,
 	type DayIndexRuntime,
-	type NoteTarget,
+	type DayTarget,
 	type SleepSink,
 	type SyncReport,
 } from "./engine";
-import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, runsToDownload, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
-import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
-
-export type StorageMode = "dataFolder" | "dailyNotes" | "both";
 
 export interface RunnerSettings {
 	syncDays: number;
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
 
-	storageMode: StorageMode;
 	dataFolder: string;
-	dataFolderPrefix: string;
-	createBasesView: boolean;
-	basesFolder: string;
-
-	linkToBase: boolean;
-	linkProperty: string;
-
-	prefix: string;
-	dailyNoteFolder: string;
-	dailyNoteFormat: string;
-	createMissingNotes: boolean;
 
 	pauseBetweenDays: number;
 	stopAfterEmptyDays: number;
 	/** Download every run's page in the background, not only the ones opened. */
 	downloadRuns: boolean;
 }
-
-const BASES_FILE = "Garmin Health.base";
 
 /** Activities per request when paging the whole history. The list honours 100. */
 const HISTORY_PAGE = 100;
@@ -273,7 +251,7 @@ export class SyncRunner {
 		try {
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
-			const report = await syncRange(this.api, this.buildTarget(settings), {
+			const report = await syncRange(this.api, dayTarget(series), {
 				from,
 				to,
 				groups: settings.groups,
@@ -314,9 +292,6 @@ export class SyncRunner {
 					}
 				}
 			}
-
-			// Only worth creating once there is something for it to show.
-			if (report.written > 0) await this.ensureBasesView(settings, units);
 
 			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
 			return report;
@@ -871,108 +846,6 @@ export class SyncRunner {
 		}
 	}
 
-	private buildTarget(settings: RunnerSettings): NoteTarget {
-		const link = this.linkOption(settings);
-		const dataFolder = () =>
-			new DataFolderTarget(this.app, {
-				folder: settings.dataFolder,
-				prefix: settings.dataFolderPrefix,
-				link,
-			});
-		const dailyNotes = () =>
-			new DailyNoteTarget(
-				this.app,
-				resolveDailyNoteOptions(this.app, {
-					folder: settings.dailyNoteFolder,
-					format: settings.dailyNoteFormat,
-					createIfMissing: settings.createMissingNotes,
-					prefix: settings.prefix,
-					link,
-				}),
-			);
-
-		switch (settings.storageMode) {
-			case "dailyNotes":
-				return dailyNotes();
-			case "both":
-				return new MultiTarget([dataFolder(), dailyNotes()]);
-			default:
-				return dataFolder();
-		}
-	}
-
-	/* ---------------------------------------------------------------- */
-	/*  Bases view                                                       */
-	/* ---------------------------------------------------------------- */
-
-	/**
-	 * The link every day note points at, or nothing.
-	 *
-	 * Pointless without the view it links to, so a mode that never creates one
-	 * gets no link rather than a property resolving to a missing file.
-	 */
-	linkOption(settings = this.settings()): LinkOption | undefined {
-		if (!settings.linkToBase || !settings.linkProperty) return undefined;
-		if (settings.storageMode === "dailyNotes" || !settings.createBasesView) return undefined;
-		return { property: settings.linkProperty, target: linkTargetFor(this.basesPath(settings)) };
-	}
-
-	basesPath(settings = this.settings()): string {
-		const folder = trimSlashes(settings.basesFolder);
-		return normalizePath(folder ? `${folder}/${BASES_FILE}` : BASES_FILE);
-	}
-
-	/**
-	 * Creates the table view if it is not there. Never overwrites: once you have
-	 * adjusted columns or filters, a sync must not undo that.
-	 */
-	async ensureBasesView(
-		settings = this.settings(),
-		units?: "metric" | "imperial",
-	): Promise<"created" | "exists" | "skipped"> {
-		if (settings.storageMode === "dailyNotes" || !settings.createBasesView) return "skipped";
-		const path = this.basesPath(settings);
-		if (this.app.vault.getAbstractFileByPath(path)) return "exists";
-
-		const base = trimSlashes(settings.basesFolder);
-		if (base) await ensureFolder(this.app, base);
-		await this.app.vault.create(
-			path,
-			basesView({
-				// The filter follows the notes, which need not sit beside the view.
-				folder: trimSlashes(settings.dataFolder) || "/",
-				prefix: settings.dataFolderPrefix,
-				groups: settings.groups,
-				units: units ?? (await this.resolveUnits(settings.units)),
-			}),
-		);
-		return "created";
-	}
-
-	/** Rebuilds the view from current settings, replacing what is there. */
-	async rewriteBasesView(): Promise<string> {
-		const settings = this.settings();
-		const path = this.basesPath(settings);
-		const units = await this.resolveUnits(settings.units);
-		const content = basesView({
-			folder: trimSlashes(settings.dataFolder) || "/",
-			prefix: settings.dataFolderPrefix,
-			groups: settings.groups,
-			units,
-		});
-
-		const existing = this.app.vault.getAbstractFileByPath(path);
-		if (existing instanceof TFile) await this.app.vault.modify(existing, content);
-		else {
-			const folder = trimSlashes(settings.basesFolder);
-			if (folder) await ensureFolder(this.app, folder);
-			await this.app.vault.create(path, content);
-		}
-		return path;
-	}
-
-	/* ---------------------------------------------------------------- */
-
 	/** Ask Garmin which unit system the account uses, once per session. */
 	private async resolveUnits(setting: RunnerSettings["units"]): Promise<"metric" | "imperial"> {
 		if (setting !== "auto") return setting;
@@ -1162,6 +1035,11 @@ function sleepSink(store: VaultSeriesStore): SleepSink {
 }
 
 /** The engine's view of the daily stats index on disk. */
+/** Every day of the range is writable: the store makes the year file it needs. */
+function dayTarget(store: VaultSeriesStore): DayTarget {
+	return { exists: () => true, write: (date, properties) => store.writeDay(date, properties) };
+}
+
 function dailyStatsSink(store: VaultSeriesStore): DailyStatsSink {
 	return {
 		coverage: () => store.readDailyStatsMeta(),
