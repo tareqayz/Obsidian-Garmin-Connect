@@ -7,7 +7,8 @@
 	/**
 	 * Map Settings, the sheet behind the full-screen map's layers button: the
 	 * provider as plain text (OpenStreetMap only, no Map / Satellite / Terrain),
-	 * the Laps switch and the Data Overlay list, one choice at a time.
+	 * the Laps switch and the Data Overlay list, one choice at a time. The
+	 * sheet's title and close button are the modal's.
 	 *
 	 * Each choice reaches the map at once through `onLaps` / `onOverlay` and the
 	 * sheet stays open, as a settings sheet does. It was opened with the map's
@@ -26,7 +27,7 @@
 		onClose: () => void;
 	}
 
-	let { provider, laps: openedLaps, overlay: openedOverlay, overlays, onLaps, onOverlay, onClose }: Props = $props();
+	let { provider, laps: openedLaps, overlay: openedOverlay, overlays, onLaps, onOverlay }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let laps = $state(openedLaps);
@@ -46,11 +47,6 @@
 </script>
 
 <div class="map-settings">
-	<header class="head">
-		<span class="grabber"></span>
-		<h2>Map Settings</h2>
-		<button class="close" aria-label="Close" onclick={onClose}><span use:lucide={"x"}></span></button>
-	</header>
 	<div class="provider">{provider}</div>
 
 	<div class="caps">Distance Markers</div>
@@ -71,43 +67,11 @@
 </div>
 
 <style>
+	/* Its end clears a phone's home indicator. */
 	.map-settings {
-		max-height: 85vh;
-		overflow-y: auto;
-		padding-bottom: 24px;
+		padding-bottom: calc(24px + var(--safe-area-inset-bottom, 0px));
 		background: var(--background-secondary);
 		color: var(--text-normal);
-	}
-	.head {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		height: 56px;
-		padding: 0 16px;
-		background: var(--background-primary);
-	}
-	/* A sheet's handle, for a finger: a desktop dialog has none. */
-	.grabber {
-		position: absolute;
-		top: 5px;
-		left: 50%;
-		width: 36px;
-		height: 5px;
-		margin-left: -18px;
-		border-radius: 2.5px;
-		background: var(--text-faint);
-	}
-	@media (hover: hover) and (pointer: fine) {
-		.grabber {
-			display: none;
-		}
-	}
-	h2 {
-		margin: 2px 0 0;
-		font-size: 17px;
-		line-height: 22px;
-		font-weight: 700;
 	}
 	button {
 		margin: 0;
@@ -120,15 +84,6 @@
 		color: inherit;
 		text-align: left;
 		cursor: pointer;
-	}
-	.close {
-		display: inline-flex;
-		padding: 0;
-		color: var(--text-muted);
-	}
-	.close :global(svg) {
-		width: 20px;
-		height: 20px;
 	}
 	.provider {
 		padding: 22.2px 16px 0;

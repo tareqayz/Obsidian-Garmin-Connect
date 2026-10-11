@@ -1,18 +1,12 @@
 <script lang="ts">
-	import {
-		BENEFIT_CATEGORIES,
-		BENEFIT_CLOSING,
-		BENEFIT_MORE,
-		BENEFIT_MORE_TITLE,
-		BENEFIT_SHEET_TITLE,
-	} from "../../../../dashboard/activity-copy";
+	import { BENEFIT_CATEGORIES, BENEFIT_CLOSING, BENEFIT_MORE, BENEFIT_MORE_TITLE } from "../../../../dashboard/activity-copy";
 	import { BENEFIT_COLOR, type PrimaryBenefit } from "../../../../dashboard/activity-labels";
-	import { lucide } from "../../home/lucide";
 
 	/**
 	 * This Activity's Benefit, the sheet behind the Primary Benefit's "?":
 	 * the benefit with its category's dot and what it did, then Garmin's note on
-	 * the three categories. It draws its own header; the modal's is hidden.
+	 * the three categories. Its title, This Activity's Benefit, and its close
+	 * button are the modal's.
 	 */
 	interface Props {
 		benefit: PrimaryBenefit;
@@ -21,16 +15,10 @@
 		onClose: () => void;
 	}
 
-	let { benefit, message, onClose }: Props = $props();
+	let { benefit, message }: Props = $props();
 </script>
 
 <div class="benefit-sheet">
-	<span class="grabber"></span>
-	<header class="head">
-		<h2>{BENEFIT_SHEET_TITLE}</h2>
-		<button class="close" aria-label="Close" onclick={onClose}><span use:lucide={"x"}></span></button>
-	</header>
-
 	<div class="this">
 		{#if benefit.group}<span class="dot" style:background={BENEFIT_COLOR[benefit.group]}></span>{/if}
 		<span>{benefit.name}</span>
@@ -51,65 +39,18 @@
 </div>
 
 <style>
+	/* Below the modal's header, as far as Garmin's sheet sets it below its title;
+	   its end clears a phone's home indicator. */
 	.benefit-sheet {
-		position: relative;
-		max-height: 85vh;
-		overflow-y: auto;
 		box-sizing: border-box;
-		padding: 30.3px 16px 32px;
+		padding: 34px 16px calc(32px + var(--safe-area-inset-bottom, 0px));
 		background: var(--background-primary);
 		color: var(--text-normal);
-	}
-	/* A sheet's handle, for a finger: a desktop dialog has none. */
-	.grabber {
-		position: absolute;
-		top: 10px;
-		left: 50%;
-		width: 36px;
-		height: 5px;
-		margin-left: -18px;
-		border-radius: 2.5px;
-		background: var(--text-faint);
-	}
-	@media (hover: hover) and (pointer: fine) {
-		.grabber {
-			display: none;
-		}
-	}
-	.head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	h2 {
-		margin: 0;
-		font-size: 22px;
-		line-height: 28px;
-		font-weight: 600;
-	}
-	.close {
-		display: inline-flex;
-		flex: none;
-		margin: 0;
-		height: auto;
-		padding: 0;
-		border: none;
-		border-radius: 0;
-		box-shadow: none;
-		background: none;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-	.close :global(svg) {
-		width: 20px;
-		height: 20px;
 	}
 	.this {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin-top: 31.7px;
 		font-size: 16px;
 		line-height: 21px;
 		font-weight: 600;

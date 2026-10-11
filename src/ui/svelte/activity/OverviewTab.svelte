@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { benefitMessage } from "../../../dashboard/activity-copy";
+	import { BENEFIT_SHEET_TITLE, benefitMessage } from "../../../dashboard/activity-copy";
 	import { mapLegend, overlayFor } from "../../../dashboard/activity-map";
 	import { overviewView, type OverviewLink } from "../../../dashboard/activity-overview";
 	import { activityMapRoute } from "../../../dashboard/routes";
@@ -41,7 +41,7 @@
 
 	function openBenefit() {
 		const benefit = view.benefit;
-		if (benefit) openSheet(BenefitSheet, { benefit, message: benefitMessage(detail.summary.trainingEffectLabel) });
+		if (benefit) openSheet(BENEFIT_SHEET_TITLE, BenefitSheet, { benefit, message: benefitMessage(detail.summary.trainingEffectLabel) });
 	}
 
 	function linkIcon(link: OverviewLink): string {

@@ -136,8 +136,8 @@ export class GarminHomeView extends ItemView {
 				loadActivity: (id: number) => this.loadActivity(id),
 				cachedActivity: (id: number) => this.activities.get(id) ?? null,
 				tiles: () => this.tiles(),
-				openSheet: (<P extends SheetBodyProps>(body: Component<P>, props: Omit<P, "onClose">) =>
-					new SheetModal(this.app, body, props).open()) as OpenSheet,
+				openSheet: (<P extends SheetBodyProps>(title: string, body: Component<P>, props: Omit<P, "onClose">) =>
+					new SheetModal(this.app, title, body, props).open()) as OpenSheet,
 			},
 		});
 

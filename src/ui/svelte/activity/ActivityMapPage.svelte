@@ -53,7 +53,7 @@
 	function openSettings() {
 		const current = detail;
 		if (!current) return;
-		openSheet(MapSettings, {
+		openSheet("Map Settings", MapSettings, {
 			provider: tiles() ? "OpenStreetMap" : "Route only (map tiles off)",
 			laps: route.laps,
 			overlay,

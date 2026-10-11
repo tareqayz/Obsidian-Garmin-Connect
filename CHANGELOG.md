@@ -23,7 +23,8 @@ GitHub release takes its notes from the matching section here — see
     size with a second metric to compare.
 
   The page loads from Garmin the first time it opens and is kept in the vault,
-  in `activity-details/`.
+  in `activity-details/`. On a phone its sheets rise from the bottom and drag
+  down to close.
 - **Activity maps.** OpenStreetMap under the route, coloured by pace (or grade-
   adjusted pace, heart rate, power, elevation or run/walk), with lap markers.
   The full-screen map pans and pinches. **Settings → Maps → Map tiles** turns
