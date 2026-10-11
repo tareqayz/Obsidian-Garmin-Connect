@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { flushSync, onDestroy } from "svelte";
+	import { flip } from "svelte/animate";
 	import {
 		HOME_GLANCE,
 		MAX_GLANCE,
@@ -44,8 +46,8 @@
 	let changed = $derived(editing && !sameList(draft, list));
 	let full = $derived(draft.length >= MAX_GLANCE);
 
-	/* One keyed list, labels included, so a card keeps its element (and the
-	   pointer it captured) when a drag carries it across the eight-card line. */
+	/* One keyed list, labels included, so a card keeps its element, which a
+	   drag holds on to, when the drag carries it across the eight-card line. */
 	type Item = { key: string; label: string } | { key: GlanceId; id: GlanceId };
 	let items = $derived.by((): Item[] => {
 		const cards: Item[] = shown.map((id) => ({ key: id, id }));
@@ -61,12 +63,13 @@
 	}
 
 	function cancel() {
+		endDrag?.();
 		editing = false;
-		dragging = null;
 	}
 
 	function save() {
 		if (!changed) return;
+		endDrag?.();
 		onSave([...draft]);
 		editing = false;
 	}
@@ -99,53 +102,116 @@
 		e.preventDefault();
 	}
 
-	/* Dragging. The card under the pointer is found by hit-testing, and the
-	   dragged card takes its place as soon as the pointer is over it, so what
-	   is on screen is always the order that would be saved. */
+	/* Dragging. The card is lifted out of its cell and follows the pointer,
+	   held by the point it was picked up at, while the cell stays behind,
+	   dashed, as the place it will land. The card under the pointer is found by
+	   hit-testing, and the dragged card takes its place as soon as the pointer
+	   is over it, so the cells always show the order that would be saved; the
+	   cards it displaces slide out of the way. */
 	let grid = $state<HTMLElement | null>(null);
-	let scrollTimer = 0;
+	/** Puts the card in hand straight down in its cell, if one is held or settling. */
+	let endDrag: (() => void) | null = null;
+
+	onDestroy(() => endDrag?.());
+
+	const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+	/** How long a cell takes to slide to its new place: only while another card is dragged. */
+	function slide(key: string): number {
+		return dragging && key !== dragging && !calm() ? 200 : 0;
+	}
 
 	function startDrag(e: PointerEvent, id: GlanceId, grip: boolean) {
 		if (!editing || e.button !== 0) return;
 		// A touch that does not start on the grip is a scroll, not a drag.
 		if (!grip && e.pointerType !== "mouse") return;
 		if ((e.target as HTMLElement).closest(".remove")) return;
-		e.preventDefault();
 		const handle = e.currentTarget as HTMLElement;
+		const slot = handle.closest<HTMLElement>(".slot");
+		const lift = slot?.querySelector<HTMLElement>(".lift");
+		if (!slot || !lift) return;
+		e.preventDefault();
+		// One card at a time: one still settling, or held by another finger, is put down first.
+		endDrag?.();
 		handle.setPointerCapture(e.pointerId);
+		// A cell still sliding out of the last drag's way gets there now.
+		slot.parentElement?.getAnimations().forEach((a) => a.finish());
 		dragging = id;
-		let lastY = e.clientY;
 
-		const over = (x: number, y: number) => {
-			const slot = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-slot]");
-			const target = slot?.dataset.slot as GlanceId | undefined;
-			if (target && target !== id && draft.includes(target)) move(id, draft.indexOf(target));
+		const box = slot.getBoundingClientRect();
+		const grab = { x: e.clientX - box.left, y: e.clientY - box.top };
+		lift.style.transformOrigin = `${grab.x}px ${grab.y}px`;
+		let x = e.clientX;
+		let y = e.clientY;
+		let frame = 0;
+
+		const over = () => {
+			// What is under the pointer, beneath the card being carried.
+			const under = document.elementsFromPoint(x, y).find((el) => !lift.contains(el));
+			const cell = under?.closest<HTMLElement>("[data-slot]");
+			const target = cell?.dataset.slot as GlanceId | undefined;
+			// A card still sliding out of the way is passed over, or the two would trade places back and forth.
+			if (!cell || !target || target === id || !draft.includes(target) || cell.getAnimations().length) return;
+			move(id, draft.indexOf(target));
 		};
 		const onMove = (ev: PointerEvent) => {
-			lastY = ev.clientY;
-			over(ev.clientX, ev.clientY);
+			if (ev.pointerId !== e.pointerId) return;
+			x = ev.clientX;
+			y = ev.clientY;
+			over();
 		};
-		// Near the pane's top or bottom edge, keep scrolling while the pointer rests.
+		// Every frame: keep scrolling while the pointer rests near the pane's top
+		// or bottom edge, and put the card back under the pointer, wherever its
+		// cell has moved to.
 		const scroller = grid?.closest<HTMLElement>(".view-content") ?? null;
-		const tick = () => {
+		const follow = () => {
 			if (scroller) {
 				const r = scroller.getBoundingClientRect();
-				const step = lastY < r.top + 56 ? -14 : lastY > r.bottom - 56 ? 14 : 0;
+				const step = y < r.top + 56 ? -14 : y > r.bottom - 56 ? 14 : 0;
+				const top = scroller.scrollTop;
 				if (step) scroller.scrollTop += step;
+				if (scroller.scrollTop !== top) {
+					over();
+					flushSync();
+				}
 			}
-			scrollTimer = requestAnimationFrame(tick);
+			const at = slot.getBoundingClientRect();
+			lift.style.translate = `${x - grab.x - at.left}px ${y - grab.y - at.top}px`;
+			frame = requestAnimationFrame(follow);
 		};
-		scrollTimer = requestAnimationFrame(tick);
+		// Dropped: the card settles into its cell rather than jumping there.
+		const drop = (ev: PointerEvent) => {
+			if (ev.pointerId !== e.pointerId) return;
+			detach();
+			const { translate, scale } = getComputedStyle(lift);
+			lift.style.translate = "";
+			if (calm()) return end();
+			lift
+				.animate([{ translate, scale }, { translate: "0px 0px", scale: "1" }], { duration: 160, easing: "ease-out" })
+				.finished.then(end, end);
+		};
+		const detach = () => {
+			cancelAnimationFrame(frame);
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", drop);
+			window.removeEventListener("pointercancel", drop);
+		};
+		let ended = false;
 		const end = () => {
-			cancelAnimationFrame(scrollTimer);
-			dragging = null;
-			handle.removeEventListener("pointermove", onMove);
-			handle.removeEventListener("pointerup", end);
-			handle.removeEventListener("pointercancel", end);
+			if (ended) return;
+			ended = true;
+			detach();
+			lift.getAnimations().forEach((a) => a.cancel());
+			lift.style.translate = lift.style.transformOrigin = "";
+			if (dragging === id) dragging = null;
+			if (endDrag === end) endDrag = null;
 		};
-		handle.addEventListener("pointermove", onMove);
-		handle.addEventListener("pointerup", end);
-		handle.addEventListener("pointercancel", end);
+		endDrag = end;
+		// On the window: the handle loses its pointer capture when its cell moves.
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", drop);
+		window.addEventListener("pointercancel", drop);
+		frame = requestAnimationFrame(follow);
 	}
 </script>
 
@@ -167,33 +233,39 @@
 
 	<div class="glance" class:editing bind:this={grid}>
 		{#each items as item (item.key)}
-			{#if "label" in item}
-				<div class="group">{item.label}</div>
-			{:else}
-				<!-- Dragging the card itself is a mouse convenience; the grip is the
-				     control, for touch and keyboard alike, and carries the label.
-				     No aria-label here: Obsidian turns every one into a hover tooltip. -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="slot" class:dragging={dragging === item.id} data-slot={item.id} onpointerdown={(e) => startDrag(e, item.id, false)}>
-					<div class="face"><Glance id={item.id} {model} /></div>
-					{#if editing}
-						<button class="remove" aria-label="Remove {statFor(item.id).title}" onclick={() => remove(item.id)}>
-							<span use:lucide={"minus"}></span>
-						</button>
-						<button
-							class="grip"
-							aria-label="Move {statFor(item.id).title}. Use the arrow keys, or drag."
-							onpointerdown={(e) => {
-								e.stopPropagation();
-								startDrag(e, item.id, true);
-							}}
-							onkeydown={(e) => onKey(e, item.id)}
-						>
-							<span use:lucide={"grip-vertical"}></span>
-						</button>
-					{/if}
-				</div>
-			{/if}
+			<!-- Every item is one cell, the single element animate: needs. -->
+			<div class="cell" class:wide={"label" in item} data-slot={"id" in item ? item.id : undefined} animate:flip={{ duration: slide(item.key) }}>
+				{#if "label" in item}
+					<div class="group">{item.label}</div>
+				{:else}
+					<!-- Dragging the card itself is a mouse convenience; the grip is the
+					     control, for touch and keyboard alike, and carries the label.
+					     No aria-label here: Obsidian turns every one into a hover tooltip. -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="slot" class:dragging={dragging === item.id} onpointerdown={(e) => startDrag(e, item.id, false)}>
+						<!-- What leaves the cell and follows the pointer during a drag. -->
+						<div class="lift">
+							<div class="face"><Glance id={item.id} {model} /></div>
+							{#if editing}
+								<button class="remove" aria-label="Remove {statFor(item.id).title}" onclick={() => remove(item.id)}>
+									<span use:lucide={"minus"}></span>
+								</button>
+								<button
+									class="grip"
+									aria-label="Move {statFor(item.id).title}. Use the arrow keys, or drag."
+									onpointerdown={(e) => {
+										e.stopPropagation();
+										startDrag(e, item.id, true);
+									}}
+									onkeydown={(e) => onKey(e, item.id)}
+								>
+									<span use:lucide={"grip-vertical"}></span>
+								</button>
+							{/if}
+						</div>
+					</div>
+				{/if}
+			</div>
 		{/each}
 
 		{#if editing}
@@ -243,8 +315,15 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--gch-gap);
 	}
-	.group {
+	.cell {
+		display: flex;
+		min-width: 0;
+	}
+	.cell.wide {
 		grid-column: 1 / -1;
+	}
+	.group {
+		flex: 1;
 		color: var(--text-muted);
 		font-size: 12px;
 		line-height: 16px;
@@ -252,12 +331,14 @@
 		text-transform: uppercase;
 		margin-top: 8px;
 	}
-	.group:first-child {
+	.cell:first-child .group {
 		margin-top: 0;
 	}
-	.slot {
+	.slot,
+	.lift {
 		position: relative;
 		display: flex;
+		flex: 1;
 		min-width: 0;
 	}
 	/* Not ".card": Obsidian styles that class globally. */
@@ -278,14 +359,37 @@
 	.editing .slot {
 		cursor: grab;
 	}
-	.slot.dragging {
-		opacity: 0.55;
+	.slot.dragging,
+	.slot.dragging .grip {
 		cursor: grabbing;
 	}
-	.slot.dragging .face {
-		outline: 2px solid var(--interactive-accent);
-		outline-offset: 2px;
+	/* Where the dragged card will land: its own cell, dashed. */
+	.slot.dragging::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		border: 1.5px dashed var(--interactive-accent);
 		border-radius: 6px;
+	}
+	/* The card in hand, above the others. The script moves it with `translate`,
+	   which applies after this `scale`, so the point it was picked up at stays
+	   under the pointer. */
+	.slot.dragging .lift {
+		z-index: 10;
+		scale: 1.03;
+		transition: scale 120ms ease-out;
+	}
+	.slot.dragging .face {
+		border-radius: 6px;
+		box-shadow: var(--shadow-l);
+	}
+	.slot.dragging .remove {
+		visibility: hidden;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.slot.dragging .lift {
+			transition: none;
+		}
 	}
 	.remove,
 	.grip {

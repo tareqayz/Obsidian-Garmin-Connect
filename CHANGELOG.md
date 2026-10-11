@@ -37,6 +37,10 @@ GitHub release takes its notes from the matching section here — see
 
 - **Network use.** Activity maps load tiles from `tile.openstreetmap.org`,
   which sees which part of the map you open. See the README.
+- **Dragging a card on At a Glance's See All page.** The card now comes away
+  under the pointer and follows it, and a dashed outline marks where it will
+  land. The other cards slide out of its way, and on release it settles into
+  place. With reduced motion turned on, the cards move without sliding.
 
 ### Fixed
 
