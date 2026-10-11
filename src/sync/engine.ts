@@ -414,12 +414,16 @@ export async function syncRange(
 	const oldest = due[due.length - 1] ?? opts.from;
 	const newest = due[0] ?? opts.to;
 
+	/** Range parts that came back whole: what a `fromDay` index may read for every day of the run. */
+	const rangeOk = new Set<keyof DayData>();
+
 	let maxMetricsByDate = new Map<string, MaxMetrics>();
 	if (wanted.maxMetrics) {
 		const got = await fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b));
 		report.requests += got.requests;
 		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
 		else if (maxMetricsByDate.size === 0) {
 			note(report, log, "VO2 Max: Garmin returned no rows for this range");
@@ -433,6 +437,7 @@ export async function syncRange(
 		report.requests += got.requests;
 		racesByDate = byCalendarDate(got.rows);
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("races");
 		if (got.error) note(report, log, `race predictions: ${got.error}`);
 		else if (racesByDate.size === 0) {
 			note(report, log, "race predictions: Garmin returned no rows for this range");
@@ -445,6 +450,7 @@ export async function syncRange(
 		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), SHORT_RANGE_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("hillScore");
 		if (got.error) note(report, log, `hill score: ${got.error}`);
 		// Several devices can report the same day; the primary one wins.
 		hillByDate = byDate(
@@ -458,6 +464,7 @@ export async function syncRange(
 		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), SHORT_RANGE_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("runningTolerance");
 		if (got.error) note(report, log, `running tolerance: ${got.error}`);
 		toleranceByDate = byCalendarDate(got.rows);
 	}
@@ -519,6 +526,7 @@ export async function syncRange(
 			healthSnapshots: snapshotsByDate.get(date) ?? null,
 			series,
 		};
+		for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
 		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
 		const count = Object.keys(properties).length;
 
@@ -713,12 +721,12 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 /*  Registered day indexes                                             */
 /* ------------------------------------------------------------------ */
 
-/** A registered index during a run: what the run's daily summaries gave it. */
+/** A registered index during a run: what the run's daily summaries, or its days' payloads, gave it. */
 interface IndexRun {
 	runtime: DayIndexRuntime;
-	/** Rows from `def.fromSummary`. */
+	/** Rows from `def.fromSummary` or `def.fromDay`. */
 	rows: DayRow[];
-	/** Every day whose summary came back, row or not. */
+	/** Every day they covered, row or not. */
 	dates: Set<string>;
 }
 
@@ -728,6 +736,23 @@ function takeSummary(run: IndexRun, date: string, summary: DailySummary | null |
 	if (!read) return;
 	try {
 		const row = summary && typeof summary === "object" ? read(summary, date) : null;
+		run.dates.add(date);
+		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
+		if (clean) run.rows.push(clean);
+	} catch {
+		// The window fetch covers the day instead.
+	}
+}
+
+/**
+ * A synced day's payloads as a row for an index that reads them (`fromDay`).
+ * A day missing one of the parts it reads stays for the window fetch.
+ */
+function takeDay(run: IndexRun, date: string, data: DayData, came: (part: keyof DayData) => boolean): void {
+	const feed = run.runtime.def.fromDay;
+	if (!feed || !feed.needs.every(came)) return;
+	try {
+		const row = feed.read(data, date);
 		run.dates.add(date);
 		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
 		if (clean) run.rows.push(clean);
@@ -747,11 +772,12 @@ export interface IndexFeed {
 
 /**
  * Hands a registered index what a routine sync saw. `seen` is what the run's
- * daily summaries gave it, through `def.fromSummary`; with `fetchMissing`,
+ * daily summaries or day payloads gave it, through `def.fromSummary` or
+ * `def.fromDay`; with `fetchMissing`,
  * every other day of `from..to` is asked of the index's window fetch, and so
  * is any stretch between the index's newest day and `from`, so a vault left
  * closed for a fortnight comes back without a hole. An index without
- * `fromSummary` fetches the run's days that way too: one request per
+ * `fromSummary` or `fromDay` fetches the run's days that way too: one request per
  * `windowDays`. An index with `refreshDays` has its last days asked again
  * whether it holds them or not, for the rows Garmin revises late.
  */
@@ -1134,6 +1160,8 @@ interface DayFetch {
 	requests: number;
 	/** The daily summary came back, empty or not. */
 	summaryFetched: boolean;
+	/** The day's parts that came back, empty or not: what a `fromDay` index may read. */
+	ok: Set<keyof DayData>;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1164,13 +1192,16 @@ async function fetchDay(
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false };
+	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false, ok: new Set() };
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
 			if (name === "summary") out.summaryFetched = true;
 			if (isIntradayJob(name)) assignIntraday(out.intraday, name, result.value);
-			else assign(out.data, name, result.value);
+			else {
+				assign(out.data, name, result.value);
+				out.ok.add(name);
+			}
 			return;
 		}
 		// One endpoint being unavailable for one day must not lose the rest of

@@ -275,6 +275,39 @@ describe("Health Stats URLs", () => {
 	});
 });
 
+describe("Performance Stats URLs", () => {
+	const HOST = "https://connectapi.garmin.com";
+
+	it("builds the range calls without the profile", async () => {
+		const { http, client } = await api([{ url: HOST, json: [] }]);
+		await client.runningTolerance("2026-09-14", "2026-10-11");
+		await client.runningTolerance("2026-07-26", "2026-10-11", "weekly");
+		await client.enduranceStats("2026-07-20", "2026-10-11", "weekly");
+		await client.enduranceStats("2025-10-13", "2026-10-11", "monthly");
+		await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11");
+		await client.lactateThresholdSpeedRange("2025-10-13", "2026-10-11");
+		await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "CYCLING");
+		assert.deepEqual(http.urls.slice(-7), [
+			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-09-14&endDate=2026-10-11&aggregation=daily`,
+			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-07-26&endDate=2026-10-11&aggregation=weekly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2026-07-20&endDate=2026-10-11&aggregation=weekly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2025-10-13&endDate=2026-10-11&aggregation=monthly`,
+			`${HOST}/biometric-service/stats/lactateThresholdHeartRate/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/lactateThresholdSpeed/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-13/2026-10-11?sport=CYCLING&aggregation=daily&aggregationStrategy=LATEST`,
+		]);
+		assert.ok(!http.urls.some((u) => u.includes("socialProfile")));
+	});
+
+	it("reads an empty body as no data and refuses a bad date", async () => {
+		const { client } = await api([{ url: HOST, text: "" }]);
+		assert.equal(await client.enduranceStats("2026-07-20", "2026-10-11", "weekly"), null);
+		assert.deepEqual(await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11"), []);
+		assert.deepEqual(await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "RUNNING"), []);
+		await assert.rejects(() => client.lactateThresholdSpeedRange("2025-10-13", "11/10/2026"), TypeError);
+	});
+});
+
 describe("activities", () => {
 	it("passes paging through and tolerates a null body", async () => {
 		const { http, client } = await api([{ url: "/activitylist-service", text: "" }]);

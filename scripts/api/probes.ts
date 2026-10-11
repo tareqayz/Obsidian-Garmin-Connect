@@ -154,6 +154,11 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"health-status-summary": (api, w) => perDay(w, (d) => api.healthStatusSummary(d)),
 	"health-status-range": async (api, w) => [await api.healthStatusRange(w.rangeStart, w.rangeEnd)],
 	"hrv-data-range": async (api, w) => [await api.hrvDaily(w.rangeStart, w.rangeEnd)],
+	// Performance Stats pages.
+	"endurance-score-stats": async (api, w) => [await api.enduranceStats(w.rangeStart, w.rangeEnd, "weekly")],
+	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(w.rangeStart, w.rangeEnd)],
+	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(w.rangeStart, w.rangeEnd)],
+	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(w.rangeStart, w.rangeEnd, "CYCLING")],
 	"daily-fitnessage-stats": async (api, w) => [await api.fitnessAgeDaily(w.rangeStart, w.rangeEnd)],
 	"weekly-fitnessage": async (api, w) => [await api.fitnessAgeWeekly(w.rangeEnd)],
 	"weight-latest": async (api, w) => [await api.weightLatest(w.days[0]!)],

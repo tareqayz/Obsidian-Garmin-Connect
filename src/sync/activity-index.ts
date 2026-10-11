@@ -14,7 +14,15 @@ import { num } from "./numbers";
  * Pure. The engine hands it listings, the store reads and writes the files.
  */
 
-export const INDEX_VERSION = 1;
+/**
+ * 2 (2026-10-11): rows carry training effect, benefit, load and a ride's best
+ * powers, for the Performance Stats pages. An index of version 1 reads as
+ * none, so the history is listed again once (a request per 100 activities).
+ */
+export const INDEX_VERSION = 2;
+
+/** The durations, in seconds, Garmin keeps a ride's best average power for: the power curve's axis. */
+export const POWER_DURATIONS = [1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200, 18000] as const;
 
 export interface ActivityRow {
 	id: number;
@@ -35,6 +43,20 @@ export interface ActivityRow {
 	/** Metres climbed. */
 	ascent?: number;
 	calories?: number;
+	/** Training effect, 0–5 to a tenth. */
+	aerobic?: number;
+	anaerobic?: number;
+	/** The primary benefit, Garmin's key: LACTATE_THRESHOLD, VO2MAX, TEMPO… */
+	benefit?: string;
+	/** Copy keys for the two scales. */
+	aerobicMsg?: string;
+	anaerobicMsg?: string;
+	/** Exercise load. */
+	load?: number;
+	/** A ride's best average power in W, by duration in seconds (`POWER_DURATIONS`). */
+	power?: Record<string, number>;
+	/** The rider left this ride out of the power curve. */
+	noPowerCurve?: true;
 }
 
 export interface IndexMeta {
@@ -73,7 +95,26 @@ export function rowOf(activity: Activity): ActivityRow | null {
 	setPositive(row, "duration", activity.duration);
 	setPositive(row, "ascent", activity.elevationGain);
 	setPositive(row, "calories", activity.calories);
+	setTenth(row, "aerobic", activity.aerobicTrainingEffect);
+	setTenth(row, "anaerobic", activity.anaerobicTrainingEffect);
+	setWord(row, "benefit", activity.trainingEffectLabel);
+	setWord(row, "aerobicMsg", activity.aerobicTrainingEffectMessage);
+	setWord(row, "anaerobicMsg", activity.anaerobicTrainingEffectMessage);
+	setPositive(row, "load", activity.activityTrainingLoad);
+	const power = powerOf(activity);
+	if (power) row.power = power;
+	if (activity.excludeFromPowerCurveReports === true) row.noPowerCurve = true;
 	return withKeyOrder(row);
+}
+
+/** A ride's best powers keyed by seconds: from the list's `maxAvgPower_<seconds>` fields, or a stored row's `power`. */
+function powerOf(source: Record<string, unknown>): Record<string, number> | undefined {
+	const out: Record<string, number> = {};
+	for (const seconds of POWER_DURATIONS) {
+		const watts = num(source[`maxAvgPower_${seconds}`] ?? source[String(seconds)]);
+		if (watts !== undefined && watts > 0) out[String(seconds)] = Math.round(watts);
+	}
+	return Object.keys(out).length ? out : undefined;
 }
 
 /**
@@ -175,7 +216,8 @@ export function isYearFile(name: string): boolean {
 /* ------------------------------------------------------------------ */
 
 const START = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
-const NUMERIC = ["typeId", "parentTypeId", "distance", "duration", "ascent", "calories"] as const;
+const NUMERIC = ["typeId", "parentTypeId", "distance", "duration", "ascent", "calories", "aerobic", "anaerobic", "load"] as const;
+const WORDS = ["benefit", "aerobicMsg", "anaerobicMsg"] as const;
 
 function validRow(item: unknown): ActivityRow | null {
 	if (!item || typeof item !== "object") return null;
@@ -192,6 +234,12 @@ function validRow(item: unknown): ActivityRow | null {
 		const value = num(raw[key]);
 		if (value !== undefined) row[key] = value;
 	}
+	for (const key of WORDS) {
+		if (typeof raw[key] === "string" && raw[key]) row[key] = raw[key];
+	}
+	const power = raw.power && typeof raw.power === "object" ? powerOf(raw.power as Record<string, unknown>) : undefined;
+	if (power) row.power = power;
+	if (raw.noPowerCurve === true) row.noPowerCurve = true;
 	return withKeyOrder(row);
 }
 
@@ -208,6 +256,14 @@ function withKeyOrder(row: ActivityRow): ActivityRow {
 	if (row.duration !== undefined) out.duration = row.duration;
 	if (row.ascent !== undefined) out.ascent = row.ascent;
 	if (row.calories !== undefined) out.calories = row.calories;
+	if (row.aerobic !== undefined) out.aerobic = row.aerobic;
+	if (row.anaerobic !== undefined) out.anaerobic = row.anaerobic;
+	if (row.benefit !== undefined) out.benefit = row.benefit;
+	if (row.aerobicMsg !== undefined) out.aerobicMsg = row.aerobicMsg;
+	if (row.anaerobicMsg !== undefined) out.anaerobicMsg = row.anaerobicMsg;
+	if (row.load !== undefined) out.load = row.load;
+	if (row.power !== undefined) out.power = row.power;
+	if (row.noPowerCurve) out.noPowerCurve = true;
 	return out;
 }
 
@@ -231,8 +287,18 @@ function epochOfGmt(value: unknown): number | undefined {
 }
 
 /** To the centimetre, the hundredth of a second: past what any page shows, short of float noise. */
-function setPositive(row: ActivityRow, key: "distance" | "duration" | "ascent" | "calories", value: unknown): void {
+function setPositive(row: ActivityRow, key: "distance" | "duration" | "ascent" | "calories" | "load", value: unknown): void {
 	const n = num(value);
 	if (n !== undefined && n > 0) row[key] = Math.round(n * 100) / 100;
+}
+
+/** Training effect as Garmin shows it, a tenth: 4.300000190734863 → 4.3. Zero is a reading. */
+function setTenth(row: ActivityRow, key: "aerobic" | "anaerobic", value: unknown): void {
+	const n = num(value);
+	if (n !== undefined && n >= 0) row[key] = Math.round(n * 10) / 10;
+}
+
+function setWord(row: ActivityRow, key: "benefit" | "aerobicMsg" | "anaerobicMsg", value: unknown): void {
+	if (typeof value === "string" && value.trim()) row[key] = value.trim();
 }
 

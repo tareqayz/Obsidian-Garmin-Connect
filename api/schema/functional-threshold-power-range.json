@@ -1,0 +1,45 @@
+{
+	"endpoint": "functional-threshold-power-range",
+	"path": "/biometric-service/stats/functionalThresholdPower/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.functionalThresholdPowerRange",
+	"firstRecorded": "2026-10-11T18:35:06.203Z",
+	"updatedAt": "2026-10-11T18:35:06.203Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"from": {
+					"type": [
+						"string"
+					]
+				},
+				"series": {
+					"type": [
+						"string"
+					]
+				},
+				"until": {
+					"type": [
+						"string"
+					]
+				},
+				"updatedDate": {
+					"type": [
+						"string"
+					]
+				},
+				"value": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

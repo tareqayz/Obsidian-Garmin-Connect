@@ -405,3 +405,63 @@ describe("syncRange — registered day indexes", () => {
 		assert.equal(report.requests, 3);
 	});
 });
+
+/* ------------------------------------------------------------------ */
+/*  fromDay: rows from the day payloads a sync fetched anyway          */
+/* ------------------------------------------------------------------ */
+
+/** The training group alone: training status per day, running tolerance for the range. */
+function trainingSource(calls: string[], failOn?: string): SyncSource {
+	return new Proxy({} as SyncSource, {
+		get: (_, name: string) => async (a?: string, b?: string) => {
+			calls.push(`${name}:${a ?? ""}${b ? ` ${b}` : ""}`);
+			if (name === "runningTolerance") return [];
+			if (name !== "trainingStatus") throw new Error(`unexpected ${name}`);
+			if (a === failOn) throw new GarminApiError("server error", 500, "");
+			return { load: a === "2026-09-11" ? 410 : 400 };
+		},
+	});
+}
+
+const fromTraining = {
+	needs: ["training"] as const,
+	read: (day: { training?: unknown }) => ({ avg: (day.training as { load?: number } | null)?.load }),
+};
+
+describe("syncRange — fromDay", () => {
+	const base = { from: "2026-09-10", to: "2026-09-12", units: "metric" as const, wait: async () => {} };
+
+	it("feeds an index from the day payloads the run fetched anyway, at no request", async () => {
+		const calls: string[] = [];
+		const source = windows("2026-01-01", "2026-12-31");
+		const { rt, sink } = runtime({ group: "training", fromDay: fromTraining }, source.fetch);
+		sink.held = { from: "2026-01-01", to: "2026-09-09" };
+		const report = await syncRange(trainingSource(calls), new EveryDay(), { ...base, groups: ["training"], indexes: [rt] });
+		assert.deepEqual(source.calls, []);
+		assert.equal(report.requests, 4);
+		assert.deepEqual(
+			sink.merged[0]!.batch.rows.map((r) => [r.date, r.avg]),
+			[
+				["2026-09-12", 400],
+				["2026-09-11", 410],
+				["2026-09-10", 400],
+			],
+		);
+	});
+
+	it("leaves a day whose part failed to the window fetch, so a held row is not lost", async () => {
+		const source = windows("2026-01-01", "2026-12-31");
+		const { rt, sink } = runtime({ group: "training", fromDay: fromTraining }, source.fetch);
+		sink.held = { from: "2026-01-01", to: "2026-09-09" };
+		await syncRange(trainingSource([], "2026-09-11"), new EveryDay(), { ...base, groups: ["training"], indexes: [rt] });
+		assert.deepEqual(source.calls, ["2026-09-11 2026-09-11"]);
+		const batch = sink.merged[0]!.batch;
+		assert.deepEqual([...batch.dates].sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
+		assert.equal(batch.rows.find((r) => r.date === "2026-09-11")?.avg, 30);
+	});
+
+	it("refuses a definition fed both ways, or by nothing", () => {
+		assert.throws(() => defineDayIndex({ ...SPEC, fromSummary, fromDay: fromTraining }), /cannot both feed/);
+		assert.throws(() => defineDayIndex({ ...SPEC, fromDay: { needs: [], read: () => null } }), /at least one part/);
+	});
+});

@@ -1972,6 +1972,49 @@
 			]
 		},
 		{
+			"id": "endurance-score-stats",
+			"method": "GET",
+			"path": "/metrics-service/metrics/endurancescore/stats",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"aggregation"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "get_endurance_score",
+				"summary": "The range form of get_endurance_score (startdate and enddate); verified through the plugin's client 2026-10-11.",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": null
+			},
+			"plugin": "GarminApi.enduranceStats",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"avg",
+				"max",
+				"groupMap",
+				"groupMap.*.groupAverage",
+				"groupMap.*.groupMax",
+				"groupMap.*.enduranceContributorDTOList",
+				"enduranceScoreDTO"
+			],
+			"schema": "schema/endurance-score-stats.json",
+			"notes": "aggregation=weekly or monthly: {startDate, endDate, avg, max, groupMap keyed by each week's Monday or month's first day ({groupAverage, groupMax, enduranceContributorDTOList[{activityTypeId|group, contribution %}]}), enduranceScoreDTO = the span's newest day}. 12w 2026-07-20..10-11: avg 6436, max 6620; 1y 2025-10-13..2026-10-11 monthly: avg 7179, max 8582 (the phone's figures). The Endurance Score page's 12w and 1y views."
+		},
+		{
 			"id": "fitnessage-data",
 			"method": "GET",
 			"path": "/fitnessage-service/fitnessage/{date}",
@@ -2068,7 +2111,22 @@
 					"end"
 				],
 				"line": 1499
-			}
+			},
+			"plugin": "GarminApi.functionalThresholdPowerRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].from",
+				"[].until",
+				"[].value",
+				"[].updatedDate"
+			],
+			"schema": "schema/functional-threshold-power-range.json",
+			"notes": "Called per sport (RUNNING = the lactate threshold power, CYCLING, CROSS_COUNTRY_SKIING) with aggregation=daily, aggregationStrategy=LATEST: a row per day the FTP was updated, even when unchanged (cycling 274 W on 2025-10-13, 2025-11-02, 2026-10-08). The FTP page's history."
 		},
 		{
 			"id": "gear",
@@ -3099,7 +3157,22 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThresholdHeartRateRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].from",
+				"[].until",
+				"[].value",
+				"[].updatedDate"
+			],
+			"schema": "schema/lactate-threshold-stats-heart-rate-range.json",
+			"notes": "Called with sport=RUNNING, aggregation=daily, aggregationStrategy=LATEST: a row per day the running lactate threshold heart rate changed ({from, until, series, value bpm, updatedDate}); 27 rows for 2025-10-13..2026-10-11. The Running Lactate Threshold page's history."
 		},
 		{
 			"id": "lactate-threshold-stats-speed-range",
@@ -3123,7 +3196,22 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThresholdSpeedRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].from",
+				"[].until",
+				"[].value",
+				"[].updatedDate"
+			],
+			"schema": "schema/lactate-threshold-stats-speed-range.json",
+			"notes": "As the heart-rate range, for the threshold speed: value in tenths of m/s like latestLactateThreshold (0.37222 = 3.7222 m/s = 4:29 /km)."
 		},
 		{
 			"id": "lifestyle-logging-data",
@@ -3814,13 +3902,18 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/running-tolerance.json",
-			"notes": "Called with aggregation=daily, in 28-day windows.",
+			"notes": "Called with aggregation=daily in 28-day windows (the sync, the Home card), and with aggregation=weekly for the Running Tolerance page's 12w and 1y bars: a row per week of the account (Sunday to Saturday here), startOfWeek/endOfWeek, totalImpactLoad and totalDistance in metres, tolerance; the current week is partial.",
 			"reads": [
 				"[].calendarDate",
 				"[].acuteImpactLoad",
 				"[].acuteDistance",
 				"[].acuteTolerance",
-				"[].runningToleranceFeedBackPhrase"
+				"[].runningToleranceFeedBackPhrase",
+				"[].totalImpactLoad",
+				"[].totalDistance",
+				"[].tolerance",
+				"[].startOfWeek",
+				"[].endOfWeek"
 			]
 		},
 		{

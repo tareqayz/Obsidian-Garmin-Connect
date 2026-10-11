@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/runningtolerance/stats",
 	"plugin": "GarminApi.runningTolerance",
 	"firstRecorded": "2026-09-26T07:59:19.349Z",
-	"updatedAt": "2026-09-26T07:59:19.349Z",
-	"samples": 1,
+	"updatedAt": "2026-10-11T18:35:06.346Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"array"
@@ -17,32 +17,72 @@
 				"acuteDistance": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"acuteImpactLoad": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"acuteTolerance": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"calendarDate": {
 					"type": [
 						"string"
 					]
 				},
+				"endOfWeek": {
+					"type": [
+						"string"
+					],
+					"optional": true
+				},
 				"runningToleranceFeedBackPhrase": {
 					"type": [
 						"string"
-					]
+					],
+					"optional": true
+				},
+				"startOfWeek": {
+					"type": [
+						"string"
+					],
+					"optional": true
+				},
+				"tolerance": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"totalDistance": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"totalImpactLoad": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"userProfilePK": {
 					"type": [
 						"number"
 					]
+				},
+				"weekIndex": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				}
 			}
 		}

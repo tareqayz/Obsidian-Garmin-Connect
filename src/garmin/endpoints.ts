@@ -330,8 +330,17 @@ export interface Activity {
 	maxSpeed?: number | null;
 	aerobicTrainingEffect?: number | null;
 	anaerobicTrainingEffect?: number | null;
+	/** The primary benefit: LACTATE_THRESHOLD, VO2MAX, TEMPO, RECOVERY… */
+	trainingEffectLabel?: string | null;
+	/** Copy keys for the two scales, as the activity page's benefit sheet reads them. */
+	aerobicTrainingEffectMessage?: string | null;
+	anaerobicTrainingEffectMessage?: string | null;
+	/** The activity's exercise load. */
+	activityTrainingLoad?: number | null;
 	vO2MaxValue?: number | null;
 	averageRunningCadenceInStepsPerMinute?: number | null;
+	/** Rides: the activity's best average power over 1 s … 2 h, `maxAvgPower_<seconds>`, in W. */
+	excludeFromPowerCurveReports?: boolean | null;
 	/** Epoch ms of the start; the list is ordered by it, newest first. */
 	beginTimestamp?: number | null;
 	/**
@@ -612,6 +621,51 @@ export interface RunningTolerance {
 	acuteDistance?: number | null;
 	acuteTolerance?: number | null;
 	runningToleranceFeedBackPhrase?: string | null;
+	/* Weekly aggregation: the week's sums, its tolerance, and its days (the account's week, the current one partial). */
+	totalImpactLoad?: number | null;
+	totalDistance?: number | null;
+	tolerance?: number | null;
+	startOfWeek?: string;
+	endOfWeek?: string;
+	[key: string]: unknown;
+}
+
+/* Performance Stats pages. */
+
+/** One week or month of `enduranceStats`, keyed in `groupMap` by its first day. */
+export interface EnduranceGroup {
+	groupAverage?: number | null;
+	groupMax?: number | null;
+	/** A sport (`activityTypeId`) or one of Garmin's sport groups (`group`), `contribution` in percent. */
+	enduranceContributorDTOList?: Array<{
+		activityTypeId?: number | null;
+		group?: number | null;
+		contribution?: number | null;
+	}> | null;
+}
+
+export interface EnduranceStats {
+	startDate?: string;
+	endDate?: string;
+	avg?: number | null;
+	max?: number | null;
+	groupMap?: Record<string, EnduranceGroup> | null;
+	/** The range's newest day, with its class limits and contributors. */
+	enduranceScoreDTO?: EnduranceScore | null;
+	[key: string]: unknown;
+}
+
+/**
+ * A biometric's history, as Garmin keeps it: a row for each day it changed —
+ * lactate threshold heart rate (bpm) or speed (tenths of m/s, like the latest
+ * value), or FTP (W).
+ */
+export interface BiometricChange {
+	from?: string;
+	until?: string;
+	series?: string;
+	value?: number | null;
+	updatedDate?: string;
 	[key: string]: unknown;
 }
 
@@ -1258,12 +1312,65 @@ export class GarminApi extends GarminClient {
 		return data.hillScoreScalar?.hillScoreDTOList ?? [];
 	}
 
-	async runningTolerance(start: string, end = start): Promise<RunningTolerance[]> {
+	/**
+	 * Running tolerance a day at a time (28-day windows), or a week at a time
+	 * for the Running Tolerance page's 12w and 1y bars: the account's weeks,
+	 * the current one partial.
+	 */
+	async runningTolerance(start: string, end = start, aggregation: "daily" | "weekly" = "daily"): Promise<RunningTolerance[]> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		const data = await this.request<RunningTolerance[] | null>(
 			"/metrics-service/metrics/runningtolerance/stats",
-			{ query: { startDate: start, endDate: end, aggregation: "daily" } },
+			{ query: { startDate: start, endDate: end, aggregation } },
+		);
+		return data ?? [];
+	}
+
+	/**
+	 * Endurance score a week or a month at a time: each period's average,
+	 * maximum and top contributors (`groupMap`, keyed by the period's first day;
+	 * weeks start on Monday), the span's own average and maximum, and its newest
+	 * day. The Endurance Score page's 12w and 1y views.
+	 */
+	async enduranceStats(start: string, end: string, aggregation: "weekly" | "monthly"): Promise<EnduranceStats | null> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		return this.request("/metrics-service/metrics/endurancescore/stats", {
+			query: { startDate: start, endDate: end, aggregation },
+		});
+	}
+
+	/** Running lactate threshold heart rate over a range, a row per change. */
+	async lactateThresholdHeartRateRange(start: string, end: string): Promise<BiometricChange[]> {
+		return this.biometricRange("lactateThresholdHeartRate", start, end, "RUNNING");
+	}
+
+	/** Running lactate threshold speed over a range, a row per change, in tenths of m/s. */
+	async lactateThresholdSpeedRange(start: string, end: string): Promise<BiometricChange[]> {
+		return this.biometricRange("lactateThresholdSpeed", start, end, "RUNNING");
+	}
+
+	/** FTP over a range for one sport, a row per change. Running's is the lactate threshold power. */
+	async functionalThresholdPowerRange(
+		start: string,
+		end: string,
+		sport: "RUNNING" | "CYCLING" | "CROSS_COUNTRY_SKIING",
+	): Promise<BiometricChange[]> {
+		return this.biometricRange("functionalThresholdPower", start, end, sport);
+	}
+
+	private async biometricRange(
+		metric: "lactateThresholdHeartRate" | "lactateThresholdSpeed" | "functionalThresholdPower",
+		start: string,
+		end: string,
+		sport: string,
+	): Promise<BiometricChange[]> {
+		assertIsoDate(start, "start");
+		assertIsoDate(end, "end");
+		const data = await this.request<BiometricChange[] | null>(
+			`/biometric-service/stats/${metric}/range/${start}/${end}`,
+			{ query: { sport, aggregation: "daily", aggregationStrategy: "LATEST" } },
 		);
 		return data ?? [];
 	}
