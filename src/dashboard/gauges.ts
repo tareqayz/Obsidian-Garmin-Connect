@@ -62,10 +62,14 @@ function within(value: number, lo: number, hi: number, band: GaugeSegment): numb
 }
 
 /* VO₂ Max. Graded against Garmin's age-and-sex table (from The Cooper
-   Institute). Unlike FTP the dial is not linear: every band has a fixed arc and
-   the marker is placed inside its band. */
+   Institute). Unlike FTP the dial is not linear: every class has a fixed share
+   of the arc and the marker is placed linearly inside its class, between the
+   class's limits — or, past Fair and Superior, the dial's own ends. Measured on
+   the VO₂ Max page (ref/performance-stats/vo2-max, Rules → Dial): the cycling
+   marker for 57.4 sits within 0.05° of where this puts it; the running one for
+   54.9 sits 3.2° further round than it (Inferred, no simple rule fits). */
 
-/** Lower limits of Fair, Good, Excellent and Superior, by the top of each age band. */
+/** Lower limits of Fair, Good, Excellent and Superior, by the top of each age band: the Help sheet's table. */
 const VO2_TABLE: Record<Sex, Array<[number, [number, number, number, number]]>> = {
 	male: [
 		[29, [41.7, 45.4, 51.1, 55.4]],
@@ -85,18 +89,50 @@ const VO2_TABLE: Record<Sex, Array<[number, [number, number, number, number]]>> 
 	],
 };
 export const VO2_CLASSES: readonly string[] = ["Poor", "Fair", "Good", "Excellent", "Superior"];
-const VO2_BOUNDS = [0, 0.402, 0.546, 0.69, 0.849, 1];
+/** The percentile each class starts at, from the Help sheet's table: Poor 0–40, Fair 40, Good 60, Excellent 80, Superior 95. */
+export const VO2_PERCENTILES: readonly number[] = [0, 40, 60, 80, 95];
+/**
+ * Each class's share of the dial: Poor 0.40, the others 0.15 each. The gaps
+ * between them are centred at 150.0°, 195.1°, 240.1° and 285.1° of the page's
+ * 300° arc, which starts 30° round from straight down.
+ */
+const VO2_BOUNDS = [0, 0.4, 0.55, 0.7, 0.85, 1];
+/**
+ * The dial's ends, past Fair's lower limit and Superior's: the web gauge runs
+ * from 29.7 to 63.4 for a man of 20–29, Fair's 41.7 less 12 and Superior's
+ * 55.4 plus 8, and that top puts the phone's cycling marker (57.4, a quarter
+ * into Superior) where it is. The other rows take the same offsets (Inferred).
+ */
+const VO2_BELOW_FAIR = 12;
+const VO2_ABOVE_SUPERIOR = 8;
 
-export function vo2Gauge(value: number, age: number | undefined, sex: Sex | undefined): Gauge {
+/**
+ * The VO₂ Max scale for an age and sex: the dial's low end, the lower limits of
+ * Fair, Good, Excellent and Superior, and the dial's top. A man of 23:
+ * 29.7, 41.7, 45.4, 51.1, 55.4, 63.4. Undefined for an age that is not one.
+ */
+export function vo2Scale(age: number, sex: Sex): readonly number[] | undefined {
+	if (!Number.isFinite(age)) return undefined;
+	const limits = VO2_TABLE[sex]?.find(([top]) => age <= top)?.[1];
+	return limits && [limits[0] - VO2_BELOW_FAIR, ...limits, limits[3] + VO2_ABOVE_SUPERIOR];
+}
+
+/** The class a value grades as on a scale, 0 (Poor) to 4 (Superior). Garmin compares the precise value with `>=`. */
+export function vo2Class(value: number, scale: readonly number[]): number {
+	return scale.slice(1, 5).filter((limit) => value >= limit).length;
+}
+
+/**
+ * VO₂ Max on its dial, graded for an age and sex. `shown` is the number in the
+ * middle where it is not the value rounded: Garmin's own integer
+ * (`vo2MaxValue`), which differs from the rounded precise value on x.5 days.
+ */
+export function vo2Gauge(value: number, age: number | undefined, sex: Sex | undefined, shown = Math.round(value)): Gauge {
 	const segments = bands(VO2_BOUNDS, FIVE);
-	const shown = String(Math.round(value));
-	if (age === undefined || !sex) return gauge(shown, segments, undefined);
-	const limits = VO2_TABLE[sex].find(([top]) => age <= top)![1];
-	const index = limits.filter((l) => value >= l).length;
-	// The open ends get a band's worth of range each, scaled to their arc.
-	const lo = index === 0 ? limits[0] - (limits[1] - limits[0]) * 2.8 : limits[index - 1]!;
-	const hi = index === 4 ? limits[3] + (limits[3] - limits[2]) : limits[index]!;
-	return gauge(shown, segments, within(value, lo, hi, segments[index]!), VO2_CLASSES[index]);
+	const scale = age === undefined || !sex ? undefined : vo2Scale(age, sex);
+	if (!scale) return gauge(String(shown), segments, undefined);
+	const index = vo2Class(value, scale);
+	return gauge(String(shown), segments, within(value, scale[index]!, scale[index + 1]!, segments[index]!), VO2_CLASSES[index]);
 }
 
 /* FTP, as W/kg. A linear dial from 0 to about 6 W/kg for men, graded by

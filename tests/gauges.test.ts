@@ -31,10 +31,21 @@ describe("gauges, the account on 2026-10-11", () => {
 	it("grade VO₂ Max 54.9 as the phone's 55, Excellent, for a man of 23", () => {
 		const g = vo2Gauge(54.9, 23, "male");
 		assert.deepEqual([g.value, g.label, g.tone], ["55", "Excellent", "blue"]);
-		near(g.at, 0.8305);
+		// The VO₂ Max page's dial (ref/performance-stats/vo2-max, Rules → Dial):
+		// Excellent is 0.70–0.85 of the arc and 51.1–55.4 of the scale.
+		near(g.at, 0.7 + (0.15 * 3.8) / 4.3);
 		assert.deepEqual(tones(g), ["red", "orange", "green", "blue", "purple"]);
-		// The last cycling VO₂ Max, 57.4 on 2025-10-15, is past Excellent.
-		assert.equal(vo2Gauge(57.4, 23, "male").label, "Superior");
+		assert.deepEqual(
+			g.segments.map((s) => [s.from, s.to]),
+			[[0, 0.4], [0.4, 0.55], [0.55, 0.7], [0.7, 0.85], [0.85, 1]],
+		);
+		// The last cycling VO₂ Max, 57.4 on 2025-10-15, is past Excellent: a
+		// quarter into Superior, whose arc runs to the web gauge's 63.4.
+		const cycling = vo2Gauge(57.4, 23, "male");
+		assert.deepEqual([cycling.label, cycling.tone], ["Superior", "purple"]);
+		near(cycling.at, 0.8875);
+		// Garmin's own integer stands in the middle where the page has it.
+		assert.equal(vo2Gauge(55.5, 23, "male", 55).value, "55");
 		assert.deepEqual(VO2_CLASSES, ["Poor", "Fair", "Good", "Excellent", "Superior"]);
 	});
 

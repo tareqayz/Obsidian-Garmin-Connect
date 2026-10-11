@@ -147,7 +147,11 @@ describe("banded dials", () => {
 		assert.equal(g.value, "55");
 		assert.equal(g.label, "Excellent");
 		assert.equal(g.tone, "blue");
-		assert.ok(g.at! > 0.83 && g.at! < 0.849, `at ${g.at}`);
+		// The VO₂ Max page's dial, which the card shares: Excellent is 0.70–0.85 of it, 51.1–55.4.
+		assert.ok(Math.abs(g.at! - 0.836) < 0.001, `at ${g.at}`);
+		// The open ends run to the web gauge's: 29.7 below Fair, 63.4 above Superior.
+		assert.equal(vo2Gauge(29.7, 23, "male").at, 0);
+		assert.equal(vo2Gauge(63.4, 23, "male").at, 1);
 		assert.equal(vo2Gauge(55, 23, "female").label, "Superior");
 		// The same number grades higher with age: 40 is Excellent at 65.
 		assert.equal(vo2Gauge(40, 65, "male").label, "Excellent");

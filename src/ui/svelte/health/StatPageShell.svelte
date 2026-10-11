@@ -293,9 +293,10 @@
 	.controls.compact {
 		padding-top: 22px;
 	}
+	/* Wide, as VO₂ Max's twin places it: the range control at 60.33 under a 44 pt bar, the period row 16 under it, 16 over the body. */
 	.controls.wide {
-		height: 108.6px;
-		padding-top: 16px;
+		height: 108.33px;
+		padding-top: 16.33px;
 	}
 	.controls.perf.bare {
 		height: auto;
@@ -303,7 +304,7 @@
 	}
 	.controls.perf.single {
 		height: auto;
-		padding: 26px 0 16.8px;
+		padding: 25px 0 15.8px;
 	}
 	.compact .range-control,
 	.wide .range-control {
@@ -326,8 +327,24 @@
 		padding: 8px 0;
 		text-align: center;
 	}
+	/*
+	 * Performance's stepper (the twin's Period Nav, 470:32): 24 pt discs with a
+	 * 5 × 10 pt chevron either side of a Body Semibold label. Its row is 2 pt
+	 * taller than Health's, so a compact or single row starts 1 pt higher and
+	 * keeps its centre; a wide one sits 16 pt under the range control.
+	 */
+	.perf .period {
+		grid-template-columns: 24px minmax(0, 1fr) 24px;
+		margin-top: 24.9px;
+	}
+	.perf .period.plain {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.perf.single .period {
+		margin-top: 0;
+	}
 	.wide .period {
-		margin-top: 17.3px;
+		margin-top: 16px;
 	}
 	.period strong {
 		font-size: 17px;
@@ -337,6 +354,11 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.perf .period strong {
+		font-size: 15px;
+		line-height: 20px;
+		font-weight: 600;
 	}
 	.step {
 		display: inline-flex;
@@ -352,6 +374,16 @@
 	.step :global(svg) {
 		width: 14px;
 		height: 14px;
+	}
+	.perf .step {
+		width: 24px;
+		height: 24px;
+	}
+	/* Lucide's chevron at 20 pt is the twin's 5 × 10; 1.8 of its 24 units is the twin's 1.5 pt stroke. */
+	.perf .step :global(svg) {
+		width: 20px;
+		height: 20px;
+		stroke-width: 1.8px;
 	}
 	.step:disabled {
 		opacity: 0.4;
@@ -410,7 +442,8 @@
 			height: 72px;
 			padding: 0 32px;
 		}
-		.wide .period {
+		.wide .period,
+		.perf .period {
 			margin: 0;
 		}
 	}
