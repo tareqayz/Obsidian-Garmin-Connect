@@ -233,7 +233,9 @@ which are flat.
 An activity's page loads when it opens, never in a sync (see
 [architecture](architecture.md#activity-details-on-view)). Ten requests the
 first time — eight together, then the two that need the summary — and none
-after: the answer is kept in the vault.
+after: the answer is kept in the vault. With **Download runs** on, every run
+without a file is loaded the same way between syncs, at least two seconds
+apart.
 
 | Method | Path | Gives the page |
 | --- | --- | --- |
@@ -332,7 +334,9 @@ the next session carries on from where it stopped.
 **On view.** A page that needs what a sync didn't fetch asks for it when it
 opens: a day's intraday blocks (one or two requests a day), or an activity's
 page (ten requests, once per activity). These wait for any sync, run one at a
-time with the same pause, and a 429 answers every one still waiting.
+time with the same pause, and a 429 answers every one still waiting. **Download
+runs** queues every run behind them (ten requests each, two seconds or more
+apart) and stops at a 429 until the next sync.
 
 The sync runs **newest day first**, so a run cut short by a rate limit has
 already covered the days you care about most. `pauseBetweenDays` (default

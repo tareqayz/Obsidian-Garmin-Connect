@@ -653,9 +653,12 @@ answer in one file per activity:
 
 How it fills:
 
-- Only when a run's page opens, with a session and the `workouts` group on. The
+- When a run's page opens, with a session and the `workouts` group on. The
   loads wait for a sync to finish, keep the usual pause between activities, and
   stop at a 429 until the next view.
+- With **Download runs** on, for every run in the activity index that has no
+  file yet, newest first, after each sync — the pages' loads first, then one run
+  every two seconds or more, until a 429 or the next sync.
 - Opened again, the page reads the file and asks nothing. A block missing from
   `checked` (its request failed) is asked for again; when the index shows the
   activity renamed or trimmed (its name, distance or duration changed), the

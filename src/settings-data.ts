@@ -46,6 +46,11 @@ export interface GarminSettings {
 
 	syncOnStartup: boolean;
 	/**
+	 * Download every run's page — samples, laps, route — in the background
+	 * after a sync, newest first, rather than only the ones opened.
+	 */
+	downloadRuns: boolean;
+	/**
 	 * Draw OpenStreetMap's map under an activity's route. Off, the route is
 	 * drawn alone and no tile is ever asked for.
 	 */
@@ -91,6 +96,9 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// notes in someone's daily-note folder is not.
 	createMissingNotes: false,
 	syncOnStartup: false,
+	// Off: ten requests a run, every run in the history, is a lot to ask of
+	// Garmin unprompted. A run's page downloads it when it opens either way.
+	downloadRuns: false,
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,

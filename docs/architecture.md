@@ -429,6 +429,14 @@ the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
 - The loads queue with the intraday ones, in the same runner: never beside a
   sync, the usual pause between them, and a 429 or a dead session answers every
   waiting load without asking again. Gated on the `workouts` group.
+- **Download runs** (`downloadRuns`) loads the rest the same way, after each
+  sync and the session's history walks: `runsToDownload` lists the index's runs
+  (the rows that open a page, `categoryOf(row) === "running"`, handed to the
+  runner by `main.ts`) without a file, newest first. They come last in the same
+  drain — days, then activities a page asked for, then downloads — at least
+  two seconds apart. A sync or history walk that finds a download in hand waits
+  for that one run instead of being turned away; a 429 drops the rest until the
+  next sync, and a run that failed is not asked for again until a reload.
 - The view keeps the last few details in memory, so a page coming back (Back
   from the map) draws at once and its scroll position holds.
 

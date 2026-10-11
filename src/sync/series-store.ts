@@ -157,6 +157,18 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
 	}
 
+	/** The activities with a detail file, by id, read from the folder's listing. */
+	async activityDetailIds(): Promise<Set<number>> {
+		const ids = new Set<number>();
+		const folder = this.app.vault.getAbstractFileByPath(this.join(ACTIVITY_DETAILS_FOLDER));
+		if (!(folder instanceof TFolder)) return ids;
+		for (const child of folder.children) {
+			const id = child instanceof TFile ? /^(\d+)\.json$/.exec(child.name)?.[1] : undefined;
+			if (id) ids.add(Number(id));
+		}
+		return ids;
+	}
+
 	async writeAccount(account: AccountInfo): Promise<"written" | "unchanged"> {
 		return this.put(this.accountPath, `${JSON.stringify(account, null, "\t")}\n`);
 	}

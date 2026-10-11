@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { categoryOf } from "../src/dashboard/activities";
 import type { GarminApi } from "../src/garmin/endpoints";
 import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
 import {
@@ -10,11 +11,13 @@ import {
 	loadActivity,
 	matchesIdentity,
 	parseActivityDetail,
+	runsToDownload,
 	serializeActivityDetail,
 	type ActivityBlock,
 	type ActivityDetail,
 	type ActivityDetailStore,
 } from "../src/sync/activity-detail";
+import type { ActivityRow } from "../src/sync/activity-index";
 
 // A made-up run: the id, the place and every value are fixtures, not anyone's data.
 const ID = 12345678901;
@@ -341,5 +344,38 @@ describe("loadActivity", () => {
 		const limited = await loadActivity(fakeApi({ summary: new GarminRateLimitError("slow down") }).api, new MemoryStore(), ID, SIGNED_IN);
 		assert.equal(limited.reason, "failed");
 		assert.ok(limited.fatal instanceof GarminRateLimitError);
+	});
+});
+
+describe("runsToDownload", () => {
+	// The plugin's own test: a run is a row of the Running category.
+	const isRun = (row: ActivityRow) => categoryOf(row) === "running";
+	const row = (id: number, type: string, typeId: number, parentTypeId: number): ActivityRow => ({
+		id,
+		type,
+		typeId,
+		parentTypeId,
+		start: "2026-03-12T05:12:00",
+		begin: id,
+	});
+	// Newest first, as the index lists them.
+	const ROWS = [
+		row(16, "running", 1, 17),
+		row(15, "road_biking", 10, 2),
+		row(14, "treadmill_running", 18, 1),
+		row(13, "running", 1, 17),
+		row(12, "trail_running", 6, 1),
+	];
+
+	it("asks for the runs, treadmill and trail ones too, without a file, newest first", () => {
+		assert.deepEqual(runsToDownload(ROWS, isRun, new Set([13]), new Set()), [16, 14, 12]);
+	});
+
+	it("leaves out a run that failed already", () => {
+		assert.deepEqual(runsToDownload(ROWS, isRun, new Set(), new Set([16])), [14, 13, 12]);
+	});
+
+	it("has nothing to ask for once every run is saved", () => {
+		assert.deepEqual(runsToDownload(ROWS, isRun, new Set([16, 14, 13, 12]), new Set()), []);
 	});
 });

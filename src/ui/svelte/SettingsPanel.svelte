@@ -175,6 +175,24 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
+			.setName("Download runs")
+			.setDesc(
+				"Saves every run's page — charts, laps and route — to the vault in the background after a sync, " +
+					"newest first, so it opens without a connection. About 150 KB and ten requests a run. " +
+					"Off, a run downloads when you first open it.",
+			)
+			.addToggle((t) =>
+				t.setValue(s.downloadRuns).onChange((v) => {
+					s.downloadRuns = v;
+					save();
+					if (v) plugin.sync.startDownloads();
+				}),
+			)}
+></div>
+
+<div
+	use:obsidianSetting={(setting) =>
+		setting
 			.setName("Units")
 			.setDesc("Auto asks Garmin which system your account uses.")
 			.addDropdown((d) =>

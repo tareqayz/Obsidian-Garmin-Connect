@@ -86,7 +86,7 @@ folder (`Garmin/data` by default) whatever the storage mode:
 | `series/<date>.json` | A day's curves: heart rate, stress, Body Battery, steps, floors, intensity, the sleep hypnogram | `intraday` |
 | `account.json` | Facts that belong to no day: the watch, personal records, lactate threshold, training plan | `profile` |
 | `activities/` | Every activity on the account | `workouts` |
-| `activity-details/` | One file per run whose page you opened: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens |
+| `activity-details/` | One file per run whose page you opened, or every run with **Download runs** on: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens or after a sync |
 | `daily-stats/` | Steps, floors and intensity minutes | `activity` |
 | `sleep/` | A row per night | `sleep` |
 | `stress/`, `body-battery/` | Stress and Body Battery | `stress` |
@@ -121,7 +121,8 @@ Snapshots). The settings screen shows each group's cost beside its switch.
 
 With everything on, a day costs nine requests. On top of that come the intraday
 and per-sync requests, the history fills described above, and ten requests the
-first time you open a run's page (see [Activities](#activities)).
+first time you open a run's page — or for every run, after a sync, with
+**Download runs** on (see [Activities](#activities)).
 
 ## Home
 
@@ -209,6 +210,15 @@ activities**.
 - The first time a run's page opens it costs ten requests, made between syncs,
   never during one. The answer is kept in `activity-details/`, so the page opens
   again without asking. It needs a session and the `workouts` group.
+- **Download runs** under **Settings → Sync** fetches every run's page ahead,
+  so it opens without a connection: after each sync, in the background, newest
+  first, at least two seconds apart. A run is about 150 KB in the vault and ten
+  requests, so 230 runs come to about 35 MB and 2,300 requests, spread over as
+  many sessions as it takes. A page you open goes first, a sync waits for the run
+  in hand, and a 429 stops the downloads until the next sync. The map's tiles
+  aren't fetched ahead (OpenStreetMap's tile policy rules out bulk downloads):
+  offline, a map draws the tiles that device viewed in the last week or so, and
+  the route alone elsewhere.
 - The map's tiles come from OpenStreetMap, which sees roughly where the run was.
   **Map tiles** under **Settings → Maps** turns them off, and the route is drawn
   on its own, as it is offline. A treadmill run has no map.

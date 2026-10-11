@@ -46,6 +46,7 @@ saved session to restore, not on every sync.
 | --- | --- | --- | --- |
 | Days to sync | `syncDays` | `3` | How many days back **Sync recent days** covers. Slider 1–30. |
 | Sync on startup | `syncOnStartup` | off | Runs **Sync recent days** five seconds after Obsidian loads the plugin, when you are signed in. |
+| Download runs | `downloadRuns` | off | Downloads every run's page — charts, laps, route — after each sync, in the background, newest first, so it opens without a connection. About 150 KB and ten requests a run, at least two seconds apart; a run already in `activity-details/` is skipped. Off, a run downloads the first time you open it. |
 | Units | `units` | `auto` | `metric` writes `distance_km`, `imperial` writes `distance_mi`, and `auto` asks Garmin which system your account uses. |
 
 **Why three days and not one.** Garmin keeps revising a day after it ends.

@@ -34,7 +34,7 @@ default), into your daily notes, or both:
 | --- | --- | --- |
 | Day notes | the data folder, your daily notes, or both | the day's numbers as properties |
 | Series files | `<data folder>/series/<date>.json` | the day's heart rate, stress, Body Battery and other curves, sleep stages, and what the pages loaded on view |
-| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened: its samples, laps, zones and weather, and its GPS route — where you ran |
+| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, or every run with **Download runs** on: its samples, laps, zones and weather, and its GPS route — where you ran |
 | Indexes | `<data folder>/activities/`, `daily-stats/`, `sleep/`, and one folder per Health Stats index (`stress/`, `heart-rate/`, `weight/`, `blood-pressure/` and the rest) | your activities, and a row a day of each metric's history |
 | Account file | `<data folder>/account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP, running economy, cycling ability, training plans, upcoming events and personal records |
 

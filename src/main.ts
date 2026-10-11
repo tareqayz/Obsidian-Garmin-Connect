@@ -1,4 +1,5 @@
 import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
@@ -163,7 +164,7 @@ export default class GarminPlugin extends Plugin {
 			store: this.data,
 			domain: this.data.settings.domain,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings);
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => categoryOf(row) === "running");
 	}
 
 	async rebuildClient(): Promise<void> {

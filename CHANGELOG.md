@@ -25,6 +25,9 @@ GitHub release takes its notes from the matching section here — see
   The page loads from Garmin the first time it opens and is kept in the vault,
   in `activity-details/`. On a phone its sheets rise from the bottom and drag
   down to close.
+- **Download runs** (Settings → Sync, off by default): every run's page,
+  downloaded in the background after each sync so it opens without a
+  connection. About 150 KB and ten requests a run.
 - **Activity maps.** OpenStreetMap under the route, coloured by pace (or grade-
   adjusted pace, heart rate, power, elevation or run/walk), with lap markers.
   The full-screen map pans and pinches. **Settings → Maps → Map tiles** turns
