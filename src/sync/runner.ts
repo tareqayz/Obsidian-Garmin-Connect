@@ -26,6 +26,8 @@ import { ensureFolder, trimSlashes } from "./frontmatter";
 import { fetchAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
+import { loadActivity, runsToDownload, type ActivityLoad } from "./activity-detail";
+import type { ActivityRow } from "./activity-index";
 import { linkTargetFor, type LinkOption } from "./link";
 import type { MetricGroup } from "./metrics";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
@@ -54,12 +56,20 @@ export interface RunnerSettings {
 
 	pauseBetweenDays: number;
 	stopAfterEmptyDays: number;
+	/** Download every run's page in the background, not only the ones opened. */
+	downloadRuns: boolean;
 }
 
 const BASES_FILE = "Garmin Health.base";
 
 /** Activities per request when paging the whole history. The list honours 100. */
 const HISTORY_PAGE = 100;
+
+/**
+ * The least time between two runs downloaded in the background: about the
+ * pace of someone opening their runs one after another, ten requests each.
+ */
+const DOWNLOAD_PAUSE_MS = 2000;
 
 /** A history sync in progress, for the Activities pages' banner. */
 export interface HistoryProgress {
@@ -102,6 +112,16 @@ export class SyncRunner {
 	private chainActive = false;
 	/** On-view intraday loads waiting for the runner to be free, one job a day. */
 	private intradayJobs = new DayJobs<IntradayLoad>();
+	/** On-view activity loads waiting the same way, one job an activity. */
+	private activityJobs = new DayJobs<ActivityLoad>();
+	/** Runs to download in the background ("Download runs"), newest first: after the pages' loads. */
+	private downloads: number[] = [];
+	/** Runs whose download failed this session, not asked for again until a reload. */
+	private downloadFailed = new Set<number>();
+	/** The background download under way, which a sync or history walk waits for rather than being turned away. */
+	private downloadInHand: Promise<void> | null = null;
+	/** Syncs and walks waiting for that download: no other starts meanwhile. */
+	private waitingForRunner = 0;
 	private draining = false;
 	/** The history sync starts itself once a session, after the first sync, until it has finished once. */
 	private historyTried = false;
@@ -114,7 +134,16 @@ export class SyncRunner {
 	private indexHistoryState = new Map<string, IndexHistoryProgress>();
 	private indexHistoryListeners = new Set<(kind: string, progress: IndexHistoryProgress | null) => void>();
 
-	constructor(app: App, api: GarminApi, settings: () => RunnerSettings) {
+	/**
+	 * `isRun` picks the index rows that are runs, the ones whose page opens:
+	 * what "Download runs" downloads.
+	 */
+	constructor(
+		app: App,
+		api: GarminApi,
+		settings: () => RunnerSettings,
+		private readonly isRun: (row: ActivityRow) => boolean = () => false,
+	) {
 		this.app = app;
 		this.api = api;
 		this.settings = settings;
@@ -126,7 +155,7 @@ export class SyncRunner {
 
 	/**
 	 * One thing talks to Garmin at a time. Whatever waited for the runner —
-	 * an on-view intraday load — gets its turn once the current work is done,
+	 * an on-view intraday or activity load — gets its turn once the current work is done,
 	 * on a later task, so a sync that hands over to the history walks keeps
 	 * the runner until they are done.
 	 */
@@ -136,7 +165,7 @@ export class SyncRunner {
 
 	private set running(value: boolean) {
 		this.busy = value;
-		if (!value && this.intradayJobs.size) window.setTimeout(() => this.kickIntraday(), 0);
+		if (!value && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 	}
 
 	syncRecent(log?: Log): Promise<SyncReport | null> {
@@ -195,9 +224,12 @@ export class SyncRunner {
 
 	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
 		const report = await this.runDays(from, to, log);
+		if (report?.stoppedEarly) this.downloads = [];
 		// Not awaited: Home's sync button should not spin through the history
 		// requests. Skipped after a 429 or a dead session, as the account is.
 		// One after the other, since a sync refuses to start while one runs.
+		// The runs to download come last, after the walks.
+		if (report && !report.stoppedEarly && this.historyTried && !this.chainActive) void this.queueDownloads();
 		if (report && !report.stoppedEarly && !this.historyTried) {
 			this.historyTried = true;
 			const groups = this.settings().groups;
@@ -216,7 +248,7 @@ export class SyncRunner {
 					}
 				} finally {
 					this.chainActive = false;
-					void this.drainIntraday();
+					void this.queueDownloads();
 				}
 			})();
 		}
@@ -224,6 +256,7 @@ export class SyncRunner {
 	}
 
 	private async runDays(from: string, to: string, log?: Log): Promise<SyncReport | null> {
+		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			new Notice("A Garmin sync is already running.");
 			return null;
@@ -306,6 +339,7 @@ export class SyncRunner {
 	 */
 	async syncActivityHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
+		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
@@ -395,6 +429,7 @@ export class SyncRunner {
 	 */
 	async syncDailyStatsHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
+		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
@@ -470,6 +505,7 @@ export class SyncRunner {
 	 */
 	async syncSleepHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
+		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
@@ -547,6 +583,7 @@ export class SyncRunner {
 		const def = dayIndex(kind);
 		if (!def) return null;
 		const label = `Garmin ${def.title} history`;
+		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
@@ -667,46 +704,166 @@ export class SyncRunner {
 		});
 	}
 
+	/**
+	 * An activity's page, for the page: its detail file, with whatever blocks it
+	 * lacks fetched and written into it first — every block for an activity
+	 * opened for the first time, or one renamed or trimmed since (the index
+	 * says). Queued like `loadIntraday`, and like it never rejects.
+	 */
+	async loadActivity(id: number): Promise<ActivityLoad> {
+		let now: ActivityLoad;
+		try {
+			now = withoutActivityFatal(await this.loadActivityFor(id, false));
+		} catch (err) {
+			return { detail: null, reason: "failed", error: explain(err) };
+		}
+		if (now.reason !== "signed-out" || !this.api.isAuthenticated) return now;
+		const pending = this.activityJobs.add(String(id), []);
+		this.kickIntraday();
+		return pending;
+	}
+
+	/** One activity's load. With `fetch` false, only what the file has and why the rest is missing. */
+	private async loadActivityFor(id: number, fetch: boolean): Promise<ActivityLoad & { fatal?: unknown }> {
+		const settings = this.settings();
+		const store = new VaultSeriesStore(this.app, settings.dataFolder);
+		const row = (await store.readActivities()).rows.find((r) => r.id === id);
+		return loadActivity(this.api, store, id, {
+			signedIn: fetch && this.api.isAuthenticated,
+			groups: settings.groups,
+			row: row ? { name: row.name, distance: row.distance, duration: row.duration } : null,
+		});
+	}
+
+	private get loadsWaiting(): boolean {
+		return this.intradayJobs.size > 0 || this.activityJobs.size > 0 || this.downloadsReady;
+	}
+
+	/** Runs to download now: none during the history walks, or while a sync waits for the runner. */
+	private get downloadsReady(): boolean {
+		if (!this.downloads.length || this.chainActive || this.waitingForRunner > 0) return false;
+		const settings = this.settings();
+		return settings.downloadRuns && settings.groups.includes("workouts") && this.api.isAuthenticated;
+	}
+
 	private kickIntraday(): void {
-		if (this.running || this.chainActive || this.draining || !this.intradayJobs.size) return;
+		if (this.running || this.chainActive || this.draining || !this.loadsWaiting) return;
 		void this.drainIntraday();
 	}
 
 	/**
-	 * Runs the waiting loads one day at a time, holding the runner, with the
-	 * usual pause between days. A sync that starts in a pause goes first; the
-	 * rest wait for it. A 429 or a dead session answers every load still
-	 * waiting without asking Garmin again.
+	 * A run downloading in the background gives way: whoever wants the runner
+	 * waits for that one run rather than being turned away, and no other
+	 * download starts meanwhile. Awaited only then, so a busy check and the
+	 * claim after it stay in one turn.
+	 */
+	private async yieldDownload(): Promise<void> {
+		const inHand = this.downloadInHand;
+		if (!this.running || !inHand) return;
+		this.waitingForRunner += 1;
+		try {
+			await inHand;
+		} finally {
+			this.waitingForRunner -= 1;
+		}
+	}
+
+	/**
+	 * "Download runs": every run the index lists without a detail file, newest
+	 * first, for the drain to download once nothing else needs the runner. Read
+	 * again after each sync, so a new run joins and one opened meanwhile drops out.
+	 */
+	private async queueDownloads(): Promise<void> {
+		const settings = this.settings();
+		if (!settings.downloadRuns || !settings.groups.includes("workouts")) {
+			this.downloads = [];
+		} else {
+			try {
+				const store = new VaultSeriesStore(this.app, settings.dataFolder);
+				const [index, saved] = await Promise.all([store.readActivities(), store.activityDetailIds()]);
+				this.downloads = runsToDownload(index.rows, this.isRun, saved, this.downloadFailed);
+			} catch {
+				this.downloads = [];
+			}
+		}
+		this.kickIntraday();
+	}
+
+	/** "Download runs" switched on: start now rather than after the next sync. */
+	startDownloads(): void {
+		if (!this.chainActive) void this.queueDownloads();
+	}
+
+	/**
+	 * Runs the waiting loads one at a time — days first, then activities, then
+	 * the runs downloading in the background — holding the runner, with the
+	 * usual pause between them and a longer one before a download. A sync
+	 * that starts in a pause goes first; the rest wait for it. A 429 or a dead
+	 * session answers every load still waiting without asking Garmin again,
+	 * and drops the downloads until the next sync.
 	 */
 	private async drainIntraday(): Promise<void> {
 		if (this.draining) return;
 		this.draining = true;
 		try {
-			for (let first = true; !this.running && this.intradayJobs.size; first = false) {
-				const pause = this.settings().pauseBetweenDays;
-				if (!first && pause > 0) {
+			let rested = true;
+			while (!this.running && this.loadsWaiting) {
+				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
+				const pause = Math.max(this.settings().pauseBetweenDays, pageWaiting ? 0 : DOWNLOAD_PAUSE_MS);
+				if (!rested && pause > 0) {
 					await pauseFor(pause);
-					if (this.running) break;
+					rested = true;
+					// Then whatever waits by now: a page opened in the pause goes ahead of a download.
+					continue;
 				}
-				const job = this.intradayJobs.take();
-				if (!job) break;
+				rested = false;
+				const day = this.intradayJobs.take();
+				const activity = day ? undefined : this.activityJobs.take();
+				const download = day || activity || !this.downloadsReady ? undefined : this.downloads.shift();
+				if (!day && !activity && download === undefined) break;
 				this.running = true;
 				let fatal: unknown;
 				try {
-					const load = await this.loadDayFor(job.date, job.keys, true);
-					fatal = load.fatal;
-					job.resolve(fatal === undefined ? withoutFatal(load) : { ...withoutFatal(load), error: explain(fatal) });
+					if (day) {
+						const load = await this.loadDayFor(day.date, day.keys, true);
+						fatal = load.fatal;
+						day.resolve(fatal === undefined ? withoutFatal(load) : { ...withoutFatal(load), error: explain(fatal) });
+					} else if (activity) {
+						const load = await this.loadActivityFor(Number(activity.date), true);
+						fatal = load.fatal;
+						const page = withoutActivityFatal(load);
+						activity.resolve(fatal === undefined ? page : { ...page, error: explain(fatal) });
+					} else if (download !== undefined) {
+						const pending = this.loadActivityFor(download, true);
+						this.downloadInHand = pending.then(
+							() => undefined,
+							() => undefined,
+						);
+						const load = await pending;
+						fatal = load.fatal;
+						if (load.reason === "off") this.downloads = [];
+						else if (load.reason) this.downloadFailed.add(download);
+					}
 				} catch (err) {
-					job.resolve({ series: null, missing: [...job.keys], reason: "failed", error: explain(err) });
+					day?.resolve({ series: null, missing: [...day.keys], reason: "failed", error: explain(err) });
+					activity?.resolve({ detail: null, reason: "failed", error: explain(err) });
+					if (download !== undefined) this.downloadFailed.add(download);
 				} finally {
+					this.downloadInHand = null;
 					this.running = false;
 				}
 				if (fatal === undefined) continue;
+				this.downloads = [];
 				for (let rest = this.intradayJobs.take(); rest; rest = this.intradayJobs.take()) {
 					const now = await this.loadDayFor(rest.date, rest.keys, false).catch(() => null);
 					const series = now?.series ?? null;
 					const missing = now ? now.missing : [...rest.keys];
 					rest.resolve(missing.length ? { series, missing, reason: "failed", error: explain(fatal) } : { series, missing });
+				}
+				for (let rest = this.activityJobs.take(); rest; rest = this.activityJobs.take()) {
+					const now = await this.loadActivityFor(Number(rest.date), false).catch(() => null);
+					const detail = now?.detail ?? null;
+					rest.resolve(now && !now.reason ? { detail } : { detail, reason: "failed", error: explain(fatal) });
 				}
 			}
 		} finally {
@@ -837,6 +994,8 @@ export class SyncRunner {
 	reset(): void {
 		this.unitsCache = null;
 		this.historyTried = false;
+		this.downloads = [];
+		this.downloadFailed.clear();
 	}
 }
 
@@ -976,6 +1135,14 @@ function shiftDay(date: string, days: number): string {
 
 function pauseFor(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** An activity load as a page gets it: the queue's fatal error stays behind. */
+function withoutActivityFatal(load: ActivityLoad & { fatal?: unknown }): ActivityLoad {
+	const out: ActivityLoad = { detail: load.detail };
+	if (load.reason) out.reason = load.reason;
+	if (load.error !== undefined) out.error = load.error;
+	return out;
 }
 
 /** A load as a page gets it: the queue's fatal error stays behind. */

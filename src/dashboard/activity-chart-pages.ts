@@ -1,0 +1,1485 @@
+import type { ActivityDetail, ActivityLap, ZoneTime } from "../sync/activity-detail";
+import { pace } from "../sync/metrics";
+import { formatDistance, type Units } from "./activities";
+import type { ActivityAxis, ActivityRoute, HeartChart, PaceChart, PowerChart } from "./routes";
+import { duration } from "./series";
+
+/**
+ * The activity page's Charts tab as data, and its full-screen (landscape)
+ * chart: which cards the activity has, in the phone's order, each card's
+ * title for its picker's choice, its figures, its samples on the Time or
+ * Distance axis, its y axis with the phone's bounds and labels, and its marks'
+ * colours by name. `activity-charts.ts` places all of it.
+ *
+ * The rules are the spec's (ref/activity-details/outdoor-run/README.md, "Rules"),
+ * each proved on the captured run; the ones the shots could not settle are
+ * marked Inferred where they are applied. Values arrive as Garmin sent them and
+ * are rounded once, here.
+ *
+ * Pure: no Obsidian, no DOM.
+ */
+
+/* ------------------------------------------------------------------ */
+/*  Colours                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A colour a mark, a band, a key or a label takes, by name. The page maps the
+ * names to its theme; `CHART_COLOURS` keeps Garmin's own, sampled off the phone.
+ */
+export type ChartColour =
+	| "blue"
+	| "green"
+	| "orange"
+	| "red"
+	| "purple"
+	| "yellow"
+	| "grey"
+	| "lavender"
+	| "white"
+	/** The Heart Rate Zones line's low end (an Inferred stop). */
+	| "sky"
+	/** The heart-rate overlay's line and labels. */
+	| "crimson"
+	/** The cadence overlay's labels. */
+	| "deep-orange"
+	| "zone-1"
+	| "zone-2"
+	| "zone-3"
+	| "zone-4"
+	| "zone-5";
+
+export const CHART_COLOURS: Readonly<Record<ChartColour, string>> = {
+	blue: "#54a9fe",
+	green: "#60d275",
+	orange: "#fd9d39",
+	red: "#e02c2c",
+	purple: "#d42fc2",
+	yellow: "#f5bf2a",
+	grey: "#6c6c6c",
+	lavender: "#aa8dfc",
+	white: "#ffffff",
+	sky: "#3994ef",
+	crimson: "#ff0035",
+	"deep-orange": "#ea670e",
+	// The twin's zone fills (406:1707–1709, 407:700; the shots sample #1975d0 and #e8660e). Zone 1
+	// and Zone 5 had no time on the captured run: grey (the scale's) and red are Inferred.
+	"zone-1": "#6c6c6c",
+	"zone-2": "#1976d2",
+	"zone-3": "#0b963f",
+	"zone-4": "#ea670e",
+	"zone-5": "#e02c2c",
+};
+
+/** An area's, a block's or a step's fill: a vertical gradient over the plot. */
+export type ChartFill = "pace" | "heart-rate" | "elevation" | "power" | "stamina" | "impact" | "performance";
+
+/**
+ * Garmin's fills, top of the plot to its bottom (fit residual under one level).
+ * Grade-Adjusted Pace and the Lap Average Pace blocks share Pace's. Performance
+ * Condition's grey was sampled between 0 and +1 only; its ends are extrapolated
+ * (Inferred). With an overlay on, the landscape's primary shows at half opacity,
+ * which is what the phone's dimmed fills are (#874646 is #ff8d8d at 50%).
+ */
+export const CHART_FILLS: Readonly<Record<ChartFill, readonly [top: string, bottom: string]>> = {
+	pace: ["#58adff", "#1976d2"],
+	"heart-rate": ["#ff8d8d", "#e02c2c"],
+	elevation: ["#83ea8b", "#0d9840"],
+	power: ["#feaae1", "#d430c2"],
+	stamina: ["#fd9d39", "#ea680f"],
+	impact: ["#aa8dfc", "#aa8dfc"],
+	performance: ["#7b7b7b", "#272727"],
+};
+
+/** The landscape primary's opacity while an overlay is on. */
+export const DIM_OPACITY = 0.5;
+
+/* ------------------------------------------------------------------ */
+/*  Charts and cards                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every chart of samples a card or the landscape view draws. The ids are the
+ * ones the Stats and Overview badges open (`chart:<id>`) where they overlap.
+ */
+export type ChartMetric =
+	| "pace"
+	| "gap"
+	| "lap-pace"
+	| "heart-rate"
+	| "heart-rate-zones"
+	| "elevation"
+	| "power"
+	| "power-per-kg"
+	| "stamina"
+	| "performance-condition"
+	| "cadence"
+	| "stride-length"
+	| "vertical-ratio"
+	| "vertical-oscillation"
+	| "ground-contact-time"
+	| "impact-load";
+
+export const CHART_METRICS: readonly ChartMetric[] = [
+	"pace",
+	"gap",
+	"lap-pace",
+	"heart-rate",
+	"heart-rate-zones",
+	"elevation",
+	"power",
+	"power-per-kg",
+	"stamina",
+	"performance-condition",
+	"cadence",
+	"stride-length",
+	"vertical-ratio",
+	"vertical-oscillation",
+	"ground-contact-time",
+	"impact-load",
+];
+
+/** What the landscape view opens as its primary: a chart of samples, Run/Walk or Training Effect. */
+export type ExpandedChartId = ChartMetric | "run-walk" | "training-effect";
+
+/** Each chart's title, as the card, the picker, the landscape title and its chips read it. */
+export const CHART_TITLES: Readonly<Record<ExpandedChartId, string>> = {
+	pace: "Pace",
+	gap: "Grade-Adjusted Pace",
+	"lap-pace": "Lap Average Pace",
+	"heart-rate": "Heart Rate",
+	"heart-rate-zones": "Heart Rate Zones",
+	elevation: "Elevation",
+	power: "Power (W)",
+	"power-per-kg": "Power (W/kg)",
+	stamina: "Stamina",
+	"performance-condition": "Performance Condition",
+	cadence: "Cadence",
+	"stride-length": "Stride Length",
+	"vertical-ratio": "Vertical Ratio",
+	"vertical-oscillation": "Vertical Oscillation",
+	"ground-contact-time": "Ground Contact Time",
+	"impact-load": "Impact Load Factor",
+	"run-walk": "Run/Walk",
+	"training-effect": "Training Effect",
+};
+
+/** The Charts tab's cards, top to bottom, as the phone lists them. */
+export const CARD_IDS = [
+	"pace",
+	"heart-rate",
+	"training-effect",
+	"elevation",
+	"power",
+	"stamina",
+	"performance-condition",
+	"cadence",
+	"stride-length",
+	"vertical-ratio",
+	"vertical-oscillation",
+	"ground-contact-time",
+	"impact-load",
+	"run-walk",
+	"time-in-hr-zones",
+	"time-in-power-zones",
+] as const;
+export type CardId = (typeof CARD_IDS)[number];
+
+/**
+ * The cards with a "?" at the right of their title on the phone. The spec
+ * proposes leaving the icons out until their sheets' copy is captured; the
+ * page decides.
+ */
+const HELP: ReadonlySet<CardId> = new Set<CardId>([
+	"pace",
+	"training-effect",
+	"stamina",
+	"performance-condition",
+	"cadence",
+	"vertical-ratio",
+	"vertical-oscillation",
+	"ground-contact-time",
+	"impact-load",
+	"run-walk",
+	"time-in-hr-zones",
+	"time-in-power-zones",
+]);
+
+/** A figure under a card's title: "5:36" "/km" over "Average". */
+export interface ChartFigure {
+	value: string;
+	unit?: string;
+	label: string;
+	/** A dot before the label, Training Effect's. */
+	dot?: ChartColour;
+}
+
+/** A picker on a card's title ("Pace ⌄"): the route field it sets and its choices. */
+export interface ChartPicker {
+	key: "pace" | "heart" | "power";
+	options: Array<{ value: string; label: string }>;
+	chosen: string;
+}
+
+export interface ChartKey {
+	label: string;
+	colour: ChartColour;
+	/** A dot, or a short line (Stamina's Potential). */
+	kind: "dot" | "dash";
+}
+
+interface CardBase {
+	id: CardId;
+	title: string;
+	picker?: ChartPicker;
+	help: boolean;
+	figures: ChartFigure[];
+}
+
+/** Samples on a chart: x as a share of the axis (0 … 1), y in the chart's unit or null for no value. */
+export interface ChartPoints {
+	x: number[];
+	y: Array<number | null>;
+}
+
+export interface YAxis {
+	/** The values at the plot's bottom and top. A pace axis runs the other way: its bottom is the slow end. */
+	bottom: number;
+	top: number;
+	/** Top of the plot first. */
+	labels: Array<{ value: number; text: string }>;
+}
+
+export interface XAxis {
+	/** `at` is a share of the plot's width. */
+	ticks: Array<{ at: number; text: string }>;
+	title: string;
+}
+
+export type SeriesMark = "area" | "line" | "dots" | "steps" | "blocks";
+
+/** A chart of samples: Pace and the other plots. */
+export interface SeriesChart extends CardBase {
+	kind: "series";
+	metric: ChartMetric;
+	mark: SeriesMark;
+	/** For an area, steps or blocks. */
+	fill?: ChartFill;
+	/** The stride dots' one colour. */
+	colour?: ChartColour;
+	points: ChartPoints;
+	/** Dots: each point's band colour, by index. */
+	colours?: Array<ChartColour | null>;
+	/** A line coloured by its value (Heart Rate Zones): colour stops by value, low to high. */
+	stops?: Array<{ value: number; colour: ChartColour }>;
+	/** Lap Average Pace: one block per lap, its span on x and its pace. */
+	blocks?: Array<{ from: number; to: number; value: number }>;
+	/** Stamina's Potential: a white line over the area. */
+	line?: ChartPoints;
+	/** The summary's average, solid or dashed (the dot charts'). */
+	average?: { value: number; dashed: boolean };
+	/** A fixed white line: Performance Condition's 0, Impact Load Factor's 1.0. */
+	reference?: number;
+	/** Where an area closes: Performance Condition's steps close on 0; the rest on the plot's bottom. */
+	base?: number;
+	y: YAxis;
+	x: XAxis;
+	legend?: ChartKey[];
+}
+
+export interface TrainingEffectChart extends CardBase {
+	kind: "training-effect";
+	scales: Array<{ label: "Aerobic" | "Anaerobic"; value: number; colour: ChartColour }>;
+}
+
+export type RunWalkLane = "run" | "walk" | "idle";
+
+export interface RunWalkChart extends CardBase {
+	kind: "run-walk";
+	/** Top to bottom: Idle, Walk, Run. */
+	lanes: Array<{ lane: RunWalkLane; label: string; colour: ChartColour }>;
+	/** Each segment's span on x; a bar rises from the plot's bottom to its lane's line. */
+	bars: Array<{ from: number; to: number; lane: RunWalkLane }>;
+	x: XAxis;
+	legend: ChartKey[];
+}
+
+export interface ZoneRow {
+	zone: number;
+	/** "Zone 5". */
+	title: string;
+	/** "> 183 bpm", "163 - 183 bpm"; empty without the zones' floors. */
+	range: string;
+	/** "Maximum". */
+	name: string;
+	/** "41:33". */
+	time: string;
+	/** "74%". */
+	percent: string;
+	/** The bar's fill, 0 … 1: the floored percentage. */
+	fill: number;
+	colour: ChartColour;
+}
+
+export interface ZonesChart extends CardBase {
+	kind: "zones";
+	/** Zone 5 first. */
+	rows: ZoneRow[];
+}
+
+export type ChartCard = SeriesChart | TrainingEffectChart | RunWalkChart | ZonesChart;
+
+export interface ChartsTabView {
+	axis: ActivityAxis;
+	/** Empty without samples: the tab shows its loading or empty state. */
+	cards: ChartCard[];
+}
+
+/** What the Charts tab reads off the route. */
+export type ChartsRoute = Pick<ActivityRoute, "axis" | "pace" | "heart" | "power">;
+
+/* ------------------------------------------------------------------ */
+/*  Rules                                                              */
+/* ------------------------------------------------------------------ */
+
+/** The time axis' ticks: the start, the end and four between, equally spaced. */
+export const TICKS = 6;
+/** Labels within this share of the plot's height past either end are still drawn (6 of 137 pt). */
+export const LABEL_SLACK = 6 / 137;
+/** Every bottom sits at 0.98 × the series' minimum; a pace axis' fast end at 0.98 × the best pace. */
+const BOTTOM = 0.98;
+
+interface AxisRule {
+	/** top = max + pad × (max − min). */
+	pad?: number;
+	/** top = times × max. */
+	times?: number;
+	/** A bottom that stays put (Impact Load Factor's 0). */
+	floor?: number;
+	/** Bounds that never move: Stamina's 0–100, Performance Condition's ±3. */
+	fixed?: readonly [bottom: number, top: number];
+	/** Five labels in equal steps from bottom to top, rounded half-even, rather than nice ones. */
+	forced?: boolean;
+}
+
+type PaceMetric = "pace" | "gap" | "lap-pace";
+
+/**
+ * The y axes the spec measured. The top's padding comes in two clusters, 0.443
+ * (heart rate, cadence, stride: the overlays' labels pin [0.441, 0.445]) and
+ * 0.405 (elevation, vertical oscillation, ground contact time: GCT pins
+ * [0.400, 0.411]); why they differ is unknown (Inferred). So are Power's top at
+ * 1.66 × its max (≈735 W for 442) and Impact Load Factor's at 2 × its max.
+ */
+const AXES: Readonly<Record<Exclude<ChartMetric, PaceMetric>, AxisRule>> = {
+	"heart-rate": { pad: 0.443 },
+	"heart-rate-zones": { pad: 0.443 },
+	elevation: { pad: 0.405 },
+	power: { times: 1.66 },
+	"power-per-kg": { times: 1.66 },
+	stamina: { fixed: [0, 100] },
+	// Fixed and symmetric (Inferred), widened to whole units when a value runs past ±3.
+	"performance-condition": { fixed: [-3, 3] },
+	cadence: { pad: 0.443 },
+	"stride-length": { pad: 0.443 },
+	"vertical-ratio": { pad: 0, forced: true },
+	"vertical-oscillation": { pad: 0.405 },
+	"ground-contact-time": { pad: 0.405, forced: true },
+	"impact-load": { floor: 0, times: 2 },
+};
+
+/** Stride's labels step 0.5 m where its range predicts 0.2: the one exception to the nice steps (Inferred). */
+const STRIDE_STEP_M = 0.5;
+
+/** The charts drawn as dots: their time axis starts at their first sample with a value. */
+const DOT_METRICS: ReadonlySet<ChartMetric> = new Set<ChartMetric>(["cadence", "stride-length", "vertical-ratio", "vertical-oscillation", "ground-contact-time"]);
+
+/** Their average line is dashed; the areas' is solid. */
+const AVERAGE: Partial<Record<ChartMetric, "solid" | "dashed">> = {
+	pace: "solid",
+	gap: "solid",
+	"lap-pace": "solid",
+	"heart-rate": "solid",
+	"heart-rate-zones": "solid",
+	power: "solid",
+	"power-per-kg": "solid",
+	cadence: "dashed",
+	"stride-length": "dashed",
+	"vertical-ratio": "dashed",
+	"vertical-oscillation": "dashed",
+	"ground-contact-time": "dashed",
+};
+
+/**
+ * Garmin's running-dynamics colour zones, proved on the run's dots (the older
+ * GCT table: 245 ms is green). A value at a cut takes the band above it; cuts
+ * between the documented ranges sit midway (the VR green/orange cut, 8.6 or
+ * 8.65, could not be told apart). Bands no sample reached are Garmin's
+ * documented values (Inferred). In Garmin's units, whatever the page's.
+ */
+const BANDS: Readonly<Partial<Record<ChartMetric, { cuts: readonly number[]; colours: readonly ChartColour[] }>>> = {
+	// spm: < 153 red, 153–163 orange, 164–173 green, 174–183 blue, > 183 purple.
+	cadence: { cuts: [152.5, 163.5, 173.5, 183.5], colours: ["red", "orange", "green", "blue", "purple"] },
+	// ms: < 208 purple, 208–240 blue, 241–272 green, 273–305 orange, > 305 red.
+	"ground-contact-time": { cuts: [207.5, 240.5, 272.5, 305.5], colours: ["purple", "blue", "green", "orange", "red"] },
+	// cm: < 6.4 purple, 6.4–8.1 blue, 8.2–9.7 green, 9.8–11.5 orange, > 11.5 red.
+	"vertical-oscillation": { cuts: [6.4, 8.15, 9.75, 11.55], colours: ["purple", "blue", "green", "orange", "red"] },
+	// %: < 6.1 purple, 6.1–7.4 blue, 7.5–8.6 green, 8.7–10.1 orange, > 10.1 red.
+	"vertical-ratio": { cuts: [6.1, 7.45, 8.65, 10.15], colours: ["purple", "blue", "green", "orange", "red"] },
+};
+
+/** Training Effect's scale: five segments, grey, grey, blue, green, orange, then a red cap at 5. */
+export const TE_SEGMENTS: readonly ChartColour[] = ["grey", "grey", "blue", "green", "orange"];
+export const TE_CAP: ChartColour = "red";
+export const TE_MAX = 5;
+
+const HR_ZONE_NAMES: Readonly<Record<number, string>> = { 1: "Warm Up", 2: "Easy", 3: "Aerobic", 4: "Threshold", 5: "Maximum" };
+// Zone 1's "Easy" is web-confirmed; the phone's shot ends above it.
+const POWER_ZONE_NAMES: Readonly<Record<number, string>> = { 1: "Easy", 2: "Moderate", 3: "Tempo", 4: "Long Interval", 5: "Short Interval" };
+
+const METRES_PER_MILE = 1609.344;
+const FEET_PER_METRE = 3.28084;
+const CM_PER_FOOT = 30.48;
+const CM_PER_INCH = 2.54;
+
+/* ------------------------------------------------------------------ */
+/*  The tab                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The Charts tab: every card the activity has data for, in the phone's order,
+ * each with the picker choice the route keeps (or the first one it has).
+ */
+export function chartsTabView(detail: ActivityDetail, route: ChartsRoute, units: Units): ChartsTabView {
+	const ctx = contextOf(detail, route.axis, units);
+	if (!ctx) return { axis: route.axis, cards: [] };
+	const cards: ChartCard[] = [];
+	for (const id of CARD_IDS) {
+		const card = cardOf(ctx, id, route);
+		if (card) cards.push(card);
+	}
+	return { axis: route.axis, cards };
+}
+
+/** The charts of samples the activity has data for. */
+export function availableMetrics(detail: ActivityDetail): ChartMetric[] {
+	return CHART_METRICS.filter((m) => hasMetric(detail, m));
+}
+
+function cardOf(ctx: Context, id: CardId, route: ChartsRoute): ChartCard | null {
+	switch (id) {
+		case "pace":
+			return pickerCard(ctx, id, "pace", PACE_OPTIONS, route.pace);
+		case "heart-rate":
+			return pickerCard(ctx, id, "heart", HEART_OPTIONS, route.heart);
+		case "power":
+			return pickerCard(ctx, id, "power", POWER_OPTIONS, route.power);
+		case "training-effect":
+			return trainingEffect(ctx);
+		case "run-walk":
+			return runWalk(ctx);
+		case "time-in-hr-zones":
+			return zones(ctx, "hr");
+		case "time-in-power-zones":
+			return zones(ctx, "power");
+		default:
+			return seriesChart(ctx, id, id);
+	}
+}
+
+type PickerOption<V extends string> = { value: V; metric: ChartMetric };
+
+const PACE_OPTIONS: ReadonlyArray<PickerOption<PaceChart>> = [
+	{ value: "pace", metric: "pace" },
+	{ value: "gap", metric: "gap" },
+	{ value: "lap-pace", metric: "lap-pace" },
+];
+const HEART_OPTIONS: ReadonlyArray<PickerOption<HeartChart>> = [
+	{ value: "heart-rate", metric: "heart-rate" },
+	{ value: "zones", metric: "heart-rate-zones" },
+];
+const POWER_OPTIONS: ReadonlyArray<PickerOption<PowerChart>> = [
+	{ value: "watts", metric: "power" },
+	{ value: "per-kg", metric: "power-per-kg" },
+];
+
+/** A card with a picker: the options the activity has data for; the route's choice, or the first. */
+function pickerCard<V extends string>(ctx: Context, id: CardId, key: ChartPicker["key"], all: ReadonlyArray<PickerOption<V>>, wanted: V | undefined): SeriesChart | null {
+	const options = all.filter((o) => hasMetric(ctx.detail, o.metric));
+	if (!options.length) return null;
+	const chosen = options.find((o) => o.value === wanted) ?? options[0]!;
+	const chart = seriesChart(ctx, id, chosen.metric);
+	if (!chart) return null;
+	// One choice left is no choice: no "⌄".
+	if (options.length > 1) chart.picker = { key, options: options.map((o) => ({ value: o.value, label: CHART_TITLES[o.metric] })), chosen: chosen.value };
+	return chart;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Series charts                                                      */
+/* ------------------------------------------------------------------ */
+
+interface Context {
+	detail: ActivityDetail;
+	axis: ActivityAxis;
+	units: Units;
+	/** Each sample's place on the axis: timer seconds or metres; null where unknown. */
+	at: Array<number | null>;
+	/** The axis' end: the last sample's time or distance. */
+	end: number;
+}
+
+function contextOf(detail: ActivityDetail, axis: ActivityAxis, units: Units): Context | null {
+	const at = (axis === "distance" ? detail.samples.distance : detail.samples.time) ?? [];
+	let end = -Infinity;
+	for (const v of at) if (isNumber(v) && v > end) end = v;
+	if (!(end > 0)) return null;
+	return { detail, axis, units, at, end };
+}
+
+interface SeriesOptions {
+	/** The landscape view runs every chart from 0, its dot charts too. */
+	fromZero?: boolean;
+}
+
+/** One chart of samples, or null when the activity has none for it. */
+function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: SeriesOptions = {}): SeriesChart | null {
+	if (!hasMetric(ctx.detail, metric)) return null;
+	const values = valuesOf(ctx.detail, metric, ctx.units);
+	const start = ctx.axis === "time" && DOT_METRICS.has(metric) && !opts.fromZero ? firstAt(ctx.at, values) : 0;
+	const points = pointsOf(ctx.at, values, start, ctx.end);
+	const chart: SeriesChart = {
+		kind: "series",
+		id,
+		metric,
+		title: CHART_TITLES[metric],
+		help: HELP.has(id),
+		figures: figuresOf(ctx.detail, metric, ctx.units),
+		mark: markOf(metric),
+		points,
+		y: yAxisOf(ctx.detail, metric, ctx.units, values),
+		x: ctx.axis === "time" ? timeAxis(start, ctx.end) : distanceAxis(ctx.end, ctx.units),
+	};
+	const fill = fillOf(metric);
+	if (fill) chart.fill = fill;
+	const average = averageOf(ctx.detail, metric, ctx.units);
+	if (average !== undefined) chart.average = { value: average, dashed: AVERAGE[metric] === "dashed" };
+	const bands = BANDS[metric];
+	if (bands) chart.colours = points.y.map((v) => (v === null ? null : bandOf(bands, rawOf(metric, v, ctx.units))));
+	switch (metric) {
+		case "stride-length":
+			chart.colour = "blue";
+			break;
+		case "heart-rate-zones":
+			chart.stops = zoneStops(ctx.detail.hrZones) ?? [];
+			break;
+		case "lap-pace":
+			chart.blocks = lapBlocks(ctx, ctx.detail.laps);
+			break;
+		case "stamina": {
+			const potential = ctx.detail.samples.potential;
+			if (potential && potential.some(isNumber)) chart.line = pointsOf(ctx.at, potential, start, ctx.end);
+			chart.legend = [
+				{ label: "Stamina", colour: "orange", kind: "dot" },
+				{ label: "Potential", colour: "white", kind: "dash" },
+			];
+			break;
+		}
+		case "performance-condition":
+			chart.reference = 0;
+			chart.base = 0;
+			break;
+		case "impact-load":
+			// A fixed white line at 1.0, not at the run's average 1.06 (Inferred: the shot's line sits at 1.01).
+			chart.reference = 1;
+			break;
+		default:
+			break;
+	}
+	return chart;
+}
+
+function markOf(metric: ChartMetric): SeriesMark {
+	if (DOT_METRICS.has(metric)) return "dots";
+	if (metric === "heart-rate-zones") return "line";
+	if (metric === "performance-condition") return "steps";
+	if (metric === "lap-pace") return "blocks";
+	return "area";
+}
+
+function fillOf(metric: ChartMetric): ChartFill | undefined {
+	switch (metric) {
+		case "pace":
+		case "gap":
+		case "lap-pace":
+			return "pace";
+		case "heart-rate":
+			return "heart-rate";
+		case "elevation":
+			return "elevation";
+		case "power":
+		case "power-per-kg":
+			return "power";
+		case "stamina":
+			return "stamina";
+		case "impact-load":
+			return "impact";
+		case "performance-condition":
+			return "performance";
+		default:
+			return undefined;
+	}
+}
+
+/** Whether the activity has what the chart draws. */
+export function hasMetric(detail: ActivityDetail, metric: ChartMetric): boolean {
+	const s = detail.samples;
+	const has = (column: string) => (s[column] ?? []).some(isNumber);
+	switch (metric) {
+		case "pace":
+			return has("speed");
+		case "gap":
+			return has("gap");
+		case "lap-pace":
+			return detail.laps.some((lap) => (lap.speed ?? 0) > 0);
+		case "heart-rate":
+			return has("hr");
+		case "heart-rate-zones":
+			return has("hr") && zoneStops(detail.hrZones) !== null;
+		case "elevation":
+			return has("elevation");
+		case "power":
+			return has("power");
+		case "power-per-kg":
+			return has("power") && (detail.weightKg ?? 0) > 0;
+		case "stamina":
+			return has("stamina");
+		case "performance-condition":
+			return has("performance");
+		case "cadence":
+			return (s.cadence ?? []).some((v) => isNumber(v) && v > 0);
+		case "stride-length":
+			return has("stride");
+		case "vertical-ratio":
+			return has("vr");
+		case "vertical-oscillation":
+			return has("vo");
+		case "ground-contact-time":
+			return has("gct");
+		case "impact-load":
+			// The treadmill's constant 0.5 still draws, as the web does (Inferred for the phone).
+			return has("impact");
+	}
+}
+
+/** The samples in the chart's unit: pace as seconds per km or mile, stride in metres or feet. */
+function valuesOf(detail: ActivityDetail, metric: ChartMetric, units: Units): Array<number | null> {
+	const map = (column: string, f: (v: number) => number | null) => (detail.samples[column] ?? []).map((v) => (isNumber(v) ? f(v) : null));
+	switch (metric) {
+		case "pace":
+		case "lap-pace":
+			return map("speed", (v) => paceOf(v, units));
+		case "gap":
+			return map("gap", (v) => paceOf(v, units));
+		case "heart-rate":
+		case "heart-rate-zones":
+			return map("hr", (v) => v);
+		case "elevation":
+			return map("elevation", (v) => (units === "imperial" ? v * FEET_PER_METRE : v));
+		case "power":
+			return map("power", (v) => v);
+		case "power-per-kg":
+			return map("power", (v) => v / (detail.weightKg ?? 1));
+		case "stamina":
+			return map("stamina", (v) => v);
+		case "performance-condition":
+			return map("performance", (v) => v);
+		case "cadence":
+			// A 0 spm sample is the watch between steps: no dot, and no say in the axis.
+			return map("cadence", (v) => (v > 0 ? v : null));
+		case "stride-length":
+			return map("stride", (v) => (units === "imperial" ? v / CM_PER_FOOT : v / 100));
+		case "vertical-ratio":
+			return map("vr", (v) => v);
+		case "vertical-oscillation":
+			return map("vo", (v) => (units === "imperial" ? v / CM_PER_INCH : v));
+		case "ground-contact-time":
+			return map("gct", (v) => v);
+		case "impact-load":
+			return map("impact", (v) => v);
+	}
+}
+
+/** A value back in Garmin's unit, where the dot bands are defined. */
+function rawOf(metric: ChartMetric, value: number, units: Units): number {
+	return metric === "vertical-oscillation" && units === "imperial" ? value * CM_PER_INCH : value;
+}
+
+/** Seconds per km or mile at `speed` m/s; a stop is infinitely slow, drawn at the slow end. */
+function paceOf(speed: number, units: Units): number {
+	if (!(speed > 0)) return Infinity;
+	return (units === "imperial" ? METRES_PER_MILE : 1000) / speed;
+}
+
+function pointsOf(at: ReadonlyArray<number | null>, values: ReadonlyArray<number | null>, start: number, end: number): ChartPoints {
+	const span = end - start || 1;
+	const x: number[] = [];
+	const y: Array<number | null> = [];
+	for (let i = 0; i < at.length; i += 1) {
+		const a = at[i];
+		if (!isNumber(a) || a < start) continue;
+		x.push((a - start) / span);
+		const v = values[i];
+		y.push(v === undefined || v === null || Number.isNaN(v) ? null : v);
+	}
+	return { x, y };
+}
+
+/**
+ * Where the dot charts' time axis starts: their first sample with a value. The
+ * phone's Stride, VR and GCT start at 0:09, their first sample in what it
+ * fetched; the plugin's 2,000-row payload has it at 0:08, so its axis reads
+ * 0:08 (the spec's suggestion, Inferred).
+ */
+function firstAt(at: ReadonlyArray<number | null>, values: ReadonlyArray<number | null>): number {
+	for (let i = 0; i < values.length; i += 1) {
+		const a = at[i];
+		if (values[i] !== null && values[i] !== undefined && isNumber(a)) return a;
+	}
+	return 0;
+}
+
+function bandOf(bands: { cuts: readonly number[]; colours: readonly ChartColour[] }, value: number): ChartColour {
+	let i = 0;
+	while (i < bands.cuts.length && value >= bands.cuts[i]!) i += 1;
+	return bands.colours[i]!;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Axes                                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The time axis: six ticks at `round(t0 + k × (T − t0) / 5)`, "m:ss" (an hour
+ * or more "h:mm:ss", Inferred), T the last sample's timer time. `drawn` keeps
+ * the first few of the six (Run/Walk draws five).
+ */
+export function timeAxis(start: number, end: number, drawn = TICKS): XAxis {
+	const ticks: XAxis["ticks"] = [];
+	for (let k = 0; k < drawn; k += 1) {
+		const at = k / (TICKS - 1);
+		ticks.push({ at, text: duration(Math.round(start + at * (end - start))) });
+	}
+	return { ticks, title: "Time (h:m:s)" };
+}
+
+/**
+ * The distance axis: nice steps from 0 to the last sample, two decimals
+ * (Inferred over equal divisions truncated to 0.01: on the 10.009 km run both
+ * read 0.00 … 10.00 and the 0.3 pt between them cannot be seen).
+ */
+export function distanceAxis(metres: number, units: Units): XAxis {
+	const length = units === "imperial" ? metres / METRES_PER_MILE : metres / 1000;
+	const step = niceStep(length / (TICKS - 1));
+	const ticks: XAxis["ticks"] = [];
+	for (let k = 0; k * step <= length + 1e-9; k += 1) {
+		const value = round(k * step, 6);
+		ticks.push({ at: length > 0 ? value / length : 0, text: value.toFixed(2) });
+	}
+	return { ticks, title: units === "imperial" ? "Distance (mi)" : "Distance (km)" };
+}
+
+/** A nice step for `raw`: 1, 2 or 5 × 10ⁿ, rounding at 1.5, 3 and 7. */
+export function niceStep(raw: number): number {
+	if (!(raw > 0) || !Number.isFinite(raw)) return 1;
+	const exp = Math.floor(Math.log10(raw));
+	const f = raw / 10 ** exp;
+	const nice = f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10;
+	return Number((nice * 10 ** exp).toPrecision(12));
+}
+
+/** The chart's y axis: its bounds by the spec's rule for it, and its labels. */
+function yAxisOf(detail: ActivityDetail, metric: ChartMetric, units: Units, values: ReadonlyArray<number | null>): YAxis {
+	if (metric === "pace" || metric === "gap" || metric === "lap-pace") return paceAxis(detail, metric, units);
+	const rule = AXES[metric];
+	const finite = values.filter((v): v is number => v !== null && Number.isFinite(v));
+	const min = finite.length ? Math.min(...finite) : 0;
+	const max = finite.length ? Math.max(...finite) : 1;
+	let bottom: number;
+	let top: number;
+	if (rule.fixed) {
+		[bottom, top] = rule.fixed;
+		// Performance Condition past ±3 widens the axis rather than leave the plot.
+		const reach = Math.ceil(Math.max(Math.abs(min), Math.abs(max)));
+		if (metric === "performance-condition" && reach > top) [bottom, top] = [-reach, reach];
+	} else {
+		bottom = rule.floor ?? BOTTOM * min;
+		top = rule.times !== undefined ? rule.times * max : max + (rule.pad ?? 0) * (max - min);
+		if (!(top > bottom)) top = bottom + 1;
+	}
+	const text = labelFormat(metric);
+	if (rule.forced) return { bottom, top, labels: forcedLabels(bottom, top, text) };
+	const step = metric === "stride-length" && units === "metric" ? STRIDE_STEP_M : undefined;
+	return { bottom, top, labels: niceLabels(bottom, top, text, step) };
+}
+
+/**
+ * Pace axes, fast at the top. Pace and Grade-Adjusted Pace: the fast end at
+ * 0.98 × the best pace, the slow end three times as far past the average.
+ * Lap Average Pace: 0.98 × the fastest lap and 1.02 × the slowest.
+ */
+function paceAxis(detail: ActivityDetail, metric: PaceMetric, units: Units): YAxis {
+	let fast: number;
+	let slow: number;
+	if (metric === "lap-pace") {
+		const paces = lapPaces(detail.laps, units);
+		fast = BOTTOM * Math.min(...paces);
+		slow = 1.02 * Math.max(...paces);
+	} else {
+		const best = paceOf(bestSpeed(detail, metric) ?? 0, units);
+		const average = paceOf(averageSpeed(detail, metric) ?? 0, units);
+		fast = BOTTOM * best;
+		slow = fast + 3 * (average - fast);
+	}
+	if (!Number.isFinite(fast) || !Number.isFinite(slow) || !(slow > fast)) {
+		fast = Number.isFinite(fast) ? fast : 0;
+		slow = fast + 60;
+	}
+	return { bottom: slow, top: fast, labels: niceLabels(slow, fast, (v) => duration(v)) };
+}
+
+/**
+ * Multiples of a nice step for about four intervals; one within `LABEL_SLACK`
+ * past either end still shows (Pace's 5:00 sits 2 pt above its plot). Top of
+ * the plot first.
+ */
+export function niceLabels(bottom: number, top: number, text: (v: number) => string, fixedStep?: number): YAxis["labels"] {
+	const lo = Math.min(bottom, top);
+	const hi = Math.max(bottom, top);
+	const range = hi - lo;
+	const step = fixedStep ?? niceStep(range / 4);
+	const slack = LABEL_SLACK * range;
+	const out: YAxis["labels"] = [];
+	for (let k = Math.ceil((lo - slack) / step - 1e-9); k * step <= hi + slack + 1e-9; k += 1) {
+		const value = round(k * step, 9);
+		out.push({ value, text: text(value) });
+	}
+	// A pace axis keeps its smallest value on top.
+	return top >= bottom ? out.reverse() : out;
+}
+
+/** Five labels in equal steps from bottom to top, rounded half-even like iOS's NumberFormatter; top first. */
+export function forcedLabels(bottom: number, top: number, text: (v: number) => string): YAxis["labels"] {
+	const out: YAxis["labels"] = [];
+	for (let k = 4; k >= 0; k -= 1) {
+		const value = bottom + (k * (top - bottom)) / 4;
+		out.push({ value, text: text(value) });
+	}
+	return out;
+}
+
+/** How a chart's y labels read. */
+function labelFormat(metric: ChartMetric): (v: number) => string {
+	switch (metric) {
+		case "performance-condition":
+			return (v) => {
+				const n = Math.round(v);
+				return n > 0 ? `+${n}` : n === 0 ? "0" : String(n);
+			};
+		case "vertical-ratio":
+		case "ground-contact-time":
+			return (v) => plain(roundHalfEven(v, 0), 0);
+		case "stride-length":
+		case "power-per-kg":
+			return (v) => plain(v, 2);
+		default:
+			return (v) => plain(v, 1);
+	}
+}
+
+/** A number with at most `places` decimals and no trailing zeros: "1.5", "1", "-10". */
+function plain(value: number, places: number): string {
+	const digits = round(value, places).toFixed(places);
+	const text = digits.includes(".") ? digits.replace(/\.?0+$/, "") : digits;
+	return text === "-0" ? "0" : text;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Figures, averages and the special marks                            */
+/* ------------------------------------------------------------------ */
+
+function figuresOf(detail: ActivityDetail, metric: ChartMetric, units: Units): ChartFigure[] {
+	const s = detail.summary;
+	const out: ChartFigure[] = [];
+	const push = (value: string | undefined, label: string, unit?: string) => {
+		if (value === undefined) return;
+		out.push(unit ? { value, unit, label } : { value, label });
+	};
+	switch (metric) {
+		case "pace":
+		case "gap":
+		case "lap-pace": {
+			const perUnit = units === "imperial" ? "/mi" : "/km";
+			push(paceText(averageSpeed(detail, metric), units), "Average", perUnit);
+			push(paceText(bestSpeed(detail, metric), units), "Best", perUnit);
+			break;
+		}
+		case "heart-rate":
+		case "heart-rate-zones":
+			push(whole(s.averageHR), "Average", "bpm");
+			push(whole(s.maxHR), "Maximum", "bpm");
+			break;
+		case "elevation": {
+			// Rounded half away from zero: -21.8 m reads -22 (round vs floor is Inferred: no positive elevation shot).
+			const height = (v: unknown) => {
+				const m = num(v);
+				return m === undefined ? undefined : String(roundHalfAway(units === "imperial" ? m * FEET_PER_METRE : m));
+			};
+			const unit = units === "imperial" ? "ft" : "m";
+			push(height(s.minElevation), "Minimum", unit);
+			push(height(s.maxElevation), "Maximum", unit);
+			break;
+		}
+		case "power":
+			push(whole(s.averagePower), "Average", "W");
+			push(whole(s.maxPower), "Maximum", "W");
+			break;
+		case "power-per-kg": {
+			// Watts over the day's weigh-in, two decimals (web-confirmed: 294 W → 4.32 at 68.0 kg).
+			const kg = detail.weightKg ?? 0;
+			const per = (v: unknown) => {
+				const w = num(v);
+				return w === undefined || !(kg > 0) ? undefined : fixed(w / kg, 2);
+			};
+			push(per(s.averagePower), "Average", "W/kg");
+			push(per(s.maxPower), "Maximum", "W/kg");
+			break;
+		}
+		case "stamina":
+			push(whole(s.beginPotentialStamina), "Beginning Potential", "%");
+			push(whole(s.endPotentialStamina), "Ending Potential", "%");
+			break;
+		case "performance-condition":
+			break;
+		case "cadence":
+			push(whole(s.averageRunCadence), "Average", "spm");
+			push(whole(s.maxRunCadence), "Maximum", "spm");
+			break;
+		case "stride-length": {
+			const cm = num(s.strideLength);
+			if (cm !== undefined) push(fixed(units === "imperial" ? cm / CM_PER_FOOT : cm / 100, 2), "Average", units === "imperial" ? "ft" : "m");
+			break;
+		}
+		case "vertical-ratio": {
+			const ratio = num(s.verticalRatio);
+			if (ratio !== undefined) push(fixed(ratio, 1), "Average", "%");
+			break;
+		}
+		case "vertical-oscillation": {
+			const cm = num(s.verticalOscillation);
+			if (cm !== undefined) push(fixed(units === "imperial" ? cm / CM_PER_INCH : cm, 1), "Average", units === "imperial" ? "in" : "cm");
+			break;
+		}
+		case "ground-contact-time":
+			push(whole(s.groundContactTime), "Average", "ms");
+			break;
+		case "impact-load": {
+			const load = num(s.impactLoad);
+			if (load !== undefined) out.push(distanceFigure(load, units, "Impact Load"));
+			const metres = num(s.distance);
+			if (metres !== undefined) out.push(distanceFigure(metres, units, "Actual Distance"));
+			break;
+		}
+	}
+	return out;
+}
+
+/** "10.59" "km": metres to 0.01 km (or mile), as the activity rows write distances. */
+function distanceFigure(metres: number, units: Units, label: string): ChartFigure {
+	const [value, unit] = formatDistance(metres, units, 2, true).split(" ");
+	return { value: value!, unit: unit!, label };
+}
+
+/** The line at the summary's average, in the chart's unit. */
+function averageOf(detail: ActivityDetail, metric: ChartMetric, units: Units): number | undefined {
+	if (!AVERAGE[metric]) return undefined;
+	const s = detail.summary;
+	switch (metric) {
+		case "pace":
+		case "gap":
+		case "lap-pace": {
+			const speed = averageSpeed(detail, metric);
+			return speed !== undefined && speed > 0 ? paceOf(speed, units) : undefined;
+		}
+		case "heart-rate":
+		case "heart-rate-zones":
+			return num(s.averageHR);
+		case "power":
+			return num(s.averagePower);
+		case "power-per-kg": {
+			const w = num(s.averagePower);
+			const kg = detail.weightKg ?? 0;
+			return w !== undefined && kg > 0 ? w / kg : undefined;
+		}
+		case "cadence":
+			return num(s.averageRunCadence);
+		case "stride-length": {
+			const cm = num(s.strideLength);
+			return cm === undefined ? undefined : units === "imperial" ? cm / CM_PER_FOOT : cm / 100;
+		}
+		case "vertical-ratio":
+			return num(s.verticalRatio);
+		case "vertical-oscillation": {
+			const cm = num(s.verticalOscillation);
+			return cm === undefined ? undefined : units === "imperial" ? cm / CM_PER_INCH : cm;
+		}
+		case "ground-contact-time":
+			return num(s.groundContactTime);
+		default:
+			return undefined;
+	}
+}
+
+/** The average a pace chart reads: the summary's (Garmin's own), or the samples' mean without one. */
+function averageSpeed(detail: ActivityDetail, metric: PaceMetric): number | undefined {
+	const summary = num(detail.summary[metric === "gap" ? "avgGradeAdjustedSpeed" : "averageSpeed"]);
+	if (summary !== undefined && summary > 0) return summary;
+	const values = (detail.samples[metric === "gap" ? "gap" : "speed"] ?? []).filter((v): v is number => isNumber(v) && v > 0);
+	return values.length ? values.reduce((a, b) => a + b, 0) / values.length : undefined;
+}
+
+/**
+ * The best a pace chart reads: Pace the summary's `maxSpeed` (the fastest
+ * sample), Grade-Adjusted Pace its fastest sample (no summary key holds it),
+ * Lap Average Pace the fastest lap.
+ */
+function bestSpeed(detail: ActivityDetail, metric: PaceMetric): number | undefined {
+	if (metric === "lap-pace") {
+		const speeds = detail.laps.map((lap) => lap.speed ?? 0).filter((v) => v > 0);
+		return speeds.length ? Math.max(...speeds) : undefined;
+	}
+	const summary = metric === "pace" ? num(detail.summary.maxSpeed) : undefined;
+	if (summary !== undefined && summary > 0) return summary;
+	const values = (detail.samples[metric === "gap" ? "gap" : "speed"] ?? []).filter(isNumber);
+	return values.length ? Math.max(...values) : undefined;
+}
+
+function paceText(speed: number | undefined, units: Units): string | undefined {
+	return speed !== undefined && speed > 0 ? pace(speed, 1, units) : undefined;
+}
+
+/** The laps' paces from their own average speed (lap 2's 5:44 proves it is not time ÷ distance). */
+function lapPaces(laps: readonly ActivityLap[], units: Units): number[] {
+	return laps.filter((lap) => (lap.speed ?? 0) > 0).map((lap) => paceOf(lap.speed!, units));
+}
+
+/** One block per lap, as wide as its time (or distance) and as high as its pace. */
+function lapBlocks(ctx: Context, laps: readonly ActivityLap[]): NonNullable<SeriesChart["blocks"]> {
+	const out: NonNullable<SeriesChart["blocks"]> = [];
+	let at = 0;
+	for (const lap of laps) {
+		const from = at;
+		at += ctx.axis === "distance" ? lap.distance : lap.duration;
+		if ((lap.speed ?? 0) > 0) out.push({ from: clamp01(from / ctx.end), to: clamp01(at / ctx.end), value: paceOf(lap.speed!, ctx.units) });
+	}
+	return out;
+}
+
+/**
+ * The Heart Rate Zones line's colour stops, by bpm, from the zones' floors
+ * (Inferred: fitted to the shot's colours, 132 bpm teal, 142 green, 150–168
+ * blending to orange by 175; the floors alone run ahead of the shot from 150).
+ */
+export function zoneStops(zones: readonly ZoneTime[]): Array<{ value: number; colour: ChartColour }> | null {
+	const floors = [1, 2, 3, 4, 5].map((n) => zones.find((z) => z.zone === n)?.floor);
+	if (!floors.every(isNumber)) return null;
+	const [f1, f2, f3, f4, f5] = floors as [number, number, number, number, number];
+	return [
+		{ value: f1, colour: "sky" },
+		{ value: f2, colour: "blue" },
+		{ value: f3, colour: "green" },
+		{ value: (f4 + f5) / 2, colour: "orange" },
+		{ value: f5, colour: "orange" },
+		{ value: f5 + (f5 - f4) / 2, colour: "red" },
+	];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Training Effect, Run/Walk, zones                                   */
+/* ------------------------------------------------------------------ */
+
+function trainingEffect(ctx: Pick<Context, "detail">): TrainingEffectChart | null {
+	const aerobic = num(ctx.detail.summary.trainingEffect);
+	if (aerobic === undefined) return null;
+	const anaerobic = num(ctx.detail.summary.anaerobicTrainingEffect);
+	const scales: TrainingEffectChart["scales"] = [];
+	const figures: ChartFigure[] = [];
+	const add = (label: "Aerobic" | "Anaerobic", raw: number | undefined) => {
+		if (raw === undefined) return;
+		// The knob and its colour follow the number shown: 4.3000002 reads 4.3.
+		const value = round(Math.max(0, Math.min(TE_MAX, raw)), 1);
+		const colour = teColour(value);
+		scales.push({ label, value, colour });
+		figures.push({ value: value.toFixed(1), label, dot: colour });
+	};
+	add("Aerobic", aerobic);
+	add("Anaerobic", anaerobic);
+	return { kind: "training-effect", id: "training-effect", title: "Training Effect", help: HELP.has("training-effect"), figures, scales };
+}
+
+/** A value's segment colour: [0, 2) grey, [2, 3) blue, [3, 4) green, [4, 5) orange, 5 red (4.0 sits inside orange). */
+export function teColour(value: number): ChartColour {
+	if (value >= TE_MAX) return TE_CAP;
+	return TE_SEGMENTS[Math.max(0, Math.min(TE_SEGMENTS.length - 1, Math.floor(value)))]!;
+}
+
+const LANES: RunWalkChart["lanes"] = [
+	{ lane: "idle", label: "Idle", colour: "yellow" },
+	{ lane: "walk", label: "Walk", colour: "green" },
+	{ lane: "run", label: "Run", colour: "blue" },
+];
+const LANE_OF: Readonly<Record<string, RunWalkLane>> = { RWD_RUN: "run", RWD_WALK: "walk", RWD_STAND: "idle" };
+
+interface RunWalkOptions {
+	/** The landscape view runs its axis to the last sample and draws all six ticks, as its other charts do (Inferred). */
+	landscape?: boolean;
+}
+
+/**
+ * Run/Walk: Garmin's run/walk detection. Time mode runs to the summary's
+ * duration (3,360.82 s gives 33:36 where 3,361 gives 33:37) and draws only the
+ * first five ticks (why the last goes is unknown; Inferred). Segments are on
+ * the clock: the samples map them to timer time or distance, so the pause
+ * takes no width, nor do the zero-length segments inside it.
+ */
+function runWalk(ctx: Context, opts: RunWalkOptions = {}): RunWalkChart | null {
+	const segments = ctx.detail.segments.filter((s) => LANE_OF[s.type]);
+	if (!segments.length) return null;
+	const total = (lane: RunWalkLane) => segments.filter((s) => LANE_OF[s.type] === lane).reduce((sum, s) => sum + s.duration, 0);
+	const time = ctx.axis === "time";
+	const end = time && !opts.landscape ? (num(ctx.detail.summary.duration) ?? ctx.end) : ctx.end;
+	const map = clockMap(ctx.detail, time ? "time" : "distance");
+	const bars: RunWalkChart["bars"] = [];
+	for (const s of segments) {
+		const from = clamp01(map(s.start) / end);
+		const to = clamp01(map(s.end) / end);
+		if (to > from) bars.push({ from, to, lane: LANE_OF[s.type]! });
+	}
+	return {
+		kind: "run-walk",
+		id: "run-walk",
+		title: "Run/Walk",
+		help: HELP.has("run-walk"),
+		figures: [
+			{ value: duration(total("run")), label: "Run Time" },
+			{ value: duration(total("walk")), label: "Walk Time" },
+		],
+		lanes: LANES,
+		bars,
+		x: time ? timeAxis(0, end, opts.landscape ? TICKS : TICKS - 1) : distanceAxis(end, ctx.units),
+		legend: [
+			{ label: "Run", colour: "blue", kind: "dot" },
+			{ label: "Walk", colour: "green", kind: "dot" },
+			{ label: "Idle", colour: "yellow", kind: "dot" },
+		],
+	};
+}
+
+/** A clock second (since the start, pauses included) as timer time or distance, between the samples either side. */
+function clockMap(detail: ActivityDetail, column: "time" | "distance"): (clock: number) => number {
+	const clock = detail.samples.clock ?? [];
+	const value = detail.samples[column] ?? [];
+	const pairs: Array<[number, number]> = [];
+	for (let i = 0; i < clock.length; i += 1) {
+		const c = clock[i];
+		const v = value[i];
+		if (isNumber(c) && isNumber(v)) pairs.push([c, v]);
+	}
+	return (at) => {
+		if (!pairs.length) return column === "time" ? at : 0;
+		if (at <= pairs[0]![0]) return pairs[0]![1];
+		for (let i = 1; i < pairs.length; i += 1) {
+			const [c1, v1] = pairs[i]!;
+			if (at <= c1) {
+				const [c0, v0] = pairs[i - 1]!;
+				return c1 > c0 ? v0 + ((at - c0) / (c1 - c0)) * (v1 - v0) : v1;
+			}
+		}
+		return pairs[pairs.length - 1]![1];
+	};
+}
+
+/**
+ * Time in zones: Zone 5 first; "floor - next floor − 1 unit", "> floor − 1" on
+ * top; the time to the second; the share floored, of the five zones' sum
+ * (the summary's duration gives the same floors here; Inferred), and the bar
+ * filled to the floored share.
+ */
+function zones(ctx: Context, kind: "hr" | "power"): ZonesChart | null {
+	const list = kind === "hr" ? ctx.detail.hrZones : ctx.detail.powerZones;
+	if (!list.length) return null;
+	const names = kind === "hr" ? HR_ZONE_NAMES : POWER_ZONE_NAMES;
+	const unit = kind === "hr" ? "bpm" : "Watts";
+	const sum = list.reduce((a, z) => a + z.seconds, 0);
+	const rows: ZoneRow[] = [...list]
+		.sort((a, b) => b.zone - a.zone)
+		.map((z) => {
+			const next = list.find((n) => n.zone === z.zone + 1)?.floor;
+			const range = typeof z.floor !== "number" ? "" : typeof next === "number" ? `${z.floor} - ${next - 1} ${unit}` : `> ${z.floor - 1} ${unit}`;
+			const share = sum > 0 ? Math.floor((100 * z.seconds) / sum + 1e-9) : 0;
+			return {
+				zone: z.zone,
+				title: `Zone ${z.zone}`,
+				range,
+				name: names[z.zone] ?? "",
+				time: duration(z.seconds),
+				percent: `${share}%`,
+				fill: share / 100,
+				colour: `zone-${Math.max(1, Math.min(5, z.zone))}` as ChartColour,
+			};
+		});
+	const id: CardId = kind === "hr" ? "time-in-hr-zones" : "time-in-power-zones";
+	return { kind: "zones", id, title: kind === "hr" ? "Time in Heart Rate Zones" : "Time in Power Zones", help: HELP.has(id), figures: [], rows };
+}
+
+/* ------------------------------------------------------------------ */
+/*  The landscape (expanded) chart                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The full-screen chart a route's `sub` opens: `chart:<base>`, with an overlay
+ * `chart:<base>:<overlay>`, swapped `chart:<base>:<overlay>:swap`. The base is
+ * the chart it was opened for (a Stats or Overview badge, `chart:<id>`): its
+ * chips list the others, and stay put when the swap button puts the overlay on
+ * the left axis.
+ */
+export interface ExpandedChartRef {
+	base: ExpandedChartId;
+	overlay: ChartMetric | null;
+	swapped: boolean;
+}
+
+export function readChartSub(sub: string | undefined): ExpandedChartRef | null {
+	if (!sub) return null;
+	const [head, base, overlay, swap, ...rest] = sub.split(":");
+	if (head !== "chart" || rest.length || !isExpandedId(base)) return null;
+	if (swap !== undefined && swap !== "swap") return null;
+	if (overlay === undefined || !isMetric(overlay) || overlay === base) return { base, overlay: null, swapped: false };
+	return { base, overlay, swapped: swap === "swap" };
+}
+
+export function chartSub(ref: ExpandedChartRef): string {
+	if (!ref.overlay) return `chart:${ref.base}`;
+	return `chart:${ref.base}:${ref.overlay}${ref.swapped ? ":swap" : ""}`;
+}
+
+export type OverlayMark = "line" | "dots" | "steps" | "zones";
+
+/** The overlay on the right axis, in its own colour. */
+export interface OverlaySeries {
+	metric: ChartMetric;
+	mark: OverlayMark;
+	/** The line's colour and the right labels'. */
+	colour: ChartColour;
+	points: ChartPoints;
+	/** Dots' band colours; zones' colour stops. */
+	colours?: Array<ChartColour | null>;
+	stops?: Array<{ value: number; colour: ChartColour }>;
+	/** The chart's own axis, labelled with five even values; a pace overlay with its top one only. */
+	y: YAxis;
+}
+
+export interface ExpandedChartView {
+	/** "Heart Rate", "Heart Rate & Cadence", swapped "Cadence & Heart Rate". */
+	title: string;
+	ref: ExpandedChartRef;
+	/**
+	 * The left axis: a chart of samples drawn as its card draws it, from 0 on
+	 * the time axis; or the Run/Walk lanes, or Training Effect's scales, which
+	 * a Stats badge opens too (their full-screen form is Inferred).
+	 */
+	primary: SeriesChart | RunWalkChart | TrainingEffectChart;
+	/** With an overlay on, an area primary dims and loses its solid average line; dots keep theirs. */
+	dim: boolean;
+	secondary: OverlaySeries | null;
+	/** Every other chart of samples the activity has, alphabetical; each chip's route `sub`. */
+	chips: Array<{ metric: ChartMetric; label: string; selected: boolean; sub: string }>;
+	/** The swap button's `sub`; null when there is nothing to swap. */
+	swap: string | null;
+	/** Null for Training Effect, which has no time axis. */
+	x: XAxis | null;
+}
+
+/**
+ * The overlays' colours (their line and right labels): heart rate #ff0035,
+ * Grade-Adjusted Pace #54a9fe, elevation and GCT #60d275, cadence #ea670e,
+ * as shot; the rest Inferred.
+ */
+const ACCENT: Readonly<Record<ChartMetric, ChartColour>> = {
+	pace: "blue",
+	gap: "blue",
+	"lap-pace": "blue",
+	"heart-rate": "crimson",
+	"heart-rate-zones": "crimson",
+	elevation: "green",
+	power: "purple",
+	"power-per-kg": "purple",
+	stamina: "orange",
+	"performance-condition": "grey",
+	cadence: "deep-orange",
+	"stride-length": "blue",
+	"vertical-ratio": "green",
+	"vertical-oscillation": "green",
+	"ground-contact-time": "green",
+	"impact-load": "lavender",
+};
+
+export function expandedChartView(detail: ActivityDetail, route: Pick<ActivityRoute, "axis" | "sub">, units: Units): ExpandedChartView | null {
+	const ref = readChartSub(route.sub);
+	const ctx = contextOf(detail, route.axis, units);
+	if (!ref || !ctx) return null;
+	if (ref.base === "training-effect") {
+		// No overlay, no chips: the two scales, full-screen (Inferred: not shot).
+		const te = trainingEffect(ctx);
+		return te ? { title: te.title, ref: { base: ref.base, overlay: null, swapped: false }, primary: te, dim: false, secondary: null, chips: [], swap: null, x: null } : null;
+	}
+	const overlay = ref.overlay && hasMetric(detail, ref.overlay) ? ref.overlay : null;
+	// Run/Walk's lanes have no value axis to move to the right: it never swaps (Inferred).
+	const swapped = overlay !== null && ref.swapped && ref.base !== "run-walk";
+	let primary: SeriesChart | RunWalkChart | null;
+	let right: ChartMetric | null;
+	if (ref.base === "run-walk") {
+		primary = runWalk(ctx, { landscape: true });
+		right = overlay;
+	} else {
+		if (!hasMetric(detail, ref.base)) return null;
+		const left = swapped ? overlay! : ref.base;
+		primary = seriesChart(ctx, cardFor(left), left, { fromZero: true });
+		right = swapped ? ref.base : overlay;
+	}
+	if (!primary) return null;
+	const dim = right !== null && (primary.kind === "run-walk" || primary.mark !== "dots");
+	if (dim && primary.kind === "series" && primary.average && !primary.average.dashed) delete primary.average;
+	const now: ExpandedChartRef = { base: ref.base, overlay, swapped };
+	const chips = availableMetrics(detail)
+		.filter((m) => m !== ref.base)
+		.map((metric) => ({
+			metric,
+			label: CHART_TITLES[metric],
+			selected: metric === overlay,
+			// Tapping the chip on again clears it (Inferred); another chip starts unswapped.
+			sub: chartSub(metric === overlay ? { base: ref.base, overlay: null, swapped: false } : { base: ref.base, overlay: metric, swapped: false }),
+		}))
+		.sort((a, b) => a.label.localeCompare(b.label, "en"));
+	const leftTitle = primary.kind === "run-walk" ? primary.title : CHART_TITLES[primary.metric];
+	return {
+		title: right ? `${leftTitle} & ${CHART_TITLES[right]}` : leftTitle,
+		ref: now,
+		primary,
+		dim,
+		secondary: right ? overlaySeries(ctx, right) : null,
+		chips,
+		swap: overlay && ref.base !== "run-walk" ? chartSub({ ...now, swapped: !swapped }) : null,
+		x: primary.x,
+	};
+}
+
+function overlaySeries(ctx: Context, metric: ChartMetric): OverlaySeries | null {
+	const chart = seriesChart(ctx, cardFor(metric), metric, { fromZero: true });
+	if (!chart) return null;
+	const mark: OverlayMark = chart.mark === "dots" ? "dots" : metric === "heart-rate-zones" ? "zones" : chart.mark === "steps" || chart.mark === "blocks" ? "steps" : "line";
+	const pacey = metric === "pace" || metric === "gap" || metric === "lap-pace";
+	const all = forcedLabels(chart.y.bottom, chart.y.top, pacey ? (v) => duration(v) : forcedFormat(metric));
+	// A pace overlay shows only its top label ("4:13"): unexplained, as shot.
+	const y: YAxis = { bottom: chart.y.bottom, top: chart.y.top, labels: pacey ? all.slice(0, 1) : all };
+	const points = metric === "lap-pace" && chart.blocks ? blockSteps(chart.blocks) : chart.points;
+	const out: OverlaySeries = { metric, mark, colour: ACCENT[metric], points, y };
+	if (chart.colours) out.colours = chart.colours;
+	if (chart.stops) out.stops = chart.stops;
+	return out;
+}
+
+/** The overlays' right labels: whole numbers rounded half-even, with decimals where the unit is small. */
+function forcedFormat(metric: ChartMetric): (v: number) => string {
+	if (metric === "stride-length" || metric === "power-per-kg") return (v) => roundHalfEven(v, 2).toFixed(2);
+	if (metric === "impact-load") return (v) => roundHalfEven(v, 1).toFixed(1);
+	return (v) => plain(roundHalfEven(v, 0), 0);
+}
+
+/** Lap blocks as a step line: each lap's pace held across its span. */
+function blockSteps(blocks: NonNullable<SeriesChart["blocks"]>): ChartPoints {
+	const x: number[] = [];
+	const y: Array<number | null> = [];
+	for (const b of blocks) {
+		x.push(b.from, b.to);
+		y.push(b.value, b.value);
+	}
+	return { x, y };
+}
+
+/** The card a chart belongs to. */
+function cardFor(metric: ChartMetric): CardId {
+	switch (metric) {
+		case "gap":
+		case "lap-pace":
+			return "pace";
+		case "heart-rate-zones":
+			return "heart-rate";
+		case "power-per-kg":
+			return "power";
+		default:
+			return metric;
+	}
+}
+
+function isMetric(value: unknown): value is ChartMetric {
+	return typeof value === "string" && (CHART_METRICS as readonly string[]).includes(value);
+}
+
+function isExpandedId(value: unknown): value is ExpandedChartId {
+	return isMetric(value) || value === "run-walk" || value === "training-effect";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Numbers                                                            */
+/* ------------------------------------------------------------------ */
+
+function isNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value);
+}
+
+function num(value: unknown): number | undefined {
+	return isNumber(value) ? value : undefined;
+}
+
+function whole(value: unknown): string | undefined {
+	const n = num(value);
+	return n === undefined ? undefined : String(Math.round(n));
+}
+
+function fixed(value: number, places: number): string {
+	return round(value, places).toFixed(places);
+}
+
+function round(value: number, places: number): number {
+	const f = 10 ** places;
+	return Math.round(value * f) / f;
+}
+
+/** Half away from zero: -21.8 m reads -22, and -21.5 too. */
+export function roundHalfAway(value: number): number {
+	return Math.sign(value) * Math.round(Math.abs(value)) + 0;
+}
+
+/** Half to even, as iOS's NumberFormatter rounds: 252.5 → 252, 151.5 → 152. */
+export function roundHalfEven(value: number, places = 0): number {
+	const f = 10 ** places;
+	const x = value * f;
+	const r = Math.round(x);
+	if (Math.abs(x % 1) === 0.5 && r % 2 !== 0) return (r - 1) / f;
+	return r / f;
+}
+
+function clamp01(v: number): number {
+	return Math.max(0, Math.min(1, v));
+}

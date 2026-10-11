@@ -61,6 +61,24 @@ describe("PluginData", () => {
 		assert.deepEqual(Object.keys(saved[0]!).sort(), ["auth", "home", "settings"]);
 	});
 
+	it("keeps map tiles on unless they were turned off, and only for a real boolean", async () => {
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS } })).data.settings.mapTiles, true);
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, mapTiles: false } })).data.settings.mapTiles, false);
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, mapTiles: "no" } })).data.settings.mapTiles, true);
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, mapTiles: false } });
+		await data.saveSettings();
+		assert.equal((saved[0]!.settings as { mapTiles: boolean }).mapTiles, false);
+	});
+
+	it("keeps runs downloading on view only unless switched on, and only for a real boolean", async () => {
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS } })).data.settings.downloadRuns, false);
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: true } })).data.settings.downloadRuns, true);
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: "yes" } })).data.settings.downloadRuns, false);
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: true } });
+		await data.saveSettings();
+		assert.equal((saved[0]!.settings as { downloadRuns: boolean }).downloadRuns, true);
+	});
+
 	it("keeps values a slider can show", async () => {
 		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 999, pauseBetweenDays: -5, units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.syncDays, 30);

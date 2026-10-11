@@ -28,13 +28,46 @@ export type Route =
 	 * Every Health Stats page but Sleep (`health-stats.ts`). `tab`, `sub` and
 	 * `date` are the page's own: a tab, a sub-page or sheet, a particular day.
 	 */
-	| { page: "health-stat"; stat: HealthStatPageId; range: HealthRange; offset: number; tab?: string; sub?: string; date?: string };
+	| { page: "health-stat"; stat: HealthStatPageId; range: HealthRange; offset: number; tab?: string; sub?: string; date?: string }
+	/**
+	 * One activity's page, by its Garmin id. `sub` is an expanded chart
+	 * (`chart:<metric>[:<overlay>]`), so a reload reopens it. The Charts tab's
+	 * picker choices ride along, which also lets a check open any of them.
+	 */
+	| {
+			page: "activity";
+			id: number;
+			tab: ActivityTab;
+			axis: ActivityAxis;
+			sub?: string;
+			pace?: PaceChart;
+			heart?: HeartChart;
+			power?: PowerChart;
+	  }
+	/** The activity's full-screen map, with its Map Settings choices. */
+	| { page: "activity-map"; id: number; overlay: MapOverlay; laps: boolean };
 
 export type HealthStatRoute = Extract<Route, { page: "health-stat" }>;
+export type ActivityRoute = Extract<Route, { page: "activity" }>;
+export type ActivityMapRoute = Extract<Route, { page: "activity-map" }>;
+
+export const ACTIVITY_TABS = ["overview", "stats", "laps", "charts", "gear"] as const;
+export type ActivityTab = (typeof ACTIVITY_TABS)[number];
+export type ActivityAxis = "time" | "distance";
+/** The Charts tab's three pickers: pace, heart rate, power. */
+export const PACE_CHARTS = ["pace", "gap", "lap-pace"] as const;
+export type PaceChart = (typeof PACE_CHARTS)[number];
+export const HEART_CHARTS = ["heart-rate", "zones"] as const;
+export type HeartChart = (typeof HEART_CHARTS)[number];
+export const POWER_CHARTS = ["watts", "per-kg"] as const;
+export type PowerChart = (typeof POWER_CHARTS)[number];
+/** What colours the route: the Map Settings sheet's Data Overlay. */
+export const MAP_OVERLAYS = ["none", "pace", "gap", "heart-rate", "power", "elevation", "run-walk"] as const;
+export type MapOverlay = (typeof MAP_OVERLAYS)[number];
 
 export const HOME: Route = { page: "home" };
 
-/** Deep enough for Home → More → Activities → Running → a month → back again, with room. */
+/** Deep enough for Home → More → Activities → Running → a month → a run → its map, with room. */
 const MAX_DEPTH = 8;
 
 export function push(stack: readonly Route[], route: Route): Route[] {
@@ -46,6 +79,22 @@ export function push(stack: readonly Route[], route: Route): Route[] {
 /** One page back. Home is never popped. */
 export function pop(stack: readonly Route[]): Route[] {
 	return stack.length > 1 ? stack.slice(0, -1) : [HOME];
+}
+
+/**
+ * Opens a page, or goes back to it when it is already on the stack, so the
+ * activity page's links (its records, the running page) don't stack a loop:
+ * Running → a run → Running → a run …
+ */
+export function pushOrReturn(stack: readonly Route[], route: Route): Route[] {
+	const key = routeKey(route);
+	const at = stack.findIndex((r) => routeKey(r) === key);
+	return at >= 0 ? stack.slice(0, at + 1) : push(stack, route);
+}
+
+/** A route's identity: its keys in a fixed order, whatever order they were written in. */
+function routeKey(route: Route): string {
+	return JSON.stringify(route, Object.keys(route).sort());
 }
 
 /** Changes the page on top without adding a step, for a filter or a tab. */
@@ -121,6 +170,18 @@ export function readRoute(value: unknown): Route | null {
 		}
 		case "health-stat":
 			return healthStatOf(raw);
+		case "activity":
+			return activityOf(raw);
+		case "activity-map": {
+			const id = activityId(raw.id);
+			if (id === null) return null;
+			return {
+				page: "activity-map",
+				id,
+				overlay: MAP_OVERLAYS.find((o) => o === raw.overlay) ?? "pace",
+				laps: raw.laps !== false,
+			};
+		}
 		case "month": {
 			const category = categoryId(raw.category);
 			if (!category || typeof raw.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw.month)) return null;
@@ -150,6 +211,31 @@ function healthStatOf(raw: Record<string, unknown>): HealthStatRoute | null {
 	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) route.sub = raw.sub;
 	if (typeof raw.date === "string" && DATE.test(raw.date)) route.date = raw.date;
 	return route;
+}
+
+/** An activity route as the page accepts it: an id that can't be one is refused, the rest repaired. */
+function activityOf(raw: Record<string, unknown>): ActivityRoute | null {
+	const id = activityId(raw.id);
+	if (id === null) return null;
+	const route: ActivityRoute = {
+		page: "activity",
+		id,
+		tab: ACTIVITY_TABS.find((t) => t === raw.tab) ?? "overview",
+		axis: raw.axis === "distance" ? "distance" : "time",
+	};
+	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) route.sub = raw.sub;
+	const pace = PACE_CHARTS.find((c) => c === raw.pace);
+	if (pace) route.pace = pace;
+	const heart = HEART_CHARTS.find((c) => c === raw.heart);
+	if (heart) route.heart = heart;
+	const power = POWER_CHARTS.find((c) => c === raw.power);
+	if (power) route.power = power;
+	return route;
+}
+
+/** Garmin's activity ids: positive integers, about 2e10 now. */
+function activityId(value: unknown): number | null {
+	return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 function categoryId(value: unknown): CategoryId | undefined {
@@ -185,6 +271,16 @@ export function healthStatRoute(
 	opts: { range?: HealthRange; offset?: number; tab?: string; sub?: string; date?: string } = {},
 ): HealthStatRoute {
 	return healthStatOf({ ...opts, stat })!;
+}
+
+/** An activity's page as a row opens it: Overview, charts against time. */
+export function activityRoute(id: number): ActivityRoute {
+	return { page: "activity", id, tab: "overview", axis: "time" };
+}
+
+/** The activity's full-screen map as the Overview map opens it: coloured by pace, laps marked. */
+export function activityMapRoute(id: number): ActivityMapRoute {
+	return { page: "activity-map", id, overlay: "pace", laps: true };
 }
 
 /** A category page as the hub opens it: everything, this week, the first tab. */

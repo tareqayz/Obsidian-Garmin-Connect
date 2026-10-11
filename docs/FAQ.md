@@ -156,6 +156,18 @@ accordingly.
 An Obsidian plugin can't load external scripts, and a bundled chart library
 would be dead weight on a phone. The charts are hand-drawn SVG.
 
+The one library is Leaflet, for the activity maps: panning and pinching a map
+on a phone is where hand-rolled code breaks. It is bundled with the plugin and
+loads only when a map is drawn.
+
+## Why does an activity map talk to OpenStreetMap?
+
+Garmin's app draws Google's map, which a plugin can't use without each user
+setting up a paid Google key. The plugin draws OpenStreetMap's map instead,
+from `tile.openstreetmap.org`, and that server sees which part of the map you
+open. Turn **Map tiles** off in the settings and the route is drawn on its own,
+with no request at all; that is also what you see offline.
+
 ## What are the diagnostics logs in my vault?
 
 Each **Run diagnostics** run, saved as a note, because a phone has no console.

@@ -20,7 +20,7 @@
 		"tier": "Which host the path hangs off.",
 		"plugin": "The method in src/garmin/endpoints.ts that calls it, or absent if the plugin does not.",
 		"groups": "Metric groups (src/sync/metrics.ts) whose sync needs this endpoint.",
-		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through.",
+		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through, view = when a page opens, then cached in the vault.",
 		"check": "Covered by the daily contract check (.github/workflows/api-contract.yml).",
 		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
 		"schema": "Recorded response shape, relative to api/.",
@@ -137,7 +137,74 @@
 					"activity_id"
 				],
 				"line": 3104
-			}
+			},
+			"plugin": "GarminApi.activity",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"activityId",
+				"activityName",
+				"activityTypeDTO.typeKey",
+				"summaryDTO.startTimeLocal",
+				"summaryDTO.distance",
+				"summaryDTO.duration"
+			],
+			"reads": [
+				"description",
+				"activityTypeDTO.typeId",
+				"activityTypeDTO.parentTypeId",
+				"accessControlRuleDTO.typeKey",
+				"timeZoneUnitDTO.timeZone",
+				"metadataDTO.deviceMetaDataDTO.deviceId",
+				"metadataDTO.hasPolyline",
+				"metadataDTO.lapCount",
+				"summaryDTO.movingDuration",
+				"summaryDTO.elapsedDuration",
+				"summaryDTO.averageSpeed",
+				"summaryDTO.averageMovingSpeed",
+				"summaryDTO.avgGradeAdjustedSpeed",
+				"summaryDTO.maxSpeed",
+				"summaryDTO.averageHR",
+				"summaryDTO.maxHR",
+				"summaryDTO.calories",
+				"summaryDTO.bmrCalories",
+				"summaryDTO.averagePower",
+				"summaryDTO.maxPower",
+				"summaryDTO.averageRunCadence",
+				"summaryDTO.maxRunCadence",
+				"summaryDTO.strideLength",
+				"summaryDTO.verticalOscillation",
+				"summaryDTO.verticalRatio",
+				"summaryDTO.groundContactTime",
+				"summaryDTO.elevationGain",
+				"summaryDTO.elevationLoss",
+				"summaryDTO.minElevation",
+				"summaryDTO.maxElevation",
+				"summaryDTO.trainingEffect",
+				"summaryDTO.anaerobicTrainingEffect",
+				"summaryDTO.trainingEffectLabel",
+				"summaryDTO.activityTrainingLoad",
+				"summaryDTO.beginPotentialStamina",
+				"summaryDTO.endPotentialStamina",
+				"summaryDTO.minAvailableStamina",
+				"summaryDTO.impactLoad",
+				"summaryDTO.waterEstimated",
+				"summaryDTO.moderateIntensityMinutes",
+				"summaryDTO.vigorousIntensityMinutes",
+				"summaryDTO.differenceBodyBattery",
+				"summaryDTO.directWorkoutFeel",
+				"summaryDTO.directWorkoutRpe",
+				"splitSummaries[].splitType",
+				"splitSummaries[].duration",
+				"splitSummaries[].distance",
+				"metadataDTO.runPowerWindDataEnabled",
+				"metadataDTO.deviceMetaDataDTO.deviceVersionPk"
+			],
+			"schema": "schema/activity.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. summaryDTO carries the Overview and Stats totals; its keys vary by sport and sensors (a treadmill run has no elevation, GAP or impact load). description holds the user's notes when there are any."
 		},
 		{
 			"id": "activity-details",
@@ -163,7 +230,25 @@
 					"maxpoly"
 				],
 				"line": 3112
-			}
+			},
+			"plugin": "GarminApi.activityDetails",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"metricDescriptors[].key",
+				"metricDescriptors[].metricsIndex",
+				"activityDetailMetrics[].metrics"
+			],
+			"reads": [
+				"measurementCount",
+				"detailsAvailable",
+				"geoPolylineDTO"
+			],
+			"schema": "schema/activity-details.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Rows hold one value per metricDescriptors entry: sumDuration/sumDistance (axes), directHeartRate, directSpeed, directGradeAdjustedSpeed, directDoubleCadence (spm), directStrideLength (cm), directVerticalOscillation, directVerticalRatio, directGroundContactTime, directElevation, directPower, directAvailableStamina/directPotentialStamina, directPerformanceCondition, directImpactLoadFactor, directLatitude/directLongitude. maxChartSize=2000 thins a 56-minute run recorded every second (3,363 samples) to 1,694 with the same extremes and averages; the web asks for 10000 and gets every sample. No GPS columns or geoPolylineDTO without GPS."
 		},
 		{
 			"id": "activity-exercise-sets",
@@ -205,7 +290,17 @@
 					"activity_id"
 				],
 				"line": 3151
-			}
+			},
+			"plugin": "GarminApi.activityGear",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [],
+			"reads": [],
+			"schema": "schema/activity-gear.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Gear tab. Empty when no gear is linked (both sampled runs); item shape not seen yet."
 		},
 		{
 			"id": "activity-hr-in-timezones",
@@ -226,7 +321,22 @@
 					"activity_id"
 				],
 				"line": 3062
-			}
+			},
+			"plugin": "GarminApi.activityHrZones",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"[].zoneNumber",
+				"[].secsInZone"
+			],
+			"reads": [
+				"[].zoneLowBoundary"
+			],
+			"schema": "schema/activity-hr-in-timezones.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Heart Rate Zones; zoneLowBoundary is each zone's floor in bpm."
 		},
 		{
 			"id": "activity-power-in-timezones",
@@ -247,7 +357,21 @@
 					"activity_id"
 				],
 				"line": 3070
-			}
+			},
+			"plugin": "GarminApi.activityPowerZones",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].zoneNumber",
+				"[].secsInZone",
+				"[].zoneLowBoundary"
+			],
+			"schema": "schema/activity-power-in-timezones.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Power Zones; floors in watts. Empty without a power source."
 		},
 		{
 			"id": "activity-split-summaries",
@@ -289,7 +413,26 @@
 					"activity_id"
 				],
 				"line": 3028
-			}
+			},
+			"plugin": "GarminApi.activitySplits",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"lapDTOs[].duration",
+				"lapDTOs[].distance"
+			],
+			"reads": [
+				"lapDTOs[].lapIndex",
+				"lapDTOs[].averageSpeed",
+				"lapDTOs[].averageHR",
+				"lapDTOs[].endLatitude",
+				"lapDTOs[].endLongitude"
+			],
+			"schema": "schema/activity-splits.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Laps tab and the map's lap markers (each lap's end coordinates)."
 		},
 		{
 			"id": "activity-typed-splits",
@@ -310,7 +453,24 @@
 					"activity_id"
 				],
 				"line": 3036
-			}
+			},
+			"plugin": "GarminApi.activityTypedSplits",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"splits[].type"
+			],
+			"reads": [
+				"splits[].duration",
+				"splits[].distance",
+				"splits[].startTimeGMT",
+				"splits[].endTimeGMT"
+			],
+			"schema": "schema/activity-typed-splits.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. RWD_RUN / RWD_WALK / RWD_STAND segments drive the Run/Walk chart; INTERVAL_ACTIVE the Workout Intervals stats."
 		},
 		{
 			"id": "activity-types",
@@ -348,7 +508,22 @@
 					"activity_id"
 				],
 				"line": 3054
-			}
+			},
+			"plugin": "GarminApi.activityWeather",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"temp",
+				"windSpeed",
+				"windDirection",
+				"weatherTypeDTO.desc"
+			],
+			"schema": "schema/activity-weather.json",
+			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Overview map's weather chip. temp in \u00b0F. Indoors every field is null. The station's name and coordinates are not used."
 		},
 		{
 			"id": "adaptive-training-plan-by-id",
@@ -1459,6 +1634,40 @@
 				],
 				"line": 3288
 			}
+		},
+		{
+			"id": "device-app-info",
+			"method": "GET",
+			"path": "/device-service/deviceservice/app-info/{deviceVersionPk}",
+			"service": "device-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"deviceVersionPk"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-10 (ref/activity-details/outdoor-run/web/endpoints.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.deviceAppInfo",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"productDisplayName",
+				"versionMajorMinor",
+				"versionString"
+			],
+			"schema": "schema/device-app-info.json",
+			"notes": "Activity details page: the recording device's name and the firmware it ran (Devices & Apps, \"Forerunner 970 18.32\"), by the summary's metadataDTO.deviceMetaDataDTO.deviceVersionPk. The device list's currentFirmwareVersion is today's, so an older activity would show the wrong version."
 		},
 		{
 			"id": "device-last-used",
@@ -4843,7 +5052,8 @@
 			},
 			"plugin": "GarminApi.weightLatest",
 			"groups": [
-				"body"
+				"body",
+				"workouts"
 			],
 			"cadence": "day",
 			"check": true,
@@ -4859,7 +5069,7 @@
 				"weightDelta"
 			],
 			"schema": "schema/weight-latest.json",
-			"notes": "The newest weigh-in on or before date (2026-10-08 returns 2025-11-02's), for the Weight 1d view and the Fitness Age BMI hint. Grams; date is the local wall clock as epoch ms, timestampGMT the instant."
+			"notes": "The newest weigh-in on or before date (2026-10-08 returns 2025-11-02's), for the Weight 1d view and the Fitness Age BMI hint. Grams; date is the local wall clock as epoch ms, timestampGMT the instant. The activity page also reads it for the activity's local date: Power (W/kg) is watts \u00f7 (weight g \u00f7 1000)."
 		},
 		{
 			"id": "workout-by-id",

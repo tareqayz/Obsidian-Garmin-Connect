@@ -1,23 +1,24 @@
 <script lang="ts">
-	import { RECORD_TABS, recordsView, type ActivitiesData } from "../../../dashboard/activities";
-	import type { Route } from "../../../dashboard/routes";
+	import { RECORD_TABS, recordsView, type ActivitiesData, type RecordItem } from "../../../dashboard/activities";
+	import { activityRoute, type Route } from "../../../dashboard/routes";
 	import { sportIcon } from "../../sport-icons";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
 
 	/**
 	 * Personal Records, a tab per sport. Every slot Garmin keeps for that sport
-	 * is listed, so a distance never run still shows its title. Rows open
-	 * nothing yet: there is no activity screen to go to.
+	 * is listed, so a distance never run still shows its title. A running
+	 * record opens the run that set it; other sports have no activity page yet.
 	 */
 	interface Props {
 		route: Extract<Route, { page: "records" }>;
 		data: ActivitiesData;
 		onBack: () => void;
+		go: (route: Route) => void;
 		swap: (route: Route) => void;
 	}
 
-	let { route, data, onBack, swap }: Props = $props();
+	let { route, data, onBack, go, swap }: Props = $props();
 
 	let tab = $derived(RECORD_TABS.find((t) => t.id === route.tab) ?? RECORD_TABS[1]!);
 	let items = $derived(recordsView(data.records, tab.id, data.units));
@@ -31,6 +32,15 @@
 	});
 </script>
 
+{#snippet body(record: RecordItem)}
+	<span class="icon" use:lucide={sportIcon(tab.glyph)}></span>
+	<div class="text">
+		<span class="title">{record.title}</span>
+		{#if record.value}<span class="value">{record.value}</span>{/if}
+		{#if record.date}<span class="date">{record.date}</span>{/if}
+	</div>
+{/snippet}
+
 <PageBar title="Personal Records" {onBack} />
 
 <div class="tabs" bind:this={strip}>
@@ -41,14 +51,12 @@
 
 <div class="records">
 	{#each items as record (record.typeId)}
-		<div class="record">
-			<span class="icon" use:lucide={sportIcon(tab.glyph)}></span>
-			<div class="text">
-				<span class="title">{record.title}</span>
-				{#if record.value}<span class="value">{record.value}</span>{/if}
-				{#if record.date}<span class="date">{record.date}</span>{/if}
-			</div>
-		</div>
+		{#if tab.id === "running" && record.activityId}
+			{@const id = record.activityId}
+			<button class="record" onclick={() => go(activityRoute(id))}>{@render body(record)}</button>
+		{:else}
+			<div class="record">{@render body(record)}</div>
+		{/if}
 	{/each}
 </div>
 
@@ -105,6 +113,21 @@
 		padding: 0 20px 0 27.35px;
 		background: var(--background-secondary);
 	}
+	button.record {
+		width: 100%;
+		height: auto;
+		margin: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	button.record:hover {
+		background: var(--background-modifier-hover);
+	}
 	.icon {
 		display: inline-flex;
 		flex: none;
@@ -147,7 +170,8 @@
 			padding: 16px 32px 32px;
 			background: none;
 		}
-		.record {
+		.record,
+		button.record {
 			border-radius: 8px;
 		}
 	}

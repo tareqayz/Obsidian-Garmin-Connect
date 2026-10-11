@@ -357,6 +357,151 @@ export interface ActivityCount {
 	[key: string]: unknown;
 }
 
+/**
+ * `/activity-service/activity/{id}`: the summary an activity's page opens with.
+ * `summaryDTO` holds the totals and averages; which keys it carries depends on
+ * the sport and the sensors (a treadmill run has no elevation or GAP).
+ */
+export interface ActivitySummary {
+	activityId?: number;
+	activityName?: string;
+	/** The notes the user wrote, when there are any. */
+	description?: string | null;
+	activityTypeDTO?: { typeId?: number; typeKey?: string; parentTypeId?: number; [key: string]: unknown };
+	/** Who can see it: `private`, `subscribers`, `public`. */
+	accessControlRuleDTO?: { typeId?: number; typeKey?: string; [key: string]: unknown } | null;
+	timeZoneUnitDTO?: { unitKey?: string; timeZone?: string; [key: string]: unknown } | null;
+	metadataDTO?: {
+		/** The recording device; `deviceVersionPk` is the firmware it ran, for `deviceAppInfo()`. */
+		deviceMetaDataDTO?: { deviceId?: string; deviceTypePk?: number; deviceVersionPk?: number; [key: string]: unknown } | null;
+		hasPolyline?: boolean;
+		hasSplits?: boolean;
+		hasHrTimeInZones?: boolean;
+		hasPowerTimeInZones?: boolean;
+		lapCount?: number;
+		/** Running power counted the wind. */
+		runPowerWindDataEnabled?: boolean;
+		[key: string]: unknown;
+	} | null;
+	summaryDTO?: ActivityStats | null;
+	/** Totals per split type: `INTERVAL_ACTIVE`, `RWD_RUN`, `RWD_WALK`, `RWD_STAND`. */
+	splitSummaries?: Array<{ splitType?: string; noOfSplits?: number; duration?: number; distance?: number; [key: string]: unknown }>;
+	[key: string]: unknown;
+}
+
+/** An activity's or a lap's totals. Speeds in m/s, distances in m, durations in s. */
+export interface ActivityStats {
+	startTimeLocal?: string;
+	startTimeGMT?: string;
+	distance?: number | null;
+	duration?: number | null;
+	movingDuration?: number | null;
+	elapsedDuration?: number | null;
+	averageSpeed?: number | null;
+	averageMovingSpeed?: number | null;
+	avgGradeAdjustedSpeed?: number | null;
+	maxSpeed?: number | null;
+	averageHR?: number | null;
+	maxHR?: number | null;
+	calories?: number | null;
+	bmrCalories?: number | null;
+	averagePower?: number | null;
+	maxPower?: number | null;
+	averageRunCadence?: number | null;
+	maxRunCadence?: number | null;
+	/** Centimetres. */
+	strideLength?: number | null;
+	verticalOscillation?: number | null;
+	verticalRatio?: number | null;
+	groundContactTime?: number | null;
+	elevationGain?: number | null;
+	elevationLoss?: number | null;
+	minElevation?: number | null;
+	maxElevation?: number | null;
+	trainingEffect?: number | null;
+	anaerobicTrainingEffect?: number | null;
+	trainingEffectLabel?: string | null;
+	aerobicTrainingEffectMessage?: string | null;
+	activityTrainingLoad?: number | null;
+	beginPotentialStamina?: number | null;
+	endPotentialStamina?: number | null;
+	minAvailableStamina?: number | null;
+	/** Impact load in metres. */
+	impactLoad?: number | null;
+	/** Estimated sweat loss, ml. */
+	waterEstimated?: number | null;
+	moderateIntensityMinutes?: number | null;
+	vigorousIntensityMinutes?: number | null;
+	differenceBodyBattery?: number | null;
+	/** Self-evaluation as the watch stores it (Normal = 50, effort 6/10 = 60). */
+	directWorkoutFeel?: number | null;
+	directWorkoutRpe?: number | null;
+	[key: string]: unknown;
+}
+
+/**
+ * `/activity-service/activity/{id}/details`: the recorded samples. Each row of
+ * `activityDetailMetrics` holds one value per `metricDescriptors` entry, at that
+ * entry's `metricsIndex`. The GPS track is the lat/lon columns; `geoPolylineDTO`
+ * repeats it at full rate, and is null without GPS.
+ */
+export interface ActivityDetails {
+	activityId?: number;
+	measurementCount?: number;
+	metricsCount?: number;
+	metricDescriptors?: Array<{ metricsIndex: number; key: string; unit?: { key?: string; factor?: number } | null }>;
+	activityDetailMetrics?: Array<{ metrics: Array<number | null> }>;
+	geoPolylineDTO?: { minLat?: number; maxLat?: number; minLon?: number; maxLon?: number; [key: string]: unknown } | null;
+	detailsAvailable?: boolean;
+	[key: string]: unknown;
+}
+
+/** `/activity-service/activity/{id}/splits`: the laps. */
+export interface ActivitySplits {
+	activityId?: number;
+	lapDTOs?: Array<ActivityStats & { lapIndex?: number; startLatitude?: number | null; startLongitude?: number | null; endLatitude?: number | null; endLongitude?: number | null; intensityType?: string }>;
+	[key: string]: unknown;
+}
+
+/** `/activity-service/activity/{id}/typedsplits`: run/walk detection and workout intervals. */
+export interface ActivityTypedSplits {
+	activityId?: number;
+	splits?: Array<ActivityStats & { type?: string; messageIndex?: number; endTimeGMT?: string }>;
+	[key: string]: unknown;
+}
+
+/** One row of `hrTimeInZones` or `powerTimeInZones`. */
+export interface ActivityZone {
+	zoneNumber?: number;
+	secsInZone?: number | null;
+	/** bpm or watts. */
+	zoneLowBoundary?: number | null;
+	[key: string]: unknown;
+}
+
+/** `/activity-service/activity/{id}/weather`. Every field is null when Garmin has none (indoors). Temperatures in °F. */
+export interface ActivityWeather {
+	issueDate?: string | null;
+	temp?: number | null;
+	apparentTemp?: number | null;
+	relativeHumidity?: number | null;
+	windDirection?: number | null;
+	windDirectionCompassPoint?: string | null;
+	windSpeed?: number | null;
+	windGust?: number | null;
+	weatherTypeDTO?: { weatherTypePk?: number | null; desc?: string | null; image?: string | null } | null;
+	[key: string]: unknown;
+}
+
+/** A device model at one firmware version, from `/device-service/deviceservice/app-info/{versionPk}`. */
+export interface DeviceAppInfo {
+	productDisplayName?: string;
+	/** "18.32". */
+	versionMajorMinor?: string;
+	versionString?: string;
+	[key: string]: unknown;
+}
+
 export interface AcuteTrainingLoad {
 	acwrPercent?: number | null;
 	acwrStatus?: string | null;
@@ -800,6 +945,14 @@ function pathId(value: string, label: string): string {
 	return encodeURIComponent(value);
 }
 
+/** An activity id: a positive integer, so it can only ever be digits in a URL. */
+function assertActivityId(id: number): number {
+	if (!Number.isSafeInteger(id) || id < 1) {
+		throw new TypeError(`activityId must be a positive integer, got ${id}`);
+	}
+	return id;
+}
+
 /* ------------------------------------------------------------------ */
 /*  API                                                                */
 /* ------------------------------------------------------------------ */
@@ -1193,6 +1346,69 @@ export class GarminApi extends GarminClient {
 			{ query: { start: String(start), limit: String(limit) } },
 		);
 		return list ?? [];
+	}
+
+	/* One activity's page: its summary, samples, laps, zones, weather and gear,
+	   each by the id the activity list gives. The page loads them when it opens. */
+
+	async activity(id: number): Promise<ActivitySummary | null> {
+		return this.request(`/activity-service/activity/${assertActivityId(id)}`);
+	}
+
+	/**
+	 * The recorded samples, at most `maxChartSize` rows, and the GPS track, at most
+	 * `maxPolylineSize` points. Past the cap Garmin thins the samples: a 56-minute
+	 * run recorded every second (3,363) comes back as 1,694 at 2000, with the same
+	 * extremes and averages, which is all a chart a few hundred points wide can
+	 * show. The web asks for 10000 and gets every sample.
+	 */
+	async activityDetails(id: number, maxChartSize = 2000, maxPolylineSize = 4000): Promise<ActivityDetails | null> {
+		assertCount(maxChartSize, "maxChartSize");
+		assertCount(maxPolylineSize, "maxPolylineSize");
+		return this.request(`/activity-service/activity/${assertActivityId(id)}/details`, {
+			query: { maxChartSize: String(maxChartSize), maxPolylineSize: String(maxPolylineSize) },
+		});
+	}
+
+	async activitySplits(id: number): Promise<ActivitySplits | null> {
+		return this.request(`/activity-service/activity/${assertActivityId(id)}/splits`);
+	}
+
+	async activityTypedSplits(id: number): Promise<ActivityTypedSplits | null> {
+		return this.request(`/activity-service/activity/${assertActivityId(id)}/typedsplits`);
+	}
+
+	/** Seconds in each heart rate zone, with each zone's floor in bpm. */
+	async activityHrZones(id: number): Promise<ActivityZone[]> {
+		return (await this.request<ActivityZone[] | null>(`/activity-service/activity/${assertActivityId(id)}/hrTimeInZones`)) ?? [];
+	}
+
+	/** Seconds in each power zone, with each zone's floor in watts. */
+	async activityPowerZones(id: number): Promise<ActivityZone[]> {
+		return (await this.request<ActivityZone[] | null>(`/activity-service/activity/${assertActivityId(id)}/powerTimeInZones`)) ?? [];
+	}
+
+	async activityWeather(id: number): Promise<ActivityWeather | null> {
+		return this.request(`/activity-service/activity/${assertActivityId(id)}/weather`);
+	}
+
+	/** The gear (shoes, a bike) linked to the activity; often none. */
+	async activityGear(id: number): Promise<Array<Record<string, unknown>>> {
+		return (await this.request<Array<Record<string, unknown>> | null>("/gear-service/gear/filterGear", {
+			query: { activityId: String(assertActivityId(id)) },
+		})) ?? [];
+	}
+
+	/**
+	 * The device an activity was recorded on, as it was then: its name and the
+	 * firmware it ran (`metadataDTO.deviceMetaDataDTO.deviceVersionPk`). The
+	 * device list's firmware is today's, not the activity's.
+	 */
+	async deviceAppInfo(versionPk: number): Promise<DeviceAppInfo | null> {
+		if (!Number.isSafeInteger(versionPk) || versionPk < 1) {
+			throw new TypeError(`versionPk must be a positive integer, got ${versionPk}`);
+		}
+		return this.request(`/device-service/deviceservice/app-info/${versionPk}`);
 	}
 
 	/* Health Stats pages: the web app's REST routes for the 7d, 4w and 1y views

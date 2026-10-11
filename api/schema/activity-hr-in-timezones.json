@@ -1,0 +1,35 @@
+{
+	"endpoint": "activity-hr-in-timezones",
+	"path": "/activity-service/activity/{activityId}/hrTimeInZones",
+	"plugin": "GarminApi.activityHrZones",
+	"firstRecorded": "2026-10-10T16:41:42.444Z",
+	"updatedAt": "2026-10-10T16:41:42.444Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"secsInZone": {
+					"type": [
+						"number"
+					]
+				},
+				"zoneLowBoundary": {
+					"type": [
+						"number"
+					]
+				},
+				"zoneNumber": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

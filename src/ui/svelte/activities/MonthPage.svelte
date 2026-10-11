@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { monthView, type ActivitiesData } from "../../../dashboard/activities";
-	import type { Route } from "../../../dashboard/routes";
+	import { activityRoute, type Route } from "../../../dashboard/routes";
 	import PageBar from "../home/PageBar.svelte";
 	import GroupBand from "./GroupBand.svelte";
 	import ListCard from "./ListCard.svelte";
 
-	/** A month of one sport, opened from a year's list. */
+	/** A month of one sport, opened from a year's list. A run opens its activity page. */
 	interface Props {
 		route: Extract<Route, { page: "month" }>;
 		data: ActivitiesData;
 		onBack: () => void;
+		go: (route: Route) => void;
 	}
 
-	let { route, data, onBack }: Props = $props();
+	let { route, data, onBack, go }: Props = $props();
 
 	let view = $derived(
 		monthView({ rows: data.rows, category: route.category, sub: route.sub, month: route.month, metric: route.metric, units: data.units }),
@@ -25,7 +26,13 @@
 	<GroupBand label={view.summary} />
 	<div class="grid">
 		{#each view.activities as item (item.id)}
-			<ListCard title={item.name} detail={item.when} value={item.value} />
+			<ListCard
+				title={item.name}
+				detail={item.when}
+				value={item.value}
+				chevron={false}
+				onclick={route.category === "running" ? () => go(activityRoute(item.id)) : undefined}
+			/>
 		{/each}
 	</div>
 </section>

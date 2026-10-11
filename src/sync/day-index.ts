@@ -157,7 +157,7 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 }
 
 /** Folders and kinds the store already uses for something else. */
-export const RESERVED_INDEX_NAMES: readonly string[] = ["series", "activities", "daily-stats", "sleep"];
+export const RESERVED_INDEX_NAMES: readonly string[] = ["series", "activities", "activity-details", "daily-stats", "sleep"];
 
 /** Days a window covers unless a definition says otherwise: most of Garmin's range endpoints refuse a 29th day. */
 export const DEFAULT_WINDOW_DAYS = 28;

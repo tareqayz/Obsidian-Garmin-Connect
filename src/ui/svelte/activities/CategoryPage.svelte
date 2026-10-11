@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Menu } from "obsidian";
 	import { METRIC_TITLE, categoryView, type ActivitiesData, type MetricId, type RangeId } from "../../../dashboard/activities";
-	import type { Route } from "../../../dashboard/routes";
+	import { activityRoute, type Route } from "../../../dashboard/routes";
 	import type { HistoryProgress } from "../../../sync/runner";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
@@ -142,7 +142,13 @@
 			<GroupBand label={view.listTitle} />
 			<div class="grid">
 				{#each view.activities as item (item.id)}
-					<ListCard title={item.name} detail={item.when} value={item.value} />
+					<ListCard
+						title={item.name}
+						detail={item.when}
+						value={item.value}
+						chevron={false}
+						onclick={route.category === "running" ? () => go(activityRoute(item.id)) : undefined}
+					/>
 				{/each}
 				{#each view.months as month (month.month)}
 					<ListCard

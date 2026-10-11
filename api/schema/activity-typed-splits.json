@@ -1,0 +1,288 @@
+{
+	"endpoint": "activity-typed-splits",
+	"path": "/activity-service/activity/{activityId}/typedsplits",
+	"plugin": "GarminApi.activityTypedSplits",
+	"firstRecorded": "2026-10-10T16:41:42.300Z",
+	"updatedAt": "2026-10-10T16:41:42.300Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"activityId": {
+				"type": [
+					"number"
+				]
+			},
+			"activityUUID": {
+				"type": [
+					"object"
+				],
+				"fields": {
+					"uuid": {
+						"type": [
+							"string"
+						]
+					}
+				}
+			},
+			"splits": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"averageHR": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageMovingSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averagePower": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageRunCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"avgElapsedDurationVerticalSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"avgForce": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"avgGradeAdjustedSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"avgStepLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"avgVerticalSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"bmrCalories": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"calories": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"distance": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"duration": {
+							"type": [
+								"number"
+							]
+						},
+						"elapsedDuration": {
+							"type": [
+								"number"
+							]
+						},
+						"elevationGain": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"elevationLoss": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"endLatitude": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"endLongitude": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"endTimeGMT": {
+							"type": [
+								"string"
+							]
+						},
+						"groundContactBalanceLeft": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"groundContactTime": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxForce": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxHR": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxRunCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxSpeed": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"messageIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"movingDuration": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"normalizedPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"startElevation": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"startLatitude": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"startLongitude": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"startTimeGMT": {
+							"type": [
+								"string"
+							]
+						},
+						"startTimeLocal": {
+							"type": [
+								"string"
+							]
+						},
+						"stepSpeedLoss": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"stepSpeedLossPercent": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"strideLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"totalExerciseReps": {
+							"type": [
+								"number"
+							]
+						},
+						"type": {
+							"type": [
+								"string"
+							]
+						},
+						"verticalOscillation": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"verticalRatio": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						}
+					}
+				}
+			}
+		}
+	}
+}

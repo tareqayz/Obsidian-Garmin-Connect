@@ -289,6 +289,61 @@ describe("activities", () => {
 	});
 });
 
+describe("activity details", () => {
+	const HOST = "https://connectapi.garmin.com";
+	const ID = 12345678901;
+
+	it("builds every call of the activity page from the id", async () => {
+		const { http, client } = await api([{ url: HOST, json: {} }]);
+		await client.activity(ID);
+		await client.activityDetails(ID);
+		await client.activityDetails(ID, 500, 1000);
+		await client.activitySplits(ID);
+		await client.activityTypedSplits(ID);
+		await client.activityHrZones(ID);
+		await client.activityPowerZones(ID);
+		await client.activityWeather(ID);
+		await client.activityGear(ID);
+		await client.deviceAppInfo(1019168);
+		assert.deepEqual(http.urls.slice(-10), [
+			`${HOST}/activity-service/activity/12345678901`,
+			`${HOST}/activity-service/activity/12345678901/details?maxChartSize=2000&maxPolylineSize=4000`,
+			`${HOST}/activity-service/activity/12345678901/details?maxChartSize=500&maxPolylineSize=1000`,
+			`${HOST}/activity-service/activity/12345678901/splits`,
+			`${HOST}/activity-service/activity/12345678901/typedsplits`,
+			`${HOST}/activity-service/activity/12345678901/hrTimeInZones`,
+			`${HOST}/activity-service/activity/12345678901/powerTimeInZones`,
+			`${HOST}/activity-service/activity/12345678901/weather`,
+			`${HOST}/gear-service/gear/filterGear?activityId=12345678901`,
+			`${HOST}/device-service/deviceservice/app-info/1019168`,
+		]);
+	});
+
+	it("rejects an id that is not a positive integer before it reaches Garmin", async () => {
+		const { http, client } = await api([]);
+		const before = http.urls.length;
+		await assert.rejects(() => client.activity(0), TypeError);
+		await assert.rejects(() => client.activitySplits(-5), TypeError);
+		await assert.rejects(() => client.activityWeather(1.5), TypeError);
+		await assert.rejects(() => client.activityGear(Number.NaN), TypeError);
+		await assert.rejects(() => client.activityDetails(2 ** 53), TypeError);
+		await assert.rejects(() => client.activityDetails(ID, 0), TypeError);
+		await assert.rejects(() => client.deviceAppInfo(0), TypeError);
+		assert.equal(http.urls.length, before);
+	});
+
+	it("reads an empty body as no data", async () => {
+		const { client } = await api([{ url: HOST, text: "" }]);
+		assert.equal(await client.activity(ID), null);
+		assert.equal(await client.activityDetails(ID), null);
+		assert.equal(await client.activityWeather(ID), null);
+		assert.deepEqual(await client.activityHrZones(ID), []);
+		assert.deepEqual(await client.activityPowerZones(ID), []);
+		assert.deepEqual(await client.activityGear(ID), []);
+		assert.equal(await client.deviceAppInfo(1), null);
+	});
+});
+
 describe("privacy-protected summaries", () => {
 	it("are reported as an auth problem, not as empty data", async () => {
 		const { client } = await api([

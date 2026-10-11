@@ -1,6 +1,22 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { HOME, categoryRoute, healthStatRoute, pop, push, readRoute, readStack, replace, sleepRoute, statsRoute, top, type Route } from "../src/dashboard/routes";
+import {
+	HOME,
+	activityMapRoute,
+	activityRoute,
+	categoryRoute,
+	healthStatRoute,
+	pop,
+	push,
+	pushOrReturn,
+	readRoute,
+	readStack,
+	replace,
+	sleepRoute,
+	statsRoute,
+	top,
+	type Route,
+} from "../src/dashboard/routes";
 
 describe("route stack", () => {
 	it("pushes, replaces the top and pops back", () => {
@@ -164,5 +180,46 @@ describe("health-stat routes", () => {
 	it("survive a reload in a stack", () => {
 		const route = healthStatRoute("respiration", { range: "7d", offset: -1 });
 		assert.deepEqual(readStack([{ page: "more" }, { page: "health" }, route]), [HOME, { page: "more" }, { page: "health" }, route]);
+	});
+});
+
+describe("activity routes", () => {
+	const ID = 12345678901;
+
+	it("open on Overview, and the map coloured by pace with its laps", () => {
+		assert.deepEqual(activityRoute(ID), { page: "activity", id: ID, tab: "overview", axis: "time" });
+		assert.deepEqual(activityMapRoute(ID), { page: "activity-map", id: ID, overlay: "pace", laps: true });
+	});
+
+	it("read back what the page accepts, repairing the rest", () => {
+		const full = { page: "activity", id: ID, tab: "charts", axis: "distance", sub: "chart:heart-rate:cadence", pace: "gap", heart: "zones", power: "per-kg" };
+		assert.deepEqual(readRoute(full), full);
+		assert.deepEqual(readRoute({ page: "activity", id: ID, tab: "maps", axis: "speed", sub: "<b>", pace: "fast" }), activityRoute(ID));
+		assert.deepEqual(readRoute({ page: "activity-map", id: ID, overlay: "power", laps: false }), { page: "activity-map", id: ID, overlay: "power", laps: false });
+		assert.deepEqual(readRoute({ page: "activity-map", id: ID, overlay: "speed" }), activityMapRoute(ID));
+	});
+
+	it("refuse an id that can't be Garmin's", () => {
+		for (const id of [0, -1, 1.5, "123", 2 ** 53, null]) {
+			assert.equal(readRoute({ page: "activity", id }), null);
+			assert.equal(readRoute({ page: "activity-map", id }), null);
+		}
+	});
+});
+
+describe("pushOrReturn", () => {
+	it("goes back down to a page already open instead of stacking a loop", () => {
+		const running = categoryRoute("running");
+		const stack: Route[] = [HOME, { page: "activities" }, running, activityRoute(1)];
+		assert.deepEqual(pushOrReturn(stack, categoryRoute("running")), [HOME, { page: "activities" }, running]);
+		// The same route, its keys in another order.
+		const reordered = { metric: "distance", offset: 0, range: "7d", sub: null, category: "running", page: "category" } as Route;
+		assert.equal(pushOrReturn(stack, reordered).length, 3);
+	});
+
+	it("pushes a page that isn't open, or is open with other settings", () => {
+		const stack: Route[] = [HOME, { page: "activities" }, { ...(categoryRoute("running") as Extract<Route, { page: "category" }>), range: "1y" }, activityRoute(1)];
+		assert.equal(pushOrReturn(stack, categoryRoute("running")).length, 5);
+		assert.equal(pushOrReturn(stack, { page: "records", tab: "running" }).length, 5);
 	});
 });

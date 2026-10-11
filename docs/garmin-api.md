@@ -228,6 +228,31 @@ which are flat.
 | `wellnessActivities(date)` | `/wellnessactivity-service/activity/summary/{date}` | a day's snapshots |
 | `healthSnapshotEpochs(uuid)` | `/wellnessactivity-service/activity/epoch/{uuid}` | a snapshot's samples, one a second |
 
+## Activity details
+
+An activity's page loads when it opens, never in a sync (see
+[architecture](architecture.md#activity-details-on-view)). Ten requests the
+first time — eight together, then the two that need the summary — and none
+after: the answer is kept in the vault. With **Download runs** on, every run
+without a file is loaded the same way between syncs, at least two seconds
+apart.
+
+| Method | Path | Gives the page |
+| --- | --- | --- |
+| `activity(id)` | `/activity-service/activity/{id}` | the summary: Overview and Stats, the notes, the device's id |
+| `activityDetails(id, 2000, 4000)` | `/activity-service/activity/{id}/details?maxChartSize=&maxPolylineSize=` | the samples behind every chart and the route; past 2000 Garmin thins them (a 56-minute run's 3,363 come back as 1,694, extremes and averages kept) |
+| `activitySplits(id)` | `/activity-service/activity/{id}/splits` | the laps, and where each ended for the map |
+| `activityTypedSplits(id)` | `/activity-service/activity/{id}/typedsplits` | run/walk detection and workout intervals |
+| `activityHrZones(id)` | `/activity-service/activity/{id}/hrTimeInZones` | time in each heart rate zone, with the zones' floors |
+| `activityPowerZones(id)` | `/activity-service/activity/{id}/powerTimeInZones` | the same for power |
+| `activityWeather(id)` | `/activity-service/activity/{id}/weather` | the map's weather chip; every field null indoors |
+| `activityGear(id)` | `/gear-service/gear/filterGear?activityId=` | the Gear tab |
+| `deviceAppInfo(versionPk)` | `/device-service/deviceservice/app-info/{deviceVersionPk}` | the watch's name and the firmware the activity was recorded on; the device list only knows today's |
+| `weightLatest(date)` | `/weight-service/weight/latest?date=&ignorePriority=true` | the weight on the activity's day, for Power (W/kg) |
+
+A treadmill run has no GPS columns, no elevation or grade-adjusted pace, and
+null weather. Ids are positive integers, so they can only add digits to a path.
+
 ## Available but unused
 
 These are implemented, tested and catalogued, and the daily check fetches them
@@ -305,6 +330,13 @@ starting after the first sync of a session:
 
 The walks run one after another, never beside a sync. A 429 stops a walk, and
 the next session carries on from where it stopped.
+
+**On view.** A page that needs what a sync didn't fetch asks for it when it
+opens: a day's intraday blocks (one or two requests a day), or an activity's
+page (ten requests, once per activity). These wait for any sync, run one at a
+time with the same pause, and a 429 answers every one still waiting. **Download
+runs** queues every run behind them (ten requests each, two seconds or more
+apart) and stops at a 429 until the next sync.
 
 The sync runs **newest day first**, so a run cut short by a rate limit has
 already covered the days you care about most. `pauseBetweenDays` (default

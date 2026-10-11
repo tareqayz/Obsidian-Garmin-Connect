@@ -1,0 +1,366 @@
+{
+	"endpoint": "activity-details",
+	"path": "/activity-service/activity/{activityId}/details",
+	"plugin": "GarminApi.activityDetails",
+	"firstRecorded": "2026-10-10T16:41:42.008Z",
+	"updatedAt": "2026-10-10T16:41:42.008Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"activityDetailMetrics": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"metrics": {
+							"type": [
+								"array"
+							],
+							"items": {
+								"type": [
+									"null",
+									"number"
+								]
+							}
+						}
+					}
+				}
+			},
+			"activityId": {
+				"type": [
+					"number"
+				]
+			},
+			"detailsAvailable": {
+				"type": [
+					"boolean"
+				]
+			},
+			"geoPolylineDTO": {
+				"type": [
+					"null",
+					"object"
+				],
+				"fields": {
+					"endPoint": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"altitude": {
+								"type": [
+									"null"
+								]
+							},
+							"cumulativeAscent": {
+								"type": [
+									"null"
+								]
+							},
+							"cumulativeDescent": {
+								"type": [
+									"null"
+								]
+							},
+							"distanceFromPreviousPoint": {
+								"type": [
+									"null"
+								]
+							},
+							"distanceInMeters": {
+								"type": [
+									"null"
+								]
+							},
+							"extendedCoordinate": {
+								"type": [
+									"boolean"
+								]
+							},
+							"lat": {
+								"type": [
+									"number"
+								]
+							},
+							"lon": {
+								"type": [
+									"number"
+								]
+							},
+							"speed": {
+								"type": [
+									"number"
+								]
+							},
+							"time": {
+								"type": [
+									"number"
+								]
+							},
+							"timerStart": {
+								"type": [
+									"boolean"
+								]
+							},
+							"timerStop": {
+								"type": [
+									"boolean"
+								]
+							},
+							"valid": {
+								"type": [
+									"boolean"
+								]
+							}
+						}
+					},
+					"maxLat": {
+						"type": [
+							"number"
+						]
+					},
+					"maxLon": {
+						"type": [
+							"number"
+						]
+					},
+					"minLat": {
+						"type": [
+							"number"
+						]
+					},
+					"minLon": {
+						"type": [
+							"number"
+						]
+					},
+					"polyline": {
+						"type": [
+							"array"
+						],
+						"items": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"altitude": {
+									"type": [
+										"null"
+									]
+								},
+								"cumulativeAscent": {
+									"type": [
+										"null"
+									]
+								},
+								"cumulativeDescent": {
+									"type": [
+										"null"
+									]
+								},
+								"distanceFromPreviousPoint": {
+									"type": [
+										"null"
+									]
+								},
+								"distanceInMeters": {
+									"type": [
+										"null"
+									]
+								},
+								"extendedCoordinate": {
+									"type": [
+										"boolean"
+									]
+								},
+								"lat": {
+									"type": [
+										"number"
+									]
+								},
+								"lon": {
+									"type": [
+										"number"
+									]
+								},
+								"speed": {
+									"type": [
+										"number"
+									]
+								},
+								"time": {
+									"type": [
+										"number"
+									]
+								},
+								"timerStart": {
+									"type": [
+										"boolean"
+									]
+								},
+								"timerStop": {
+									"type": [
+										"boolean"
+									]
+								},
+								"valid": {
+									"type": [
+										"boolean"
+									]
+								}
+							}
+						}
+					},
+					"startPoint": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"altitude": {
+								"type": [
+									"null"
+								]
+							},
+							"cumulativeAscent": {
+								"type": [
+									"null"
+								]
+							},
+							"cumulativeDescent": {
+								"type": [
+									"null"
+								]
+							},
+							"distanceFromPreviousPoint": {
+								"type": [
+									"null"
+								]
+							},
+							"distanceInMeters": {
+								"type": [
+									"null"
+								]
+							},
+							"extendedCoordinate": {
+								"type": [
+									"boolean"
+								]
+							},
+							"lat": {
+								"type": [
+									"number"
+								]
+							},
+							"lon": {
+								"type": [
+									"number"
+								]
+							},
+							"speed": {
+								"type": [
+									"number"
+								]
+							},
+							"time": {
+								"type": [
+									"number"
+								]
+							},
+							"timerStart": {
+								"type": [
+									"boolean"
+								]
+							},
+							"timerStop": {
+								"type": [
+									"boolean"
+								]
+							},
+							"valid": {
+								"type": [
+									"boolean"
+								]
+							}
+						}
+					}
+				}
+			},
+			"heartRateDTOs": {
+				"type": [
+					"null"
+				]
+			},
+			"measurementCount": {
+				"type": [
+					"number"
+				]
+			},
+			"metricDescriptors": {
+				"type": [
+					"array"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"key": {
+							"type": [
+								"string"
+							]
+						},
+						"metricsIndex": {
+							"type": [
+								"number"
+							]
+						},
+						"unit": {
+							"type": [
+								"object"
+							],
+							"fields": {
+								"factor": {
+									"type": [
+										"number"
+									]
+								},
+								"id": {
+									"type": [
+										"number"
+									]
+								},
+								"key": {
+									"type": [
+										"string"
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"metricsCount": {
+				"type": [
+					"number"
+				]
+			},
+			"pendingData": {
+				"type": [
+					"null"
+				]
+			},
+			"totalMetricsCount": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

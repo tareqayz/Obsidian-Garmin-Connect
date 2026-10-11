@@ -3,10 +3,73 @@
 .gch-add-stat { width: 420px; max-width: 100%; }
 /* The Sleep Coach's Sleep History sheet: its header is the sheet's own, not the modal's. */
 .gch-sleep-history { width: 402px; max-width: 100%; padding: 0; overflow: hidden; }
+.gch-sleep-history .modal-header-button,
 .gch-sleep-history .modal-close-button,
 .gch-sleep-history .modal-header,
 .gch-sleep-history .modal-title { display: none; }
 .gch-sleep-history .modal-content { padding: 0; }
+/* The activity page's sheets (info, pickers, Map Settings). The title and
+   close button are the modal's, set as Garmin's sheet header: a band with
+   the title on the left. The body scrolls under it and pads its own end. */
+.gch-sheet { width: 402px; max-width: 100%; padding: 0; overflow: hidden; }
+.gch-sheet .modal-header {
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: none;
+	box-sizing: border-box;
+	width: 100%;
+	height: 56px;
+	margin: 0;
+	padding: 6px 60px 0 16px;
+	background-color: var(--background-primary);
+}
+.gch-sheet .modal-title {
+	max-width: none;
+	margin: 0;
+	overflow: hidden;
+	font-size: 22px;
+	line-height: 28px;
+	font-weight: 600;
+	text-align: start;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Level with the title: a 26px button in a pane, Obsidian's 44px one on a phone. */
+.gch-sheet .modal-header-button,
+.gch-sheet .modal-close-button { top: 19px; inset-inline-end: 12px; }
+.is-phone .gch-sheet .modal-header-button,
+.is-phone .gch-sheet .modal-close-button { top: 9px; inset-inline-end: 16px; }
+.gch-sheet .modal-content { flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow-y: auto; }
+/* On a phone: on the bottom edge, as tall as it needs below a strip of the
+   page, and its header, with a grabber, is the handle Obsidian drags it down by. */
+.is-phone .gch-sheet-container { align-items: flex-end; }
+.is-phone .gch-sheet {
+	--modal-radius: var(--touch-radius-s) var(--touch-radius-s) 0 0;
+	width: 100%;
+	max-height: calc(100% - var(--safe-area-inset-top) - 48px);
+}
+.is-phone .gch-sheet .modal-header::before {
+	content: "";
+	position: absolute;
+	top: 5px;
+	left: 50%;
+	width: 36px;
+	height: 5px;
+	margin-left: -18px;
+	border-radius: 2.5px;
+	background-color: var(--text-faint);
+}
+
+/* On a phone Obsidian's floating navigation bar sits over the view's bottom
+   edge: every page's end scrolls clear of it, by the spacing Obsidian keeps
+   for that, and a page that fills the view stops above it. Elsewhere the
+   view's own padding stands. (That spacing is a bare 0 without the bar,
+   which calc() would refuse: hence Obsidian's own conditions.) */
+.is-phone.is-floating-nav .view-content.gch-view,
+.is-phone.auto-full-screen .view-content.gch-view {
+	padding-bottom: calc(var(--view-bottom-spacing) + var(--size-4-3));
+}
 
 /* ==================================================================
    Sync Notice

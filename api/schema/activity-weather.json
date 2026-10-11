@@ -1,0 +1,124 @@
+{
+	"endpoint": "activity-weather",
+	"path": "/activity-service/activity/{activityId}/weather",
+	"plugin": "GarminApi.activityWeather",
+	"firstRecorded": "2026-10-10T16:41:42.732Z",
+	"updatedAt": "2026-10-10T16:41:42.732Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"apparentTemp": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"dewPoint": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"issueDate": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"latitude": {
+				"type": [
+					"number"
+				]
+			},
+			"longitude": {
+				"type": [
+					"number"
+				]
+			},
+			"relativeHumidity": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"temp": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"weatherStationDTO": {
+				"type": [
+					"null",
+					"object"
+				],
+				"fields": {
+					"id": {
+						"type": [
+							"string"
+						]
+					},
+					"name": {
+						"type": [
+							"string"
+						]
+					},
+					"timezone": {
+						"type": [
+							"null"
+						]
+					}
+				}
+			},
+			"weatherTypeDTO": {
+				"type": [
+					"null",
+					"object"
+				],
+				"fields": {
+					"desc": {
+						"type": [
+							"string"
+						]
+					},
+					"image": {
+						"type": [
+							"null"
+						]
+					},
+					"weatherTypePk": {
+						"type": [
+							"null"
+						]
+					}
+				}
+			},
+			"windDirection": {
+				"type": [
+					"null",
+					"number"
+				]
+			},
+			"windDirectionCompassPoint": {
+				"type": [
+					"null",
+					"string"
+				]
+			},
+			"windGust": {
+				"type": [
+					"null"
+				]
+			},
+			"windSpeed": {
+				"type": [
+					"null",
+					"number"
+				]
+			}
+		}
+	}
+}

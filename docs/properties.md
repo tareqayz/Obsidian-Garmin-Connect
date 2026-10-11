@@ -626,6 +626,47 @@ How it fills:
 Multisport legs are not in the list, so they are not in the index either: a
 triathlon counts once, under Multisport.
 
+### Activity details — `activity-details/`
+
+A run's page needs far more than its index row. The first time it opens, the
+plugin asks Garmin for the rest, ten requests made between syncs, and keeps the
+answer in one file per activity:
+
+```
+<dataFolder>/activity-details/12345678901.json
+```
+
+| Key | Holds | Source (`/activity-service/activity/{id}` unless named) |
+| --- | --- | --- |
+| `version` | The file's layout. A file of another version reads as missing and is fetched again | — |
+| `id`, `name`, `type`, `typeId`, `parentTypeId`, `start`, `startGmt`, `timeZone`, `privacy`, `notes`, `deviceVersionPk`, `windData` | The activity | the summary |
+| `summary` | The summary's figures as Garmin sent them, unrounded, so a page rounds once | the summary |
+| `samples` | The recorded samples as columns of equal length, in Garmin's units: `time`, `distance`, `hr`, `speed`, `gap`, `cadence`, `stride`, `vo`, `vr`, `gct`, `elevation`, `power`, `stamina`, `potential`, `performance`, `impact`, `breaths`, `gctBalance`, `speedLoss`, `speedLossPct`, `lat`, `lon`, and `clock`, seconds since the start, pauses included. A column the watch didn't record is left out; `null` is a gap | `/details` |
+| `laps` | Each lap's figures, unrounded | `/splits` |
+| `segments` | Run, walk and idle stretches, and workout intervals | `/typedsplits` |
+| `hrZones`, `powerZones` | Seconds in each zone, with its bounds | `/hrTimeInZones`, `/powerTimeInZones` |
+| `weather` | Temperature and feels-like (°F), humidity, wind speed, gusts and direction, and Garmin's description | `/weather` |
+| `gear` | The gear on the activity | `/gear-service/gear/filterGear` |
+| `device` | The watch, and the firmware it was recorded on | `/device-service/deviceservice/app-info/{versionPk}` |
+| `weightKg` | The newest weigh-in on or before the activity's day, for Power (W/kg) | `/weight-service/weight/latest` |
+| `checked` | The blocks Garmin answered, with data or without | — |
+
+How it fills:
+
+- When a run's page opens, with a session and the `workouts` group on. The
+  loads wait for a sync to finish, keep the usual pause between activities, and
+  stop at a 429 until the next view.
+- With **Download runs** on, for every run in the activity index that has no
+  file yet, newest first, after each sync — the pages' loads first, then one run
+  every two seconds or more, until a 429 or the next sync.
+- Opened again, the page reads the file and asks nothing. A block missing from
+  `checked` (its request failed) is asked for again; when the index shows the
+  activity renamed or trimmed (its name, distance or duration changed), the
+  whole file is fetched afresh.
+- It is rewritten only when its content changes.
+- `lat` and `lon` are where you ran. Deleting the folder removes them; a page
+  opened later fetches its file again.
+
 ## History indexes
 
 The pages inside Home read neither the notes nor their properties. A week,

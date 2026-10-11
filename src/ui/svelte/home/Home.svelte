@@ -1,15 +1,20 @@
 <script lang="ts">
 	import { tick } from "svelte";
-	import type { ActivitiesData } from "../../../dashboard/activities";
+	import { runIdFor, type ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
-	import { healthStatRoute, pop, push, replace, sleepRoute, statsRoute, top, type Route } from "../../../dashboard/routes";
+	import { activityRoute, healthStatRoute, pop, push, pushOrReturn, replace, sleepRoute, statsRoute, top, type Route } from "../../../dashboard/routes";
 	import { latestNightOffset, type HistoryView, type SleepData } from "../../../dashboard/sleep-pages";
 	import type { StatsData } from "../../../dashboard/stats-pages";
 	import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 	import type { DaySeries } from "../../../sync/intraday";
 	import type { IntradayLoad } from "../../../sync/intraday-registry";
+	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
+	import type { TileSource } from "../../map/tile-source";
+	import type { OpenSheet } from "../../sheet-modal";
+	import ActivityMapPage from "../activity/ActivityMapPage.svelte";
+	import ActivityPage from "../activity/ActivityPage.svelte";
 	import type { HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../../../sync/runner";
 	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
@@ -88,6 +93,14 @@
 		readIndex: ReadIndex;
 		/** A day's intraday blocks, fetched on view when its series file lacks them. */
 		loadIntraday: (date: string, keys: readonly string[]) => Promise<IntradayLoad>;
+		/** An activity's page: its detail file, fetched on view when it lacks blocks. */
+		loadActivity: (id: number) => Promise<ActivityLoad>;
+		/** The detail last loaded for an activity, if this view still has it. */
+		cachedActivity: (id: number) => ActivityDetail | null;
+		/** The activity maps' tiles, or null when the setting is off. */
+		tiles: () => TileSource | null;
+		/** Opens one of the activity page's sheets. */
+		openSheet: OpenSheet;
 	}
 
 	let {
@@ -117,6 +130,10 @@
 		readSeries,
 		readIndex,
 		loadIntraday,
+		loadActivity,
+		cachedActivity,
+		tiles,
+		openSheet,
 	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
@@ -252,6 +269,13 @@
 		void show(pop(stack), true);
 	}
 
+	/** A link that may lead back down the stack: returns to that page rather than stacking a loop. */
+	function reach(route: Route) {
+		const next = pushOrReturn(stack, route);
+		if (next.length > stack.length) go(route);
+		else void show(next, true);
+	}
+
 	/** A filter or a tab: the same page with other settings, staying where it is scrolled. */
 	function swap(route: Route) {
 		stack = replace(stack, route);
@@ -356,11 +380,15 @@
 	{:else if current.page === "category"}
 		<CategoryPage route={current} data={activities} {today} {history} {canSync} onBack={back} {go} {swap} {onSyncHistory} />
 	{:else if current.page === "month"}
-		<MonthPage route={current} data={activities} onBack={back} />
+		<MonthPage route={current} data={activities} onBack={back} {go} />
 	{:else if current.page === "records"}
-		<RecordsPage route={current} data={activities} onBack={back} {swap} />
+		<RecordsPage route={current} data={activities} onBack={back} {go} {swap} />
 	{:else if current.page === "all"}
-		<AllActivitiesPage data={activities} onBack={back} />
+		<AllActivitiesPage data={activities} onBack={back} {go} />
+	{:else if current.page === "activity"}
+		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {go} {swap} {reach} />
+	{:else if current.page === "activity-map"}
+		<ActivityMapPage route={current} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {swap} />
 	{:else if current.page === "health"}
 		<HealthHub onBack={back} {go} openSleep={() => go(sleepRoute(latestNightOffset(sleep, today)))} />
 	{:else if current.page === "health-stat"}
@@ -467,13 +495,22 @@
 											.join(" • ")}
 									/>
 								{:else}
-									<RowCard
-										kicker={item.name}
-										icon="activity"
-										color="var(--color-blue)"
-										headline={[item.distance, item.minutes !== undefined ? `${Math.round(item.minutes)} min` : ""].filter(Boolean).join(" · ") || item.name}
-										detail={item.calories !== undefined ? `${item.calories} kcal` : undefined}
-									/>
+									{@const run = runIdFor(activities.rows, item.start, item.name)}
+									{#snippet card()}
+										<RowCard
+											kicker={item.name}
+											icon="activity"
+											color="var(--color-blue)"
+											headline={[item.distance, item.minutes !== undefined ? `${Math.round(item.minutes)} min` : ""].filter(Boolean).join(" · ") || item.name}
+											detail={item.calories !== undefined ? `${item.calories} kcal` : undefined}
+										/>
+									{/snippet}
+									{#if run !== null}
+										{@const open = opener(activityRoute(run))}
+										<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>{@render card()}</div>
+									{:else}
+										{@render card()}
+									{/if}
 								{/if}
 							{:else}
 								<HomeCard><div class="quiet">No activities or Health Snapshots yet today.</div></HomeCard>

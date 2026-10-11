@@ -24,10 +24,12 @@
 	},
 	"license": "MIT",
 	"devDependencies": {
+		"@types/leaflet": "^1.9.22",
 		"@types/node": "^22.0.0",
 		"esbuild": "^0.25.5",
 		"esbuild-svelte": "^0.9.5",
 		"js-yaml": "^5.4.1",
+		"leaflet": "1.9.4",
 		"obsidian": "^1.10.0",
 		"svelte": "^5.57.0",
 		"svelte-check": "^4.7.6",

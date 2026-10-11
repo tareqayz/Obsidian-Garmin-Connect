@@ -45,6 +45,7 @@ import {
 import { ensureFolder, trimSlashes } from "./frontmatter";
 import type { AccountInfo } from "./account";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
+import { parseActivityDetail, serializeActivityDetail, type ActivityDetail, type ActivityDetailStore } from "./activity-detail";
 
 export const SERIES_FOLDER = "series";
 export const ACCOUNT_FILE = "account.json";
@@ -56,6 +57,12 @@ export const SLEEP_FOLDER = "sleep";
 export const SLEEP_META_FILE = "index.json";
 /** Every registered day index keeps its meta in a file of this name, beside its year files. */
 export const DAY_INDEX_META_FILE = "index.json";
+/**
+ * One file per activity a page has opened (see `activity-detail.ts`). Not under
+ * `activities/`: a write there would rebuild Home, and these files are the
+ * activity page's alone.
+ */
+export const ACTIVITY_DETAILS_FOLDER = "activity-details";
 
 export interface SleepIndex {
 	/** Oldest first. */
@@ -99,15 +106,17 @@ export interface MergeOptions {
  * few facts that belong to no day, the activity index in
  * `<dataFolder>/activities/` (see `activity-index.ts`) and the daily stats
  * index in `<dataFolder>/daily-stats/` (see `daily-stats.ts`), the sleep
- * index in `<dataFolder>/sleep/` (see `sleep-index.ts`) and each registered
- * day index in `<dataFolder>/<folder>/` (see `day-index.ts`).
+ * index in `<dataFolder>/sleep/` (see `sleep-index.ts`), each registered
+ * day index in `<dataFolder>/<folder>/` (see `day-index.ts`), and a file for
+ * each activity whose page has opened in `<dataFolder>/activity-details/`
+ * (see `activity-detail.ts`).
  *
  * Files rather than frontmatter because a day of heart rate is hundreds of
  * points (see `intraday.ts`). Written through the vault API so Obsidian Sync and
  * the file explorer see them like any other file, and skipped when the text
  * would not change, for the same mtime reason as `writeFrontmatter`.
  */
-export class VaultSeriesStore implements SeriesTarget {
+export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	private app: App;
 	private folder: string;
 
@@ -132,6 +141,32 @@ export class VaultSeriesStore implements SeriesTarget {
 		const file = this.app.vault.getAbstractFileByPath(this.path(date));
 		if (!(file instanceof TFile)) return null;
 		return parseSeries(await this.app.vault.cachedRead(file));
+	}
+
+	activityDetailPath(id: number): string {
+		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${id}.json`);
+	}
+
+	async readActivityDetail(id: number): Promise<ActivityDetail | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.activityDetailPath(id));
+		if (!(file instanceof TFile)) return null;
+		return parseActivityDetail(await this.app.vault.cachedRead(file));
+	}
+
+	async writeActivityDetail(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
+		return this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
+	}
+
+	/** The activities with a detail file, by id, read from the folder's listing. */
+	async activityDetailIds(): Promise<Set<number>> {
+		const ids = new Set<number>();
+		const folder = this.app.vault.getAbstractFileByPath(this.join(ACTIVITY_DETAILS_FOLDER));
+		if (!(folder instanceof TFolder)) return ids;
+		for (const child of folder.children) {
+			const id = child instanceof TFile ? /^(\d+)\.json$/.exec(child.name)?.[1] : undefined;
+			if (id) ids.add(Number(id));
+		}
+		return ids;
 	}
 
 	async writeAccount(account: AccountInfo): Promise<"written" | "unchanged"> {

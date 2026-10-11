@@ -46,6 +46,7 @@ saved session to restore, not on every sync.
 | --- | --- | --- | --- |
 | Days to sync | `syncDays` | `3` | How many days back **Sync recent days** covers. Slider 1–30. |
 | Sync on startup | `syncOnStartup` | off | Runs **Sync recent days** five seconds after Obsidian loads the plugin, when you are signed in. |
+| Download runs | `downloadRuns` | off | Downloads every run's page — charts, laps, route — after each sync, in the background, newest first, so it opens without a connection. About 150 KB and ten requests a run, at least two seconds apart; a run already in `activity-details/` is skipped. Off, a run downloads the first time you open it. |
 | Units | `units` | `auto` | `metric` writes `distance_km`, `imperial` writes `distance_mi`, and `auto` asks Garmin which system your account uses. |
 
 **Why three days and not one.** Garmin keeps revising a day after it ends.
@@ -79,7 +80,7 @@ These settings appear unless the mode is **Daily notes**:
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Data folder | `dataFolder` | `Garmin/data` | Where the day notes go. The history indexes, the series files and `account.json` sit in it too. |
+| Data folder | `dataFolder` | `Garmin/data` | Where the day notes go. The history indexes, the series files, the activity pages' files and `account.json` sit in it too. |
 | Table view folder | `basesFolder` | `Garmin` | Where `Garmin Health.base` lives. Keeping it above the data folder keeps the day notes out of the way. Changing it does not move an existing file. |
 | Property prefix in the data folder | `dataFolderPrefix` | `""` | A prefix for every property. Blank, because a folder of its own has nothing to collide with. |
 | Table view | `createBasesView` | on | Creates `Garmin Health.base`, a Bases table over the data folder, on the first sync that writes something. |
@@ -202,6 +203,12 @@ These settings appear unless the mode is **Data folder**:
 
 **Create missing notes** is **off on purpose**. Writing into notes you already
 have is safe; inventing notes in someone's daily-note folder is not.
+
+## Maps
+
+| Setting | Key | Default | Effect |
+| --- | --- | --- | --- |
+| Map tiles | `mapTiles` | on | Draws OpenStreetMap's map under an activity's route, from `tile.openstreetmap.org`, which sees the area of each activity whose map you open. Off, the route is drawn on its own and no tile is asked for. |
 
 ## Advanced
 

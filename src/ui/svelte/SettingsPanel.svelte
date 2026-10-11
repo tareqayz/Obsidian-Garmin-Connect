@@ -175,6 +175,24 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
+			.setName("Download runs")
+			.setDesc(
+				"Saves every run's page — charts, laps and route — to the vault in the background after a sync, " +
+					"newest first, so it opens without a connection. About 150 KB and ten requests a run. " +
+					"Off, a run downloads when you first open it.",
+			)
+			.addToggle((t) =>
+				t.setValue(s.downloadRuns).onChange((v) => {
+					s.downloadRuns = v;
+					save();
+					if (v) plugin.sync.startDownloads();
+				}),
+			)}
+></div>
+
+<div
+	use:obsidianSetting={(setting) =>
+		setting
 			.setName("Units")
 			.setDesc("Auto asks Garmin which system your account uses.")
 			.addDropdown((d) =>
@@ -415,6 +433,23 @@
 				)}
 	></div>
 {/if}
+
+<h3>Maps</h3>
+
+<div
+	use:obsidianSetting={(setting) =>
+		setting
+			.setName("Map tiles")
+			.setDesc(
+				"Draws OpenStreetMap's map under an activity's route. The tiles come from tile.openstreetmap.org, which sees the area of each activity you open. Off, the route is drawn on its own.",
+			)
+			.addToggle((t) =>
+				t.setValue(s.mapTiles).onChange((v) => {
+					s.mapTiles = v;
+					save();
+				}),
+			)}
+></div>
 
 <h3>Advanced</h3>
 
