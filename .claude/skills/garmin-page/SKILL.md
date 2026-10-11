@@ -86,6 +86,23 @@ git worktree remove "$WT" && git branch -D feature/<area>-<stat>
 - **Rounding differs per stat** (Stress floors; Body Battery, Heart Rate, Respiration round
   half-up/nearest). Never assume; every spec proves its own rule.
 
+## Lessons from the Performance Stats pilot (VO₂ Max, 2026-10-12)
+
+- **Sweep the API the day of the shots.** A `live-api.sh` pass over every page's endpoints for the
+  capture day pins the golden numbers before Garmin moves on; specs then prove rules offline.
+- **Run the web survey first and wide.** It found range routes the plan had assumed missing
+  (training status history), which changed the data design before any builder started.
+- **Page dials own their bands.** `gauges.ts` is Home's 270° glance dial; a page's 300° dial
+  measures its own band edges and marker map (`segmentsFromAngles`, `dialFraction` in
+  `stat-dial.ts`). Garmin's web a11y text ("Data ranges from … to …") gives a dial's true ends.
+- **Gate shared-shell changes with pixel diffs.** Baseline captures before, the same captures
+  after, `PIL` difference: Health stayed identical while the shell was generalised.
+- **Capture tooling:** `capture-view.sh` crops from the page's edge (9cd10ae); before it, a 402
+  capture lost the page's right ~12 pt. A live DOM read of the SVG attributes is the quickest
+  check that geometry matches the twin.
+- **Builders can render offline:** the pilot's builder rendered its page in a harness (Svelte +
+  an `obsidian` stub) at 402/1190, light/dark, to compare with the twin before the live reload.
+
 ## Dispatching agents
 
 Give each agent: the stat, its output directory (absolute paths), the inputs it may read,
