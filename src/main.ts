@@ -3,7 +3,9 @@ import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
-import { healthStatRoute, sleepRoute, statsRoute } from "./dashboard/routes";
+import { PERFORMANCE_REGISTRY } from "./dashboard/performance-stats";
+import { healthStatRoute, performanceStatRoute, sleepRoute, statsRoute } from "./dashboard/routes";
+import { commandTitle } from "./dashboard/stat-registry";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GarminApi } from "./garmin/endpoints";
 import { ObsidianHttpClient } from "./obsidian-http";
@@ -15,6 +17,7 @@ import { SyncRunner } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
+import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
 import { removeLeafletStyles } from "./ui/map/leaflet";
@@ -74,6 +77,23 @@ export default class GarminPlugin extends Plugin {
 				id: `open-${stat.id}`,
 				name: `Open ${stat.title.toLowerCase()}`,
 				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, healthStatRoute(stat.id)] }),
+			});
+		}
+		// Performance Stats once its hub has a page, and one per page the hub lists:
+		// Load and Heat Acclimation open from Training Status instead.
+		const performance = PERFORMANCE_REGISTRY.hubStats(Object.keys(PERFORMANCE_PAGES));
+		if (performance.length) {
+			this.addCommand({
+				id: "open-performance-stats",
+				name: "Open performance stats",
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, { page: "performance" }] }),
+			});
+		}
+		for (const stat of performance) {
+			this.addCommand({
+				id: `open-${stat.id}`,
+				name: `Open ${commandTitle(stat.title)}`,
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, performanceStatRoute(stat.id)] }),
 			});
 		}
 

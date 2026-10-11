@@ -1,6 +1,18 @@
 import type { MetricGroup } from "../sync/metrics";
 import type { GlanceId } from "./glance";
-import { defaultSpan, type PeriodRange, type SpanRange, type SpanRule } from "./periods";
+import {
+	dayLabel,
+	dayOf,
+	defaultSpan,
+	monthsLabel,
+	rangeLabel,
+	spanOf,
+	type PeriodRange,
+	type PeriodRoute,
+	type Span,
+	type SpanRange,
+	type SpanRule,
+} from "./periods";
 
 /**
  * A stats section's registry, shared by Health Stats (`health-stats.ts`) and
@@ -60,24 +72,28 @@ export interface GlanceTarget<S extends StatDef = StatDef> {
 	range?: PeriodRange;
 }
 
-export interface RegistryOptions<Off extends string> {
+export interface RegistryOptions<Own extends string, NoPage extends string> {
 	/** Stats with a route of their own: off the shared route, always in the hub (Health's Sleep). */
-	ownRoute?: readonly Off[];
+	ownRoute?: readonly Own[];
 	/** Stats without a page: never routed, never in the hub (Performance's Cycling Ability). */
-	noPage?: readonly Off[];
+	noPage?: readonly NoPage[];
 }
 
-export interface StatRegistry<S extends StatDef, PageId extends S["id"] = S["id"]> {
+/**
+ * `PageId` is the stats on the shared route; `Own` the ones the hub lists
+ * on a route of their own.
+ */
+export interface StatRegistry<S extends StatDef, PageId extends S["id"] = S["id"], Own extends S["id"] = never> {
 	/** Every stat, in the app's order. */
 	readonly stats: readonly S[];
 	/** A stat by its id, or undefined for anything else. */
 	get(id: unknown): S | undefined;
 	/** A stat on the shared route by its id: refused for one with its own route or no page. */
 	page(id: unknown): PageStat<S, PageId> | undefined;
-	/** The stats whose page is registered, in the app's order, hidden ones too: what gets an "Open …" command. */
+	/** The stats whose page is registered, in the app's order, hidden ones too. */
 	pageStats(registered: Iterable<string>): PageStat<S, PageId>[];
-	/** The hub's rows, in the app's order: the stats with their own route, then every registered one the hub shows. */
-	hubStats(registered: Iterable<string>): S[];
+	/** The hub's rows, in the app's order: the stats with their own route, and every registered one the hub shows. */
+	hubStats(registered: Iterable<string>): PageStat<S, PageId | Own>[];
 	/**
 	 * The page an At a Glance card opens: the stat on the shared route that
 	 * claims the card, with what its link names. Only a registered page's
@@ -87,11 +103,12 @@ export interface StatRegistry<S extends StatDef, PageId extends S["id"] = S["id"
 }
 
 /** The helpers a section reads its stats through, built from its list. */
-export function statRegistry<S extends StatDef, Off extends S["id"] = never>(
+export function statRegistry<S extends StatDef, Own extends S["id"] = never, NoPage extends S["id"] = never>(
 	stats: readonly S[],
-	options: RegistryOptions<Off> = {},
-): StatRegistry<S, Exclude<S["id"], Off>> {
-	type P = PageStat<S, Exclude<S["id"], Off>>;
+	options: RegistryOptions<Own, NoPage> = {},
+): StatRegistry<S, Exclude<S["id"], Own | NoPage>, Own> {
+	type P = PageStat<S, Exclude<S["id"], Own | NoPage>>;
+	type H = PageStat<S, Exclude<S["id"], Own | NoPage> | Own>;
 	const own = new Set<string>(options.ownRoute ?? []);
 	const off = new Set<string>([...own, ...(options.noPage ?? [])]);
 	const isPage = (stat: S): stat is P => !off.has(stat.id);
@@ -110,7 +127,7 @@ export function statRegistry<S extends StatDef, Off extends S["id"] = never>(
 		pageStats,
 		hubStats(registered) {
 			const has = new Set(registered);
-			return stats.filter((s) => s.hub !== false && (own.has(s.id) || (isPage(s) && has.has(s.id))));
+			return stats.filter((s): s is H => s.hub !== false && (own.has(s.id) || (isPage(s) && has.has(s.id))));
 		},
 		glanceTarget(glance, registered) {
 			for (const stat of registered === undefined ? stats.filter(isPage) : pageStats(registered)) {
@@ -127,6 +144,14 @@ export function statRegistry<S extends StatDef, Off extends S["id"] = never>(
 	};
 }
 
+/** A stat's title as a command names it, in sentence case with its acronyms kept: "VO₂ max", "HRV status". */
+export function commandTitle(title: string): string {
+	return title
+		.split(" ")
+		.map((word) => (word.length > 1 && word === word.toUpperCase() ? word : word.toLowerCase()))
+		.join(" ");
+}
+
 /** A glance entry as a link: a bare card id opens the page as it opens by default. */
 export function linkOf(entry: GlanceId | GlanceLink): GlanceLink {
 	return typeof entry === "string" ? { id: entry } : entry;
@@ -135,4 +160,23 @@ export function linkOf(entry: GlanceId | GlanceLink): GlanceLink {
 /** The rule a stat's range cuts its period by: the stat's own, or the range's default. */
 export function spanRuleOf(stat: Pick<StatDef, "spans">, range: SpanRange): SpanRule {
 	return stat.spans?.[range] ?? defaultSpan(range);
+}
+
+type PeriodOf = Pick<PeriodRoute<PeriodRange>, "range" | "offset">;
+
+/** The days a stat page's period covers: the span its range's rule cuts `offset` periods back, or none on 1d. */
+export function statSpan(stat: Pick<StatDef, "spans">, route: PeriodOf, today: string): Span | null {
+	return route.range === "1d" ? null : spanOf(spanRuleOf(stat, route.range), route.offset, today);
+}
+
+/**
+ * A stat page's period as the app words it: the day on 1d ("Today"), a year
+ * with both years, any other span by its days ("Jul 26 - Oct 11"), and
+ * calendar months by their months ("Nov 2025 - Oct 2026").
+ */
+export function statPeriodLabel(stat: Pick<StatDef, "spans">, route: PeriodOf, today: string): string {
+	if (route.range === "1d") return dayLabel(dayOf(route, today), today);
+	const rule = spanRuleOf(stat, route.range);
+	const span = spanOf(rule, route.offset, today);
+	return "months" in rule && rule.calendar ? monthsLabel(span.from, span.to) : rangeLabel(route.range, span, today);
 }

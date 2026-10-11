@@ -1,12 +1,16 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import type { GlanceId } from "../src/dashboard/glance";
+import { PERFORMANCE_REGISTRY } from "../src/dashboard/performance-stats";
 import {
 	HOME,
 	activityMapRoute,
 	activityRoute,
 	categoryRoute,
 	healthStatRoute,
+	moveStatRoute,
 	performanceStatRoute,
+	performanceTargetRoute,
 	pop,
 	push,
 	pushOrReturn,
@@ -14,6 +18,7 @@ import {
 	readStack,
 	replace,
 	sleepRoute,
+	statOfRoute,
 	statsRoute,
 	top,
 	type Route,
@@ -254,6 +259,61 @@ describe("performance-stat routes", () => {
 		assert.deepEqual(stack, [HOME, { page: "more" }, { page: "performance" }, status, load]);
 		assert.deepEqual(pop(stack), [HOME, { page: "more" }, { page: "performance" }, status]);
 		assert.deepEqual(pushOrReturn([...stack, activityRoute(1)], status), [HOME, { page: "more" }, { page: "performance" }, status]);
+	});
+});
+
+describe("stat page moves", () => {
+	it("keep the page's tab and sub-page, and carry the day 1d last showed", () => {
+		const route = performanceStatRoute("vo2-max", { range: "4w", offset: -1, tab: "cycling", sub: "fitness-age" });
+		assert.deepEqual(moveStatRoute(route, { range: "12w", offset: 0, date: "2026-10-09" }), {
+			page: "performance-stat",
+			stat: "vo2-max",
+			range: "12w",
+			offset: 0,
+			tab: "cycling",
+			sub: "fitness-age",
+			date: "2026-10-09",
+		});
+		assert.deepEqual(moveStatRoute(route, { range: "4w", offset: -2 }), { ...route, offset: -2 });
+	});
+
+	it("move a Health page as the shell always has, key for key", () => {
+		const route = healthStatRoute("stress", { range: "7d", offset: -1 });
+		assert.deepEqual(moveStatRoute(route, { range: "1d", offset: -3 }), { page: "health-stat", stat: "stress", range: "1d", offset: -3 });
+		assert.equal(
+			JSON.stringify(moveStatRoute(route, { range: "4w", offset: 0, date: "2026-10-05" })),
+			'{"page":"health-stat","stat":"stress","range":"4w","offset":0,"date":"2026-10-05"}',
+		);
+	});
+
+	it("find the stat behind a route in its own section", () => {
+		assert.equal(statOfRoute(healthStatRoute("stress"))?.title, "Stress");
+		assert.equal(statOfRoute(performanceStatRoute("ftp"))?.title, "FTP");
+		assert.deepEqual(statOfRoute(performanceStatRoute("vo2-max"))?.rangeLabels, { "1d": "Current" });
+	});
+});
+
+describe("Performance cards' routes", () => {
+	const target = (id: GlanceId) => PERFORMANCE_REGISTRY.glanceTarget(id)!;
+
+	it("open the card's stat on its tab, a day page on the day Home shows", () => {
+		assert.deepEqual(performanceTargetRoute(target("cyclingVo2"), -1), { page: "performance-stat", stat: "vo2-max", range: "1d", offset: -1, tab: "cycling" });
+		assert.deepEqual(performanceTargetRoute(target("xcSkiFtp")), { page: "performance-stat", stat: "ftp", range: "1d", offset: 0, tab: "xc" });
+		assert.deepEqual(performanceTargetRoute(target("readiness"), -2), performanceStatRoute("training-readiness", { offset: -2 }));
+		// A page without a day opens on its current period.
+		assert.deepEqual(performanceTargetRoute(target("loadFocus"), -1), { page: "performance-stat", stat: "training-load", range: "4w", offset: 0, tab: "focus" });
+		assert.deepEqual(performanceTargetRoute(target("trainingLoad"), -1).tab, "training");
+	});
+
+	it("open on the range and sub-page a link names", () => {
+		const hill = PERFORMANCE_REGISTRY.page("hill-score")!;
+		assert.deepEqual(performanceTargetRoute({ stat: hill, range: "1y", sub: "2026-03" }, -1), {
+			page: "performance-stat",
+			stat: "hill-score",
+			range: "1y",
+			offset: 0,
+			sub: "2026-03",
+		});
 	});
 });
 

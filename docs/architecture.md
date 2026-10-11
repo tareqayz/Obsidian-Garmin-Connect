@@ -87,8 +87,8 @@ src/dashboard/
   routes.ts              the page stack inside the Home view, and reading it back — pure
   series.ts              DayRow, shiftDate, duration       — pure
   day.ts                 day-row lookups and date/number wording — pure
-  periods.ts             the periods a range stat pages through: spans, 1y weeks, card routes,
-                         labels, means, and the shared month and weekday names — pure
+  periods.ts             the periods a range stat pages through: span rules, spans, 1y weeks, card
+                         routes, labels, means, and the shared month and weekday names — pure
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
@@ -104,7 +104,11 @@ src/dashboard/
   stats-charts.ts        their charts' geometry, measured off the app — pure
   sleep-pages.ts         Sleep: the night, its factors, the Sleep Coach, 7d / 4w / 1y — pure
   sleep-charts.ts        the Sleep charts' geometry — pure
+  stat-registry.ts       StatDef and statRegistry: a stats section's list read as its hub, its
+                         pages, its glance targets and its span rules — pure
   health-stats.ts        HEALTH_STATS: the Health Stats in the app's order, ranges, groups — pure
+  performance-stats.ts   PERFORMANCE_STATS: the Performance Stats the same way, with tabs and spans — pure
+  gauges.ts              Garmin's banded dials: VO₂ Max, FTP, readiness, endurance, hill, economy — pure
   stat-charts.ts         a Health Stats chart's box: frames, gridlines, the axis, gap-breaking lines — pure
   <stat>-pages.ts        each Health Stats page's view model — pure
   <stat>-charts.ts       its chart frames and marks — pure
@@ -140,8 +144,9 @@ src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel and SyncRangeForm,
   stats/                 the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
   sleep/                 the Sleep pages: the night, the factor pages, the Sleep Coach, the periods
-  health/                the Health Stats hub, HEALTH_PAGES and the props every stat page gets, and
-                         the parts a stat page is built from (see "Building a stat page")
+  health/                the Health Stats hub, HEALTH_PAGES, the props every stat page gets, and
+                         the parts both sections' pages are built from (see "Building a stat page")
+  performance/           the Performance Stats hub and PERFORMANCE_PAGES
   <stat>/                each Health Stats page: stress, heart-rate, body-battery, respiration,
                          health-status, fitness-age, health-snapshot, weight, pulse-ox,
                          pulse-ox-acclimation, blood-pressure, lifestyle-logging
@@ -256,11 +261,12 @@ stack is the view's state (`getState` / `setState`), so a reload comes back to
 the same page, and every **Open …** command (Open activities, Open sleep, Open
 stress and the rest) opens the view through the same `setState`.
 
-## Health Stats foundation
+## Health and Performance Stats foundation
 
-Every Health Stats page but Sleep is built on one shared route, one hub, one
-way to keep a day index and one way to load a day's chart on view. A stat is
-its own files plus three one-line registrations; nothing else shared changes.
+Every Health Stats page but Sleep, and every Performance Stats page, is built
+on one registry, one route per section, one hub per section, one way to keep a
+day index and one way to load a day's chart on view. A stat is its own files
+plus three one-line registrations; nothing else shared changes.
 
 ### What a stat owns
 
@@ -268,7 +274,7 @@ its own files plus three one-line registrations; nothing else shared changes.
 | --- | --- |
 | `src/sync/<stat>-index.ts` | its day index (`defineDayIndex`) and, when its day page needs a payload the series file does not have, its intraday extra (`defineIntraday`). No Obsidian import: the tests load every registered definition |
 | `src/dashboard/<stat>-*.ts` | the view model and chart geometry, pure, with golden-number tests |
-| `src/ui/svelte/<stat>/` | the page, taking `HealthStatPageProps` |
+| `src/ui/svelte/<stat>/` | the page, taking `HealthStatPageProps` or `PerformanceStatPageProps` |
 | `tests/<stat>-*.test.ts` | its tests |
 
 ### The three registrations
@@ -282,7 +288,7 @@ export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX];
 import { STRESS_DAY } from "./stress-index";
 export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY];
 
-// src/ui/svelte/health/pages.ts
+// src/ui/svelte/health/pages.ts — or performance/pages.ts and PERFORMANCE_PAGES
 import StressPage from "../stress/StressPage.svelte";
 export const HEALTH_PAGES: … = { stress: StressPage };
 ```
@@ -292,22 +298,66 @@ export const HEALTH_PAGES: … = { stress: StressPage };
 | `DAY_INDEXES` | routine syncs feed the index; the once-per-session history walk takes it in turn, while its group is on; a **Sync <title> history** command; `readIndex(kind)`; Home watches its folder |
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
 | `HEALTH_PAGES` | the stat's row in the hub, an **Open <stat>** command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
+| `PERFORMANCE_PAGES` | the same for the `performance-stat` route, its In Focus card too (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The section's hub, More's row and **Open performance stats** appear with its first hub stat |
 
-`HEALTH_STATS` (`src/dashboard/health-stats.ts`) lists every stat in the app's
-order with its title, ranges, default range, settings group and At a Glance
-cards. Stats reuse the settings' existing groups, so adding one needs no
-migration.
+### The registry
+
+`HEALTH_STATS` (`src/dashboard/health-stats.ts`) and `PERFORMANCE_STATS`
+(`performance-stats.ts`) list every stat in the app's order as a `StatDef`
+(`stat-registry.ts`): its title, ranges (`PERIOD_RANGES`: 1d, 7d, 4w, 12w,
+3m, 6m, 1y), default range, settings group, `rangeLabels` ("Current" for
+1d), and the At a Glance cards it claims. A card is an id, or `{ id, tab?,
+sub?, range? }` when it lands on a tab (Cycling VO₂ Max on VO₂ Max's
+`cycling`). Performance uses `tabs` (the first is the default), `spans`
+(below) and `hub: false` for a page only another page opens (Load and Heat
+Acclimation, from Training Status). Stats reuse the settings' existing
+groups, so adding one needs no migration.
+
+`statRegistry(list, { ownRoute, noPage })` reads a list: `get(id)`,
+`page(id)` (on the section's route), `pageStats(registered)` (every
+registered page, hidden ones too), `hubStats(registered)` and
+`glanceTarget(card, registered)`, `registered` being the page map's keys. Health's Sleep is `ownRoute`, listed by the hub
+on a route of its own; Performance's Cycling Ability is `noPage`, neither
+routed nor listed. `health-stats.ts` keeps its helpers (`pageStat`,
+`hubStats`, `glanceStat` …) over `HEALTH_REGISTRY`; Performance's is
+`PERFORMANCE_REGISTRY`. A card is claimed by one stat at most, across both
+sections.
+
+### Span rules
+
+A range cuts its period by a `SpanRule` (`periods.ts`), and `spanOf(rule,
+offset, today)` steps it back one whole rule at a time. A stat names the
+rules that are not its ranges' defaults in `spans`; `spanRuleOf(stat,
+range)` reads them, `statSpan` and `statPeriodLabel` (`stat-registry.ts`)
+give the period and its words.
+
+| Rule | Period on Sunday 2026-10-11 |
+| --- | --- |
+| `{ days }`, the default: 7d 7, 4w 28, 12w 84, 6m 182, 1y 364 | 12w Jul 20 – Oct 11 |
+| `{ weeks, weekStart }`: this week so far and whole weeks before | Running Tolerance's Sunday 12w, Jul 26 – Oct 11 |
+| `{ months }`: n months back plus a day; 3m's default | Cycling Power Curve's 3m, Jul 12 – Oct 11 |
+| `{ months, calendar: true }`: calendar months | Hill Score's 1y, "Nov 2025 - Oct 2026" |
+| `{ monthEnds }`: a point per month end, and today (`monthEndsOf`) | Race Predictor's 6m, May 31 – Oct 11 |
+
+Health's stats name none, so `periodOf` (the defaults) is their whole story.
 
 ### The route
 
 `{ page: "health-stat", stat, range, offset, tab?, sub?, date? }`, opened with
-`healthStatRoute(stat, opts?)`. Read back from saved state, an unknown stat (or
-Sleep, which keeps its own route) is refused; a range the stat does not have
-becomes its default; `offset` is a whole number at or below 0; `tab` and `sub`
-are kept when they are short tokens and `date` when it is `YYYY-MM-DD`. What
-`tab`, `sub` and `date` mean is the page's business — Health Status keeps the
-metric sheet it has open in `sub`. A saved route whose page is not registered
-shows a "not in this version" page rather than failing.
+`healthStatRoute(stat, opts?)`, and `{ page: "performance-stat", … }` the same
+way with `performanceStatRoute`; `{ page: "performance" }` is the Performance
+hub. Read back from saved state, an unknown stat (or Sleep, which keeps its
+own route, or Cycling Ability, which has none) is refused; a range the stat
+does not have becomes its default; `offset` is a whole number at or below 0;
+`tab` and `sub` are kept when they are short tokens and `date` when it is
+`YYYY-MM-DD`. What `tab`, `sub` and `date` mean is the page's business —
+Health Status keeps the metric sheet it has open in `sub`. A saved route whose
+page is not registered shows a "not in this version" page rather than failing.
+
+`moveStatRoute(route, period)` is a page moved in place, keeping its tab and
+sub-page; `statOfRoute(route)` its stat in its own section's registry;
+`performanceTargetRoute(target, dayOffset)` the page a Performance card opens,
+on Home's day when it opens on 1d.
 
 ### Day indexes
 
@@ -352,9 +402,16 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
   days free: the daily summary is fetched anyway.
 - Bump **`version`** when a row's meaning changes: an `index.json` of another
   version reads as none, and the history is fetched again.
+- **`fromDay`** (a `DayFeed`, not with `fromSummary`) does the same from
+  what the day sync fetched for the day file anyway (`maxMetrics`,
+  `hillScore`, `runningTolerance`, …): `read(day, date)` makes the row, and
+  `needs` names the parts it reads. A day counts as covered only when every
+  part in `needs` came back, so a failed fetch leaves the day to the window
+  fetch rather than dropping the row the index holds.
 - `defineDayIndex` throws on a definition that cannot work — a window over
-  3660 days, a negative refresh, a folder the store already uses — so the
-  mistake fails the build's tests.
+  3660 days, a negative refresh, a folder the store already uses, `fromDay`
+  beside `fromSummary` or needing nothing — so the mistake fails the build's
+  tests.
 
 ```
 engine.ts     takeSummary ← each day's summary, through fromSummary, at no cost ──┐
@@ -439,11 +496,17 @@ alone.
 
 ### What a page gets
 
-`HealthStatPageProps` (`src/ui/svelte/health/pages.ts`): `route`, `today`,
-`units`, `canSync`, `onBack`, `go`, `swap`, `readSeries`, `readIndex`,
-`loadIntraday`, `onSyncHistory(kind)`, `versions` (by index kind), `seriesVersion`
-and `history` (walks in progress, by kind). Re-read an index when
-`versions[kind]` moves and the series when `seriesVersion` does. The history
+`StatPageProps<R>` (`src/ui/svelte/health/pages.ts`), one object Home hands
+both sections' pages; `HealthStatPageProps` and `PerformanceStatPageProps` are
+it on their routes: `route`, `today`, `units`, `canSync`, `onBack`, `go`,
+`swap`, `readSeries`, `readIndex`, `loadIntraday`, `onSyncHistory(kind)`,
+`versions` (by index kind), `seriesVersion`, `history` (walks in progress, by
+kind), `openSheet` (one of Garmin's sheets, as the activity pages open them),
+`readDays()` (every day file's row), `readAccount()` (account.json) and
+`activities` (the activity index, as the Activities pages get it). Re-read an
+index when `versions[kind]` moves, the days when `versions["#days"]` does,
+the account when `versions["#account"]` does and the series when
+`seriesVersion` does; the view reads each once per version. The history
 banner (`activities/HistoryBanner.svelte`) shows while `history[kind]` is set
 or the index's meta is not `complete`.
 
@@ -455,24 +518,29 @@ from it, not from a copy of it.
 
 | Shared part | What it gives a stat |
 | --- | --- |
-| `src/dashboard/periods.ts` | `periodOf` (7d, 4w, 1y rolling back from today, offsets a whole period), `rollingWeeks` and `weeksOf` (the 1y's 52 rolling weeks, each the rounded mean of its days), `switchRange`, `stepRoute`, `dayCardRoute`, `weekCardRoute`, the labels (`dayLabel` "Today" / "Wednesday, October 7", `periodLabel` "Oct 2 - 8" / "Oct 16-22, 2025", `yearLabel`, `weekTitle`, `cardDate`), the axes (`dayAxis` with its "MM-DD" ends, `monthAxis`), `meanOf(values, rounding)` (`"floor"` for Stress, `"round"`, half up, for Body Battery, Heart Rate and Respiration) and the plain `mean`, and the date words every page shares: `longDate`, `weekdayOf`, `daysBetween`, `shiftMonth`, `lastDayOfMonth`, `MONTHS`, `WEEKDAYS`, `SHORT_MONTHS`. Import these rather than copying them |
+| `src/dashboard/periods.ts` | `spanOf` and the span rules above, `periodOf` (a range's default: 7d, 4w, 1y rolling back from today, offsets a whole period), `rollingWeeks` and `weeksOf` (the 1y's 52 rolling weeks, each the rounded mean of its days), `switchRange`, `stepRoute`, `dayCardRoute`, `weekCardRoute`, the labels (`dayLabel` "Today" / "Wednesday, October 7", `periodLabel` "Oct 2 - 8" / "Oct 16-22, 2025", `yearLabel`, `weekTitle`, `cardDate`), the axes (`dayAxis` with its "MM-DD" ends, `monthAxis`), `meanOf(values, rounding)` (`"floor"` for Stress, `"round"`, half up, for Body Battery, Heart Rate and Respiration) and the plain `mean`, and the date words every page shares: `longDate`, `weekdayOf`, `daysBetween`, `shiftMonth`, `lastDayOfMonth`, `MONTHS`, `WEEKDAYS`, `SHORT_MONTHS`. Import these rather than copying them |
 | `src/dashboard/stat-charts.ts` | `ChartFrame` (a chart's insets and heights, measured off the stat's Figma frame, one for the phone and one for a pane's 748pt column), `plotBox(frame, width, ticks, axis)` (gridlines, y labels, the axis' dots and labels, and the scale for the stat's marks) and `linePath` (a line that breaks at a missing value) |
-| `health/StatPageShell.svelte` | the sticky header — back and the stat's title, the range control with the stat's ranges from `HEALTH_STATS`, the period stepper (‹ disabled at the start of history, › only on a past period) — the history banner, and the phone and pane containers (640 and 1000pt) |
+| `health/StatPageShell.svelte` | the sticky header — back and the stat's title, the range control with the stat's ranges from its section's registry, the period stepper (‹ disabled at the start of history, › only on a past period) — the history banner, and the phone and pane containers (640 and 1000pt) |
 | `health/StatChart.svelte` | a chart under its title: the box at the width it gets, with `under` and `over` snippets for the stat's marks and a `footer` for its key |
 | `health/StatFigures.svelte` | figures two to a row under a rule: the "Avg <metric>" block, or a day's tiles with a colour dot each |
 | `health/StatCardList.svelte`, `StatCard.svelte` | a period's day or week cards, the figure on the right and an optional `visual` snippet beside it; one a row, two from 640pt, three in a pane |
 | `health/StatDayLayout.svelte`, `StatPeriodLayout.svelte` | a 1d body (summary, then chart) and a 7d / 4w / 1y body (chart, figures, list), side by side in a pane |
 
 `StatPageShell` takes the page's `route`, `today`, `onBack` and `swap` from
-`HealthStatPageProps`, the period's `label` and `canGoBack` from the stat's
-view, an optional `history` (`{ title, windowDays, complete, walking,
-canSync, onSync }`, for the banner) and an optional `style` (custom
-properties for the whole page, such as a stat's colours). It moves the page
-itself; its body snippet gets `{ pane, move }`, so a card switches the page
-with `move(dayCardRoute(date, today))`. Spacing defaults are the twin's for
-Stress; a stat whose twin differs sets the layouts' custom properties
-(`--stat-chart-top`, `--stat-chart-top-pane`, `--stat-figures-top-pane`,
-`--stat-list-top`, `--stat-list-top-pane`).
+its props, the period's `label` and `canGoBack` from the stat's view, an
+optional `history` (`{ title, windowDays, complete, walking, canSync,
+onSync }`, for the banner) and an optional `style` (custom properties for the
+whole page, such as a stat's colours). Left out, `label` is the stat's
+period in the app's words (`statPeriodLabel`); null leaves the period row out.
+`ranges` and `rangeLabels` override the registry's, `steppers={false}` shows
+the label alone (VO₂ Max's Current), `step` stands in for "<" and ">" with
+the page's own (Hill Score's month page) and `canGoForward` for the default
+"any past period". It moves the page itself, keeping its tab and sub-page;
+its body snippet gets `{ pane, move, span }` (`span` the period shown, null
+on 1d), so a card switches the page with `move(dayCardRoute(date, today))`.
+Spacing defaults are the twin's for Stress; a stat whose twin differs sets
+the layouts' custom properties (`--stat-chart-top`, `--stat-chart-top-pane`,
+`--stat-figures-top-pane`, `--stat-list-top`, `--stat-list-top-pane`).
 
 What stays the stat's own: its view model's rules (what a figure is, its
 rounding, its copy), its chart frames (measured off its own twin) and marks,

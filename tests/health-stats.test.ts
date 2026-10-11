@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { GLANCE_STATS } from "../src/dashboard/glance";
 import {
 	HEALTH_RANGES,
+	HEALTH_REGISTRY,
 	HEALTH_STATS,
 	glanceStat,
 	healthStat,
@@ -10,6 +11,8 @@ import {
 	pageStat,
 	pageStats,
 } from "../src/dashboard/health-stats";
+import { dayOf, periodOf, rangeLabel } from "../src/dashboard/periods";
+import { statPeriodLabel } from "../src/dashboard/stat-registry";
 import { ALL_GROUPS } from "../src/sync/metrics";
 
 describe("HEALTH_STATS", () => {
@@ -134,5 +137,29 @@ describe("registered pages", () => {
 		// Sleep's card keeps its own route.
 		assert.equal(glanceStat("sleep", ["stress"]), undefined);
 		assert.equal(glanceStat("steps", ["stress"]), undefined);
+	});
+});
+
+describe("the shared registry behind Health Stats", () => {
+	it("keeps Sleep in the hub and off the shared route", () => {
+		assert.deepEqual(
+			HEALTH_REGISTRY.hubStats([]).map((s) => s.id),
+			["sleep"],
+		);
+		assert.equal(HEALTH_REGISTRY.page("sleep"), undefined);
+		assert.equal(HEALTH_REGISTRY.glanceTarget("stress", ["stress"])?.stat.id, "stress");
+	});
+
+	it("words a Health page's period as Health's own labels do, should a page leave its label to the shell", () => {
+		const today = "2026-10-08";
+		for (const stat of HEALTH_STATS) {
+			for (const range of stat.ranges) {
+				for (const offset of [0, -1, -12]) {
+					const route = { range, offset };
+					const span = range === "1d" ? { from: dayOf(route, today), to: dayOf(route, today) } : periodOf(range, offset, today);
+					assert.equal(statPeriodLabel(stat, route, today), rangeLabel(range, span, today), `${stat.id} ${range} ${offset}`);
+				}
+			}
+		}
 	});
 });

@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import { GLANCE_STATS, type GlanceId } from "../src/dashboard/glance";
 import { HEALTH_STATS } from "../src/dashboard/health-stats";
 import { PERFORMANCE_REGISTRY, PERFORMANCE_STATS, type PerformanceStatId } from "../src/dashboard/performance-stats";
-import { PERIOD_RANGES, monthsLabel, periodLabel, spanOf, type SpanRange, type SpanRule } from "../src/dashboard/periods";
-import { linkOf, spanRuleOf, statRegistry, type StatDef } from "../src/dashboard/stat-registry";
+import { PERIOD_RANGES, type SpanRange, type SpanRule } from "../src/dashboard/periods";
+import { commandTitle, linkOf, spanRuleOf, statPeriodLabel, statRegistry, statSpan, type StatDef } from "../src/dashboard/stat-registry";
 import { ALL_GROUPS } from "../src/sync/metrics";
 
 /** The day of the phone's Performance Stats shots (ref/performance-stats), a Sunday. */
@@ -247,7 +247,7 @@ describe("spans, today 2026-10-11", () => {
 		}
 	});
 
-	it("cut every period the phone showed", () => {
+	it("cut and word every period the phone showed, as the shell's label does", () => {
 		/* Each range's period label in the shots, all taken on TODAY. Training
 		   Status's 6m was not shot. */
 		const PHONE: Partial<Record<PerformanceStatId, Partial<Record<SpanRange, string>>>> = {
@@ -277,14 +277,47 @@ describe("spans, today 2026-10-11", () => {
 					assert.equal(`${s.id} ${range}`, "training-status 6m", "a period the shots have no label for");
 					continue;
 				}
-				const rule = spanRuleOf(s, range);
-				const { from, to } = spanOf(rule, 0, TODAY);
-				const label = "months" in rule && rule.calendar ? monthsLabel(from, to) : periodLabel(from, to, TODAY);
-				assert.equal(label, expected, `${s.id} ${range}`);
+				assert.equal(statPeriodLabel(s, { range, offset: 0 }, TODAY), expected, `${s.id} ${range}`);
 				checked++;
 			}
 		}
 		assert.equal(checked, 39);
+	});
+
+	it("give the shell the period a page shows: none on 1d, a past one by its rule", () => {
+		assert.equal(statSpan(stat("vo2-max"), { range: "1d", offset: 0 }, TODAY), null);
+		assert.deepEqual(statSpan(stat("running-tolerance"), { range: "12w", offset: -1 }, TODAY), { from: "2026-05-03", to: "2026-07-25" });
+		assert.deepEqual(statSpan(stat("race-predictor"), { range: "6m", offset: -1 }, TODAY), { from: "2025-11-30", to: "2026-04-30" });
+		assert.equal(statPeriodLabel(stat("hill-score"), { range: "1y", offset: -1 }, TODAY), "Nov 2024 - Oct 2025");
+		assert.equal(statPeriodLabel(stat("hill-score"), { range: "1d", offset: -1 }, TODAY), "Saturday, October 10");
+		assert.equal(statPeriodLabel(stat("vo2-max"), { range: "1d", offset: 0 }, TODAY), "Today");
+	});
+});
+
+describe("commands", () => {
+	it("name each page in sentence case, its acronyms kept", () => {
+		assert.deepEqual(
+			PERFORMANCE_REGISTRY.hubStats(PERFORMANCE_STATS.map((s) => s.id)).map((s) => `Open ${commandTitle(s.title)}`),
+			[
+				"Open training status",
+				"Open training readiness",
+				"Open HRV status",
+				"Open race predictor",
+				"Open VO₂ max",
+				"Open running economy",
+				"Open training effect",
+				"Open cycling power curve",
+				"Open FTP",
+				"Open critical swim speed",
+				"Open running tolerance",
+				"Open running lactate threshold",
+				"Open endurance score",
+				"Open hill score",
+				"Open HRV stress",
+			],
+		);
+		// Health's titles come out as its commands have always named them.
+		for (const s of HEALTH_STATS) assert.equal(commandTitle(s.title), s.title.toLowerCase());
 	});
 });
 

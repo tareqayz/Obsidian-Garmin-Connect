@@ -1,9 +1,9 @@
 import { CATEGORIES, RECORD_TABS, type CategoryId, type MetricId, type RangeId, type RecordTab } from "./activities";
 import { pageStat, type HealthRange, type HealthStatPageId } from "./health-stats";
 import { PERFORMANCE_REGISTRY, type PerformanceStatPageId } from "./performance-stats";
-import type { PeriodRange } from "./periods";
+import type { PeriodRange, PeriodRoute } from "./periods";
 import { SLEEP_FACTORS, SLEEP_RANGES, type SleepFactorId, type SleepRange, type SleepTab } from "./sleep-pages";
-import type { StatDef } from "./stat-registry";
+import type { GlanceTarget, StatDef } from "./stat-registry";
 import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } from "./stats-pages";
 
 /**
@@ -322,6 +322,31 @@ export function healthStatRoute(stat: HealthStatPageId, opts: StatRouteOptions =
  */
 export function performanceStatRoute(stat: PerformanceStatPageId, opts: StatRouteOptions = {}): PerformanceStatRoute {
 	return performanceStatOf({ ...opts, stat })!;
+}
+
+/**
+ * The page an At a Glance or In Focus card opens on Performance Stats: the
+ * card's stat, on the tab, sub-page and range its link names. A page that
+ * opens on a day (1d) opens on Home's, `dayOffset` days back, as Health's do.
+ */
+export function performanceTargetRoute(target: GlanceTarget<StatDef<PerformanceStatPageId>>, dayOffset = 0): PerformanceStatRoute {
+	const range = target.range ?? target.stat.defaultRange;
+	return performanceStatRoute(target.stat.id, { range, tab: target.tab, sub: target.sub, ...(range === "1d" ? { offset: dayOffset } : {}) });
+}
+
+/** The registry entry behind a stat route: its title, ranges, range names, spans and tabs. */
+export function statOfRoute(route: StatRoute): StatDef | undefined {
+	return route.page === "health-stat" ? pageStat(route.stat) : PERFORMANCE_REGISTRY.page(route.stat);
+}
+
+/**
+ * A stat page moved in place, as its range control, steppers and cards move
+ * it: another range or period of the same stat, on the same tab and sub-page,
+ * with the day 1d last showed when the move carries one.
+ */
+export function moveStatRoute(route: StatRoute, next: PeriodRoute<PeriodRange>): StatRoute {
+	const raw = { stat: route.stat, range: next.range, offset: next.offset, tab: route.tab, sub: route.sub, date: next.date };
+	return (route.page === "health-stat" ? healthStatOf(raw) : performanceStatOf(raw)) ?? route;
 }
 
 /** An activity's page as a row opens it: Overview, charts against time. */

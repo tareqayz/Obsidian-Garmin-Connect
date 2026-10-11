@@ -18,67 +18,107 @@
 
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { HEALTH_RANGES, pageStat } from "../../../dashboard/health-stats";
-	import { stepRoute, switchRange, type PeriodRange, type PeriodRoute } from "../../../dashboard/periods";
-	import type { HealthStatRoute } from "../../../dashboard/routes";
+	import { HEALTH_RANGES } from "../../../dashboard/health-stats";
+	import { stepRoute, switchRange, type PeriodRange, type PeriodRoute, type Span } from "../../../dashboard/periods";
+	import { moveStatRoute, statOfRoute, type StatRoute } from "../../../dashboard/routes";
+	import { statPeriodLabel, statSpan } from "../../../dashboard/stat-registry";
 	import HistoryBanner from "../activities/HistoryBanner.svelte";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
 
 	/**
-	 * A Health Stats page around its body: the bar with back and the stat's
-	 * title, the range control with the stat's own ranges, the period with its
-	 * steppers, all staying put while the rest scrolls; the history banner
-	 * while the stat's index is still coming; and the body, told whether the
-	 * page is laid out as the twins' 1190pt panes (from 1000pt), where a
-	 * chart takes its pane frame.
+	 * A stat page around its body, Health Stats' and Performance Stats'
+	 * alike: the bar with back and the stat's title, the range control with
+	 * the stat's own ranges, the period with its steppers, all staying put
+	 * while the rest scrolls; the history banner while the stat's index is
+	 * still coming; and the body, told whether the page is laid out as the
+	 * twins' 1190pt panes (from 1000pt), where a chart takes its pane frame.
 	 *
-	 * The range control and the steppers move this page in place with the
-	 * shared period rules (`periods.ts`): 1d reopens on the day it last
-	 * showed, the others on the current period, "<" and ">" a period at a
-	 * time, never past the current one.
+	 * The stat is the route's section's (`statOfRoute`). The range control and
+	 * the steppers move this page in place with the shared period rules
+	 * (`periods.ts`): 1d reopens on the day it last showed, the others on the
+	 * current period, "<" and ">" a period at a time, never past the current
+	 * one; the page keeps its tab and sub-page (`moveStatRoute`).
 	 */
 	interface Props {
-		/** The page's route: its stat, range, period and remembered day. */
-		route: HealthStatRoute;
+		/** The page's route: its stat, range, period, remembered day, tab and sub-page. */
+		route: StatRoute;
 		today: string;
-		/** The period's label: "Today", "Oct 2 - 8"; null for a page without a period (no stepper row). */
-		label: string | null;
+		/**
+		 * The period's label: "Today", "Oct 2 - 8"; null for a page without a
+		 * period (no stepper row). Left out, the shell words the period by the
+		 * stat's span rule (`statPeriodLabel`).
+		 */
+		label?: string | null;
 		/** The bar's title, where it is not the stat's: a sub-page's own name. */
 		title?: string;
 		/** "<": older data exists, or may (the index is still coming). */
-		canGoBack: boolean;
+		canGoBack?: boolean;
+		/** ">": a later period exists. Left out, every period before the current one has one. */
+		canGoForward?: boolean;
 		onBack: () => void;
 		/** Changes this page without adding a step: the props' `swap`. */
-		swap: (route: HealthStatRoute) => void;
+		swap: (route: StatRoute) => void;
 		/** The stat's day index, for the banner; a stat without one leaves it out. */
 		history?: StatHistory;
 		/** Custom properties for the whole page, such as a stat's colours. */
 		style?: string;
+		/** The range control's segments, where they are not the stat's own. */
+		ranges?: readonly PeriodRange[];
+		/** The segments' names, where they are not the stat's own ("Current" for 1d). */
+		rangeLabels?: Partial<Record<PeriodRange, string>>;
+		/** False: the label alone, without "<" and ">" (VO₂ Max's Current, "Today"). */
+		steppers?: boolean;
+		/** "<" (−1) and ">" (+1) of the page's own, in place of a whole period: Hill Score's month page. */
+		step?: (by: number) => void;
 		/**
-		 * The page under the header, told whether it is laid out as a pane and
+		 * The page under the header, told whether it is laid out as a pane,
+		 * the period it shows (`span`, null on 1d, by the stat's span rule) and
 		 * given `move`, which switches this page in place: a day card's
 		 * `dayCardRoute`, a week card's `weekCardRoute`.
 		 */
-		children: Snippet<[{ pane: boolean; move: (next: PeriodRoute) => void }]>;
+		children: Snippet<[{ pane: boolean; move: (next: PeriodRoute<PeriodRange>) => void; span: Span | null }]>;
 	}
 
-	let { route, today, label, title, canGoBack, onBack, swap, history, style, children }: Props = $props();
+	let {
+		route,
+		today,
+		label,
+		title,
+		canGoBack = false,
+		canGoForward,
+		onBack,
+		swap,
+		history,
+		style,
+		ranges: ownRanges,
+		rangeLabels: ownLabels,
+		steppers = true,
+		step,
+		children,
+	}: Props = $props();
 
-	let stat = $derived(pageStat(route.stat));
-	let ranges: readonly PeriodRange[] = $derived(stat?.ranges ?? HEALTH_RANGES);
-	let period: PeriodRoute = $derived(route.date ? { range: route.range, offset: route.offset, date: route.date } : { range: route.range, offset: route.offset });
-	let canGoForward = $derived(route.offset < 0);
+	let stat = $derived(statOfRoute(route));
+	let ranges: readonly PeriodRange[] = $derived(ownRanges ?? stat?.ranges ?? HEALTH_RANGES);
+	let names = $derived(ownLabels ?? stat?.rangeLabels);
+	let period: PeriodRoute<PeriodRange> = $derived(route.date ? { range: route.range, offset: route.offset, date: route.date } : { range: route.range, offset: route.offset });
+	let span = $derived(stat ? statSpan(stat, period, today) : null);
+	let shown = $derived(label !== undefined ? label : stat ? statPeriodLabel(stat, period, today) : null);
+	let forward = $derived(canGoForward ?? route.offset < 0);
 
 	/* The twins' panes start at 1000pt. */
 	let width = $state(0);
 	let pane = $derived(width >= 1000);
 
 	/** This page, moved: a range or a period. Never a new step. */
-	function move(next: PeriodRoute) {
-		const target: HealthStatRoute = { page: "health-stat", stat: route.stat, range: next.range, offset: next.offset };
-		if (next.date) target.date = next.date;
-		swap(target);
+	function move(next: PeriodRoute<PeriodRange>) {
+		swap(moveStatRoute(route, next));
+	}
+
+	/** "<" and ">": the page's own step, or a whole period. */
+	function stepBy(by: number) {
+		if (step) step(by);
+		else move(stepRoute(period, by));
 	}
 
 	let banner = $derived.by(() => {
@@ -103,25 +143,29 @@
 <div class="stat-page" {style} bind:clientWidth={width}>
 	<div class="sticky">
 		<PageBar title={title ?? stat?.title ?? ""} {onBack} />
-		{#if label !== null || ranges.length > 1}
-		<div class="controls" class:single={ranges.length < 2} class:bare={label === null}>
+		{#if shown !== null || ranges.length > 1}
+		<div class="controls" class:single={ranges.length < 2} class:bare={shown === null}>
 			{#if ranges.length > 1}
 				<div class="range-control">
 					{#each ranges as range (range)}
-						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{stat?.rangeLabels?.[range] ?? range}</button>
+						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{names?.[range] ?? range}</button>
 					{/each}
 				</div>
 			{/if}
-			{#if label !== null}
-			<div class="period">
-				<button class="step" aria-label="Previous period" disabled={!canGoBack} onclick={() => move(stepRoute(period, -1))}>
-					<span use:lucide={"chevron-left"}></span>
-				</button>
-				<strong>{label}</strong>
-				<button class="step" class:hidden={!canGoForward} aria-label="Next period" disabled={!canGoForward} onclick={() => move(stepRoute(period, 1))}>
-					<span use:lucide={"chevron-right"}></span>
-				</button>
-			</div>
+			{#if shown !== null}
+				{#if steppers}
+				<div class="period">
+					<button class="step" aria-label="Previous period" disabled={!canGoBack} onclick={() => stepBy(-1)}>
+						<span use:lucide={"chevron-left"}></span>
+					</button>
+					<strong>{shown}</strong>
+					<button class="step" class:hidden={!forward} aria-label="Next period" disabled={!forward} onclick={() => stepBy(1)}>
+						<span use:lucide={"chevron-right"}></span>
+					</button>
+				</div>
+				{:else}
+				<div class="period plain"><strong>{shown}</strong></div>
+				{/if}
 			{/if}
 		</div>
 		{/if}
@@ -134,7 +178,7 @@
 			</div>
 		{/if}
 
-		{@render children({ pane, move })}
+		{@render children({ pane, move, span })}
 	</div>
 </div>
 
@@ -217,6 +261,10 @@
 	}
 	.single .period {
 		margin-top: 0;
+	}
+	/* The label alone: no steppers either side. */
+	.period.plain {
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.period strong {
 		font-size: 17px;

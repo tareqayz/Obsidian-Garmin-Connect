@@ -1,9 +1,13 @@
 import type { Component } from "svelte";
+import type { ActivitiesData } from "../../../dashboard/activities";
 import type { HealthStatPageId } from "../../../dashboard/health-stats";
-import type { HealthStatRoute, Route } from "../../../dashboard/routes";
+import type { HealthStatRoute, Route, StatRoute } from "../../../dashboard/routes";
+import type { DayRow } from "../../../dashboard/series";
+import type { AccountInfo } from "../../../sync/account";
 import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 import type { DaySeries } from "../../../sync/intraday";
 import type { IntradayLoad } from "../../../sync/intraday-registry";
+import type { OpenSheet } from "../../sheet-modal";
 import BloodPressurePage from "../blood-pressure/BloodPressurePage.svelte";
 import BodyBatteryPage from "../body-battery/BodyBatteryPage.svelte";
 import HealthStatusPage from "../health-status/HealthStatusPage.svelte";
@@ -18,13 +22,15 @@ import StressPage from "../stress/StressPage.svelte";
 import WeightPage from "../weight/WeightPage.svelte";
 
 /**
- * What every Health Stats page gets from Home, whichever stat it draws: the
- * Sleep and Stats pages' props, plus the day indexes and on-view intraday
- * loads that let a page read any period and any day.
+ * What every stat page gets from Home, Health Stats' and Performance Stats'
+ * alike, whichever stat it draws: the Sleep and Stats pages' props, plus the
+ * day indexes and on-view intraday loads that let a page read any period and
+ * any day, the day files and account.json, the activity index, and the
+ * sheets. Home builds one of these and hands it to both sections' pages.
  */
-export interface HealthStatPageProps {
+export interface StatPageProps<R extends StatRoute = StatRoute> {
 	/** The page's route: its stat, range and period, and whatever tab, sub-page or day it keeps. */
-	route: HealthStatRoute;
+	route: R;
 	/** The real today, `YYYY-MM-DD`. */
 	today: string;
 	/** The account's unit system, as the Activities pages use it. */
@@ -53,13 +59,27 @@ export interface HealthStatPageProps {
 	loadIntraday: (date: string, keys: readonly string[]) => Promise<IntradayLoad>;
 	/** Starts a registered index's history walk: the history banner's button. */
 	onSyncHistory: (kind: string) => void;
-	/** By index kind: moves whenever a file in that index's folder changes. */
+	/**
+	 * By index kind: moves whenever a file in that index's folder changes;
+	 * `"#days"` when a day file does, `"#account"` when account.json does.
+	 */
 	versions: Readonly<Record<string, number>>;
 	/** Moves whenever a day's series file changes. */
 	seriesVersion: number;
 	/** History walks in progress, by index kind. */
 	history: Readonly<Record<string, IndexHistoryProgress>>;
+	/** Opens one of Garmin's sheets: a bottom sheet on a phone, a dialog in a pane. */
+	openSheet: OpenSheet;
+	/** Every synced day's properties, oldest first. Re-read when `versions["#days"]` moves. */
+	readDays: () => Promise<DayRow[]>;
+	/** account.json: the latest values Garmin keeps no history of. Re-read when `versions["#account"]` moves. */
+	readAccount: () => Promise<AccountInfo | null>;
+	/** The activity index, as the Activities pages get it. */
+	activities: ActivitiesData;
 }
+
+/** A Health Stats page's props. */
+export type HealthStatPageProps = StatPageProps<HealthStatRoute>;
 
 /**
  * Every Health Stats page built so far, by stat. One line per stat, its page

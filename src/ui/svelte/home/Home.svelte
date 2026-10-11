@@ -4,9 +4,24 @@
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
-	import { activityRoute, healthStatRoute, pop, push, pushOrReturn, replace, sleepRoute, statsRoute, top, type Route } from "../../../dashboard/routes";
+	import { PERFORMANCE_REGISTRY } from "../../../dashboard/performance-stats";
+	import {
+		activityRoute,
+		healthStatRoute,
+		performanceTargetRoute,
+		pop,
+		push,
+		pushOrReturn,
+		replace,
+		sleepRoute,
+		statsRoute,
+		top,
+		type Route,
+	} from "../../../dashboard/routes";
+	import type { DayRow } from "../../../dashboard/series";
 	import { latestNightOffset, type HistoryView, type SleepData } from "../../../dashboard/sleep-pages";
 	import type { StatsData } from "../../../dashboard/stats-pages";
+	import type { AccountInfo } from "../../../sync/account";
 	import type { IndexHistoryProgress, ReadIndex } from "../../../sync/day-index";
 	import type { DaySeries } from "../../../sync/intraday";
 	import type { IntradayLoad } from "../../../sync/intraday-registry";
@@ -24,6 +39,8 @@
 	import RecordsPage from "../activities/RecordsPage.svelte";
 	import HealthHub from "../health/HealthHub.svelte";
 	import { HEALTH_PAGES } from "../health/pages";
+	import PerformanceHub from "../performance/PerformanceHub.svelte";
+	import { PERFORMANCE_PAGES } from "../performance/pages";
 	import FactorPage from "../sleep/FactorPage.svelte";
 	import SleepPage from "../sleep/SleepPage.svelte";
 	import StatsPage from "../stats/StatsPage.svelte";
@@ -51,9 +68,9 @@
 	 * the device, since an Obsidian leaf can be narrow on a desktop.
 	 *
 	 * The other pages — See All, More, Activities, Steps, Floors, Intensity
-	 * Minutes, Health Stats, Sleep and every stat registered in `HEALTH_PAGES`
-	 * — open on top of Home inside the same view, as a stack that Back walks
-	 * down.
+	 * Minutes, Health Stats, Sleep, Performance Stats and every stat
+	 * registered in `HEALTH_PAGES` or `PERFORMANCE_PAGES` — open on top of
+	 * Home inside the same view, as a stack that Back walks down.
 	 */
 	interface Props {
 		initialModel: HomeModel;
@@ -89,8 +106,12 @@
 		onSleepHistory: (view: HistoryView) => void;
 		/** Series files for the day charts and a night's Sleep page. */
 		readSeries: (days: string[]) => Promise<Map<string, DaySeries | null>>;
-		/** A day index's rows and meta, for the Health Stats pages. */
+		/** A day index's rows and meta, for the stat pages. */
 		readIndex: ReadIndex;
+		/** Every synced day, for the stat pages: read once per `versions["#days"]`. */
+		readDays: () => Promise<DayRow[]>;
+		/** account.json, for the stat pages: read once per `versions["#account"]`. */
+		readAccount: () => Promise<AccountInfo | null>;
 		/** A day's intraday blocks, fetched on view when its series file lacks them. */
 		loadIntraday: (date: string, keys: readonly string[]) => Promise<IntradayLoad>;
 		/** An activity's page: its detail file, fetched on view when it lacks blocks. */
@@ -129,6 +150,8 @@
 		onSleepHistory,
 		readSeries,
 		readIndex,
+		readDays,
+		readAccount,
 		loadIntraday,
 		loadActivity,
 		cachedActivity,
@@ -161,7 +184,7 @@
 	let sleepHistory = $state<SleepHistoryProgress | null>(initialSleepHistory);
 	// svelte-ignore state_referenced_locally
 	let indexHistory = $state<Record<string, IndexHistoryProgress>>({ ...initialIndexHistory });
-	/** By index kind, and one for the series files: a Health Stats page re-reads what it shows when its number moves. */
+	/** By index kind, plus `#days` and `#account`: a stat page re-reads what it shows when its number moves. */
 	let indexVersions = $state<Record<string, number>>({});
 	let seriesVersion = $state(0);
 
@@ -298,15 +321,71 @@
 	let nightOffset = $derived(Math.min(0, Math.round((Date.parse(`${model.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)));
 
 	const healthPages = Object.keys(HEALTH_PAGES);
+	const performancePages = Object.keys(PERFORMANCE_PAGES);
 
-	/** At a Glance cards with a page behind them, as in the app. */
+	/** At a Glance cards with a page behind them, as in the app. In Focus's readiness and training status cards too. */
 	function glancePage(id: GlanceId): Route | null {
 		if (id === "steps" || id === "floors" || id === "intensity") return statsRoute(id);
 		if (id === "sleep") return sleepRoute(nightOffset);
 		const stat = glanceStat(id, healthPages);
 		// A day's page opens on the day Home shows, as Sleep's card opens its night.
-		return stat ? healthStatRoute(stat.id, stat.defaultRange === "1d" ? { offset: nightOffset } : {}) : null;
+		if (stat) return healthStatRoute(stat.id, stat.defaultRange === "1d" ? { offset: nightOffset } : {});
+		const target = PERFORMANCE_REGISTRY.glanceTarget(id, performancePages);
+		return target ? performanceTargetRoute(target, nightOffset) : null;
 	}
+
+	/*
+	 * What every stat page gets, Health Stats' and Performance Stats' alike:
+	 * one object for both, each value a getter so a page tracks only the
+	 * props it reads, as when they were passed one by one.
+	 */
+	const statProps = {
+		get today() {
+			return today;
+		},
+		get units() {
+			return activities.units;
+		},
+		get canSync() {
+			return canSync;
+		},
+		onBack: back,
+		go,
+		swap,
+		get readSeries() {
+			return readSeries;
+		},
+		get readIndex() {
+			return readIndex;
+		},
+		get loadIntraday() {
+			return loadIntraday;
+		},
+		get onSyncHistory() {
+			return onSyncIndexHistory;
+		},
+		get versions() {
+			return indexVersions;
+		},
+		get seriesVersion() {
+			return seriesVersion;
+		},
+		get history() {
+			return indexHistory;
+		},
+		get openSheet() {
+			return openSheet;
+		},
+		get readDays() {
+			return readDays;
+		},
+		get readAccount() {
+			return readAccount;
+		},
+		get activities() {
+			return activities;
+		},
+	};
 
 	async function sync() {
 		if (syncing) return;
@@ -356,8 +435,18 @@
 		<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusSteps steps={model.steps} /></div>
 	{:else if id === "activities"}
 		<div class="tap" role="button" tabindex="0" onclick={openAll} onkeydown={openAll}><FocusActivities activities={model.activities} /></div>
-	{:else if id === "readiness"}<FocusReadiness readiness={model.readiness} />
-	{:else if id === "trainingStatus"}<FocusTraining status={model.trainingStatus} />
+	{:else if id === "readiness"}
+		{@const page = glancePage("readiness")}
+		{#if page}
+			{@const open = opener(page)}
+			<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusReadiness readiness={model.readiness} /></div>
+		{:else}<FocusReadiness readiness={model.readiness} />{/if}
+	{:else if id === "trainingStatus"}
+		{@const page = glancePage("trainingStatus")}
+		{#if page}
+			{@const open = opener(page)}
+			<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusTraining status={model.trainingStatus} /></div>
+		{:else}<FocusTraining status={model.trainingStatus} />{/if}
 	{/if}
 {/snippet}
 
@@ -394,25 +483,21 @@
 	{:else if current.page === "health-stat"}
 		{@const Page = HEALTH_PAGES[current.stat]}
 		{#if Page}
-			<Page
-				route={current}
-				{today}
-				units={activities.units}
-				{canSync}
-				onBack={back}
-				{go}
-				{swap}
-				{readSeries}
-				{readIndex}
-				{loadIntraday}
-				onSyncHistory={onSyncIndexHistory}
-				versions={indexVersions}
-				{seriesVersion}
-				history={indexHistory}
-			/>
+			<Page route={current} {...statProps} />
 		{:else}
 			<!-- A route saved by a version that had this page. -->
 			<PageBar title={healthStat(current.stat)?.title ?? "Health Stats"} onBack={back} />
+			<div class="unbuilt">This page isn’t in this version of the plugin.</div>
+		{/if}
+	{:else if current.page === "performance"}
+		<PerformanceHub onBack={back} {go} />
+	{:else if current.page === "performance-stat"}
+		{@const Page = PERFORMANCE_PAGES[current.stat]}
+		{#if Page}
+			<Page route={current} {...statProps} />
+		{:else}
+			<!-- A route saved by a version that had this page. -->
+			<PageBar title={PERFORMANCE_REGISTRY.get(current.stat)?.title ?? "Performance Stats"} onBack={back} />
 			<div class="unbuilt">This page isn’t in this version of the plugin.</div>
 		{/if}
 	{:else if current.page === "sleep"}
