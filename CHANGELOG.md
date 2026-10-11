@@ -35,12 +35,25 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **Everything is JSON now.** A day's properties are written to
+  `<data folder>/days/<year>.json` instead of a markdown note's frontmatter,
+  beside the series and indexes that were already JSON. The first time this
+  version loads, the days already in your notes are copied over. The notes and
+  `Garmin Health.base` stay where they are, and you can delete them.
 - **Network use.** Activity maps load tiles from `tile.openstreetmap.org`,
   which sees which part of the map you open. See the README.
 - **Dragging a card on At a Glance's See All page.** The card now comes away
   under the pointer and follows it, and a dashed outline marks where it will
   land. The other cards slide out of its way, and on release it settles into
   place. With reduced motion turned on, the cards move without sliding.
+
+### Removed
+
+- Day notes and daily notes as storage, with their settings: where to put the
+  data, the property prefixes, the daily-note folder and format, and Create
+  missing notes.
+- The Bases table view (`Garmin Health.base`), its settings, the link to it on
+  every day, and the Rebuild the table view command.
 
 ### Fixed
 

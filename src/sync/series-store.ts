@@ -42,12 +42,17 @@ import {
 	type SleepIndexMeta,
 	type SleepRow,
 } from "./sleep-index";
-import { ensureFolder, trimSlashes } from "./frontmatter";
+import { ensureFolder, trimSlashes } from "./vault-paths";
+import type { DayRow as HomeDayRow } from "../dashboard/series";
+import { dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
+import type { Properties } from "./metrics";
 import type { AccountInfo } from "./account";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
 import { parseActivityDetail, serializeActivityDetail, type ActivityDetail, type ActivityDetailStore } from "./activity-detail";
 
 export const SERIES_FOLDER = "series";
+/** Every day's properties, a file a year (see `days.ts`). */
+export const DAYS_FOLDER = "days";
 export const ACCOUNT_FILE = "account.json";
 export const ACTIVITIES_FOLDER = "activities";
 export const ACTIVITY_META_FILE = "index.json";
@@ -101,8 +106,9 @@ export interface MergeOptions {
 }
 
 /**
- * Intraday series, one JSON file per day, beside the day notes:
- * `<dataFolder>/series/<date>.json`. Plus `<dataFolder>/account.json` for the
+ * Every file the sync writes, all of it JSON under the data folder. Each day's
+ * properties in `<dataFolder>/days/<year>.json` (see `days.ts`), intraday
+ * series a file a day in `<dataFolder>/series/<date>.json`, plus `<dataFolder>/account.json` for the
  * few facts that belong to no day, the activity index in
  * `<dataFolder>/activities/` (see `activity-index.ts`) and the daily stats
  * index in `<dataFolder>/daily-stats/` (see `daily-stats.ts`), the sleep
@@ -111,10 +117,10 @@ export interface MergeOptions {
  * each activity whose page has opened in `<dataFolder>/activity-details/`
  * (see `activity-detail.ts`).
  *
- * Files rather than frontmatter because a day of heart rate is hundreds of
- * points (see `intraday.ts`). Written through the vault API so Obsidian Sync and
- * the file explorer see them like any other file, and skipped when the text
- * would not change, for the same mtime reason as `writeFrontmatter`.
+ * Written through the vault API so Obsidian Sync and the file explorer see
+ * them like any other file, and skipped when the text would not change: every
+ * sync re-reads the same days, and a needless write bumps the file's mtime,
+ * which Obsidian Sync and LiveSync both treat as a change to propagate.
  */
 export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	private app: App;
@@ -135,6 +141,49 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
 		return this.put(this.path(date), serializeSeries(date, series));
+	}
+
+	get daysFolder(): string {
+		return this.join(DAYS_FOLDER);
+	}
+
+	/** Folds a day's properties into its year file, over whatever the day already held. */
+	async writeDay(date: string, properties: Properties): Promise<"written" | "unchanged"> {
+		const year = date.slice(0, 4);
+		const path = this.join(`${DAYS_FOLDER}/${year}.json`);
+		const file = this.app.vault.getAbstractFileByPath(path);
+		const days = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
+		return this.put(path, serializeDays(year, mergeDay(days, date, properties)));
+	}
+
+	/** Several days at once, a write a year: the import from the old day notes. */
+	async writeDays(incoming: DayProperties): Promise<number> {
+		let written = 0;
+		const years = new Set([...incoming.keys()].map((d) => d.slice(0, 4)));
+		for (const year of years) {
+			const path = this.join(`${DAYS_FOLDER}/${year}.json`);
+			const file = this.app.vault.getAbstractFileByPath(path);
+			let days: DayProperties = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
+			for (const [date, properties] of incoming) {
+				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
+			}
+			if ((await this.put(path, serializeDays(year, days))) === "written") written += 1;
+		}
+		return written;
+	}
+
+	/** Every synced day, oldest first. */
+	async readDays(): Promise<HomeDayRow[]> {
+		const folder = this.app.vault.getAbstractFileByPath(this.daysFolder);
+		const rows: HomeDayRow[] = [];
+		if (!(folder instanceof TFolder)) return rows;
+		for (const child of folder.children) {
+			if (!(child instanceof TFile) || !isDaysFile(child.name)) continue;
+			for (const [date, properties] of parseDays(await this.app.vault.cachedRead(child))) {
+				rows.push(dayRowOf(date, properties));
+			}
+		}
+		return rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	}
 
 	async read(date: string): Promise<DaySeries | null> {
@@ -351,6 +400,7 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	owns(path: string): boolean {
 		return (
 			path === this.accountPath ||
+			path.startsWith(`${this.daysFolder}/`) ||
 			path.startsWith(`${this.join(SERIES_FOLDER)}/`) ||
 			path.startsWith(`${this.activitiesFolder}/`) ||
 			path.startsWith(`${this.dailyStatsFolder}/`) ||

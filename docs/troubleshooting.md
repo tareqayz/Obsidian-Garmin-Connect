@@ -111,7 +111,7 @@ request would fail the same way.
 
 ## Home still shows yesterday after midnight
 
-Home works out "today" when it opens, and again whenever a note or one of its own
+Home works out "today" when it opens, and again whenever one of its own data
 files changes. A Home tab left open past midnight, with nothing changing, keeps
 yesterday's date, labels, offsets and all. Run **Sync recent days** (Home's ↻),
 or close Home and run **Open home**.
@@ -164,28 +164,27 @@ For the fitness metrics, **diagnostics check 4** prints the raw keys
 mapper extracted. If a value is there under a different name, that name is the
 fix, in `src/sync/metrics.ts`. Please open an issue with the log.
 
-## Nothing gets written in daily-notes mode
+## Days synced by an older version are missing after an upgrade
 
-By design, a day with nowhere to go costs nothing: the target decides whether a
-day is writable **before any request is made**. With **Create missing notes**
-off, a day without an existing note is skipped for free.
+Older builds kept each day as a note, with the numbers as properties. The
+plugin now reads days only from `Garmin/data/days/<year>.json`. On the first
+load of a new build, once the vault is indexed, it copies the old notes' days
+into those files and shows a notice with the count.
 
-So a sparse range legitimately writes nothing. Either turn on **Create missing
-notes**, or switch to data-folder mode, where every day is writable and backfill
-works with nothing existing first.
+The copy runs only while `days/` does not exist. If a sync ran first and made
+the folder, or the notes were somewhere it does not look, the copy is skipped:
+- It reads notes in the data folder, and daily notes whose properties carry
+  the `garmin_` prefix. A custom prefix is only known on the first load after
+  the upgrade, before the settings are saved again.
+- To run it again, close Obsidian, delete the `days/` folder, and reopen the
+  vault. Days already in JSON are never overwritten, so nothing is lost by
+  re-running it, but the days only come back from notes that still exist.
+- **Sync a date range…** over the missing days fetches them from Garmin
+  instead.
 
-Also check that the daily notes **Folder** and **Date format** settings match
-your actual daily notes. Left empty, they follow the core Daily Notes plugin.
-
-## Properties do not appear, or appear as plain text
-
-The sync writes real frontmatter properties, not a markdown table. If you are
-looking at a markdown table you built yourself, Dataview and Bases cannot query
-it — they query properties. That is why the plugin generates a Bases table view
-rather than writing a table.
-
-In daily-notes mode every key carries the `garmin_` prefix. Querying `steps`
-instead of `garmin_steps` returns nothing.
+Once the pages show your history, the old day notes, their `garmin_`
+properties and `Garmin Health.base` can be deleted. The plugin no longer reads
+or writes them.
 
 ## A backfill stopped early and said it "found nothing"
 
@@ -199,21 +198,14 @@ skipped, not stored as zeroes.
 
 ## Re-syncing keeps touching files / sync churn
 
-It should not. Incoming properties are diffed against the existing frontmatter,
-and an identical day leaves the file untouched. That matters because Obsidian
+It should not. A day's year file is rewritten only when its text changes, so
+an identical day leaves it untouched. That matters because Obsidian
 Sync and LiveSync both treat a bumped modification time as a change to
 propagate. The history and series files are only rewritten when their content
 changes, too.
 
 If files *are* being rewritten every run, a value is changing. Garmin revising a
 recent day is the usual reason, and is why the default window is three days.
-
-## The graph view freezes
-
-**Link every day to the table view** gives every day note a link to one base
-file. With hundreds of day notes that is one hub with hundreds of edges, which
-has been observed to make the graph simulation struggle. Turn the setting off;
-existing notes keep the property until they are rewritten.
 
 ## It works on desktop but breaks on mobile
 

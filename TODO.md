@@ -13,8 +13,8 @@ Known gaps and open questions, by area.
   - The classic dashboard, retired in 0.2 (d32f311), was the only place with
     history charts for HRV, training readiness, recovery, training status and
     load, VO₂ max, endurance and race predictions.
-  - Home's At a Glance cards show the latest values, and the notes keep the
-    history.
+  - Home's At a Glance cards show the latest values, and the day files keep
+    the history.
   - Rebuild them as Garmin's Performance Stats pages, through `/garmin-page`.
 - **Activity details for the other sports.** Runs have their page (see
   "Activity details" under Activities); every other sport's rows still open

@@ -4,8 +4,7 @@ The plugin is not in Obsidian's [community plugin
 directory](https://community.obsidian.md/search?type=plugin) yet. Until it is,
 releases are betas: GitHub pre-releases you install with BRAT, or by hand.
 
-It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**. That
-is the first release with Bases, which the generated table view uses.
+It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**.
 
 ## With BRAT (recommended)
 

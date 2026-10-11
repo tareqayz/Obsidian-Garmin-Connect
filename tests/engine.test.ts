@@ -2,7 +2,6 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../src/garmin/errors";
 import {
-	MultiTarget,
 	RANGE_CHUNK_DAYS,
 	chunkRange,
 	dateRange,
@@ -14,7 +13,7 @@ import {
 	type ActivitySink,
 	type DailyStatsSink,
 	type SleepSink,
-	type NoteTarget,
+	type DayTarget,
 	type SyncOptions,
 	type SeriesTarget,
 	type SyncSource,
@@ -204,7 +203,7 @@ class FakeSource implements SyncSource {
 	}
 }
 
-class FakeTarget implements NoteTarget {
+class FakeTarget implements DayTarget {
 	written = new Map<string, Record<string, unknown>>();
 	outcome: WriteOutcome = "written";
 	throwFor: string | null = null;
@@ -886,68 +885,12 @@ describe("syncRange — request budget", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  MultiTarget                                                        */
-/* ------------------------------------------------------------------ */
 
-describe("MultiTarget", () => {
-	function stub(exists: boolean, outcome: WriteOutcome) {
-		const calls: string[] = [];
-		const target: NoteTarget = {
-			exists: () => exists,
-			write: async (date) => {
-				calls.push(date);
-				return outcome;
-			},
-		};
-		return { target, calls };
-	}
-
-	it("is writable if any target can take the day", () => {
-		const a = stub(false, "written");
-		const b = stub(true, "written");
-		assert.equal(new MultiTarget([a.target, b.target]).exists("2026-09-12"), true);
-	});
-
-	it("is not writable when no target can", () => {
-		const a = stub(false, "written");
-		assert.equal(new MultiTarget([a.target]).exists("2026-09-12"), false);
-	});
-
-	it("counts the day as written if anywhere took it", async () => {
-		const a = stub(true, "unchanged");
-		const b = stub(true, "written");
-		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
-		assert.equal(outcome, "written");
-	});
-
-	it("reports unchanged only when every target agreed", async () => {
-		const a = stub(true, "unchanged");
-		const b = stub(true, "unchanged");
-		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
-		assert.equal(outcome, "unchanged");
-	});
-
-	it("skips a target that cannot take the day, without failing the others", async () => {
-		const a = stub(false, "written");
-		const b = stub(true, "written");
-		const outcome = await new MultiTarget([a.target, b.target]).write("2026-09-12", { steps: 1 });
-		assert.equal(outcome, "written");
-		assert.deepEqual(a.calls, [], "a day with no daily note is not written there");
-		assert.deepEqual(b.calls, ["2026-09-12"]);
-	});
-
-	it("is missing when no target took it", async () => {
-		const a = stub(false, "written");
-		const outcome = await new MultiTarget([a.target]).write("2026-09-12", { steps: 1 });
-		assert.equal(outcome, "missing");
-	});
-});
-
-describe("syncRange — a target that creates its own notes", () => {
+describe("syncRange — a target that creates its own files", () => {
 	it("covers every day in the range, so backfill needs nothing to exist first", async () => {
 		const source = new FakeSource();
 		const written: string[] = [];
-		const target: NoteTarget = {
+		const target: DayTarget = {
 			exists: () => true,
 			write: async (date) => {
 				written.push(date);
@@ -1071,7 +1014,7 @@ describe("syncRange — stopAfterEmptyDays", () => {
 		}
 	}
 
-	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+	const always: DayTarget = { exists: () => true, write: async () => "written" };
 
 	it("gives up once it has walked past the start of your history", async () => {
 		const source = new SparseSource("2026-09-08");
@@ -1121,7 +1064,7 @@ describe("syncRange — stopAfterEmptyDays", () => {
 });
 
 describe("syncRange — range-fetched metrics", () => {
-	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+	const always: DayTarget = { exists: () => true, write: async () => "written" };
 
 	it("asks for VO2 Max and race predictions once for the whole window", async () => {
 		const source = new FakeSource();
@@ -1143,7 +1086,7 @@ describe("syncRange — range-fetched metrics", () => {
 
 	it("matches each day to its own row and leaves the rest without", async () => {
 		const written = new Map<string, Record<string, unknown>>();
-		const target: NoteTarget = {
+		const target: DayTarget = {
 			exists: () => true,
 			write: async (date, props) => {
 				written.set(date, props);
@@ -1209,7 +1152,7 @@ describe("chunkRange", () => {
 });
 
 describe("syncRange — range endpoints that come back empty", () => {
-	const always: NoteTarget = { exists: () => true, write: async () => "written" };
+	const always: DayTarget = { exists: () => true, write: async () => "written" };
 
 	it("chunks a multi-year backfill instead of asking for it all at once", async () => {
 		const source = new FakeSource();

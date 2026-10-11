@@ -42,24 +42,38 @@ that syncs in the morning rewrites yesterday. Three is the default; change it in
 
 ## Will it overwrite my daily notes?
 
-The default mode doesn't touch your notes at all: it writes to its own
+No. The sync writes no notes at all: everything goes to JSON files in its own
 `Garmin/data` folder.
 
-In daily-notes mode it only writes frontmatter properties, all prefixed
-`garmin_` so they can't collide. It writes only to notes that already exist,
-unless you turn on **Create missing notes**. Your body text is never touched.
+## I used an older version. Where did my day notes go?
+
+Nowhere; they are still there. Older builds wrote each day as a note with the
+numbers in its properties (in `Garmin/data`, your daily notes, or both) and
+generated a `Garmin Health.base` table view. The plugin now keeps days in
+`Garmin/data/days/<year>.json` instead.
+
+The first time a new build loads, once the vault is indexed, it copies the days
+from those notes into the day files and shows a notice saying how many. It only
+does this while `days/` doesn't exist yet, and it never overwrites a day the
+JSON already holds. It reads both the data-folder notes and daily notes with
+the old `garmin_` prefix.
+
+It doesn't delete anything. Once you've checked Home and the pages show your
+history, you can delete the old day notes and `Garmin Health.base` yourself. In
+daily notes, that means removing the `garmin_` properties; the plugin no longer
+reads them.
 
 ## What files does it create?
 
-All of them under the `Garmin/` folder (the defaults):
-- **Day notes.** `Garmin/data/<date>.md` in the default mode.
-- **The table view.** `Garmin/Garmin Health.base`.
-- **History and series files** under `Garmin/data/`:
+All of them JSON under `Garmin/data/` (the default):
+- **Day files.** `days/<year>.json`, each day's numbers keyed by date.
+- **History and series files:**
   - `series/<date>.json` for a day's curves;
   - `account.json` for your profile;
   - `activities/`, `daily-stats/` and `sleep/`;
   - one folder per Health Stats history.
-- **Diagnostics logs**, only if you run the diagnostics with saving on.
+- **Diagnostics logs**, notes under `Garmin/diagnostics`, only if you run the
+  diagnostics with saving on.
 
 The [Guide](GUIDE.md#where-the-data-goes) lists every path and the metric group
 that fills it.
@@ -100,8 +114,8 @@ It was retired in 0.2, replaced by the Garmin Connect pages:
 - its layouts, the history charts for HRV, readiness, training load, VO₂ max,
   endurance and race predictions, the activity detail, the heatmap and the data
   table are gone;
-- the data is all still there, in the day notes and the table view, and Home's
-  At a Glance cards show the latest values.
+- the data is all still there, in the day files, and Home's At a Glance cards
+  show the latest values.
 
 Performance Stats and an activity detail screen are next to be rebuilt. A tab of
 the old dashboard left open reopens as Home.
@@ -115,9 +129,8 @@ there under a different name, that's the fix — open an issue.
 
 ## Does re-syncing the same day cost anything?
 
-It costs the requests, but not a file write. Incoming properties are diffed
-against what's already there, and an unchanged file isn't touched, so Obsidian
-Sync doesn't see a change to propagate.
+It costs the requests, but not a file write. A day file is rewritten only when
+its text changes, so Obsidian Sync doesn't see a change to propagate.
 
 ## Sign-in fails. What now?
 
@@ -135,16 +148,12 @@ No. A sync runs on the stored refresh token; only *signing in* is challenged. If
 a sync stops with an auth error, the session is dead and the fix is to sign in
 again.
 
-## Why not a markdown table instead of properties?
+## Can I query the data with Dataview or Bases?
 
-A markdown table is inert text. Dataview and Bases both query *properties*,
-which is what lets you ask "resting HR on days I ran more than 10 km". The
-generated table view gives you the table anyway.
-
-## Can I query the data with Dataview?
-
-Yes — everything is standard frontmatter. See the
-[property reference](properties.md) for names, units and examples.
+Not directly any more. Both query note properties, and the plugin no longer
+writes notes. The days are plain JSON in `Garmin/data/days/`, one line a day,
+so a script or another plugin that reads JSON can use them. See the
+[property reference](properties.md) for names and units.
 
 ## Does it work with a Garmin China account?
 

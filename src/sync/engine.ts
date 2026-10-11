@@ -77,23 +77,23 @@ export interface SyncSource {
 
 export type WriteOutcome = "written" | "unchanged" | "missing";
 
-/** Where a day's intraday series end up — a file per day, not frontmatter. */
+/** Where a day's intraday series end up — a file per day. */
 export interface SeriesTarget {
 	write(date: string, series: DaySeries): Promise<"written" | "unchanged">;
 }
 
 /** Where a day's properties end up. Obsidian lives behind this. */
-export interface NoteTarget {
+export interface DayTarget {
 	/**
 	 * Can this day be written at all? Local lookup only — answering "no" must
-	 * cost zero requests. A target that creates its own notes always says yes.
+	 * cost zero requests. The vault's day files always say yes.
 	 */
 	exists(date: string): boolean;
 	write(date: string, properties: Properties): Promise<WriteOutcome>;
 }
 
 /**
- * Where the activity list ends up besides the day notes: the activity index
+ * Where the activity list ends up besides the day files: the activity index
  * the Activities pages read (`activity-index.ts`).
  */
 export interface ActivitySink {
@@ -106,7 +106,7 @@ export interface ActivitySink {
 }
 
 /**
- * Where steps, floors and intensity minutes go besides the day notes: the
+ * Where steps, floors and intensity minutes go besides the day files: the
  * daily stats index the Steps, Floors and Intensity Minutes pages read
  * (`daily-stats.ts`).
  */
@@ -121,7 +121,7 @@ export interface DailyStatsSink {
 }
 
 /**
- * Where nights go besides the day notes: the sleep index the Sleep page's
+ * Where nights go besides the day files: the sleep index the Sleep page's
  * 7d, 4w and 1y read (`sleep-index.ts`).
  */
 export interface SleepSink {
@@ -245,38 +245,6 @@ export interface SyncReport {
 	indexFilesWritten: Record<string, number>;
 }
 
-/**
- * Writes the same day to several places.
- *
- * A day counts as written if anywhere took it; unchanged only when every target
- * agreed there was nothing to do.
- */
-export class MultiTarget implements NoteTarget {
-	private targets: NoteTarget[];
-
-	constructor(targets: NoteTarget[]) {
-		this.targets = targets;
-	}
-
-	exists(date: string): boolean {
-		return this.targets.some((t) => t.exists(date));
-	}
-
-	async write(date: string, properties: Properties): Promise<WriteOutcome> {
-		const outcomes: WriteOutcome[] = [];
-		for (const target of this.targets) {
-			if (!target.exists(date)) {
-				outcomes.push("missing");
-				continue;
-			}
-			outcomes.push(await target.write(date, properties));
-		}
-		if (outcomes.includes("written")) return "written";
-		if (outcomes.includes("unchanged")) return "unchanged";
-		return "missing";
-	}
-}
-
 /* ------------------------------------------------------------------ */
 /*  Dates                                                              */
 /* ------------------------------------------------------------------ */
@@ -347,7 +315,7 @@ const defaultWait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export async function syncRange(
 	source: SyncSource,
-	target: NoteTarget,
+	target: DayTarget,
 	opts: SyncOptions,
 ): Promise<SyncReport> {
 	const log = opts.log ?? silentLog;

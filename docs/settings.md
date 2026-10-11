@@ -51,8 +51,8 @@ saved session to restore, not on every sync.
 
 **Why three days and not one.** Garmin keeps revising a day after it ends.
 Sleep is finalised late, and a watch that syncs in the morning rewrites
-yesterday. Re-syncing an unchanged day writes nothing: the incoming properties
-are compared with the frontmatter, and an identical day leaves the file
+yesterday. Re-syncing an unchanged day writes nothing: the day's year file is
+rewritten only when its text changes, so an identical day leaves it
 untouched. That matters with Obsidian Sync or LiveSync, which treat a bumped
 modification time as a change to send everywhere.
 
@@ -65,51 +65,11 @@ is complete.
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Where to put the data | `storageMode` | `dataFolder` | `dataFolder`, `dailyNotes` or `both`. |
+| Data folder | `dataFolder` | `Garmin/data` | Where everything the sync writes goes, all of it JSON: the day files in `days/`, the series files, the history indexes, the activity pages' files and `account.json`. Changing it does not move files already written. |
 
-| Mode | What it does |
-| --- | --- |
-| **Data folder** (one note per day) | One note per day in the data folder. It never touches notes you wrote, and every day is writable, so a backfill works with nothing in place first. |
-| **Daily notes** | Properties go into the daily note you already keep, prefixed so they cannot collide with yours. Only notes that already exist are written unless **Create missing notes** is on. |
-| **Both** | Writes to each. A day counts as written if either target took it. |
-
-In daily-notes mode a note you have moved is still found by name, the way
-Obsidian itself resolves it.
-
-These settings appear unless the mode is **Daily notes**:
-
-| Setting | Key | Default | Effect |
-| --- | --- | --- | --- |
-| Data folder | `dataFolder` | `Garmin/data` | Where the day notes go. The history indexes, the series files, the activity pages' files and `account.json` sit in it too. |
-| Table view folder | `basesFolder` | `Garmin` | Where `Garmin Health.base` lives. Keeping it above the data folder keeps the day notes out of the way. Changing it does not move an existing file. |
-| Property prefix in the data folder | `dataFolderPrefix` | `""` | A prefix for every property. Blank, because a folder of its own has nothing to collide with. |
-| Table view | `createBasesView` | on | Creates `Garmin Health.base`, a Bases table over the data folder, on the first sync that writes something. |
-| Link every day to the table view | `linkToBase` | on | Writes a link property on each day note pointing at `Garmin Health.base`. |
-| Link property name | `linkProperty` | `link` | The name of that property. |
-
-In daily-notes mode the data folder is hidden but still used: it holds the
-history indexes, the series files and `account.json`. Set it before switching
-modes if `Garmin/data` does not suit.
-
-### Table view
-
-The view is **created once and never overwritten**, so columns and filters you
-change by hand survive every later sync. When you want it regenerated from the
-current settings, use **Rebuild now** beside the toggle or the **Rebuild the
-table view** command. A rebuild starts from the headline columns of the groups
-that are on.
-
-Bases needs Obsidian 1.9.10 or later, which is also this plugin's minimum.
-
-### Linking every day to it
-
-The link is written as a wikilink (`[[Garmin/Garmin Health.base]]`), not as a
-plain path. That makes Obsidian treat it as a link, so the base collects a
-backlink from every day note. It is written **unprefixed**, because it is yours rather
-than a metric.
-
-It is only written while the table view is on and the mode is not **Daily
-notes**. Turn it off if you would rather your day notes carried no link.
+The sync writes no notes. Each day's numbers go into `days/<year>.json`, keyed
+by date (see [properties](properties.md)). Every day is writable, so a backfill
+works with nothing in place first.
 
 ## Metrics
 
@@ -154,10 +114,6 @@ See [properties](properties.md) for every property each group writes.
   Health Snapshots. They are one request per 28 days of the run, or per year
   for VO₂ Max.
 
-Days a sync cannot write cost **nothing**. In daily-notes mode with **Create
-missing notes** off, a day without a note is skipped before any request is
-made.
-
 A group also gates its pages' history:
 
 | Group | Feeds |
@@ -174,7 +130,7 @@ A group also gates its pages' history:
 | `health` | Health Status, Health Snapshot |
 
 While a group is off, nothing is fetched for those pages. Turning a group off
-also drops its columns from a rebuilt table view.
+does not remove what it already wrote to the day files.
 
 ### Upgrades
 
@@ -189,20 +145,6 @@ yourself stays off, and an empty selection stays empty.
 | 2 | `respiration`, `spo2`, `body`, `training` |
 | 3 | `intraday` |
 | 4 | `health`, `profile` |
-
-## Daily notes
-
-These settings appear unless the mode is **Data folder**:
-
-| Setting | Key | Default | Effect |
-| --- | --- | --- | --- |
-| Property prefix in daily notes | `prefix` | `garmin_` | Prepended to every property, so `steps` becomes `garmin_steps`. Clear it at your own risk: an unprefixed key can collide with one of your own. |
-| Folder | `dailyNoteFolder` | `""` | Overrides the core Daily Notes folder. Empty follows it. |
-| Date format | `dailyNoteFormat` | `""` | Moment tokens overriding the core Daily Notes format. Empty follows it. |
-| Create missing notes | `createMissingNotes` | off | Whether a sync may create a daily note that does not exist. |
-
-**Create missing notes** is **off on purpose**. Writing into notes you already
-have is safe; inventing notes in someone's daily-note folder is not.
 
 ## Maps
 

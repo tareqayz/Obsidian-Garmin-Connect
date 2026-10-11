@@ -1,5 +1,5 @@
 /**
- * The day row Home reads out of frontmatter, and two small helpers the pages
+ * The day row Home reads out of the day files, and two small helpers the pages
  * share.
  *
  * Pure: no Obsidian, no DOM, no clock except what is passed in.
@@ -7,7 +7,7 @@
 
 import { DAY_MS } from "./day";
 
-/** One synced day, as Home reads it back out of frontmatter. */
+/** One synced day, as Home reads it back out of the day files. */
 export interface DayRow {
 	date: string;
 	values: Record<string, number>;

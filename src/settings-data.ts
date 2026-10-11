@@ -1,5 +1,4 @@
 import type { GarminDomain } from "./garmin/constants";
-import type { StorageMode } from "./sync/runner";
 import type { MetricGroup } from "./sync/metrics";
 import { ALL_GROUPS } from "./sync/metrics";
 
@@ -28,21 +27,8 @@ export interface GarminSettings {
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
 
-	storageMode: StorageMode;
+	/** Where every JSON file the sync writes lives. */
 	dataFolder: string;
-	dataFolderPrefix: string;
-	createBasesView: boolean;
-	/** Where "Garmin Health.base" lives — usually the parent of the data folder. */
-	basesFolder: string;
-
-	/** Give every day note a property pointing at the base, for the graph view. */
-	linkToBase: boolean;
-	linkProperty: string;
-
-	prefix: string;
-	dailyNoteFolder: string;
-	dailyNoteFormat: string;
-	createMissingNotes: boolean;
 
 	syncOnStartup: boolean;
 	/**
@@ -73,28 +59,8 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	groups: [...ALL_GROUPS],
 	units: "auto",
 
-	// A folder of our own is the default: it can never damage a note you wrote,
-	// every day in a range is writable so backfill works, and the data stays as
-	// properties a Bases view or Dataview query can read.
-	storageMode: "dataFolder",
-	// The notes sit one level down so the folder root holds only the view.
+	// JSON only, in a folder of its own: nothing here touches a note you wrote.
 	dataFolder: "Garmin/data",
-	// Nothing to collide with in a dedicated folder, so the columns read cleanly.
-	dataFolderPrefix: "",
-	createBasesView: true,
-	basesFolder: "Garmin",
-
-	// A single shared link target is what gives the day notes a hub in the
-	// graph view instead of a cloud of unconnected dots.
-	linkToBase: true,
-	linkProperty: "link",
-
-	prefix: "garmin_",
-	dailyNoteFolder: "",
-	dailyNoteFormat: "",
-	// Off by default: writing into notes you already have is safe, inventing
-	// notes in someone's daily-note folder is not.
-	createMissingNotes: false,
 	syncOnStartup: false,
 	// Off: ten requests a run, every run in the history, is a lot to ask of
 	// Garmin unprompted. A run's page downloads it when it opens either way.

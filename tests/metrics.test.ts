@@ -2,13 +2,10 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
 	ALL_GROUPS,
-	applyPrefix,
 	bucketWorkoutsByDate,
 	endpointsFor,
 	localDateOf,
 	mapDay,
-	METRIC_LABELS,
-	primaryKeysFor,
 	toLocalDateTime,
 	type DayData,
 	type MapOptions,
@@ -258,49 +255,6 @@ describe("endpointsFor", () => {
 		assert.equal(wanted.maxMetrics, true, "VO2 Max comes from a range endpoint");
 		assert.equal(wanted.endurance, true, "endurance score is per day");
 		assert.equal(wanted.races, false);
-	});
-});
-
-describe("applyPrefix", () => {
-	it("namespaces every key", () => {
-		assert.deepEqual(applyPrefix({ steps: 1, resting_hr: 2 }, "garmin_"), {
-			garmin_steps: 1,
-			garmin_resting_hr: 2,
-		});
-	});
-
-	it("returns the same object untouched when there is no prefix", () => {
-		const props = { steps: 1 };
-		assert.equal(applyPrefix(props, ""), props);
-	});
-});
-
-describe("labels", () => {
-	it("labels every column the Bases view opens with", () => {
-		for (const key of primaryKeysFor(ALL_GROUPS)) assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
-	});
-
-	it("labels every key mapDay writes for a day", () => {
-		// Guards against a new metric being mapped but reaching the table unnamed.
-		const produced = Object.keys(
-			mapDay(
-				{
-					summary: {
-						totalSteps: 1,
-						dailyStepGoal: 1,
-						totalDistanceMeters: 1,
-						totalKilocalories: 1,
-						activeKilocalories: 1,
-						floorsAscended: 1,
-						moderateIntensityMinutes: 1,
-						vigorousIntensityMinutes: 1,
-					},
-				},
-				opts({ groups: ["activity"] }),
-			),
-		);
-		assert.ok(produced.length > 0);
-		for (const key of produced) assert.ok(METRIC_LABELS[key], `no label for "${key}"`);
 	});
 });
 

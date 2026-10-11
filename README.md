@@ -12,13 +12,13 @@ the vault and draws it as the phone app does:
 
 It runs on **desktop and mobile**.
 
-Everything stays in your vault as ordinary files:
-- **Day notes:** one note per day, with the day's numbers as
-  [properties](https://obsidian.md/help/properties) you can query.
-- **History files:** JSON indexes and per-day series files beside the notes,
-  which the pages read.
-- **A table view:** an optional generated [Bases](https://obsidian.md/help/bases)
-  table, `Garmin Health.base`.
+Everything stays in your vault as ordinary JSON files in one data folder
+(`Garmin/data` by default):
+- **Day files:** one file per year, with each day's numbers under its date.
+- **History files:** JSON indexes and per-day series files, which the pages
+  read.
+
+The sync writes no notes, so your own notes are never touched.
 
 ## Before you install
 
@@ -39,7 +39,7 @@ Everything stays in your vault as ordinary files:
     with no request at all.
   - There is no telemetry or analytics.
 - **It is in beta.** Install it with BRAT. See [Installation](docs/INSTALLATION.md).
-- **Obsidian 1.9.10 or later**, the first release with Bases.
+- **Obsidian 1.9.10 or later.**
 
 Not affiliated with or endorsed by Garmin. Garmin, Garmin Connect, Body Battery
 and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
@@ -52,7 +52,7 @@ and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
 | [Guide](docs/GUIDE.md) | How to use it: the pages, the commands, where the data goes |
 | [Troubleshooting](docs/troubleshooting.md) | Something is broken — start here |
 | [FAQ](docs/FAQ.md) | Common questions |
-| [Properties](docs/properties.md) | Every property a day note gets, its units, and how to query it |
+| [Properties](docs/properties.md) | Every value a day file holds, and its units |
 | [Settings](docs/settings.md) | Every setting and what changing it does |
 | [Security](docs/SECURITY.md) | What is stored, what leaves your device, how to report a vulnerability |
 | [Architecture](docs/architecture.md) | How the code fits together |

@@ -1,22 +1,43 @@
 # Property reference
 
-Every frontmatter property the sync can write, what it comes from, and what its
-value means, followed by the files the sync keeps beside the notes for the
-pages. Maintained by hand from `src/sync/metrics.ts`, where the labels live
-(`METRIC_LABELS`). If the two ever disagree, the code is right.
+Every property the sync can write for a day, what it comes from, and what its
+value means, followed by the other files the sync keeps for the pages.
+Maintained by hand from `src/sync/metrics.ts` (`mapDay`). If the two ever
+disagree, the code is right.
 
-## Naming and prefixes
+## The day files — `days/`
 
-The mapper produces *canonical* keys (`steps`, `resting_hr`). The storage target
-decides whether they get a prefix, because namespacing is the target's problem:
+A day's properties are the keys of one object in a JSON file per year:
 
-| Mode | Prefix | Example key |
-| --- | --- | --- |
-| Data folder (default) | none (`dataFolderPrefix`, default `""`) | `steps` |
-| Daily notes | `garmin_` (`prefix`) | `garmin_steps` |
+```
+<dataFolder>/days/2025.json
+<dataFolder>/days/2026.json
+```
 
-A dedicated folder has nothing to collide with, so the columns read cleanly. A
-daily note is full of your own properties, so the prefix keeps them apart.
+```jsonc
+// 2026.json — dates in order, one day per line.
+{
+	"version": 1,
+	"year": 2026,
+	"days": {
+		"2026-10-10": {"steps":9120,"resting_hr":47,"sleep_score":79,"hrv_status":"BALANCED"},
+		"2026-10-11": {"steps":8432,"distance_km":6.21,"resting_hr":48,"sleep_hours":7.5,"sleep_score":82}
+	}
+}
+```
+
+- **The date is the key.** There is no `date` property inside a day.
+- **Keys are unprefixed.** `steps`, `resting_hr`: the file is the plugin's own,
+  so there is nothing to collide with.
+- **A sync merges.** A day's new values are written over what it already held,
+  so a group switched off since keeps the values it wrote.
+- **Unchanged files are left alone.** A year file is rewritten only when its
+  text changes, so re-syncing an unchanged day touches nothing.
+
+Home and the day pages read these files. Older builds wrote the same keys as
+note properties; see the
+[FAQ](FAQ.md#i-used-an-older-version-where-did-my-day-notes-go) for the
+one-time copy into these files.
 
 ## How absent values behave
 
@@ -28,9 +49,9 @@ Three rules, and they matter more than they look:
   fields as negatives — `averageStressLevel: -1` is the common one. Those are
   dropped rather than written, because a `-1` stress score would quietly poison
   any chart built on it.
-- **Non-finite is dropped.** `NaN` and `Infinity` never reach a note.
+- **Non-finite is dropped.** `NaN` and `Infinity` never reach a day file.
 
-So `steps == null` in a query means "no data", never "zero steps".
+So a missing `steps` key means "no data", never "zero steps".
 
 ## activity
 
@@ -69,14 +90,14 @@ missing one as zero.
 
 `distance_km` is the day's whole distance, rides and swims included. The Steps
 page shows only what was walked or run (`wellnessDistanceMeters`), which is why
-it reads the daily stats index below rather than the notes.
+it reads the daily stats index below rather than the day files.
 
 ### The daily stats index — `daily-stats/`
 
 The Steps, Floors and Intensity Minutes pages (Home → ⋯ → Activities, or the
-Steps card) read neither the notes nor their properties. A year of the app's
-charts needs a year of days, which the notes only have once a sync has reached
-each one, and the notes' distance includes rides. So the `activity` group also
+Steps card) do not read the day files. A year of the app's charts needs a year
+of days, which the day files only have once a sync has reached each one, and
+their distance includes rides. So the `activity` group also
 keeps an index of every day on the account, with Garmin's own daily figures:
 
 ```
@@ -100,7 +121,7 @@ keeps an index of every day on the account, with Garmin's own daily figures:
 | --- | --- | --- |
 | `steps`, `stepGoal` | count | `totalSteps`, `dailyStepGoal` / `stepGoal` |
 | `distance` | metres, on foot | `wellnessDistanceMeters` / `totalDistance` |
-| `calories` | kcal | `totalKilocalories`. Only the daily summary has it; the pages fall back to the note's `calories` |
+| `calories` | kcal | `totalKilocalories`. Only the daily summary has it; the pages fall back to the day file's `calories` |
 | `floorsUp`, `floorsDown`, `floorsGoal` | whole floors | `floorsAscended`, `floorsDescended` rounded down / `wellnessFloorsAscended`… |
 | `moderate`, `vigorous` | minutes | `moderateIntensityMinutes`, `vigorousIntensityMinutes` / `moderateValue`, `vigorousValue` |
 | `intensityGoal` | minutes a week | `intensityMinutesGoal` / `weeklyGoal` |
@@ -112,8 +133,8 @@ and `complete`, whether fetching further back found nothing.
 How it fills:
 
 - **Every sync** takes the days it writes from the daily summaries it fetches
-  anyway: no extra requests. A day it could not write (no note to put it in, a
-  summary that failed) is asked of the range endpoints instead —
+  anyway: no extra requests. A day it could not write (a summary that
+  failed) is asked of the range endpoints instead —
   `/usersummary-service/stats/{steps,floors,im}/daily/{start}/{end}`, three
   requests for up to 28 days — and so is any stretch between the index's newest
   day and the sync, so a vault left closed for a fortnight has no hole.
@@ -176,7 +197,7 @@ From `/wellness-service/wellness/dailySleepData/{displayName}`, the
 
 The sub-score verdicts and the Sleep Coach fields come from the same sleep
 payload as everything above, at no extra request, and the recorded responses
-in `api/schema/` confirm them. A key that never appears in your notes is one
+in `api/schema/` confirm them. A key that never appears in your day files is one
 Garmin does not send for your watch: the overnight SpO2 pair, for one, needs
 pulse ox switched on during sleep.
 
@@ -185,8 +206,8 @@ that drained rather than recharged is information, not a sentinel. It is also th
 number that separates a long night from a restorative one — eight hours that give
 back 20 points and eight that give back 60 are not the same night.
 
-`sleep_start` and `sleep_end` are written as `YYYY-MM-DDTHH:mm`, which Obsidian
-recognises as a datetime property. They are converted from the **GMT** fields
+`sleep_start` and `sleep_end` are written as local `YYYY-MM-DDTHH:mm` strings.
+They are converted from the **GMT** fields
 rather than Garmin's `*Local` variants, which have been reported as
 double-offset on some accounts.
 
@@ -280,7 +301,7 @@ endurance score.
 | `fitness_age` | number, 2 dp | years | `fitnessage-service` `fitnessAge`, falling back to `maxMetrics.generic.fitnessAge` |
 | `fitness_age_achievable` / `fitness_age_previous` | number, 2 dp | years | `achievableFitnessAge` / `previousFitnessAge` |
 | `chronological_age` | integer | years | `chronologicalAge` |
-| `fitness_age_updated` | date | — | `lastUpdated`: when Garmin last recalculated it, which can be a day or more before the note |
+| `fitness_age_updated` | date | — | `lastUpdated`: when Garmin last recalculated it, which can be a day or more before the day |
 | `fitness_age_<component>` | number, 2 dp | varies | `components.<component>.value`, named after Garmin's key in snake case |
 | `endurance_score` | number | score | `endurance.overallScore` |
 | `endurance_classification` | integer | enum | `endurance.classification` |
@@ -406,13 +427,7 @@ From `/metrics-service/metrics/racepredictions/daily/{displayName}`.
 | `race_marathon` | integer | **seconds** | `timeMarathon` |
 
 **Seconds, deliberately.** A number charts and sorts; `"24:31"` does neither.
-Formatting for display is the reader's layer, not the data's. To render one in
-Dataview:
-
-```dataviewjs
-const s = dv.current().race_5k;
-dv.paragraph(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
-```
+Formatting for display is the reader's layer, not the data's.
 
 ## health
 
@@ -428,13 +443,13 @@ day. Each metric Garmin judges against your baseline gets four keys:
 | `health_snapshots` | list | — | GraphQL `healthSnapshotScalar`, one row per Health Snapshot |
 
 `<m>` is `hrv`, `hr`, `spo2`, `respiration`, and `skin_temp_c` or `skin_temp_f`
-(whichever matches the note's units; skin temperature is a signed deviation).
+(whichever matches the account's units; skin temperature is a signed deviation).
 Snapshot rows carry `start` (local) and the averages `hr`, `respiration`,
 `stress`, `spo2`, `hrv` (RMSSD) and `hrv_sdrr`.
 
 ## profile — `account.json`
 
-Nothing in the notes; about nine requests per sync, written to
+Nothing in the day files; about nine requests per sync, written to
 `<dataFolder>/account.json`:
 
 | Key | Source |
@@ -459,14 +474,14 @@ Battery), `dailyHeartRate`, `dailySummaryChart` (steps), `floorsChartData`,
 any sync. The sleep hypnogram costs nothing: it is in the sleep payload, so every
 day with sleep gets it.
 
-One property reaches the note:
+One property reaches the day file:
 
 | Property | Type | Unit | Source field |
 | --- | --- | --- | --- |
 | `hr_latest` | integer | bpm | last non-null reading in `heartRateValues` |
 
-Everything else goes to a **series file** per day, beside the notes, because a day
-of heart rate is hundreds of points and frontmatter is the wrong place for it.
+Everything else goes to a **series file** per day, because a day of heart rate
+is hundreds of points and a one-line day is the wrong place for it.
 Every day a sync writes gets one while `intraday` is on; only the newest seven
 spend the six requests, and the rest carry what the day's other payloads hold,
 such as the night's sleep.
@@ -521,7 +536,7 @@ or `dayStart`; they fill in as a sync covers those days again.
 
 From `/activitylist-service/activities/search/activities`, bucketed by the local
 calendar day each activity started on. The value is a **list of objects**, not a
-scalar, so it renders as a nested list in Obsidian's property editor.
+scalar: an array of objects in the day file.
 
 | Key | Type | Unit | Source field |
 | --- | --- | --- | --- |
@@ -539,20 +554,10 @@ scalar, so it renders as a nested list in Obsidian's property editor.
 | `training_effect` | number, 1 dp | 0–5 | `aerobicTrainingEffect` |
 | `pace` | string | min per km / mile | `distance` ÷ `movingDuration` |
 
-```yaml
-workouts:
-  - name: Morning Run
-    type: running
-    start: 2026-09-12T07:31
-    minutes: 31
-    duration_s: 1830
-    distance_km: 5.12
-    calories: 412
-    avg_hr: 148
-    max_hr: 171
-    elevation_gain_m: 42
-    training_effect: 3.4
-    pace: "5:52"
+```json
+"workouts": [
+	{"name":"Morning Run","type":"running","start":"2026-09-12T07:31","minutes":31,"duration_s":1830,"distance_km":5.12,"calories":412,"avg_hr":148,"max_hr":171,"elevation_gain_m":42,"training_effect":3.4,"pace":"5:52"}
+]
 ```
 
 `pace` is a **string**, deliberately: it lands in a list row that nothing charts,
@@ -563,16 +568,15 @@ distance to pace, or paces slower than 30 minutes per unit (a long stop, or a fe
 metres of GPS drift).
 
 This is a deliberately short row. Garmin sends roughly a hundred fields per
-activity; thirty keys per workout would make the frontmatter unreadable for a
-person and slow for the metadata cache.
+activity; the activity index and activity details below keep the rest.
 
 The `workouts` key is omitted entirely on a day with no activities, rather than
 written as an empty list.
 
 ### The activity index — `activities/`
 
-The Activities pages (Home → ⋯ → Activities) read neither the notes nor their
-`workouts` rows. A note only covers days a sync has reached, and its row rounds
+The Activities pages (Home → ⋯ → Activities) do not read the day files'
+`workouts` rows. A day file only covers days a sync has reached, and its row rounds
 for reading: a year of runs summed from rows rounded to 10 m reads 1,169 km
 where the app says 1,168.9. So the same activity list also fills an index of
 every activity on the account, with Garmin's raw numbers:
@@ -614,7 +618,7 @@ index has the whole history), `units` (the account's, at the last sync) and
 How it fills:
 
 - **Every sync** merges the first page of the list it already fetches for the
-  notes: new activities are added, edited ones updated, and one Garmin no longer
+  day files: new activities are added, edited ones updated, and one Garmin no longer
   lists is dropped, but only more than a day inside the stretch that page covers.
 - **The whole history** comes once, about one request per hundred activities:
   automatically after the first sync of a session while `complete` is false, or
@@ -669,10 +673,10 @@ How it fills:
 
 ## History indexes
 
-The pages inside Home read neither the notes nor their properties. A week,
+The pages inside Home do not read the day files for their charts. A week,
 four weeks or a year of the app's charts needs every day of that span, which the
-notes only have once a sync has reached each one. So the sync keeps an index
-per page beside the notes, with Garmin's own daily figures: a file per year and
+day files only have once a sync has reached each one. So the sync keeps an index
+per page beside them, with Garmin's own daily figures: a file per year and
 an `index.json`, in a folder under the data folder.
 
 ```
@@ -681,8 +685,7 @@ an `index.json`, in a folder under the data folder.
 <dataFolder>/<folder>/2026.json
 ```
 
-These are JSON, not notes, so Bases and Dataview do not see them. They are
-listed here because they are part of what the plugin writes.
+They are listed here because they are part of what the plugin writes.
 
 | Folder | Group | Pages | A row holds |
 | --- | --- | --- | --- |
@@ -728,34 +731,3 @@ How they fill:
   ten years a request. The **Sync … history** commands start one by hand. A run
   cut short by a 429 carries on from where it stopped next session.
 - A year file is rewritten only when its text changes.
-
-## Querying
-
-Because everything is a real property rather than a markdown table, both Bases
-and Dataview can read it.
-
-```dataview
-TABLE steps, resting_hr, sleep_hours, training_readiness
-FROM "Garmin/data"
-WHERE steps > 10000
-SORT date DESC
-```
-
-Crossing metrics is the point — "resting HR on days I ran more than 10 km":
-
-```dataview
-TABLE resting_hr, distance_km
-FROM "Garmin/data"
-WHERE distance_km > 10
-SORT resting_hr ASC
-```
-
-In daily-notes mode every key above needs the `garmin_` prefix.
-
-## Display labels
-
-`METRIC_LABELS` in `src/sync/metrics.ts` maps each canonical key to the human
-label the Bases view shows as its column name (`resting_hr` → "Resting HR").
-Adding a property means adding a label there too, or the column header falls
-back to the raw key. `tests/metrics.test.ts` fails if a column the view opens
-with, or a key `mapDay` writes for its sample day, has none.

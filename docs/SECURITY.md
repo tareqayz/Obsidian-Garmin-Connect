@@ -28,11 +28,11 @@ finds, so a stray secret cannot survive the next save.
 ### Your health data: the data folder
 
 The sync writes into the vault itself, under the data folder (`Garmin/data` by
-default), into your daily notes, or both:
+default). The sync writes no notes:
 
 | What | Where | Holds |
 | --- | --- | --- |
-| Day notes | the data folder, your daily notes, or both | the day's numbers as properties |
+| Day files | `<data folder>/days/<year>.json` | each day's numbers, keyed by date |
 | Series files | `<data folder>/series/<date>.json` | the day's heart rate, stress, Body Battery and other curves, sleep stages, and what the pages loaded on view |
 | Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, or every run with **Download runs** on: its samples, laps, zones and weather, and its GPS route — where you ran |
 | Indexes | `<data folder>/activities/`, `daily-stats/`, `sleep/`, and one folder per Health Stats index (`stress/`, `heart-rate/`, `weight/`, `blood-pressure/` and the rest) | your activities, and a row a day of each metric's history |

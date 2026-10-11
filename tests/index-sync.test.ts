@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { DailySummary } from "../src/garmin/endpoints";
 import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
 import { defineDayIndex, extendSpan, rowsByYear, type DayIndexBatch, type DayIndexDef, type DayIndexSpec } from "../src/sync/day-index";
-import { feedIndex, syncRange, walkHistory, type DayIndexRuntime, type NoteTarget, type SyncSource } from "../src/sync/engine";
+import { feedIndex, syncRange, walkHistory, type DayIndexRuntime, type DayTarget, type SyncSource } from "../src/sync/engine";
 
 interface StressRow {
 	date: string;
@@ -324,7 +324,7 @@ function summarySource(calls: string[], fail?: unknown): SyncSource {
 	});
 }
 
-class EveryDay implements NoteTarget {
+class EveryDay implements DayTarget {
 	exists(): boolean {
 		return true;
 	}
@@ -370,7 +370,7 @@ describe("syncRange — registered day indexes", () => {
 		const calls: string[] = [];
 		const source = windows("2026-01-01", "2026-12-31");
 		const { rt, sink } = runtime({ fromSummary }, source.fetch);
-		const nowhere: NoteTarget = { exists: () => false, write: async () => "missing" };
+		const nowhere: DayTarget = { exists: () => false, write: async () => "missing" };
 		const report = await syncRange(summarySource(calls), nowhere, { ...base, groups: ["stress"], indexes: [rt] });
 		assert.deepEqual(calls, []);
 		assert.deepEqual(source.calls, ["2026-09-10 2026-09-12"]);
