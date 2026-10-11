@@ -81,11 +81,7 @@
 			}),
 		);
 		resize.observe(target);
-		// On a phone the map keeps its drags: Obsidian's sidebar swipe must not see them.
-		const keep = (e: Event) => e.stopPropagation();
 		if (interactive) {
-			target.addEventListener("touchstart", keep, { passive: true });
-			target.addEventListener("touchmove", keep, { passive: true });
 			target.addEventListener("pointerdown", touched);
 			target.addEventListener("wheel", touched, { passive: true });
 			target.addEventListener("keydown", touched);
@@ -93,8 +89,6 @@
 		return () => {
 			alive = false;
 			resize.disconnect();
-			target.removeEventListener("touchstart", keep);
-			target.removeEventListener("touchmove", keep);
 			target.removeEventListener("pointerdown", touched);
 			target.removeEventListener("wheel", touched);
 			target.removeEventListener("keydown", touched);
@@ -215,7 +209,10 @@
 </script>
 
 <div class="gc-route-map" class:is-static={!interactive}>
-	<div class="gc-map-canvas" bind:this={el}></div>
+	<!-- On a phone a drag or pinch here is the map's: Obsidian starts no sidebar
+	     swipe inside data-ignore-swipe, as on its canvas. Stopping the touches
+	     instead would keep them from Leaflet too, which follows them on the document. -->
+	<div class="gc-map-canvas" bind:this={el} data-ignore-swipe={interactive ? "true" : undefined}></div>
 	{#if children}
 		<div class="gc-map-overlays">{@render children()}</div>
 	{/if}
