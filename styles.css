@@ -61,6 +61,16 @@
 	background-color: var(--text-faint);
 }
 
+/* On a phone Obsidian's floating navigation bar sits over the view's bottom
+   edge: every page's end scrolls clear of it, by the spacing Obsidian keeps
+   for that, and a page that fills the view stops above it. Elsewhere the
+   view's own padding stands. (That spacing is a bare 0 without the bar,
+   which calc() would refuse: hence Obsidian's own conditions.) */
+.is-phone.is-floating-nav .view-content.gch-view,
+.is-phone.auto-full-screen .view-content.gch-view {
+	padding-bottom: calc(var(--view-bottom-spacing) + var(--size-4-3));
+}
+
 /* ==================================================================
    Sync Notice
    Sync reports itself here and nowhere else: one bar, in the corner the

@@ -39,6 +39,8 @@ GitHub release takes its notes from the matching section here — see
 
 - Sleep History showed two close buttons on Obsidian 1.14, which renamed the
   modal's own.
+- On a phone with Obsidian's floating navigation bar, the end of every page
+  stayed under the bar. Pages now scroll clear of it.
 
 ## [0.2.0] — 2026-10-09
 
