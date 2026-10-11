@@ -5,6 +5,7 @@ Known gaps and open questions, by area.
 - **Check on the phone** means comparing against the Garmin Connect app.
 - Specs named as `ref/…` live only on the maintainer's machine (`ref/` is
   gitignored, because it holds personal screenshots).
+- onboarding mode : does an audit to see when garmin history officially starts. Asks the users if they want a backfill, and if so, how much data are they willing to store locally and the memory cost - i.e. what level of detail do they want - running activity details, etc. 
 
 ## Next up
 
@@ -94,10 +95,16 @@ Known gaps and open questions, by area.
 Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
 (`ref/activity-details/outdoor-run/`, Figma `364:2` and twin `402:2`).
 
-- **Check on the phone:**
+- **Check on the phone** (again after the 2026-10-11 fixes):
   - the map: tiles load, a finger scrolls the page past the Overview map, the
     full-screen map pinches and pans without Obsidian's sidebar swipe taking
-    over, and offline it draws the route alone;
+    over (it didn't pinch before: the map stopped the touches Leaflet follows on
+    the document), and offline it draws the route alone;
+  - the sheets (Map Settings, This Activity's Benefit): on the bottom edge, as
+    tall as their content, and dragged down by the header to close. Map
+    Settings with seven overlays is about 80% of the screen: tighter rows, or
+    half height with the list scrolling, if that is still too tall;
+  - every page's end scrolls clear of the floating navigation bar;
   - a treadmill run's page (no map, no weather; respiration, GCT balance and
     step speed loss rows; whether the phone keeps the Impact Load Factor chart
     as the web does);
@@ -127,6 +134,9 @@ Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
 - **The map's pace colours** bin in equal steps of pace from the best pace to a
   slow end mirrored about the average (84% of the phone's samples exactly, 95%
   within a slot); the exact slow end is not proved.
+- **Sleep History's sheet** still hides the modal's header and draws its own,
+  so on a phone it neither sits on the bottom edge nor drags down to close.
+  Give it `SheetModal`'s header treatment.
 - **Left out on purpose:** writing anything to Garmin (rename, notes, likes,
   photos, sharing, self-evaluation), Garmin's map provider, Map / Satellite /
   Terrain, Running Reports (no plugin page), the watch's product image.
