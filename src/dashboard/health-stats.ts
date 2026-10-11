@@ -1,5 +1,5 @@
-import type { MetricGroup } from "../sync/metrics";
 import type { GlanceId } from "./glance";
+import { statRegistry, type StatDef } from "./stat-registry";
 
 /**
  * Health Stats: what the app lists under More → Health Stats, in its order.
@@ -9,7 +9,8 @@ import type { GlanceId } from "./glance";
  * is registered in `HEALTH_PAGES` (`src/ui/svelte/health/pages.ts`). Sleep is
  * listed for the hub's order but keeps its own route and page.
  *
- * Pure: the routes, the hub, `main.ts` and the tests all read it.
+ * Read through the shared stat registry (`stat-registry.ts`), as Performance
+ * Stats is. Pure: the routes, the hub, `main.ts` and the tests all read it.
  */
 
 export type HealthStatId =
@@ -34,17 +35,11 @@ export type HealthRange = "1d" | "7d" | "4w" | "1y";
 
 export const HEALTH_RANGES: readonly HealthRange[] = ["1d", "7d", "4w", "1y"];
 
-export interface HealthStat<Id extends HealthStatId = HealthStatId> {
-	id: Id;
-	/** As the app titles the page and its row in the hub. */
-	title: string;
+/** A Health stat: the shared `StatDef` on Health's four ranges, its At a Glance cards by id alone. */
+export interface HealthStat<Id extends HealthStatId = HealthStatId> extends StatDef<Id> {
 	/** The range control's segments, in order. A stat with one has no control. */
 	ranges: readonly HealthRange[];
 	defaultRange: HealthRange;
-	/** The settings group whose requests the stat's data costs. */
-	group: MetricGroup;
-	/** A segment's own name where it is not the range's: Fitness Age's "Current" for 1d. */
-	rangeLabels?: Partial<Record<HealthRange, string>>;
 	/** At a Glance cards that open this stat's page once it is built. */
 	glance?: readonly GlanceId[];
 }
@@ -82,15 +77,17 @@ export const HEALTH_STATS: readonly HealthStat[] = [
 	{ id: "health-snapshot", title: "Health Snapshot", ranges: DAY, defaultRange: "1d", group: "health" },
 ];
 
+/** Health's registry: Sleep keeps its own route, so the hub lists it but the shared route refuses it. */
+export const HEALTH_REGISTRY = statRegistry(HEALTH_STATS, { ownRoute: ["sleep"] });
+
 /** A stat by its id, or undefined for anything else. */
 export function healthStat(id: unknown): HealthStat | undefined {
-	return HEALTH_STATS.find((s) => s.id === id);
+	return HEALTH_REGISTRY.get(id);
 }
 
 /** A stat on the shared route — any but Sleep — by its id. */
 export function pageStat(id: unknown): HealthStat<HealthStatPageId> | undefined {
-	const stat = healthStat(id);
-	return stat && isPageStat(stat) ? stat : undefined;
+	return HEALTH_REGISTRY.page(id);
 }
 
 /**
@@ -98,21 +95,15 @@ export function pageStat(id: unknown): HealthStat<HealthStatPageId> | undefined 
  * what gets an "Open …" command. `registered` is `Object.keys(HEALTH_PAGES)`.
  */
 export function pageStats(registered: Iterable<string>): HealthStat<HealthStatPageId>[] {
-	const has = new Set(registered);
-	return HEALTH_STATS.filter((s): s is HealthStat<HealthStatPageId> => isPageStat(s) && has.has(s.id));
+	return HEALTH_REGISTRY.pageStats(registered);
 }
 
 /** The hub's rows: Sleep, then every stat whose page is registered, in the app's order. */
 export function hubStats(registered: Iterable<string>): HealthStat[] {
-	const has = new Set(registered);
-	return HEALTH_STATS.filter((s) => s.id === "sleep" || has.has(s.id));
+	return HEALTH_REGISTRY.hubStats(registered);
 }
 
 /** The registered stat an At a Glance card opens, if any. Sleep's card has its own route. */
 export function glanceStat(glance: GlanceId, registered: Iterable<string>): HealthStat<HealthStatPageId> | undefined {
-	return pageStats(registered).find((s) => s.glance?.includes(glance));
-}
-
-function isPageStat(stat: HealthStat): stat is HealthStat<HealthStatPageId> {
-	return stat.id !== "sleep";
+	return HEALTH_REGISTRY.glanceTarget(glance, registered)?.stat;
 }
