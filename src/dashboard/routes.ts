@@ -339,6 +339,29 @@ export function statOfRoute(route: StatRoute): StatDef | undefined {
 	return route.page === "health-stat" ? pageStat(route.stat) : PERFORMANCE_REGISTRY.page(route.stat);
 }
 
+/** A stat page's tabs as its tab bar shows them: the one the route names is on, or the first. */
+export function statTabs(route: StatRoute): Array<{ id: string; label: string; on: boolean }> {
+	const stat = statOfRoute(route);
+	const tabs = stat?.tabs ?? [];
+	const current = route.tab !== undefined && tabs.includes(route.tab) ? route.tab : tabs[0];
+	return tabs.map((id) => ({ id, label: stat?.tabLabels?.[id] ?? id, on: id === current }));
+}
+
+/**
+ * How a stat page's range control looks: Health's own, or Performance's
+ * compact (34 tall, labels in 74 pt slots spaced across 338 / 255 / 170 pt)
+ * or wide (36 tall, packed 72 pt slots across 370 / 184 pt), and its width.
+ */
+export function rangeControlOf(route: StatRoute, segments: number): { family: "health" | "compact" | "wide"; width?: number } {
+	if (route.page === "health-stat") return { family: "health" };
+	const family = statOfRoute(route)?.rangeControl === "wide" ? "wide" : "compact";
+	const width = (family === "wide" ? WIDE_WIDTHS : COMPACT_WIDTHS)[segments];
+	return width === undefined ? { family } : { family, width };
+}
+
+const COMPACT_WIDTHS: Readonly<Record<number, number>> = { 2: 170, 3: 255, 4: 338 };
+const WIDE_WIDTHS: Readonly<Record<number, number>> = { 2: 184, 4: 370 };
+
 /**
  * A stat page moved in place, as its range control, steppers and cards move
  * it: another range or period of the same stat, on the same tab and sub-page,

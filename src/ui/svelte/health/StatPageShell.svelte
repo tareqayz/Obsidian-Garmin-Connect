@@ -20,7 +20,7 @@
 	import type { Snippet } from "svelte";
 	import { HEALTH_RANGES } from "../../../dashboard/health-stats";
 	import { stepRoute, switchRange, type PeriodRange, type PeriodRoute, type Span } from "../../../dashboard/periods";
-	import { moveStatRoute, statOfRoute, type StatRoute } from "../../../dashboard/routes";
+	import { moveStatRoute, rangeControlOf, statOfRoute, type StatRoute } from "../../../dashboard/routes";
 	import { statPeriodLabel, statSpan } from "../../../dashboard/stat-registry";
 	import HistoryBanner from "../activities/HistoryBanner.svelte";
 	import PageBar from "../home/PageBar.svelte";
@@ -38,7 +38,9 @@
 	 * the steppers move this page in place with the shared period rules
 	 * (`periods.ts`): 1d reopens on the day it last showed, the others on the
 	 * current period, "<" and ">" a period at a time, never past the current
-	 * one; the page keeps its tab and sub-page (`moveStatRoute`).
+	 * one; the page keeps its tab and sub-page (`moveStatRoute`). Health's
+	 * range control is its own; Performance's is the compact or the wide one
+	 * its stat names (`rangeControlOf`).
 	 */
 	interface Props {
 		/** The page's route: its stat, range, period, remembered day, tab and sub-page. */
@@ -71,6 +73,8 @@
 		steppers?: boolean;
 		/** "<" (−1) and ">" (+1) of the page's own, in place of a whole period: Hill Score's month page. */
 		step?: (by: number) => void;
+		/** Under the bar, over the range control and the period: Load's tabs. */
+		top?: Snippet<[{ pane: boolean }]>;
 		/**
 		 * The page under the header, told whether it is laid out as a pane,
 		 * the period it shows (`span`, null on 1d, by the stat's span rule) and
@@ -95,6 +99,7 @@
 		rangeLabels: ownLabels,
 		steppers = true,
 		step,
+		top,
 		children,
 	}: Props = $props();
 
@@ -105,6 +110,9 @@
 	let span = $derived(stat ? statSpan(stat, period, today) : null);
 	let shown = $derived(label !== undefined ? label : stat ? statPeriodLabel(stat, period, today) : null);
 	let forward = $derived(canGoForward ?? route.offset < 0);
+	/* Health's range control, or Performance's compact or wide one (twin 442:933). */
+	let control = $derived(rangeControlOf(route, ranges.length));
+	let perf = $derived(control.family !== "health");
 
 	/* The twins' panes start at 1000pt. */
 	let width = $state(0);
@@ -143,10 +151,18 @@
 <div class="stat-page" {style} bind:clientWidth={width}>
 	<div class="sticky">
 		<PageBar title={title ?? stat?.title ?? ""} {onBack} />
+		{@render top?.({ pane })}
 		{#if shown !== null || ranges.length > 1}
-		<div class="controls" class:single={ranges.length < 2} class:bare={shown === null}>
+		<div
+			class="controls"
+			class:single={ranges.length < 2}
+			class:bare={shown === null}
+			class:perf
+			class:compact={control.family === "compact"}
+			class:wide={control.family === "wide"}
+		>
 			{#if ranges.length > 1}
-				<div class="range-control">
+				<div class="range-control" style:width={control.width === undefined ? undefined : `${control.width}px`}>
 					{#each ranges as range (range)}
 						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{names?.[range] ?? range}</button>
 					{/each}
@@ -266,6 +282,53 @@
 	.period.plain {
 		grid-template-columns: minmax(0, 1fr);
 	}
+	/*
+	 * Performance Stats' range controls (twin 442:933). Compact: 34 pt, its
+	 * labels in 74 pt slots spaced across the stat's width (338 / 255 / 170),
+	 * radius 3, 22 pt under the bar. Wide (VO₂ Max, Training Effect): 36 pt,
+	 * packed 72 pt slots centred in 370 / 184, radius 4, 16 pt under the bar,
+	 * the period 17.3 pt below it. A stat with one range has no control: its
+	 * period sits 26 pt under the bar, or under the `top` slot (Load's tabs).
+	 */
+	.controls.compact {
+		padding-top: 22px;
+	}
+	.controls.wide {
+		height: 108.6px;
+		padding-top: 16px;
+	}
+	.controls.perf.bare {
+		height: auto;
+		padding-bottom: 16px;
+	}
+	.controls.perf.single {
+		height: auto;
+		padding: 26px 0 16.8px;
+	}
+	.compact .range-control,
+	.wide .range-control {
+		padding: 0;
+	}
+	.compact .range-control {
+		border-radius: 3px;
+	}
+	.wide .range-control {
+		justify-content: center;
+		height: 36px;
+		border-radius: var(--radius-s, 4px);
+	}
+	.compact .range-control button {
+		width: 74px;
+		text-align: center;
+	}
+	.wide .range-control button {
+		width: 72px;
+		padding: 8px 0;
+		text-align: center;
+	}
+	.wide .period {
+		margin-top: 17.3px;
+	}
 	.period strong {
 		font-size: 17px;
 		line-height: 22px;
@@ -340,6 +403,15 @@
 		}
 		.period .step.hidden {
 			display: none;
+		}
+		.controls.perf,
+		.controls.perf.bare,
+		.controls.perf.single {
+			height: 72px;
+			padding: 0 32px;
+		}
+		.wide .period {
+			margin: 0;
 		}
 	}
 </style>

@@ -57,6 +57,10 @@ export interface StatDef<Id extends string = string> {
 	spans?: Partial<Record<PeriodRange, SpanRule>>;
 	/** The page's tabs, in order; the first is where it opens. */
 	tabs?: readonly string[];
+	/** Each tab's name as the app writes it: VO₂ Max's `running` is "VO₂ Max". */
+	tabLabels?: Readonly<Record<string, string>>;
+	/** Performance's range controls come in two sizes: compact (the default) and wide (VO₂ Max, Training Effect). */
+	rangeControl?: "wide";
 	/** Left out of the hub, still routable: a page another page opens (Training Status → Load). */
 	hub?: false;
 }

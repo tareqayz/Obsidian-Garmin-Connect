@@ -107,6 +107,16 @@ describe("PERFORMANCE_STATS", () => {
 		]);
 	});
 
+	it("names every tab, and sizes VO₂ Max's and Training Effect's range controls wide", () => {
+		for (const s of PERFORMANCE_STATS) {
+			for (const tab of s.tabs ?? []) assert.ok(s.tabLabels?.[tab], `${s.id}: no name for ${tab}`);
+		}
+		assert.deepEqual(
+			PERFORMANCE_STATS.filter((s) => s.rangeControl === "wide").map((s) => s.id),
+			["vo2-max", "training-effect"],
+		);
+	});
+
 	it("shares no id with Health Stats", () => {
 		const health = new Set<string>(HEALTH_STATS.map((s) => s.id));
 		assert.deepEqual(

@@ -14,11 +14,13 @@ import {
 	pop,
 	push,
 	pushOrReturn,
+	rangeControlOf,
 	readRoute,
 	readStack,
 	replace,
 	sleepRoute,
 	statOfRoute,
+	statTabs,
 	statsRoute,
 	top,
 	type Route,
@@ -290,6 +292,36 @@ describe("stat page moves", () => {
 		assert.equal(statOfRoute(healthStatRoute("stress"))?.title, "Stress");
 		assert.equal(statOfRoute(performanceStatRoute("ftp"))?.title, "FTP");
 		assert.deepEqual(statOfRoute(performanceStatRoute("vo2-max"))?.rangeLabels, { "1d": "Current" });
+	});
+});
+
+describe("stat page controls", () => {
+	it("list a page's tabs with their names, the route's on or else the first", () => {
+		assert.deepEqual(statTabs(performanceStatRoute("vo2-max")), [
+			{ id: "running", label: "VO₂ Max", on: true },
+			{ id: "cycling", label: "Cycling", on: false },
+		]);
+		assert.deepEqual(
+			statTabs(performanceStatRoute("training-load", { tab: "training" })).map((t) => [t.label, t.on]),
+			[
+				["Load Focus", false],
+				["Exercise Load", false],
+				["Training Load", true],
+			],
+		);
+		// A tab the page doesn't have opens on the first.
+		assert.equal(statTabs(performanceStatRoute("ftp", { tab: "swim" }))[0]!.on, true);
+		assert.deepEqual(statTabs(healthStatRoute("stress")), []);
+	});
+
+	it("size the range control by section and stat: Health's own, compact, or wide", () => {
+		assert.deepEqual(rangeControlOf(healthStatRoute("stress"), 4), { family: "health" });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-status"), 4), { family: "compact", width: 338 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("hrv-status"), 3), { family: "compact", width: 255 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("hrv-stress"), 2), { family: "compact", width: 170 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("vo2-max"), 4), { family: "wide", width: 370 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-effect"), 2), { family: "wide", width: 184 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-readiness"), 1), { family: "compact" });
 	});
 });
 

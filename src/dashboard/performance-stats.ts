@@ -69,12 +69,14 @@ export const PERFORMANCE_STATS: readonly PerformanceStat[] = [
 		ranges: ["1d", "4w", "12w", "6m"],
 		defaultRange: "1d",
 		rangeLabels: CURRENT,
+		rangeControl: "wide",
 		tabs: ["running", "cycling"],
+		tabLabels: { running: "VO₂ Max", cycling: "Cycling" },
 		group: "fitness",
 		glance: ["vo2max", { id: "cyclingVo2", tab: "cycling" }],
 	},
 	{ id: "running-economy", title: "Running Economy", ranges: ["1d", "4w", "12w", "1y"], defaultRange: "1d", rangeLabels: CURRENT, group: "fitness", glance: ["runningEconomy"] },
-	{ id: "training-effect", title: "Training Effect", ranges: ["7d", "4w"], defaultRange: "7d", group: "workouts" },
+	{ id: "training-effect", title: "Training Effect", ranges: ["7d", "4w"], defaultRange: "7d", rangeControl: "wide", group: "workouts" },
 	// 3m and 1y count months back from today: Jul 12 - Oct 11, Oct 12, 2025 - Oct 11, 2026.
 	{
 		id: "cycling-power-curve",
@@ -91,6 +93,7 @@ export const PERFORMANCE_STATS: readonly PerformanceStat[] = [
 		defaultRange: "1d",
 		rangeLabels: CURRENT,
 		tabs: ["cycling", "xc"],
+		tabLabels: { cycling: "Cycling", xc: "Cross Country Skiing" },
 		group: "fitness",
 		glance: [
 			{ id: "cyclingFtp", tab: "cycling" },
@@ -120,7 +123,16 @@ export const PERFORMANCE_STATS: readonly PerformanceStat[] = [
 		group: "fitness",
 		glance: ["lactateThreshold"],
 	},
-	{ id: "endurance-score", title: "Endurance Score", ranges: ["1d", "12w", "1y"], defaultRange: "1d", tabs: ["score", "contributors"], group: "fitness", glance: ["endurance"] },
+	{
+		id: "endurance-score",
+		title: "Endurance Score",
+		ranges: ["1d", "12w", "1y"],
+		defaultRange: "1d",
+		tabs: ["score", "contributors"],
+		tabLabels: { score: "Endurance Score", contributors: "Top Contributors" },
+		group: "fitness",
+		glance: ["endurance"],
+	},
 	// 1y in calendar months, "Nov 2025 - Oct 2026"; a month card opens its month (`sub`).
 	{
 		id: "hill-score",
@@ -139,6 +151,7 @@ export const PERFORMANCE_STATS: readonly PerformanceStat[] = [
 		ranges: ["4w"],
 		defaultRange: "4w",
 		tabs: ["focus", "exercise", "training"],
+		tabLabels: { focus: "Load Focus", exercise: "Exercise Load", training: "Training Load" },
 		hub: false,
 		group: "training",
 		glance: [
