@@ -76,7 +76,11 @@
 		steppers?: boolean;
 		/** "<" (−1) and ">" (+1) of the page's own, in place of a whole period: Hill Score's month page. */
 		step?: (by: number) => void;
-		/** Under the bar, over the range control and the period: Load's tabs. */
+		/**
+		 * Under the bar, over the range control and the period: Load's tabs.
+		 * In a pane a stat without a range control has them in its place, at
+		 * the left of the header's row (twin 609:1491).
+		 */
 		top?: Snippet<[{ pane: boolean }]>;
 		/**
 		 * The page under the header, told whether it is laid out as a pane,
@@ -120,6 +124,8 @@
 	/* The twins' panes start at 1000pt. */
 	let width = $state(0);
 	let pane = $derived(width >= 1000);
+	/* A pane's header row takes `top` where a stat without a range control has none (Load's tabs). */
+	let inRow = $derived(pane && top !== undefined && ranges.length < 2);
 
 	/** This page, moved: a range or a period. Never a new step. */
 	function move(next: PeriodRoute<PeriodRange>) {
@@ -154,8 +160,8 @@
 <div class="stat-page" {style} bind:clientWidth={width}>
 	<div class="sticky">
 		<PageBar title={title ?? stat?.title ?? ""} {onBack} />
-		{@render top?.({ pane })}
-		{#if shown !== null || ranges.length > 1}
+		{#if !inRow}{@render top?.({ pane })}{/if}
+		{#if shown !== null || ranges.length > 1 || inRow}
 		<div
 			class="controls"
 			class:single={ranges.length < 2}
@@ -163,7 +169,9 @@
 			class:perf
 			class:compact={control.family === "compact"}
 			class:wide={control.family === "wide"}
+			class:with-top={inRow}
 		>
+			{#if inRow}<div class="top-slot">{@render top?.({ pane })}</div>{/if}
 			{#if ranges.length > 1}
 				<div class="range-control" style:width={control.width === undefined ? undefined : `${control.width}px`}>
 					{#each ranges as range (range)}
@@ -460,6 +468,14 @@
 		}
 		.controls.single {
 			justify-content: flex-end;
+		}
+		/* `top` in the range control's place, the period still on the right (Load, twin 609:1438). */
+		.controls.with-top {
+			justify-content: space-between;
+		}
+		.top-slot {
+			flex: none;
+			align-self: stretch;
 		}
 		.controls.bare {
 			height: 72px;

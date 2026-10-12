@@ -15,7 +15,8 @@ import { axisDay, dayAxis, type PeriodAxis } from "./periods";
  * The Performance Stats line charts (VO₂ Max, Hill Score and the rest) share
  * a second kit below: a `LineChartFrame` measured off the stat's twin, and
  * `linePlot`, which lays out the gridlines, the axis and the points; with
- * `stepAxis` for an axis that marks every n-th day.
+ * `stepAxis` for an axis that marks every n-th day, and `acuteAxis` for the
+ * acute load's, whose labels sit off its lines (Load, Training Readiness).
  *
  * Pure.
  */
@@ -229,5 +230,59 @@ export function stepAxis(days: readonly string[], steps: AxisSteps): PeriodAxis 
 	return {
 		dots: marks.map(({ x, large }) => ({ x, large })),
 		labels: marks.filter((m) => m.large).map((m) => ({ x: m.x, text: axisDay(m.day) })),
+	};
+}
+
+/* ------------------------------------------------------------------ */
+/*  The acute load axis (Load, Training Readiness)                     */
+/* ------------------------------------------------------------------ */
+
+/** ⌈value / unit⌉ × unit, and at least one unit: the round label step Garmin's load charts count in. */
+export function stepUp(value: number, unit = 25): number {
+	return Math.max(1, Math.ceil(value / unit)) * unit;
+}
+
+/** A load axis label: whole below a thousand ("375"), else thousands to a tenth ("1.1k"). */
+export function loadLabel(value: number): string {
+	return value < 1000 ? String(Math.round(value)) : `${Number((value / 1000).toFixed(1)).toLocaleString()}k`;
+}
+
+/** A mark on a y axis: its value, and `at`, that value as a fraction of the domain (0 the zero line, 1 the top line). */
+export interface AxisMark {
+	value: number;
+	at: number;
+}
+
+/** A y axis whose labels need not sit on its gridlines, from 0 to `top`: the acute load's (`acuteAxis`), Load Ratio's. */
+export interface MarkedAxis {
+	/** The domain's top: where the top gridline sits. The acute load's is 1.5 × the period's largest. */
+	top: number;
+	/** The gridlines, top first: the acute load's at the domain's thirds, 1053, 702, 351, 0. */
+	grid: AxisMark[];
+	/** The labels, top first, each at its own value: the acute load's "1.1k" (1125, `at` 1.07), "750", "375", "0". */
+	labels: Array<AxisMark & { text: string }>;
+}
+
+/**
+ * The acute load axis as Garmin draws it on Load's Training Load tab and
+ * Training Readiness' Acute Load sheet (ref/performance-stats/training-load,
+ * 2026-10-11): the domain runs from 0 to 1.5 × the period's largest acute
+ * load M, and its gridlines sit at the domain's thirds (0, M/2, M, 1.5·M);
+ * the labels count in S = ⌈1.5·M / 3 / 25⌉ × 25 and each stands at its own
+ * value, so they sit off the lines and the top one may pass the top line.
+ * M 702 → lines 351 / 702 / 1053, labels 375 / 750 / "1.1k" (9 pt above the
+ * phone's top line); M 604 → lines 302 / 604 / 906, labels 325 / 650 / 975.
+ * Whether M counts the band's top (1.5 × chronic) too is unseen: here it is
+ * the acute load alone. Without a load to scale by the domain is 0–75, the
+ * labels on the lines (Inferred).
+ */
+export function acuteAxis(maxAcute: number | undefined): MarkedAxis {
+	const loaded = maxAcute !== undefined && Number.isFinite(maxAcute) && maxAcute > 0;
+	const step = stepUp(loaded ? (1.5 * maxAcute) / 3 : 0);
+	const top = loaded ? 1.5 * maxAcute : 3 * step;
+	return {
+		top,
+		grid: [3, 2, 1, 0].map((k) => ({ value: (top * k) / 3, at: k / 3 })),
+		labels: [3, 2, 1, 0].map((k) => ({ value: k * step, at: (k * step) / top, text: loadLabel(k * step) })),
 	};
 }

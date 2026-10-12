@@ -1653,9 +1653,11 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * Load focus as of a day, per device: each band's load over the month to
-	 * it and its optimal range (the web's dialog shows Sep 13 – Oct 11 for
-	 * Oct 11, and steps a day at a time).
+	 * Load focus as of a day, per device: each band's load over the 28 days
+	 * ending on the date (the web's dialog labels one day more, and steps a day
+	 * at a time) and its optimal range. A date without its own record — today
+	 * before the watch syncs, a future day, any day before the first — sends
+	 * the map null, with no fallback to an earlier day. There is no range route.
 	 */
 	async trainingLoadBalance(date: string): Promise<TrainingLoadBalance | null> {
 		assertIsoDate(date);

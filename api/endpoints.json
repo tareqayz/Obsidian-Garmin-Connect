@@ -5229,7 +5229,7 @@
 				"recordedDevices"
 			],
 			"schema": "schema/training-load-balance-latest.json",
-			"notes": "Load focus as of a day, keyed by device id: monthlyLoadAerobicLow, monthlyLoadAerobicHigh and monthlyLoadAnaerobic, each with its TargetMin/TargetMax, and trainingBalanceFeedbackPhrase (AEROBIC_LOW_SHORTAGE), as in training-status's mostRecentTrainingLoadBalance. The Training Status Load Focus dialog (Sep 13 - Oct 11 for Oct 11; its back arrow steps a day and asks the day before). Home's form is GraphQL trainingLoadBalanceScalar(calendarDate, fullHistoryScan)."
+			"notes": "Load focus as of a day, keyed by device id: monthlyLoadAerobicLow / AerobicHigh / Anaerobic (floats) with TargetMin / TargetMax (integers that move day to day) and trainingBalanceFeedbackPhrase. The loads cover the 28 days ending on the date (the phone labels Oct 11's 'Sep 14 - Oct 11'; the web dialog labels the same numbers 'Sep 13 - Oct 11' and steps a day). An activity counts whole on the day it ends and leaves 28 days later; Garmin splits it across the buckets (a Recovery swim, load 62.41, added 44.85 low and 17.69 anaerobic), so the activity list summed by benefit does not reproduce them. A day without its own record returns metricsTrainingLoadBalanceDTOMap null (and recordedDevices null) with no fallback (today before the watch syncs; before 2025-08-09; future days). No range route: trainingloadbalance/daily/{start}/{end} and trainingloadbalance/{start}/{end} are 404. The day sync stores the same entry from training-status's mostRecentTrainingLoadBalance (load_* in the day files), which the Load page reads. Home's form is GraphQL trainingLoadBalanceScalar(calendarDate, fullHistoryScan)."
 		},
 		{
 			"id": "training-plan-by-id",
