@@ -503,7 +503,7 @@ export function loadFocusView(input: HomeInput): LoadFocusView | null {
 }
 
 export interface ToleranceView {
-	/** Acute impact load, "19.1": Garmin counts it in kilometre (or mile) equivalents. */
+	/** Acute impact load, "19.1", "10": Garmin counts it in kilometre (or mile) equivalents. */
 	load: string;
 	/** How much of the weekly tolerance the load is, for the ring. */
 	share: number;
@@ -519,7 +519,9 @@ export function toleranceView(input: HomeInput, units: "metric" | "imperial"): T
 	// Both arrive in metres, whatever the unit setting.
 	const per = units === "imperial" ? 1609.344 : 1000;
 	return {
-		load: (load / per).toFixed(1),
+		// Tenths rounded half up on the metres, a trailing ".0" dropped, as the
+		// Running Tolerance page writes it: 21450 m is "21.5" (toFixed says 21.4), 10009 m "10".
+		load: String(Math.round(load / (per / 10)) / 10),
 		share: clamp01(load / tolerance),
 		tolerance: `${Math.round(tolerance / per)} ${units === "imperial" ? "mi" : "km"}`,
 	};

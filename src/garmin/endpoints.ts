@@ -655,18 +655,34 @@ export interface HillScore {
 	[key: string]: unknown;
 }
 
+/** A row of `runningTolerance`, in metres whatever the account's units. */
 export interface RunningTolerance {
+	userProfilePK?: number;
+	/** The day (daily); the week's `endOfWeek` (weekly). */
 	calendarDate?: string;
+	/* Daily aggregation. */
+	/** Garmin's weighted sum of recent runs' impact load; it decays on rest days. */
 	acuteImpactLoad?: number | null;
+	/** The run distance of the 7 days ending the day. */
 	acuteDistance?: number | null;
+	/** The weekly tolerance on the day; it changes on some days, not only Sundays. */
 	acuteTolerance?: number | null;
+	/** A key: "MEDIUM_LOAD", "LOW_LOAD_1DAYS", "ABOVE_TOLERANCE" … */
 	runningToleranceFeedBackPhrase?: string | null;
-	/* Weekly aggregation: the week's sums, its tolerance, and its days (the account's week, the current one partial). */
+	/*
+	 * Weekly aggregation: Sunday weeks for this account (its first day of
+	 * week); startOfWeek/endOfWeek = the first and last days with a daily row
+	 * inside the week and the window; calendarDate = endOfWeek;
+	 * totalImpactLoad/totalDistance (metres) and tolerance = the week to date at
+	 * endOfWeek, so a cut first row still holds its whole week; weekIndex =
+	 * weeks since Sun 1989-12-31.
+	 */
 	totalImpactLoad?: number | null;
 	totalDistance?: number | null;
 	tolerance?: number | null;
 	startOfWeek?: string;
 	endOfWeek?: string;
+	weekIndex?: number | null;
 	[key: string]: unknown;
 }
 
@@ -1591,9 +1607,17 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * Running tolerance a day at a time (28-day windows), or a week at a time
-	 * for the Running Tolerance page's 12w and 1y bars: the account's weeks,
-	 * the current one partial.
+	 * Running tolerance across a range. Both aggregations cap at 366 days
+	 * (367 is HTTP 400; daily across Feb 29 too).
+	 *
+	 * - `daily`: one row per day with data, in no date order; days without
+	 *   one are omitted; `[]` before the history (2025-08-17 here).
+	 * - `weekly`: sorted Sunday weeks (the account's), weeks without runs
+	 *   zero-filled, weeks without a daily row in the window left out; each
+	 *   the week to date at its `endOfWeek` (see `RunningTolerance`).
+	 *
+	 * `aggregation=monthly` exists but returns each month's last day's
+	 * week-to-date record, not month totals, so it is not offered.
 	 */
 	async runningTolerance(start: string, end = start, aggregation: "daily" | "weekly" = "daily"): Promise<RunningTolerance[]> {
 		assertIsoDate(start, "start");

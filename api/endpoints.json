@@ -4634,11 +4634,12 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
+			"critical": [
+				"[].calendarDate"
+			],
 			"schema": "schema/running-tolerance.json",
-			"notes": "Called with aggregation=daily in 28-day windows (the sync, the Home card), and with aggregation=weekly for the Running Tolerance page's 12w and 1y bars: a row per week of the account (Sunday to Saturday here), startOfWeek/endOfWeek, totalImpactLoad and totalDistance in metres, tolerance; the current week is partial.",
+			"notes": "aggregation=daily|weekly, 366 days a call at most (367 \u2192 HTTP 400; daily also across Feb 29). daily: {calendarDate, acuteImpactLoad (weighted, m), acuteDistance (7-day run distance, m), acuteTolerance (m), runningToleranceFeedBackPhrase (key)}, one row per day with data, in no date order; missing days omitted; [] before the history. weekly: Sunday weeks (the account's) sorted, {startOfWeek, endOfWeek = first/last day with a row in week \u2229 window, calendarDate = endOfWeek, totalImpactLoad, totalDistance, tolerance = the week to date at endOfWeek, weekIndex = weeks since 1989-12-31}; zero-filled weeks without runs. The weekly rows can disagree with the daily ones (6 of 61 weeks here) and are what the app shows. monthly: the month-end day's week-to-date record, not month totals. The sync calls daily in 365-day windows (day files, running-tolerance index); the running-tolerance-weeks index calls weekly.",
 			"reads": [
-				"[].calendarDate",
 				"[].acuteImpactLoad",
 				"[].acuteDistance",
 				"[].acuteTolerance",
@@ -4647,7 +4648,8 @@
 				"[].totalDistance",
 				"[].tolerance",
 				"[].startOfWeek",
-				"[].endOfWeek"
+				"[].endOfWeek",
+				"[].weekIndex"
 			]
 		},
 		{

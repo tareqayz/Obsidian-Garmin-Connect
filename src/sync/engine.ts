@@ -297,8 +297,8 @@ export const INTRADAY_DAYS = 7;
 /**
  * Windows for the range calls whose limits nobody has published. The web app
  * asks for a week of snapshots; staying at or under what it asks for is the
- * safe side of an unknown limit. Hill scores have a known cap, 401 days, and
- * go a year a request.
+ * safe side of an unknown limit. Hill scores (401 days) and running tolerance
+ * (366 days) have known caps, and go a year a request.
  */
 const SHORT_RANGE_DAYS = 28;
 
@@ -479,7 +479,8 @@ export async function syncRange(
 
 	let toleranceByDate = new Map<string, RunningTolerance>();
 	if (wanted.runningTolerance) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), SHORT_RANGE_DAYS);
+		// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
+		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("runningTolerance");

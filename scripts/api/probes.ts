@@ -136,7 +136,11 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"daily-intensity-minutes-stats": async (api, w) => [await api.dailyIntensityStats(w.rangeStart, w.rangeEnd)],
 	"body-battery-events": async (api, w) => [await api.bodyBatteryEvents(w.days[0]!)],
 	"fitnessage-data": async (api, w) => [await api.fitnessAge(w.days[0]!)],
-	"running-tolerance": async (api, w) => [await api.runningTolerance(w.days.at(-1)!, w.days[0]!)],
+	// Both shapes: the daily rows (Current, the day files) and the weekly ones the 12w and 1y charts draw.
+	"running-tolerance": async (api, w) => [
+		await api.runningTolerance(w.days.at(-1)!, w.days[0]!),
+		await api.runningTolerance(w.days.at(-1)!, w.days[0]!, "weekly"),
+	],
 	"lactate-threshold-biometric-latest": async (api) => [await api.lactateThreshold()],
 	"lactate-threshold-biometric-power-to-weight-latest": async (api, w) => [await api.powerToWeight(w.days[0]!)],
 	"device-last-used": async (api) => [await api.lastUsedDevice()],

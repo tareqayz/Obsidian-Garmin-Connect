@@ -232,6 +232,17 @@ describe("stat cards", () => {
 		assert.equal(toleranceView(input([row("2026-09-24", { running_tolerance: 37561, running_tolerance_load: 19072 })]), "imperial")!.tolerance, "23 mi");
 	});
 
+	it("rounds Running Tolerance's load as the page does: half up on the metres, a trailing .0 dropped", () => {
+		const load = (m: number, units: "metric" | "imperial" = "metric") =>
+			toleranceView(input([row("2026-10-11", { running_tolerance: 37070, running_tolerance_load: m })]), units)!.load;
+		// The capture day's 28.2; the web's 21450 m → "21.5", where toFixed(1) on 21.45 says "21.4".
+		assert.deepEqual([load(28158), load(21450), load(14150)], ["28.2", "21.5", "14.2"]);
+		// "10 km" on the phone for 10009 m: no ".0".
+		assert.deepEqual([load(10009), load(0)], ["10", "0"]);
+		// Miles the same way: 28158 m is 17.496 mi.
+		assert.equal(load(28158, "imperial"), "17.5");
+	});
+
 	it("shows training load as the app does", () => {
 		const t = trainingLoadView(
 			input([row("2026-09-24", { training_load_acute: 375, training_load_chronic: 404, training_load_ratio: 0.9 }, { training_load_status: "OPTIMAL" })]),

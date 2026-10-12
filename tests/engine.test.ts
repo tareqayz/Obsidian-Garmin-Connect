@@ -1094,6 +1094,16 @@ describe("syncRange — health, hill score, running tolerance", () => {
 		assert.equal(source.calls.filter((c) => /^(hillScores|runningTolerance|healthSnapshots):/.test(c)).length, 3);
 		assert.equal(report.warnings.length > 0, true, "maxMetrics has no rows in this fake");
 	});
+
+	it("asks running tolerance a year a request, inside the route's 366-day cap", async () => {
+		const source = new FakeSource();
+		await syncRange(source, { exists: () => true, write: async () => "written" }, options({ from: "2025-09-06", to: "2026-10-11", groups: ["training"] }));
+		// 401 days: a year, then the rest, where 28-day windows took fifteen requests.
+		assert.deepEqual(
+			source.calls.filter((c) => c.startsWith("runningTolerance:")),
+			["runningTolerance:2025-09-06:2026-09-05", "runningTolerance:2026-09-06:2026-10-11"],
+		);
+	});
 });
 
 describe("syncRange — max metrics", () => {
