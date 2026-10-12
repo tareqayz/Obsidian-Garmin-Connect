@@ -2,6 +2,7 @@ import type { Component } from "svelte";
 import type { PerformanceStatPageId } from "../../../dashboard/performance-stats";
 import type { PerformanceStatRoute } from "../../../dashboard/routes";
 import type { StatPageProps } from "../health/pages";
+import EnduranceScorePage from "../endurance-score/EnduranceScorePage.svelte";
 import HillScorePage from "../hill-score/HillScorePage.svelte";
 import HrvStatusPage from "../hrv-status/HrvStatusPage.svelte";
 import RacePredictorPage from "../race-predictor/RacePredictorPage.svelte";
@@ -29,4 +30,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	"hrv-status": HrvStatusPage,
 	"race-predictor": RacePredictorPage,
 	"training-status": TrainingStatusPage,
+	"endurance-score": EnduranceScorePage,
 };

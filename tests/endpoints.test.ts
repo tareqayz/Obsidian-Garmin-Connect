@@ -284,14 +284,17 @@ describe("Performance Stats URLs", () => {
 		await client.runningTolerance("2026-07-26", "2026-10-11", "weekly");
 		await client.enduranceStats("2026-07-20", "2026-10-11", "weekly");
 		await client.enduranceStats("2025-10-13", "2026-10-11", "monthly");
+		// The endurance-score index's window: a key for every day, 401 days a call at most.
+		await client.enduranceStats("2025-10-13", "2026-10-12", "daily");
 		await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11");
 		await client.lactateThresholdSpeedRange("2025-10-13", "2026-10-11");
 		await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "CYCLING");
-		assert.deepEqual(http.urls.slice(-7), [
+		assert.deepEqual(http.urls.slice(-8), [
 			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-09-14&endDate=2026-10-11&aggregation=daily`,
 			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-07-26&endDate=2026-10-11&aggregation=weekly`,
 			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2026-07-20&endDate=2026-10-11&aggregation=weekly`,
 			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2025-10-13&endDate=2026-10-11&aggregation=monthly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2025-10-13&endDate=2026-10-12&aggregation=daily`,
 			`${HOST}/biometric-service/stats/lactateThresholdHeartRate/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
 			`${HOST}/biometric-service/stats/lactateThresholdSpeed/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
 			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-13/2026-10-11?sport=CYCLING&aggregation=daily&aggregationStrategy=LATEST`,

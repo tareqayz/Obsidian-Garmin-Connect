@@ -311,13 +311,37 @@ export interface RacePrediction {
 	[key: string]: unknown;
 }
 
+/**
+ * One entry of an Endurance Score contributor list: one of Garmin's sport
+ * groups (`group`: 0 running, 1 cycling, 6 swimming, 8 miscellaneous) or an
+ * activity type (`activityTypeId`: 3 hiking, 13 strength training, 31 stair
+ * climbing, 163 yoga), the other null, and its share in percent.
+ */
+export interface EnduranceContributor {
+	activityTypeId?: number | null;
+	group?: number | null;
+	contribution?: number | null;
+}
+
 export interface EnduranceScore {
 	calendarDate?: string;
+	/** Null while calibrating (the first two weeks). */
 	overallScore?: number | null;
+	/** 1 Recreational … 7 Elite; 0 while calibrating. */
 	classification?: number | null;
+	/** The phrase id under the dial (55); 2 while calibrating. */
 	feedbackPhrase?: string | number | null;
+	/** The dial's ends, and where each class starts: per account (age band and sex). */
 	gaugeLowerLimit?: number | null;
 	gaugeUpperLimit?: number | null;
+	classificationLowerLimitIntermediate?: number | null;
+	classificationLowerLimitTrained?: number | null;
+	classificationLowerLimitWellTrained?: number | null;
+	classificationLowerLimitExpert?: number | null;
+	classificationLowerLimitSuperior?: number | null;
+	classificationLowerLimitElite?: number | null;
+	/** The day's top contributors: at most three entries plus group 8, the stats route's daily row entry for entry. */
+	contributors?: EnduranceContributor[] | null;
 	[key: string]: unknown;
 }
 
@@ -642,25 +666,26 @@ export interface RunningTolerance {
 
 /* Performance Stats pages. */
 
-/** One week or month of `enduranceStats`, keyed in `groupMap` by its first day. */
+/**
+ * One day, week or month of `enduranceStats`, keyed in `groupMap` by its first
+ * day. A day's average and max are its score; null without one.
+ */
 export interface EnduranceGroup {
 	groupAverage?: number | null;
 	groupMax?: number | null;
-	/** A sport (`activityTypeId`) or one of Garmin's sport groups (`group`), `contribution` in percent. */
-	enduranceContributorDTOList?: Array<{
-		activityTypeId?: number | null;
-		group?: number | null;
-		contribution?: number | null;
-	}> | null;
+	/** The period's contributors, `contribution` in percent; empty for a day without data. */
+	enduranceContributorDTOList?: EnduranceContributor[] | null;
 }
 
 export interface EnduranceStats {
 	startDate?: string;
 	endDate?: string;
+	/** The floored mean of the groups' averages. */
 	avg?: number | null;
+	/** The highest day. */
 	max?: number | null;
 	groupMap?: Record<string, EnduranceGroup> | null;
-	/** The range's newest day, with its class limits and contributors. */
+	/** The newest scored day on or before `endDate`, with its class limits and contributors; null when there is none. */
 	enduranceScoreDTO?: EnduranceScore | null;
 	[key: string]: unknown;
 }
@@ -1424,7 +1449,12 @@ export class GarminApi extends GarminClient {
 		return data ?? [];
 	}
 
-	/** Endurance score for one day. The range form only returns weekly averages. */
+	/**
+	 * Endurance score for one day: the score, its class and feedback phrase,
+	 * the dial's ends and class limits, and the day's contributors. Null (HTTP
+	 * 204) for a day without one: today until the watch syncs, and before the
+	 * history. For many days, `enduranceStats(…, "daily")` sends a row a day.
+	 */
 	async enduranceScore(date: string): Promise<EnduranceScore | null> {
 		assertIsoDate(date);
 		return this.request("/metrics-service/metrics/endurancescore", {
@@ -1526,12 +1556,20 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * Endurance score a week or a month at a time: each period's average,
-	 * maximum and top contributors (`groupMap`, keyed by the period's first day;
-	 * weeks start on Monday), the span's own average and maximum, and its newest
-	 * day. The Endurance Score page's 12w and 1y views.
+	 * Endurance score over a range, 401 days a call at most (402 is HTTP 400)
+	 * for every aggregation. `groupMap` is keyed by each period's first day:
+	 * `daily` has a key for every calendar day of the window (that day's score
+	 * as `groupAverage` and `groupMax`, its contributors; null and an empty list
+	 * without data), `weekly` one per Monday week touching the window (keyed by
+	 * its Monday even before the start; the account's week start is ignored),
+	 * `monthly` one per calendar month. A week's or month's average is the
+	 * floored mean of the window's scored days in it, its max their highest, its
+	 * contributions the mean of the daily shares. `avg` is the floored mean of
+	 * the groups' averages, `max` the highest day, and `enduranceScoreDTO` the
+	 * newest scored day on or before `end`. The endurance-score index walks it
+	 * daily; the Endurance Score page works out its weeks and months itself.
 	 */
-	async enduranceStats(start: string, end: string, aggregation: "weekly" | "monthly"): Promise<EnduranceStats | null> {
+	async enduranceStats(start: string, end: string, aggregation: "daily" | "weekly" | "monthly"): Promise<EnduranceStats | null> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		return this.request("/metrics-service/metrics/endurancescore/stats", {

@@ -2032,10 +2032,22 @@
 				"overallScore"
 			],
 			"schema": "schema/endurance-score.json",
-			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values.",
+			"notes": "One day: overallScore, classification (0 calibrating), feedbackPhrase (numeric), the gauge ends and six class lower limits (per account: age band and sex), and contributors (\u2264 3 entries plus group 8, = the day's row of endurancescore/stats aggregation=daily). null (HTTP 204) for a day without a score: today until the watch syncs, before the history. Calibrating days: overallScore null, classification 0, feedbackPhrase 2, contributors [{group 8, 100}]. Without calendarDate: the newest scored day.",
 			"reads": [
 				"classification",
-				"feedbackPhrase"
+				"feedbackPhrase",
+				"contributors",
+				"contributors[].activityTypeId",
+				"contributors[].group",
+				"contributors[].contribution",
+				"gaugeLowerLimit",
+				"gaugeUpperLimit",
+				"classificationLowerLimitIntermediate",
+				"classificationLowerLimitTrained",
+				"classificationLowerLimitWellTrained",
+				"classificationLowerLimitExpert",
+				"classificationLowerLimitSuperior",
+				"classificationLowerLimitElite"
 			]
 		},
 		{
@@ -2068,7 +2080,9 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
+			"critical": [
+				"groupMap"
+			],
 			"reads": [
 				"avg",
 				"max",
@@ -2076,10 +2090,16 @@
 				"groupMap.*.groupAverage",
 				"groupMap.*.groupMax",
 				"groupMap.*.enduranceContributorDTOList",
-				"enduranceScoreDTO"
+				"enduranceScoreDTO",
+				"groupMap.*.enduranceContributorDTOList[].activityTypeId",
+				"groupMap.*.enduranceContributorDTOList[].group",
+				"groupMap.*.enduranceContributorDTOList[].contribution",
+				"enduranceScoreDTO.calendarDate",
+				"enduranceScoreDTO.classification",
+				"enduranceScoreDTO.feedbackPhrase"
 			],
 			"schema": "schema/endurance-score-stats.json",
-			"notes": "aggregation=weekly or monthly: {startDate, endDate, avg, max, groupMap keyed by each week's Monday or month's first day ({groupAverage, groupMax, enduranceContributorDTOList[{activityTypeId|group, contribution %}]}), enduranceScoreDTO = the span's newest day}. 12w 2026-07-20..10-11: avg 6436, max 6620; 1y 2025-10-13..2026-10-11 monthly: avg 7179, max 8582 (the phone's figures). The Endurance Score page's 12w and 1y views."
+			"notes": "aggregation=daily|weekly|monthly, 401 days a call at most for all three (402 is HTTP 400). groupMap: daily a key for every calendar day ({groupAverage = groupMax = the day's score, enduranceContributorDTOList = the day's list}, null/[] without data); weekly one group per Monday week touching the window, keyed by its Monday even before the start (the account's week start is ignored); monthly one per calendar month keyed by the 1st. groupAverage = floor(mean of the window's scored days in the group); groupMax = their max; contributions = mean of the daily shares over the window's days in the group that have a list (calibrating days count as group 8 at 100). avg = floor(mean of the non-null groupAverages); max = the highest day. enduranceScoreDTO = the newest scored day \u2264 endDate, null when none. The endurance-score index walks it daily. The recorded schema comes from weekly and monthly samples only: the daily form keys every calendar day, so each date would be a field."
 		},
 		{
 			"id": "fitnessage-data",
