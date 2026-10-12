@@ -1133,14 +1133,14 @@
 			},
 			"plugin": "GarminApi.criticalSwimSpeedLatest",
 			"groups": [
-				"fitness"
+				"workouts"
 			],
 			"cadence": "day",
 			"check": true,
 			"critical": [],
 			"reads": [],
 			"schema": "schema/critical-swim-speed-latest.json",
-			"notes": "HTTP 204 (null) on the recording account, which has no CSS result, so nothing is recorded and the result's shape is unknown. The Critical Swim Speed report's Current view."
+			"notes": "HTTP 204 (null) on 2026-10-11 and 2026-10-12: the recording account has never had a CSS result, so the result's shape is unknown and no schema can be recorded (api:record-file drops a null sample). The web's and phone's Current view. The Critical Swim Speed page takes its Current from the CSS index's newest row instead."
 		},
 		{
 			"id": "critical-swim-speed-range",
@@ -1166,7 +1166,7 @@
 			},
 			"plugin": "GarminApi.criticalSwimSpeedRange",
 			"groups": [
-				"fitness"
+				"workouts"
 			],
 			"cadence": "range",
 			"check": true,
@@ -1176,7 +1176,7 @@
 				"aggregatedResults"
 			],
 			"schema": "schema/critical-swim-speed-range.json",
-			"notes": "{from, until, criticalSwimSpeedDTOList: [], aggregatedResults: []} on the recording account (no CSS results), so the rows' shape is unknown. The 7d view asks the bare path; 12w and 1y add a trailing slash and aggregation=weekly (.../range/2026-07-20/2026-10-11/?aggregation=weekly), which the plugin repeats. Spans: rolling 7 days, 12 weeks, 52 weeks (2025-10-13..2026-10-11). No cap seen."
+			"notes": "{from, until, criticalSwimSpeedDTOList: [], aggregatedResults: []} on the recording account (no CSS result ever), from/until echoing the request: the rows' shape is unknown, and the recorded shape is that empty wrapper. The 7d view asks the bare path; 12w and 1y add a trailing slash and aggregation=weekly (.../range/2026-07-20/2026-10-11/?aggregation=weekly). No parameter, daily, weekly with or without the slash, monthly and an unknown value all answer 200 here. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200; 368, 731 and 3660 \u2192 HTTP 400 (daily and weekly); across Feb 29, 2023-10-11..2024-10-11 \u2192 200 and 2023-10-10..2024-10-11 \u2192 400. Reversed \u2192 HTTP 400. The Critical Swim Speed index asks daily over 367-day windows."
 		},
 		{
 			"id": "cycling-ftp",
@@ -3319,7 +3319,7 @@
 			"critical": [],
 			"reads": [],
 			"schema": "schema/hrv-stress-daily.json",
-			"notes": "Keyed by the numeric profile id (socialProfile's profileId, which the plugin keeps from the display name lookup) rather than the display name. [] on the recording account (no HRV stress tests, which need a chest strap), so nothing is recorded and a row's shape is unknown. The HRV Stress report's 7d and 4w (Sunday block) views."
+			"notes": "Keyed by the numeric profile id (socialProfile's profileId, which the plugin keeps from the display name lookup) rather than the display name. [] on the recording account for every window, the whole history included (no HRV stress test: it needs a chest strap; userstats availability lists ACTIVITY_HRV_STRESS_TEST as unavailable), so a row's shape is unknown and no schema can be recorded (api:record-file drops [] samples). No cap: 7, 28, 367, 368, 731, 3660 and 9,781 days (2000-01-01..2026-10-11) \u2192 200 []. A reversed window \u2192 HTTP 500, which the client retries as transient, so GarminApi.hrvStressDaily refuses start > end. The web report (id 65, chartconfig ACTIVITY_HRV_STRESS_TEST, BAR_DAILY, 7D/30D) asks 7 days and a Sunday-aligned 4-week block; the plugin's HRV Stress index asks 3660-day windows."
 		},
 		{
 			"id": "hydration-data",

@@ -1933,7 +1933,13 @@ export class GarminApi extends GarminClient {
 		)) ?? [];
 	}
 
-	/** The newest critical swim speed result as of a day; null (HTTP 204) without one. Shape unconfirmed. */
+	/**
+	 * The newest critical swim speed result as of a day, the web's and the
+	 * phone's Current view. HTTP 204 (null) when the account has no CSS result
+	 * as of `date` (2026-10-11 and 2026-10-12 on the recording account), so a
+	 * result's shape is unconfirmed. Uncalled: the Critical Swim Speed page
+	 * takes its Current from the CSS index's newest row.
+	 */
 	async criticalSwimSpeedLatest(date: string): Promise<Record<string, unknown> | null> {
 		assertIsoDate(date);
 		return this.request(`/biometric-service/criticalSwimSpeed/latest/${date}`);
@@ -1943,6 +1949,14 @@ export class GarminApi extends GarminClient {
 	 * Critical swim speed over a span: each result for the 7d view, or
 	 * `aggregation: "weekly"` for 12w and 1y, a form the web sends with a
 	 * trailing slash on the path, which is kept.
+	 *
+	 * end − start ≤ 366 days (368 calendar days is HTTP 400, also across Feb
+	 * 29; a reversed window is HTTP 400). Empty: `{from, until,
+	 * criticalSwimSpeedDTOList: [], aggregatedResults: []}`, `from`/`until`
+	 * echoing the request; the rows' shape is unconfirmed. `aggregation`
+	 * daily, weekly (with or without the trailing slash), monthly and unknown
+	 * values all answer 200 on an empty account. The CSS index asks the bare
+	 * path.
 	 */
 	async criticalSwimSpeedRange(start: string, end: string, aggregation?: "weekly"): Promise<CriticalSwimSpeedRange | null> {
 		assertIsoDate(start, "start");
@@ -1966,13 +1980,18 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * HRV stress test results a day, the HRV Stress report's 7d and 4w. Keyed by
-	 * the account's numeric id rather than its display name. Always `[]` on the
-	 * recording account, so a row's shape is unconfirmed.
+	 * HRV stress test results a day, the HRV Stress report's 7d and 4w and the
+	 * HRV stress index. Keyed by the account's numeric id rather than its
+	 * display name. No cap: 2000-01-01..2026-10-11 in one call. `[]` when
+	 * there is no test (the recording account has none), so a row's shape is
+	 * unconfirmed. A reversed window is HTTP 500, which `request` retries as
+	 * transient (three requests, then a throw), so it is refused here before
+	 * anything is asked.
 	 */
 	async hrvStressDaily(start: string, end: string): Promise<Array<Record<string, unknown>>> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
+		if (start > end) throw new TypeError(`start must not be after end, got ${start}..${end}`);
 		const pk = await this.requireProfilePk();
 		return (await this.request<Array<Record<string, unknown>> | null>(
 			`/metrics-service/internal/manualstresslevel/daily/${pk}/${start}/${end}`,

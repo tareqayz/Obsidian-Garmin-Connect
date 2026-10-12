@@ -182,9 +182,11 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"running-economy-weekly": async (api, w) => [await api.runningEconomyWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "daily")],
 	"critical-swim-speed-latest": async (api, w) => [await api.criticalSwimSpeedLatest(w.days[0]!)],
-	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(w.rangeStart, w.rangeEnd)],
+	// A year, inside the 367-day cap, as the CSS index asks: results are rare (Garmin suggests a test every eight weeks), so 14 days would usually be empty.
+	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"hill-score-stats": async (api, w) => [await api.hillScoreStats(w.rangeStart, w.rangeEnd, "daily")],
-	"hrv-stress-daily": async (api, w) => [await api.hrvStressDaily(w.rangeStart, w.rangeEnd)],
+	// No cap: one call over the 3660 days the HRV stress index asks sees a test as soon as one exists.
+	"hrv-stress-daily": async (api, w) => [await api.hrvStressDaily(isoDay(3659, new Date(`${w.rangeEnd}T00:00:00Z`)), w.rangeEnd)],
 	"race-predictions-latest": async (api) => [await api.racePredictionsLatest()],
 	"race-predictions-monthly": async (api, w) => [await api.racePredictionsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"daily-fitnessage-stats": async (api, w) => [await api.fitnessAgeDaily(w.rangeStart, w.rangeEnd)],

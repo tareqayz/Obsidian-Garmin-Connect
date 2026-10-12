@@ -432,6 +432,24 @@ describe("Performance Stats URLs", () => {
 		}
 	});
 
+	it("refuses a reversed HRV stress window before asking anything: Garmin answers it with HTTP 500, retried twice", async () => {
+		const { http, client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId: 12345678 } },
+			{ url: HOST, json: [] },
+		]);
+		const asked = http.urls.length;
+		await assert.rejects(() => client.hrvStressDaily("2026-10-11", "2026-10-05"), TypeError);
+		// Not even the profile the id comes from.
+		assert.equal(http.urls.length, asked);
+		// A one-day window is not reversed, and a ten-year one has no cap.
+		assert.deepEqual(await client.hrvStressDaily("2026-10-11", "2026-10-11"), []);
+		assert.deepEqual(await client.hrvStressDaily("2016-10-04", "2026-10-11"), []);
+		assert.deepEqual(http.urls.filter((u) => u.includes("manualstresslevel")), [
+			`${HOST}/metrics-service/internal/manualstresslevel/daily/12345678/2026-10-11/2026-10-11`,
+			`${HOST}/metrics-service/internal/manualstresslevel/daily/12345678/2016-10-04/2026-10-11`,
+		]);
+	});
+
 	it("reads the new routes' empty bodies (HTTP 204) as no data and refuses a bad date", async () => {
 		const { client } = await api([
 			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId: 12345678 } },
