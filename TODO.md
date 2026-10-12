@@ -9,12 +9,13 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats, the rest.** VO₂ Max, HRV Status, Race Predictor and
-  Hill Score are built (see "Performance Stats" below). Still to come through
-  `/garmin-page`: Training Status with Load and Heat Acclimation, Endurance
-  Score, Training Readiness, Training Effect, Running Tolerance, FTP, Running
-  Lactate Threshold, Running Economy, Cycling Power Curve, Critical Swim Speed
-  and HRV Stress (plan and status board: `ref/performance-stats/STATUS.md`).
+- **Performance Stats, the rest.** Training Status with Load, HRV Status, Race
+  Predictor, VO₂ Max, Endurance Score and Hill Score are built (see
+  "Performance Stats" below). Still to come through `/garmin-page`: Heat
+  Acclimation, Training Readiness, Training Effect, Running Tolerance, FTP,
+  Running Lactate Threshold, Running Economy, Cycling Power Curve, Critical
+  Swim Speed and HRV Stress (plan and status board:
+  `ref/performance-stats/STATUS.md`).
 - **Cycling Ability and Altitude Acclimation** were left out of Performance
   Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
   gets its own branch when shots exist.
@@ -56,6 +57,20 @@ items, to check on the phone:
   "Low"; the marker's colour where the drawn band and the class disagree
   (scores 25, 50–51, 70–71, 85); calibrating and pre-history days; October's
   month page.
+- **Training Status:** 6m was not shot (the daily strip over 182 days, labels
+  every 26 days); the copy for 27 of Garmin's 28 status phrases, and the Load
+  Focus words other than "Low Aerobic Shortage"; "…Cycling VO₂ Max Trend";
+  the Paused status, and the No Status and Paused colours; Current before the
+  watch syncs (yesterday's row).
+- **Load:** the Load Focus titles and copy other than Low Aerobic Shortage,
+  and the load copy for every status but Optimal; the bars' stacking order
+  (legend order from the bottom); list rows for sports other than running (no
+  chevron; no distance on stair climbing); a ratio above 2.3 ("2+"); miles.
+- **Endurance Score:** the 1y Endurance Score tab was not shot; days other
+  than today, and today before the watch syncs; a week without a scored day;
+  the colours of groups and types not seen here (ours: a type of its own is
+  pink, Multisport purple); the class ids of Recreational, Intermediate and
+  Elite; where the phone's 1d legend wraps.
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

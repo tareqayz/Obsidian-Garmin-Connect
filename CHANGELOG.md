@@ -24,6 +24,15 @@ GitHub release takes its notes from the matching section here — see
     1y with a chip per distance.
   - **Hill Score**: today's score with its endurance, strength and VO₂ factors
     in sheets; 4w, 12w and 1y; and a month page from the year's list.
+  - **Training Status**: the current status with its load focus and the VO₂
+    Max, HRV Status and Load rows that open their pages, and 4w, 12w and 6m
+    of statuses on a strip with their dates.
+  - **Load**, from Training Status and Home's Load Focus and Training Load
+    cards: Load Focus against its optimal ranges, Exercise Load's daily totals
+    with the activities behind them, and Training Load's four-week acute load
+    with its optimal band, the chronic load and the load ratio.
+  - **Endurance Score**: today's dial and top contributors, and 12w / 1y of
+    weekly and monthly scores with the sports behind each.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:

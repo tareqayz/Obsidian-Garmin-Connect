@@ -93,8 +93,9 @@ One request per day synced, for the groups that are on.
 one of them saves nothing. Respiration and pulse ox in particular cost no
 requests at all.
 
-`enduranceScore` is per-day deliberately: the range form of that endpoint
-returns weekly averages, not daily values.
+`enduranceScore` stays per day: only the day route sends the day's class and
+feedback phrase. The Endurance Score history comes from the range form with
+`aggregation=daily` (see [History index endpoints](#history-index-endpoints)).
 
 `dailySummary` throws `GarminAuthError` if the response comes back
 `privacyProtected: true`. That means the session is not fully authorised, which
@@ -183,10 +184,15 @@ fill the ones that are not Health Stats:
 | `sleepStats(start, end)` | `/sleep-service/stats/sleep/daily/{start}/{end}` | `sleep/` | 28 nights |
 | `activityCount()` | `/activitylist-service/activities/count` | `activities/` | how long the list is |
 | `activities(start, limit)` | as above | `activities/` | 100 activities |
+| `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | `hrv-status/` | 367 days, Garmin's cap |
+| `trainingStatusWeekly(start, end)` | `/metrics-service/metrics/trainingstatus/weekly/{who}`: a row a day, despite the name | `training-status/` | 365 days (no cap found) |
+| `enduranceStats(start, end, "daily")` | `/metrics-service/metrics/endurancescore/stats?aggregation=daily` | `endurance-score/` | 365 days (Garmin's cap is 401) |
 
 A routine sync takes the daily stats of the days it writes from the summaries it
 fetched anyway. It asks the three stats routes only for days it could not
-write, and for any gap since the index's newest day.
+write, and for any gap since the index's newest day. The Performance Stats
+indexes take a routine sync's days from what it fetched anyway (the day routes
+and the range calls above), so the last three routes serve their history walks.
 
 ## Health Stats pages
 
@@ -263,7 +269,6 @@ too. Nothing in the plugin calls them yet:
 | --- | --- | --- |
 | `restingHeartRate(date)` | `/userstats-service/wellness/daily/{who}` | The daily summary already carries resting heart rate. |
 | `healthStatusSummary(date)` | `/healthstatus-service/healthstatus/summary/{date}` | One night; 204 (null) until the night is scored. |
-| `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | 367-day cap. `{hrvSummaries}`, and 204 (null) when no night has any. |
 | `stressWeekly(end, weeks = 52)` | `/usersummary-service/stats/stress/weekly/{end}/{weeks}` | 52 weeks. The 1y pages average the daily index instead. |
 | `heartRateWeekly(end, weeks = 52)` | `/usersummary-service/stats/heartRate/weekly/{end}/{weeks}` | 52 weeks. |
 | `fitnessAgeWeekly(end, weeks = 52)` | `/fitnessage-service/stats/weekly/{end}/{weeks}` | 52 weeks. |
