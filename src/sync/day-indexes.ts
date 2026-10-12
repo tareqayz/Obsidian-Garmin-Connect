@@ -3,6 +3,7 @@ import { BODY_BATTERY_INDEX } from "./body-battery-index";
 import type { DayIndexDef } from "./day-index";
 import { ENDURANCE_SCORE_INDEX } from "./endurance-score-index";
 import { HEAT_ACCLIMATION_INDEX } from "./heat-acclimation-index";
+import { TRAINING_READINESS_INDEX } from "./training-readiness-index";
 import { HEALTH_STATUS_INDEX } from "./health-status-index";
 import { FITNESS_AGE_INDEX } from "./fitness-age-index";
 import { HEART_RATE_INDEX } from "./heart-rate-index";
@@ -31,7 +32,7 @@ import { WEIGHT_INDEX } from "./weight-index";
  * Pure, so the tests can check every entry; a definition must not import
  * Obsidian.
  */
-export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX, HEART_RATE_INDEX, BODY_BATTERY_INDEX, RESPIRATION_INDEX, HEALTH_STATUS_INDEX, FITNESS_AGE_INDEX, WEIGHT_INDEX, PULSE_OX_INDEX, BLOOD_PRESSURE_INDEX, VO2_MAX_INDEX, HILL_SCORE_INDEX, HRV_STATUS_INDEX, RACE_PREDICTIONS_INDEX, TRAINING_STATUS_INDEX, ENDURANCE_SCORE_INDEX, HEAT_ACCLIMATION_INDEX];
+export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX, HEART_RATE_INDEX, BODY_BATTERY_INDEX, RESPIRATION_INDEX, HEALTH_STATUS_INDEX, FITNESS_AGE_INDEX, WEIGHT_INDEX, PULSE_OX_INDEX, BLOOD_PRESSURE_INDEX, VO2_MAX_INDEX, HILL_SCORE_INDEX, HRV_STATUS_INDEX, RACE_PREDICTIONS_INDEX, TRAINING_STATUS_INDEX, ENDURANCE_SCORE_INDEX, HEAT_ACCLIMATION_INDEX, TRAINING_READINESS_INDEX];
 
 /** A registered index by its kind. */
 export function dayIndex(kind: string): DayIndexDef | undefined {

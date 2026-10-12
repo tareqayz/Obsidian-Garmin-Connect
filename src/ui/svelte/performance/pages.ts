@@ -8,6 +8,7 @@ import HillScorePage from "../hill-score/HillScorePage.svelte";
 import HrvStatusPage from "../hrv-status/HrvStatusPage.svelte";
 import RacePredictorPage from "../race-predictor/RacePredictorPage.svelte";
 import TrainingLoadPage from "../training-load/TrainingLoadPage.svelte";
+import TrainingReadinessPage from "../training-readiness/TrainingReadinessPage.svelte";
 import TrainingStatusPage from "../training-status/TrainingStatusPage.svelte";
 import Vo2MaxPage from "../vo2-max/Vo2MaxPage.svelte";
 
@@ -35,4 +36,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	"endurance-score": EnduranceScorePage,
 	"training-load": TrainingLoadPage,
 	"heat-acclimation": HeatAcclimationPage,
+	"training-readiness": TrainingReadinessPage,
 };

@@ -68,7 +68,7 @@ export const DIAL_KINDS: Readonly<Record<DialKind, DialSpec>> = {
 		label: { top: 107.8, size: 15, line: 20 },
 	},
 	tolerance: { radius: 84, width: 8, gap: 0, outline: 0, full: true, value: { top: 66.87, size: 35, line: 42 }, label: { top: 109.25, size: 16, line: 21 } },
-	recovery: { radius: 88, width: 10, gap: 0, outline: 0, value: { top: 68.26, size: 35, line: 42 }, label: { top: 107.5, size: 15, line: 20 } },
+	recovery: { radius: 88, width: 10, gap: 0, outline: 0, value: { top: 68.26, size: 35, line: 39.7 }, label: { top: 107.5, size: 15, line: 20 } },
 };
 
 /** A fraction of the sweep as an angle: 0 → −150°, 1 → 150°. */

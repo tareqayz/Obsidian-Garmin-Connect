@@ -850,25 +850,64 @@ export interface HillScoreStats {
 }
 
 /**
- * One Training Readiness reading. A day can have several: on waking, after an
- * activity, during the day (`inputContext`). Times are wall-clock strings
- * without a zone, GMT and local.
+ * One Training Readiness reading, from `trainingreadiness/{date}` or the
+ * range route. A day has 1–11 (`inputContext`): on waking, after an activity,
+ * and through the day. Times are wall-clock strings without a zone, GMT and
+ * the watch's clock, whose date is always `calendarDate`; the difference
+ * between them moves when the watch travels (2026-01-28 went from +4 to +3
+ * mid-day), so `timestamp` orders a day's readings. Every reading of the
+ * recording account's history (1,111) carries all 29 keys.
+ *
+ * Each of the six factors comes as a percent and Garmin's band of it
+ * (`…FactorFeedback`): `VERY_GOOD`, `GOOD`, `MODERATE`, `POOR`, or `NONE`
+ * (percent 0) without the data.
  */
 export interface TrainingReadinessReading {
+	userProfilePK?: number | null;
+	/** The local calendar day, `YYYY-MM-DD`. */
 	calendarDate?: string;
+	/** GMT: "2026-10-11T05:41:11.0". */
 	timestamp?: string | null;
+	/** The watch's clock: "2026-10-11T09:41:11.0", the page's "Updated @ 9:41 AM". */
 	timestampLocal?: string | null;
+	deviceId?: number | null;
+	/** 1–100; null while onboarding (the first four days, `level` NONE). */
 	score?: number | null;
-	/** `POOR`, `HIGH`… */
+	/** `POOR` 1–24, `LOW` 25–49, `MODERATE` 50–74, `HIGH` 75–94, `PRIME` 95–100; `NONE` while onboarding. */
 	level?: string | null;
-	inputContext?: string | null;
+	/** The title's key: `LET_YOUR_BODY_RECOVER`; `UNKNOWN` while onboarding and on a few readings without sleep. */
 	feedbackShort?: string | null;
+	/** The copy's key: `POOR_RT_HIGH_SS_GOOD_OR_MOD`. */
 	feedbackLong?: string | null;
+	/** Last night's score; null exactly when `validSleep` is false. */
 	sleepScore?: number | null;
-	/** Minutes. */
+	sleepScoreFactorPercent?: number | null;
+	sleepScoreFactorFeedback?: string | null;
+	/** Minutes, 0 … 5,760. */
 	recoveryTime?: number | null;
+	recoveryTimeFactorPercent?: number | null;
+	recoveryTimeFactorFeedback?: string | null;
+	/** The acute:chronic load factor. */
+	acwrFactorPercent?: number | null;
+	acwrFactorFeedback?: string | null;
+	/** The reading's own acute load; it can lag the day's Training Status row (Oct 10 07:24: 63, the row 281). */
 	acuteLoad?: number | null;
+	stressHistoryFactorPercent?: number | null;
+	stressHistoryFactorFeedback?: string | null;
+	hrvFactorPercent?: number | null;
+	hrvFactorFeedback?: string | null;
+	/** ms: the HRV Status row's `weeklyAvg` on most readings. */
 	hrvWeeklyAverage?: number | null;
+	sleepHistoryFactorPercent?: number | null;
+	sleepHistoryFactorFeedback?: string | null;
+	/** False when the watch saw no sleep for the reading (an overnight reading before waking). */
+	validSleep?: boolean | null;
+	/** `AFTER_WAKEUP_RESET`, `AFTER_POST_EXERCISE_RESET` or `UPDATE_REALTIME_VARIABLES`. */
+	inputContext?: string | null;
+	/** From the Preferred Activity Tracker, the one Garmin Connect shows: true on every reading seen. */
+	primaryActivityTracker?: boolean | null;
+	/** Why recovery moved: `NO_CHANGE_SLEEP`, `REACHED_ZERO`, `NEW_EXERCISE`…, or null. Not shown. */
+	recoveryTimeChangePhrase?: string | null;
 	[key: string]: unknown;
 }
 
@@ -1419,9 +1458,14 @@ export class GarminApi extends GarminClient {
 		});
 	}
 
-	async trainingReadiness(date: string): Promise<unknown[]> {
+	/**
+	 * Every Training Readiness reading of the day, newest first (1–11); [] for
+	 * a day without one: a missed day, today before the watch syncs, the
+	 * future. The range route's rows for the day, field for field.
+	 */
+	async trainingReadiness(date: string): Promise<TrainingReadinessReading[]> {
 		assertIsoDate(date);
-		return this.request(`/metrics-service/metrics/trainingreadiness/${date}`);
+		return (await this.request<TrainingReadinessReading[] | null>(`/metrics-service/metrics/trainingreadiness/${date}`)) ?? [];
 	}
 
 	/**
@@ -1880,17 +1924,15 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * Every Training Readiness reading over a span, newest first: several a
-	 * day, 72 for 28 days on the recording account. Readiness history exists
-	 * only as this Home GraphQL query; the web's readiness page shows one day.
+	 * Every reading over the span, newest first, several a day. 367 days a
+	 * call at most (368 is HTTP 400); a span without readings is []. History
+	 * from 2025-08-02 on the recording account. Home's GraphQL
+	 * trainingReadinessRangeScalar proxies this route.
 	 */
 	async trainingReadinessRange(start: string, end: string): Promise<TrainingReadinessReading[]> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
-		const data = await this.graphql<{ trainingReadinessRangeScalar?: TrainingReadinessReading[] | null }>(
-			`query{trainingReadinessRangeScalar(startDate:"${start}", endDate:"${end}")}`,
-		);
-		return data.trainingReadinessRangeScalar ?? [];
+		return (await this.request<TrainingReadinessReading[] | null>(`/metrics-service/metrics/trainingreadiness/${start}/${end}`)) ?? [];
 	}
 
 	/* Current-state endpoints: one call each per sync, for the account file. */

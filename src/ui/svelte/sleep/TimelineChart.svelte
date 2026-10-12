@@ -12,9 +12,11 @@
 		look: TimelineLook;
 		/** The space between stage lines: 38.45 on the score page, 28.4 on a factor's. */
 		level: number;
+		/** The stage lines drawn, from Awake down: all four here; Training Readiness's sheet leaves out Deep's (3). */
+		lines?: number;
 	}
 
-	let { timeline, overlay, look, level }: Props = $props();
+	let { timeline, overlay, look, level, lines = 4 }: Props = $props();
 
 	let width = $state(402);
 	let plot = $derived(timelinePlot(timeline, overlay, width, level));
@@ -25,8 +27,8 @@
 		{#each plot.bars as bar}
 			<rect class="bar {bar.stage}" x={bar.x} y={bar.y} width={bar.w} height={bar.h} />
 		{/each}
-		{#each plot.grid as line}
-			<line class="grid" x1={plot.left} x2={plot.right} y1={line.y} y2={line.y} />
+		{#each plot.grid as line, k}
+			{#if k < lines}<line class="grid" x1={plot.left} x2={plot.right} y1={line.y} y2={line.y} />{/if}
 			<text class="tick" x={plot.labelRight} y={line.y} text-anchor="end" dominant-baseline="central">{line.label}</text>
 		{/each}
 		{#each plot.ticks as t}<rect class="restless" x={t.x} y={t.y} width="1" height={t.h} />{/each}

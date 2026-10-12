@@ -314,10 +314,12 @@ export function bandPath(band: AcuteChart["band"], x: (f: number) => number, y: 
  * Acute Load's timeline at `width`: the gridlines at the domain's thirds and
  * the labels at their own values (`acuteAxis`), the band (cut at the top
  * line, Inferred), the acute line and its dots, and with the chip on the
- * chronic line and its squares.
+ * chronic line and its squares. `frame` is Load's own unless another page
+ * draws the timeline in a box of its own (Training Readiness's Acute Load
+ * sheet, 1.288 times as tall).
  */
-export function acutePlot(chart: AcuteChart, width: number): TimelinePlot {
-	const { base, x, y } = timeline(ACUTE_FRAME, chart.axis, width, chart.axisX, false);
+export function acutePlot(chart: AcuteChart, width: number, frame: TimelineFrame = ACUTE_FRAME): TimelinePlot {
+	const { base, x, y } = timeline(frame, chart.axis, width, chart.axisX, false);
 	// A band over the domain's top is cut at the top line (Inferred: whether M counts the band is unseen).
 	const plot: TimelinePlot = { ...base, band: bandPath(chart.band, x, (v) => y(Math.min(v, chart.axis.top))), ...series(chart.acute, x, y) };
 	if (chart.chronic) {

@@ -387,7 +387,7 @@ export interface ReadinessView {
 const READINESS_MESSAGE: Record<string, string> = {
 	TIME_TO_RECHARGE: "Time to recharge",
 	ENERGIZED_BY_GOOD_SLEEP: "Energized by good sleep",
-	WELL_RECOVERED: "Well recovered",
+	WELL_RECOVERED: "Well-recovered",
 	READY_FOR_THE_DAY: "Ready for the day",
 };
 

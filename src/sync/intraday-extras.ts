@@ -1,5 +1,6 @@
 import { ENDURANCE_DAY } from "./endurance-score-index";
 import { FITNESS_AGE_DAY } from "./fitness-age-index";
+import { READINESS_DAY } from "./training-readiness-index";
 import { SNAPSHOT_DAY, SNAPSHOT_LIST } from "./health-snapshot-index";
 import { HEART_DAY } from "./heart-rate-index";
 import { HRV_DAY } from "./hrv-status-index";
@@ -27,4 +28,4 @@ import { STRESS_DAY } from "./stress-index";
  *
  * Pure, so the tests can check every entry.
  */
-export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY, RESPIRATION_DAY, FITNESS_AGE_DAY, SNAPSHOT_LIST, SNAPSHOT_DAY, SPO2_DAY, HRV_DAY, ENDURANCE_DAY];
+export const INTRADAY_EXTRAS: readonly IntradayDef[] = [STRESS_DAY, HEART_DAY, RESPIRATION_DAY, FITNESS_AGE_DAY, SNAPSHOT_LIST, SNAPSHOT_DAY, SPO2_DAY, HRV_DAY, ENDURANCE_DAY, READINESS_DAY];

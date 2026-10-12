@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { PANE_COLUMN, PHONE } from "../../../dashboard/stat-charts";
-	import { ACUTE_FRAME, MARKS, SERIES_COLOR, acutePlot, ratioPlot } from "../../../dashboard/training-load-charts";
+	import { ACUTE_FRAME, MARKS, SERIES_COLOR, acutePlot, ratioPlot, type TimelineFrame } from "../../../dashboard/training-load-charts";
 	import type { AcuteChart, RatioChart } from "../../../dashboard/training-load-pages";
 	import OptimalBand from "../health/OptimalBand.svelte";
 	import StatEmpty from "../health/StatEmpty.svelte";
@@ -12,25 +12,28 @@
 	 * and the acute line and its dots over them, or the Load Ratio line;
 	 * a dot a day under the plot with MM-DD under the ends. The box is 200
 	 * pt tall at any width; a period without a row keeps it and says so.
-	 * Geometry is `acutePlot`'s and `ratioPlot`'s.
+	 * Geometry is `acutePlot`'s and `ratioPlot`'s; another page's Acute Load
+	 * box (Training Readiness's sheet) comes as `frame`.
 	 */
 	interface Props {
 		chart: AcuteChart | RatioChart | null;
 		/** The line in place of the plot when `chart` is null. */
 		empty?: string;
 		pane: boolean;
+		/** Acute Load's box where it is not Load's own (`ACUTE_FRAME`). */
+		frame?: TimelineFrame;
 	}
 
-	let { chart, empty, pane }: Props = $props();
+	let { chart, empty, pane, frame = ACUTE_FRAME }: Props = $props();
 
 	let measured = $state(0);
 	let width = $derived(measured || (pane ? PANE_COLUMN : PHONE));
-	let p = $derived(chart ? (chart.segment === "acute" ? acutePlot(chart, width) : ratioPlot(chart, width)) : null);
+	let p = $derived(chart ? (chart.segment === "acute" ? acutePlot(chart, width, frame) : ratioPlot(chart, width)) : null);
 	let muted = $derived(chart?.segment === "acute" && chart.muted);
 	let color = $derived(chart?.segment === "ratio" ? SERIES_COLOR.ratio : muted ? SERIES_COLOR.muted : SERIES_COLOR.acute);
 </script>
 
-<div class="timeline" bind:clientWidth={measured} style:height="{ACUTE_FRAME.height}px" style:--tl-series={color} style:--tl-chronic={SERIES_COLOR.chronic}>
+<div class="timeline" bind:clientWidth={measured} style:height="{frame.height}px" style:--tl-series={color} style:--tl-chronic={SERIES_COLOR.chronic}>
 	{#if p}
 		<!-- The status and the figures under the chart say what it shows. -->
 		<svg width={p.width} height={p.height} aria-hidden="true">
@@ -53,7 +56,7 @@
 			{/each}
 		</svg>
 	{:else if empty}
-		<div class="tl-empty" style:top="{ACUTE_FRAME.top}px" style:height="{ACUTE_FRAME.baseline - ACUTE_FRAME.top}px"><StatEmpty text={empty} /></div>
+		<div class="tl-empty" style:top="{frame.top}px" style:height="{frame.baseline - frame.top}px"><StatEmpty text={empty} /></div>
 	{/if}
 </div>
 

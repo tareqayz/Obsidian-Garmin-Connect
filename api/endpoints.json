@@ -2633,28 +2633,9 @@
 				"line": null
 			},
 			"graphql": "trainingReadinessRangeScalar",
-			"plugin": "GarminApi.trainingReadinessRange",
-			"groups": [
-				"readiness"
-			],
-			"cadence": "range",
-			"check": true,
-			"critical": [
-				"[].calendarDate",
-				"[].score",
-				"[].level"
-			],
-			"reads": [
-				"[].timestampLocal",
-				"[].inputContext",
-				"[].feedbackShort",
-				"[].sleepScore",
-				"[].recoveryTime",
-				"[].acuteLoad",
-				"[].hrvWeeklyAverage"
-			],
+			"check": false,
 			"schema": "schema/graphql-training-readiness-range.json",
-			"notes": "trainingReadinessRangeScalar(startDate,endDate): every reading in the span, newest first, several a day (inputContext AFTER_WAKEUP_RESET, AFTER_POST_EXERCISE_RESET, UPDATE_REALTIME_VARIABLES...), rows as training-readiness's. Home asks 28 days (72 rows, up to 9 a day). The only readiness history: the web's readiness page shows one day. No cap probed."
+			"notes": "Retired: trainingReadinessRangeScalar(startDate,endDate) proxies GET metrics-service/metrics/trainingreadiness/{startDate}/{endDate} (training-readiness-range), which the plugin calls instead: the same rows in the same order (72 of 72 for 2026-09-15..10-12), and asked for 3,660 days it fails with that route's 400. Home's web app asks 28 days (72 rows, up to 9 a day)."
 		},
 		{
 			"id": "graphql-upcoming-events",
@@ -5314,7 +5295,7 @@
 				"[].level"
 			],
 			"schema": "schema/training-readiness.json",
-			"notes": "An array; the plugin reads element 0.",
+			"notes": "Every reading of the day, newest first (1\u201311; inputContext AFTER_WAKEUP_RESET, AFTER_POST_EXERCISE_RESET, UPDATE_REALTIME_VARIABLES); [] for a day without one (today before the watch syncs, a missed day, the future). The range route's rows for the day, field for field. The day files keep element 0, the newest; the training-readiness index keeps the first AFTER_WAKEUP_RESET reading (the one Garmin's page shows for a past day) and the readinessDay extra every reading. recoveryTime is in minutes.",
 			"reads": [
 				"[].sleepScore",
 				"[].hrvFactorPercent",
@@ -5334,8 +5315,71 @@
 				"[].sleepHistoryFactorFeedback",
 				"[].stressHistoryFactorPercent",
 				"[].stressHistoryFactorFeedback",
-				"[].hrvWeeklyAverage"
+				"[].hrvWeeklyAverage",
+				"[].calendarDate",
+				"[].timestamp",
+				"[].timestampLocal",
+				"[].validSleep",
+				"[].primaryActivityTracker"
 			]
+		},
+		{
+			"id": "training-readiness-range",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingreadiness/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Named by the GraphQL gateway's 400 for Home's trainingReadinessRangeScalar, then probed live, 2026-10-12 (ref/performance-stats/training-readiness/README.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingReadinessRange",
+			"groups": [
+				"readiness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].timestamp",
+				"[].score",
+				"[].level"
+			],
+			"reads": [
+				"[].timestampLocal",
+				"[].inputContext",
+				"[].feedbackShort",
+				"[].feedbackLong",
+				"[].sleepScoreFactorPercent",
+				"[].sleepScoreFactorFeedback",
+				"[].recoveryTimeFactorPercent",
+				"[].recoveryTimeFactorFeedback",
+				"[].acwrFactorPercent",
+				"[].acwrFactorFeedback",
+				"[].hrvFactorPercent",
+				"[].hrvFactorFeedback",
+				"[].sleepHistoryFactorPercent",
+				"[].sleepHistoryFactorFeedback",
+				"[].stressHistoryFactorPercent",
+				"[].stressHistoryFactorFeedback",
+				"[].sleepScore",
+				"[].recoveryTime",
+				"[].acuteLoad",
+				"[].hrvWeeklyAverage",
+				"[].primaryActivityTracker"
+			],
+			"schema": "schema/training-readiness-range.json",
+			"notes": "Every reading over the span, newest first, several a day; rows as training-readiness's, field for field. 367 days a call at most (368 is HTTP 400); days without readings are left out, and a span without any is []. History from 2025-08-02 on the recording account (1,111 readings on 432 days to 2026-10-12). Home's GraphQL trainingReadinessRangeScalar proxies this route. Garmin's page shows the newest reading for today and the first AFTER_WAKEUP_RESET reading for a past day: the training-readiness index keeps that one a day, the history in three requests."
 		},
 		{
 			"id": "training-status",

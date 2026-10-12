@@ -376,12 +376,13 @@ describe("Performance Stats URLs", () => {
 		]);
 	});
 
-	it("builds the race predictions by display name and readiness history through GraphQL", async () => {
+	it("builds the race predictions by display name and the readiness history on its REST route", async () => {
 		const readings = [{ calendarDate: "2026-10-11", score: 18, level: "POOR" }];
 		const { http, client } = await api([
 			profile,
-			{ url: "/graphql-gateway/graphql", method: "POST", times: 1, json: { data: { trainingReadinessRangeScalar: readings } } },
-			{ url: "/graphql-gateway/graphql", method: "POST", json: { data: { trainingReadinessRangeScalar: null } } },
+			{ url: "/trainingreadiness/2026-09-14/2026-10-11", times: 1, json: readings },
+			{ url: "/trainingreadiness/2023-10-08/2024-10-08", times: 1, json: [] },
+			{ url: "/trainingreadiness/", text: "" },
 			{ url: HOST, json: [] },
 		]);
 		await client.racePredictionsLatest();
@@ -390,12 +391,15 @@ describe("Performance Stats URLs", () => {
 		assert.deepEqual(http.urls.filter((u) => !u.includes("socialProfile")).slice(-3), [
 			`${HOST}/metrics-service/metrics/racepredictions/latest/abc-123`,
 			`${HOST}/metrics-service/metrics/racepredictions/monthly/abc-123?fromCalendarDate=2025-11-01&toCalendarDate=2026-10-31`,
-			`${HOST}/graphql-gateway/graphql`,
+			`${HOST}/metrics-service/metrics/trainingreadiness/2026-09-14/2026-10-11`,
 		]);
-		assert.deepEqual(JSON.parse(http.requests.at(-1)!.body!), {
-			query: 'query{trainingReadinessRangeScalar(startDate:"2026-09-14", endDate:"2026-10-11")}',
-		});
-		assert.deepEqual(await client.trainingReadinessRange("2026-09-14", "2026-10-11"), []);
+		// A plain GET: Home's GraphQL query only proxies this route.
+		assert.equal(http.requests.at(-1)!.method ?? "GET", "GET");
+		assert.ok(!http.urls.some((u) => u.includes("graphql")));
+		// A span without readings is [], and so is an empty body.
+		assert.deepEqual(await client.trainingReadinessRange("2023-10-08", "2024-10-08"), []);
+		assert.deepEqual(await client.trainingReadinessRange("2016-10-15", "2017-10-15"), []);
+		assert.deepEqual(await client.trainingReadiness("2026-10-20"), []);
 	});
 
 	it("keys HRV stress by the profile's numeric id, fetched with the display name", async () => {
