@@ -9,13 +9,15 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats.**
-  - The classic dashboard, retired in 0.2 (d32f311), was the only place with
-    history charts for HRV, training readiness, recovery, training status and
-    load, VO₂ max, endurance and race predictions.
-  - Home's At a Glance cards show the latest values, and the day files keep
-    the history.
-  - Rebuild them as Garmin's Performance Stats pages, through `/garmin-page`.
+- **Performance Stats, the rest.** VO₂ Max, HRV Status, Race Predictor and
+  Hill Score are built (see "Performance Stats" below). Still to come through
+  `/garmin-page`: Training Status with Load and Heat Acclimation, Endurance
+  Score, Training Readiness, Training Effect, Running Tolerance, FTP, Running
+  Lactate Threshold, Running Economy, Cycling Power Curve, Critical Swim Speed
+  and HRV Stress (plan and status board: `ref/performance-stats/STATUS.md`).
+- **Cycling Ability and Altitude Acclimation** were left out of Performance
+  Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
+  gets its own branch when shots exist.
 - **Activity details for the other sports.** Runs have their page (see
   "Activity details" under Activities); every other sport's rows still open
   nothing. Each needs its own phone shots: cycling, swimming, strength and
@@ -27,6 +29,39 @@ Known gaps and open questions, by area.
 - **Remove `LegacyDashboardView`** (`src/dashboard/legacy-view.ts`) in the
   release after 0.2. It only turns tabs saved with the classic dashboard into
   Home.
+
+## Performance Stats
+
+Built from the 2026-10-11 phone shots (`ref/performance-stats/`). **Inferred**
+items, to check on the phone:
+
+- **All pages:** previous periods (‹) were not shot; the shots are from a
+  Sunday, so rolling 4w / 12w spans and Monday-aligned weeks look the same —
+  a weekday set settles it; Help sheets are left out; the wide-pane layouts
+  are ours.
+- **VO₂ Max:** the cycling tab's ranges show Garmin's web copy "You have no
+  data for this time period."; Current with no reading shows "No data
+  available"; the y step becomes 2 past a spread of 4; the copy for Good,
+  Fair and Poor; no "Yesterday" label; the running dial's marker sits about 3°
+  short of the shot's (the rule's 279.8° against 283.0°), and Hill Score's VO₂
+  sheet inherits it.
+- **HRV Status:** the dial's band gaps are fixed fractions (no linear rule
+  fits) and its marker sits 1.5° short; the copy is known for 2 of Garmin's 21
+  feedback phrases; Unbalanced and Low dials were never seen; the 7d axis's
+  bottom tick rule is a guess; gaps in a night's readings are bridged.
+- **Race Predictor:** turning a chip off keeps the axis (the twin's choice)
+  and the last chip stays on; a period without data hides the legend and
+  chips; imperial units.
+- **Hill Score:** the copy for 19 of 21 phrases; factor words other than
+  "Low"; the marker's colour where the drawn band and the class disagree
+  (scores 25, 50–51, 70–71, 85); calibrating and pre-history days; October's
+  month page.
+- **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
+  one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
+  a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an
+  unbound black stroke; Title Bar 61:10 needs a "Help" action and an "Edit"
+  switch; a Status Row "Dimmed" variant (the whole row at 50%); text styles
+  Semi Bold 20/24, Copy 17/20 and Dial Value M 41/50.
 
 ## Home
 

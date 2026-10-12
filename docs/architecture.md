@@ -71,7 +71,7 @@ src/sync/
   sleep-index.ts         the sleep index: a row a night — pure
   day-index.ts           defineDayIndex: a Health Stats day index from its description — pure
   day-indexes.ts         DAY_INDEXES, the registered day indexes — pure
-  <stat>-index.ts        the nine Health Stats day indexes and their intraday extras
+  <stat>-index.ts        the Health and Performance Stats day indexes and their intraday extras
                          (health-snapshot-index.ts has extras only) — pure
   intraday-registry.ts   on-view intraday loads: the series file's own blocks, extras, loadDay — pure
   intraday-extras.ts     INTRADAY_EXTRAS, the registered extras — pure
@@ -169,8 +169,8 @@ runner.ts        reads settings → builds SyncOptions and the DayTarget (the da
 engine.ts        syncRange: endpointsFor(groups) → only the calls this config needs
    │               ├─ the activity list (workouts), merged into the activity index
    │               │  (series-store.ts)
-   │               ├─ range calls, once for the window: maxMetrics and racePredictions
-   │               │  (a request per 365 days), hillScores, runningTolerance and
+   │               ├─ range calls, once for the window: maxMetrics, racePredictions
+   │               │  and hillScores (a request per 365 days), runningTolerance and
    │               │  healthSnapshots (a request per 28 days)
    │               ├─ then the days, NEWEST → OLDEST. Per day: summary (it serves
    │               │  activity, heart, stress, respiration and spo2), sleep, hrv,

@@ -399,8 +399,9 @@ From `/metrics-service/metrics/trainingstatus/aggregated/{date}`.
 | `running_tolerance_distance_km` / `_mi` | number, 2 dp | km / mi | `acuteDistance` (metres) |
 | `running_tolerance_feedback` | string | — | `runningToleranceFeedBackPhrase` |
 
-Hill score and running tolerance are range calls, in 28-day windows — one
-request per window, not per day.
+Hill score and running tolerance are range calls — one request per window,
+not per day: a year at a time for hill score (Garmin's cap is 401 days), 28
+days for running tolerance.
 
 Where `<status>` is `mostRecentTrainingStatus.latestTrainingStatusData.<deviceId>`,
 `<acute>` is `acuteTrainingLoadDTO` inside that entry (or at the top level, if an
@@ -512,8 +513,8 @@ such as the night's sleep.
   // The night that ended this day, for the Sleep pages: scores, stages, factors,
   // Sleep Coach need, and the overnight heart rate, HRV, stress and respiration.
   "sleep":       { "start": 1789855080000, "end": 1789884900000, "score": 84, "quality": "GOOD", "factors": { "…": "…" } },
-  // Blocks a Health Stats page loaded on view, by the key it registered.
-  "extra":       { "heartDay": { "…": "…" }, "spo2Day": { "…": "…" } },
+  // Blocks a stat page loaded on view, or the sync kept itself (hrvDay), by key.
+  "extra":       { "heartDay": { "…": "…" }, "hrvDay": { "…": "…" } },
   // Keys loaded on view, data or not, so a day Garmin had nothing for is not asked again.
   "checked":     ["heartDay", "spo2Day"]
 }
@@ -526,7 +527,10 @@ A Health Stats page opening a day the sync did not cover asks for that day's
 blocks then, and keeps them under `extra`: `stressDay`, `heartDay`,
 `respirationDay`, `spo2Day`, `fitnessAgeDay`, `snapshotList` and
 `snapshotDay`. A sync's own write of the day starts the file afresh, so those
-are fetched again the next time the page is opened. Files written before
+are fetched again the next time the page is opened. `hrvDay` is the exception:
+the sync writes the night's HRV readings itself from the call it already makes
+(sleep start and end, a five-minute grid, the night's summary) and never
+erases them, because Garmin drops old readings (none before 2026-06-01). Files written before
 2026-10-07 have no `sleep` block, and before 2026-10-04 no floors, intensity
 or `dayStart`; they fill in as a sync covers those days again.
 
@@ -609,6 +613,12 @@ every activity on the account, with Garmin's raw numbers:
 | `duration` | seconds | `duration`, the app's total time |
 | `ascent` | metres | `elevationGain` |
 | `calories` | kcal | `calories` |
+| `aerobic`, `anaerobic` | 0–5, a tenth | `aerobicTrainingEffect`, `anaerobicTrainingEffect` |
+| `benefit` | — | `trainingEffectLabel`, the primary benefit: `LACTATE_THRESHOLD`, `VO2MAX`, `TEMPO`… |
+| `aerobicMsg`, `anaerobicMsg` | — | `aerobicTrainingEffectMessage`, `anaerobicTrainingEffectMessage`: the scales' copy keys |
+| `load` | — | `activityTrainingLoad`, the exercise load |
+| `power` | W | A ride's best average power by duration in seconds: `maxAvgPower_1` … `maxAvgPower_7200` |
+| `noPowerCurve` | — | `true` when the rider left the ride out of the power curve (`excludeFromPowerCurveReports`) |
 
 Numbers are rounded to two decimals, past anything a page shows; a key is left
 out when the activity has nothing for it. `index.json` holds `complete` (the
@@ -701,6 +711,10 @@ They are listed here because they are part of what the plugin writes.
 | `weight/` | `body` | Weight | In grams: `w` (the day's latest weigh-in), `lo`, `hi`, `avg`, `d` (Garmin's change); `n` weigh-ins, `ins` (each one), `h` (height, cm) |
 | `pulse-ox/` | `spo2` | Pulse Ox, Pulse Ox Acclimation | `avg`, `low`, `latest` (%), `elev` (mean elevation, m) |
 | `blood-pressure/` | `body` | Blood Pressure | `sys`, `dia`, `sysLo`, `diaLo`, `pulse`, `n` readings, `cat` (Garmin's category) |
+| `vo2-max/` | `fitness` | VO₂ Max, Hill Score's VO₂ factor | `vo2` (to a tenth) and `vo2Value` (Garmin's whole number), `cycling` and `cyclingValue`, on the days Garmin recorded a reading |
+| `hill-score/` | `fitness` | Hill Score | `score`, `strength`, `endurance`, `classId`, `phraseId`; a calibrating day keeps only the ids |
+| `hrv-status/` | `hrv` | HRV Status | In ms: `weekly` (the 7-day average), `night`, `high` (the highest 5-minute average), the baseline `lowUpper`, `balLow`, `balHigh`; `marker` (Garmin's dial position), `status`, `feedback` |
+| `race-predictions/` | `races` | Race Predictor | Predicted times in seconds: `time5k`, `time10k`, `half`, `marathon` |
 
 A sleep row has the night's `score` and `quality`, the `seconds` asleep and
 in each stage (`deep`, `light`, `rem`, `awake`), the Sleep Coach `need` in

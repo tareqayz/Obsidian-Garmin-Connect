@@ -31,7 +31,7 @@ for the groups that are on:
 - activities;
 - steps, floors and intensity minutes;
 - sleep;
-- each Health Stats history.
+- each Health Stats and Performance Stats history.
 
 A run cut short, by a rate limit or by closing Obsidian, keeps what it fetched
 and carries on next time.
@@ -86,6 +86,10 @@ The pages need more than a day's summary can hold. These files sit beside
 | `weight/`, `blood-pressure/` | Weigh-ins and readings | `body` |
 | `fitness-age/` | Fitness Age | `fitness` |
 | `health-status/` | Health Status | `health` |
+| `vo2-max/` | VO₂ Max | `fitness` |
+| `hill-score/` | Hill Score | `fitness` |
+| `hrv-status/` | HRV Status; the night's readings go into that day's series file | `hrv` |
+| `race-predictions/` | Race Predictor | `races` |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 They are rewritten only when their content changes.
@@ -297,6 +301,23 @@ its metric group on.
   you are signed in and the page's metric group is on.
 - Health Snapshots are fetched when the page opens.
 
+## Performance Stats
+
+**More → Performance Stats** lists Garmin's performance pages in the app's
+order, as each is rebuilt; so far:
+
+| Page | Ranges | Group |
+| --- | --- | --- |
+| HRV Status | 1d, 7d, 4w, with the Overnight Averages chip | `hrv` |
+| Race Predictor | Current, 4w, 6m, 1y, a chip per distance | `races` |
+| VO₂ Max | Current, 4w, 12w, 6m, for running and cycling | `fitness` |
+| Hill Score | 1d with its factors, 4w, 12w, 1y, and a month page | `fitness` |
+
+Each has an **Open …** command and opens from its At a Glance card. Their
+histories are cheap: a year of Garmin's data per request, about two or three
+requests each for the whole history. Cycling Ability and Altitude Acclimation
+are left out for now.
+
 ## Commands
 
 All are in the command palette under **Garmin Connect:**.
@@ -305,11 +326,12 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
+| Performance Stats | **Open performance stats**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open hill score** |
 
 | Syncs | Commands |
 | --- | --- |
 | Days | **Sync recent days**, **Sync today**, **Sync a date range…** |
-| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history** |
+| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history** |
 
 | Other | What it does |
 | --- | --- |

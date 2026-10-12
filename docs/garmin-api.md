@@ -109,17 +109,18 @@ event list. Queries are inline strings, as the web app sends them. Health
 Status and Health Snapshots also have REST routes, which the
 [Health Stats pages](#health-stats-pages) use.
 
-### More range calls (28-day windows)
+### More range calls
 
-| Method | Path | Group |
-| --- | --- | --- |
-| `hillScores(start, end)` | GraphQL `hillScoreScalar` | `fitness` |
-| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` |
-| `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` |
+| Method | Path | Group | Window |
+| --- | --- | --- | --- |
+| `hillScores(start, end)` | GraphQL `hillScoreScalar` (a proxy of `/metrics-service/metrics/hillscore/stats`) | `fitness` | 365 days (Garmin's cap is 401) |
+| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` | 28 days |
+| `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` | 28 days |
 
-The web app asks for 28 days of hill score and a week of snapshots, and nobody
-has published these routes' limits. Staying within what it asks for is the
-safe side of an unknown cap.
+The web app asks for 28 days of running tolerance and a week of snapshots, and
+nobody has published those routes' limits; staying within what it asks for is
+the safe side of an unknown cap. Hill score's cap was measured on 2026-10-12:
+401 days return, 402 is HTTP 400.
 
 ### Once per sync (`profile`)
 
@@ -304,8 +305,8 @@ A sync costs roughly:
   - about nine for `profile`;
   - one each for `maxMetrics` and `racePredictions` (one per year of a longer
     run);
-  - one per 28 days of the run each for hill score, running tolerance and
-    Health Snapshots;
+  - one per year of the run for hill score, and one per 28 days each for
+    running tolerance and Health Snapshots;
   - one per 50 activities in the run;
   - for each history index whose days the summaries do not cover, about one
     window request, plus its refresh window.
