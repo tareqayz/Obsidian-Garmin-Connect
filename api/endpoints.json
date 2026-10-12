@@ -2350,12 +2350,17 @@
 				"[].elevationGain",
 				"[].movingDuration",
 				"[].aerobicTrainingEffect",
+				"[].anaerobicTrainingEffect",
+				"[].trainingEffectLabel",
+				"[].aerobicTrainingEffectMessage",
+				"[].anaerobicTrainingEffectMessage",
+				"[].activityTrainingLoad",
 				"[].beginTimestamp",
 				"[].activityType.typeId",
 				"[].activityType.parentTypeId",
 				"[].isParent"
 			],
-			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time."
+			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load)."
 		},
 		{
 			"id": "goals",

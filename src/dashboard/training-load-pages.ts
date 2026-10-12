@@ -360,8 +360,8 @@ export function listDate(start: string): string {
 	return `${shortDate(start)}, ${start.slice(0, 4)}`;
 }
 
-/** Whether an activity's local start day falls in the span. */
-function startsIn(row: Pick<ActivityRow, "start">, span: Span): boolean {
+/** Whether an activity's local start day falls in the span (Training Effect's periods too). */
+export function startsIn(row: Pick<ActivityRow, "start">, span: Span): boolean {
 	const day = row.start.slice(0, 10);
 	return day >= span.from && day <= span.to;
 }

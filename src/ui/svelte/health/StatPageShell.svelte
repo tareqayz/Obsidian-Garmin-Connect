@@ -42,8 +42,9 @@
 	 * range control is its own; Performance's is the compact or the wide one
 	 * its stat names (`rangeControlOf`), and the period stepper goes with it:
 	 * a wide page's (VO₂ Max, Training Effect) has 24 pt discs and a Body
-	 * Semibold label, a compact page's (Hill Score, HRV Status and the rest)
-	 * Health's 20 pt discs and a Nav Title label.
+	 * Semibold label (Training Effect's a Nav Title one, `navTitle`), a
+	 * compact page's (Hill Score, HRV Status and the rest) Health's 20 pt
+	 * discs and a Nav Title label.
 	 */
 	interface Props {
 		/** The page's route: its stat, range, period, remembered day, tab and sub-page. */
@@ -74,6 +75,12 @@
 		rangeLabels?: Partial<Record<PeriodRange, string>>;
 		/** False: the label alone, without "<" and ">" (VO₂ Max's Current, "Today"). */
 		steppers?: boolean;
+		/**
+		 * Training Effect's wide stepper (twin Period Nav 683:100): the label
+		 * in Nav Title, 17/22 Semi Bold, where VO₂ Max's is Body Semibold 15,
+		 * and the page 3.67 pt under the stepper, where VO₂ Max's is 16.
+		 */
+		navTitle?: boolean;
 		/** "<" (−1) and ">" (+1) of the page's own, in place of a whole period: Hill Score's month page. */
 		step?: (by: number) => void;
 		/**
@@ -105,6 +112,7 @@
 		ranges: ownRanges,
 		rangeLabels: ownLabels,
 		steppers = true,
+		navTitle = false,
 		step,
 		top,
 		children,
@@ -169,6 +177,7 @@
 			class:perf
 			class:compact={control.family === "compact"}
 			class:wide={control.family === "wide"}
+			class:nav-title={navTitle}
 			class:with-top={inRow}
 		>
 			{#if inRow}<div class="top-slot">{@render top?.({ pane })}</div>{/if}
@@ -370,6 +379,18 @@
 		font-size: 15px;
 		line-height: 20px;
 		font-weight: 600;
+	}
+	/*
+	 * Training Effect's wide stepper (`navTitle`, twin 683:100): a Nav Title
+	 * label, 17/22, and the page 3.67 under the stepper (its charts at 140,
+	 * the header 96 under the bar). A pane's row keeps its 72 pt below.
+	 */
+	.controls.nav-title {
+		height: 96px;
+	}
+	.nav-title .period strong {
+		font-size: 17px;
+		line-height: 22px;
 	}
 	.step {
 		display: inline-flex;
