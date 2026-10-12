@@ -278,15 +278,24 @@ too. Nothing in the plugin calls them yet:
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `restingHeartRate(date)` | `/userstats-service/wellness/daily/{who}` | The daily summary already carries resting heart rate. |
 | `cyclingPowerCurve(start, end)` | `/fitnessstats-service/powerCurve?startDate=&endDate=` | Both dates inclusive, no cap; without dates, the all-time Record. Cycling Power Curve builds the same curves from the activity list's best powers instead, so it asks nothing. Catalogued, not checked. |
+| `criticalSwimSpeedLatest(date)` | `/biometric-service/criticalSwimSpeed/latest/{date}` | The newest CSS result on or before the day; 204 (null) without one. Critical Swim Speed reads its index's newest row instead. |
+| `heatAltitudeAcclimationWeekly(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/weekly/{start}/{end}` | The daily rows sampled every seventh day, plus today. |
+| `hillScoreStats(start, end, aggregation)` | `/metrics-service/metrics/hillscore/stats?startDate=&endDate=&aggregation=` | The REST route the hill score GraphQL query proxies; 401 days a call. |
+| `maxMetricsLatest(date, sport)` | `/metrics-service/metrics/maxmet/latest/{date}?sport=` | The newest VO₂ Max per sport as of the day. |
+| `maxMetricsWeekly(start, end, sport)`, `maxMetricsMonthly(start, end, sport)` | `/metrics-service/metrics/maxmet/weekly/{start}/{end}?sport=`, `…/monthly/…` | A row a week (Sunday to Saturday) or a month with a reading; VO₂ Max works its periods out from the daily index. |
+| `racePredictionsLatest()` | `/metrics-service/metrics/racepredictions/latest/{who}` | Today's four predictions, in seconds. |
+| `racePredictionsMonthly(start, end)` | `/metrics-service/metrics/racepredictions/monthly/{who}?fromCalendarDate=&toCalendarDate=` | A row a month, dated by its last day; Race Predictor samples its daily index at month ends instead. |
+| `runningEconomyWeekly(start, end)` | `/metrics-service/metrics/runningeconomy/weekly?startDate=&endDate=` | 7-day blocks from `startDate`, each the block's lowest score: what Running Economy works out from its daily index. |
+| `trainingLoadBalance(date)` | `/metrics-service/metrics/trainingloadbalance/latest/{date}` | Load focus as of a day, per device; Load Focus reads the day sync's values. |
+| `trainingStatusDaily(date)` | `/metrics-service/metrics/trainingstatus/daily/{date}` | The aggregated route's day, plus `sinceDate`. |
+| `trainingStatusMonthly(start, end)` | `/metrics-service/metrics/trainingstatus/monthly/{who}?fromCalendarDate=&toCalendarDate=` | Despite the name, a row every seventh day. |
 | `healthStatusSummary(date)` | `/healthstatus-service/healthstatus/summary/{date}` | One night; 204 (null) until the night is scored. |
 | `stressWeekly(end, weeks = 52)` | `/usersummary-service/stats/stress/weekly/{end}/{weeks}` | 52 weeks. The 1y pages average the daily index instead. |
 | `heartRateWeekly(end, weeks = 52)` | `/usersummary-service/stats/heartRate/weekly/{end}/{weeks}` | 52 weeks. |
 | `fitnessAgeWeekly(end, weeks = 52)` | `/fitnessage-service/stats/weekly/{end}/{weeks}` | 52 weeks. |
 | `weightWeekly(start, end)` | `/weight-service/weight/weeklyRange/{start}/{end}` | Exactly 52 weeks. |
 | `bloodPressureWeekly(start, end)` | `/bloodpressure-service/bloodpressure/weeklyRange/{start}/{end}` | Exactly 52 weeks. |
-| `weightLatest(date)` | `/weight-service/weight/latest?date=&ignorePriority=true` | The newest weigh-in on or before the date. |
 | `weightGoal(start, end)` | `/goal-service/goal/user/effective/weightgoal/{start}/{end}` | |
 | `bloodPressureDay(date)` | `/bloodpressure-service/bloodpressure/dayview/{date}` | A day's readings. |
 | `bloodPressureLast(start, end)` | `/bloodpressure-service/bloodpressure/daily/last/{start}/{end}` | Always an empty list on the recording account. |
