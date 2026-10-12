@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { fetchAccount, mapAccount, type AccountSource } from "../src/sync/account";
 import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
+import { LATEST_2026_10_11 } from "./ftp-fixture";
 
 /* Shapes as captured from connect.garmin.com on 2026-09-25, names and ids changed. */
 const lactate = [
@@ -26,14 +27,15 @@ describe("mapAccount", () => {
 		assert.equal(mapAccount({}), null);
 	});
 
-	it("joins the lactate threshold rows and reads speed in tenths", () => {
+	it("joins the lactate threshold rows and reads speed in tenths, kept to 5 dp as the index keeps it", () => {
 		const account = mapAccount({ lactate }, "metric")!;
 		assert.deepEqual(account.lactateThreshold, {
 			date: "2026-09-19",
 			heartRate: 182,
-			speed: 3.722,
+			speed: 3.72221,
 			pace: "4:29",
 		});
+		assert.equal(mapAccount({ lactate }, "imperial")!.lactateThreshold?.pace, "7:12");
 	});
 
 	it("falls back to user settings for the threshold heart rate", () => {
@@ -63,9 +65,43 @@ describe("mapAccount", () => {
 		})!;
 		assert.deepEqual(account.ftp, {
 			cycling: { date: "2025-11-02", watts: 274, wattsPerKg: 4.03 },
-			xcSkiing: { date: "2025-11-02", watts: 111, wattsPerKg: 1.63 },
+			xcSkiing: { date: "2025-11-02", watts: 111, wattsPerKg: 1.63, stale: true },
 			running: { date: "2026-09-19", watts: 354, wattsPerKg: 5.21 },
 		});
+	});
+
+	it("keeps what the FTP page's Current needs: the FTP's own day, the weight and its day, Garmin's staleness", () => {
+		assert.deepEqual(mapAccount({ ftp: [...LATEST_2026_10_11] })!.ftp, {
+			// "Thursday, October 8" · "4.03" · "Cycling FTP 274 W Oct 13, 2025" · "Weight 68.0 kg Oct 8".
+			cycling: { date: "2026-10-08", watts: 274, wattsPerKg: 4.03, ftpDate: "2025-10-13", weight: 68, weightDate: "2026-10-08", stale: false },
+			// Set 2025-08-02, more than a year old: "No Cross Country Skiing FTP data in the past year".
+			xcSkiing: { date: "2026-10-08", watts: 111, wattsPerKg: 1.63, ftpDate: "2025-08-02", weight: 68, weightDate: "2026-10-08", stale: true },
+			running: { date: "2026-10-08", watts: 354, wattsPerKg: 5.21, ftpDate: "2026-09-19", weight: 68, weightDate: "2026-10-08", stale: false },
+		});
+	});
+
+	it("rounds W/kg half up to 2 dp (4.0294 → 4.03, where truncating gives 4.02) and the weight to 1 dp", () => {
+		assert.equal(mapAccount({ ftp: [LATEST_2026_10_11[1]!] })!.ftp!.cycling!.wattsPerKg, 4.03);
+		const oct13 = mapAccount({ ftp: [{ sport: "CYCLING", functionalThresholdPower: 274, powerToWeight: 274 / 67.199, weight: 67.199 }] })!.ftp!.cycling!;
+		assert.deepEqual([oct13.wattsPerKg, oct13.weight], [4.08, 67.2]);
+	});
+
+	it("dates an as-of answer by its own times: latest/2026-10-07 is the 2025-11-02 weigh-in's, running's FTP newer than it", () => {
+		// ref/performance-stats/ftp/api-samples/p2w-latest-2026-10-07.json (origin "power" on the running row).
+		const ftp = mapAccount({
+			ftp: [
+				{ calendarDate: "2025-11-02T23:00:11.5", origin: "weight", sport: "CYCLING", functionalThresholdPower: 274, weight: 68, powerToWeight: 4.029411764705882, ftpCreateTime: "2025-10-13T11:09:17.547", weightCreateTime: "2025-11-02T23:00:11.5", isStale: false },
+				{ calendarDate: "2026-09-19T11:22:14.0", origin: "power", sport: "RUNNING", functionalThresholdPower: 354, weight: 68, powerToWeight: 5.205882352941177, ftpCreateTime: "2026-09-19T11:22:14.0", weightCreateTime: "2025-11-02T23:00:11.5", isStale: false },
+			],
+		})!.ftp!;
+		assert.deepEqual(ftp.cycling, { date: "2025-11-02", watts: 274, wattsPerKg: 4.03, ftpDate: "2025-10-13", weight: 68, weightDate: "2025-11-02", stale: false });
+		assert.deepEqual([ftp.running!.date, ftp.running!.ftpDate, ftp.running!.weightDate], ["2026-09-19", "2026-09-19", "2025-11-02"]);
+	});
+
+	it("leaves out what Garmin sends as null or nonsense", () => {
+		const cycling = mapAccount({ ftp: [{ sport: "CYCLING", functionalThresholdPower: 274, weight: null, ftpCreateTime: null, weightCreateTime: "", isStale: "yes" }] })!.ftp!.cycling;
+		assert.deepEqual(cycling, { watts: 274 });
+		assert.deepEqual(mapAccount({ ftp: [{ sport: "CYCLING", functionalThresholdPower: 274, weight: 0 }] })!.ftp!.cycling, { watts: 274 });
 	});
 
 	it("maps FTP, economy, ability, device, events and records", () => {

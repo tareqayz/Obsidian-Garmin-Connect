@@ -3,8 +3,8 @@
 	"path": "/hrv-service/hrv/daily/{startDate}/{endDate}",
 	"plugin": "GarminApi.hrvDaily",
 	"firstRecorded": "2026-10-07T22:34:33.893Z",
-	"updatedAt": "2026-10-07T22:34:33.893Z",
-	"samples": 3,
+	"updatedAt": "2026-10-12T00:48:55.758Z",
+	"samples": 5,
 	"shape": {
 		"type": [
 			"object"
@@ -21,6 +21,7 @@
 					"fields": {
 						"baseline": {
 							"type": [
+								"null",
 								"object"
 							],
 							"fields": {

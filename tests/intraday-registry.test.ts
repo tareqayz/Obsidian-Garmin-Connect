@@ -8,8 +8,11 @@ import {
 	BUILT_IN_LOADERS,
 	DayJobs,
 	SERIES_KEYS,
+	blocksFromDay,
 	defineIntraday,
 	hasBlock,
+	keepBlocks,
+	keptKeys,
 	loadDay,
 	loaderOf,
 	loadersFor,
@@ -274,5 +277,70 @@ describe("defineIntraday and INTRADAY_EXTRAS", () => {
 			assert.ok(!keys.has(def.key), `${def.key} registered twice`);
 			keys.add(def.key);
 		}
+	});
+
+	it("refuses a fromDay that is not a function", () => {
+		const base = { key: "nightly", group: "hrv" as const, fetch: async () => null, map: () => null };
+		assert.throws(() => defineIntraday({ ...base, fromDay: "hrv" as never }), /fromDay/);
+		assert.doesNotThrow(() => defineIntraday({ ...base, fromDay: (day) => day.hrv }));
+	});
+});
+
+describe("extras kept at sync time", () => {
+	/** Kept from the day's hrv payload. */
+	const NIGHTLY = defineIntraday({
+		key: "nightly",
+		group: "hrv",
+		fetch: async () => null,
+		map: (payload: { hrvSummary?: { lastNightAvg?: number | null } } | null) => (typeof payload?.hrvSummary?.lastNightAvg === "number" ? { avg: payload.hrvSummary.lastNightAvg } : null),
+		fromDay: (day) => day.hrv,
+	});
+	/** Kept from a payload its mapper chokes on. */
+	const BROKEN = defineIntraday({
+		key: "broken",
+		group: "hrv",
+		fetch: async () => null,
+		map: (): never => {
+			throw new Error("unreadable");
+		},
+		fromDay: (day) => day.hrv,
+	});
+	const EXTRAS = [NIGHTLY, BROKEN, RESPIRATION as IntradayDef] as IntradayDef[];
+
+	it("lists the extras a sync keeps itself", () => {
+		assert.deepEqual(keptKeys(EXTRAS), ["nightly", "broken"]);
+		assert.deepEqual(keptKeys([RESPIRATION as IntradayDef]), []);
+	});
+
+	it("maps a synced day's payload for each, while its group is on, and only blocks with something in them", () => {
+		const day = { hrv: { hrvSummary: { lastNightAvg: 42 } } };
+		assert.deepEqual(blocksFromDay(EXTRAS, day, "2026-10-11", ["hrv"]), { nightly: { avg: 42 } });
+		assert.deepEqual(blocksFromDay(EXTRAS, day, "2026-10-11", ["intraday"]), {});
+		assert.deepEqual(blocksFromDay(EXTRAS, { hrv: null }, "2026-09-12", ["hrv"]), {});
+		assert.deepEqual(blocksFromDay(EXTRAS, { hrv: { hrvSummary: {} } }, "2026-09-12", ["hrv"]), {});
+		assert.deepEqual(blocksFromDay(EXTRAS, {}, "2026-09-12", ["hrv"]), {});
+	});
+
+	it("folds fresh blocks into the file, keeping everything else and its order", () => {
+		const stored: DaySeries = { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 40 } }, checked: ["respiration"] };
+		const next = keepBlocks(stored, null, { nightly: { avg: 42 } }, ["nightly"])!;
+		assert.deepEqual(next, { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 42 } }, checked: ["respiration"] });
+		assert.deepEqual(Object.keys(next.extra!), ["respiration", "nightly"]);
+		// The same block makes the same text: the store leaves the file alone.
+		assert.equal(serializeSeries("2026-10-11", keepBlocks(stored, null, { nightly: { avg: 40 } }, ["nightly"])!), serializeSeries("2026-10-11", stored));
+		// A day without a file gets one with the block alone.
+		assert.deepEqual(keepBlocks(null, null, { nightly: { avg: 42 } }, ["nightly"]), { extra: { nightly: { avg: 42 } } });
+		// Nothing fresh, nothing to write.
+		assert.equal(keepBlocks(stored, null, {}, ["nightly"]), null);
+	});
+
+	it("lets a sync's own write of the day replace the file but carry the kept blocks it does not bring again", () => {
+		const stored: DaySeries = { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 40 } }, checked: ["respiration"] };
+		const written: DaySeries = { stress: [[1, 25]], heartRate: [[1, 51]] };
+		assert.deepEqual(keepBlocks(stored, written, {}, ["nightly"]), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 40 } } });
+		assert.deepEqual(keepBlocks(stored, written, { nightly: { avg: 42 } }, ["nightly"]), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 42 } } });
+		// Without kept blocks it is the sync's write, as it always was.
+		assert.deepEqual(keepBlocks(stored, written, {}, []), written);
+		assert.deepEqual(keepBlocks(null, written, {}, ["nightly"]), written);
 	});
 });

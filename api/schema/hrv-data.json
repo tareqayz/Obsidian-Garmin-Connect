@@ -3,8 +3,8 @@
 	"path": "/hrv-service/hrv/{date}",
 	"plugin": "GarminApi.hrv",
 	"firstRecorded": "2026-09-26T07:59:19.348Z",
-	"updatedAt": "2026-09-26T07:59:19.348Z",
-	"samples": 3,
+	"updatedAt": "2026-10-12T00:48:55.891Z",
+	"samples": 7,
 	"shape": {
 		"type": [
 			"object"
@@ -54,6 +54,7 @@
 				"fields": {
 					"baseline": {
 						"type": [
+							"null",
 							"object"
 						],
 						"fields": {
@@ -96,11 +97,13 @@
 					},
 					"lastNight5MinHigh": {
 						"type": [
+							"null",
 							"number"
 						]
 					},
 					"lastNightAvg": {
 						"type": [
+							"null",
 							"number"
 						]
 					},
@@ -118,21 +121,25 @@
 			},
 			"sleepEndTimestampGMT": {
 				"type": [
+					"null",
 					"string"
 				]
 			},
 			"sleepEndTimestampLocal": {
 				"type": [
+					"null",
 					"string"
 				]
 			},
 			"sleepStartTimestampGMT": {
 				"type": [
+					"null",
 					"string"
 				]
 			},
 			"sleepStartTimestampLocal": {
 				"type": [
+					"null",
 					"string"
 				]
 			},

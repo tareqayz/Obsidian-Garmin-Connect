@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, type FixtureRule } from "./support/fixture-http";
 import { GarminApi, assertIsoDate, toIsoDate } from "../src/garmin/endpoints";
-import { GarminAuthError } from "../src/garmin/errors";
+import { GarminApiError, GarminAuthError } from "../src/garmin/errors";
 import { MemoryTokenStore } from "../src/garmin/tokens";
 
 const profile: FixtureRule = {
@@ -272,6 +272,209 @@ describe("Health Stats URLs", () => {
 			`${HOST}/wellness-service/wellness/dailyEvents/abc-123?calendarDate=2026-10-07`,
 			`${HOST}/activitylist-service/activities/fordailysummary/abc-123?calendarDate=2026-10-07`,
 		]);
+	});
+});
+
+describe("Performance Stats URLs", () => {
+	const HOST = "https://connectapi.garmin.com";
+
+	it("builds the range calls without the profile", async () => {
+		const { http, client } = await api([{ url: HOST, json: [] }]);
+		await client.runningTolerance("2026-09-14", "2026-10-11");
+		await client.runningTolerance("2026-07-26", "2026-10-11", "weekly");
+		await client.enduranceStats("2026-07-20", "2026-10-11", "weekly");
+		await client.enduranceStats("2025-10-13", "2026-10-11", "monthly");
+		// The endurance-score index's window: a key for every day, 401 days a call at most.
+		await client.enduranceStats("2025-10-13", "2026-10-12", "daily");
+		await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11");
+		await client.lactateThresholdSpeedRange("2025-10-13", "2026-10-11");
+		await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "CYCLING");
+		// The FTP index's window: every sport in one payload, 367 days at most.
+		await client.functionalThresholdPowerRange("2025-10-10", "2026-10-11");
+		assert.deepEqual(http.urls.slice(-9), [
+			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-09-14&endDate=2026-10-11&aggregation=daily`,
+			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-07-26&endDate=2026-10-11&aggregation=weekly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2026-07-20&endDate=2026-10-11&aggregation=weekly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2025-10-13&endDate=2026-10-11&aggregation=monthly`,
+			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2025-10-13&endDate=2026-10-12&aggregation=daily`,
+			`${HOST}/biometric-service/stats/lactateThresholdHeartRate/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/lactateThresholdSpeed/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-13/2026-10-11?sport=CYCLING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-10/2026-10-11?aggregation=daily&aggregationStrategy=LATEST`,
+		]);
+		assert.ok(!http.urls.some((u) => u.includes("socialProfile")));
+	});
+
+	it("reads an empty body as no data and refuses a bad date", async () => {
+		const { client } = await api([{ url: HOST, text: "" }]);
+		assert.equal(await client.enduranceStats("2026-07-20", "2026-10-11", "weekly"), null);
+		assert.deepEqual(await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11"), []);
+		assert.deepEqual(await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "RUNNING"), []);
+		assert.deepEqual(await client.functionalThresholdPowerRange("2023-10-11", "2024-10-11"), []);
+		await assert.rejects(() => client.lactateThresholdSpeedRange("2025-10-13", "11/10/2026"), TypeError);
+	});
+
+	it("builds the training status, load focus and acclimation history, two by display name", async () => {
+		const { http, client } = await api([profile, { url: HOST, json: {} }]);
+		await client.trainingStatusDaily("2026-10-11");
+		await client.trainingStatusWeekly("2026-09-20", "2026-10-11");
+		await client.trainingStatusMonthly("2026-05-01", "2026-10-31");
+		await client.trainingLoadBalance("2026-10-11");
+		await client.heatAltitudeAcclimation("2026-10-11");
+		await client.heatAltitudeAcclimationDaily("2026-09-20", "2026-10-11");
+		await client.heatAltitudeAcclimationWeekly("2025-11-02", "2026-10-31");
+		assert.deepEqual(http.urls.filter((u) => !u.includes("socialProfile")).slice(-7), [
+			`${HOST}/metrics-service/metrics/trainingstatus/daily/2026-10-11`,
+			`${HOST}/metrics-service/metrics/trainingstatus/weekly/abc-123?fromCalendarDate=2026-09-20&toCalendarDate=2026-10-11`,
+			`${HOST}/metrics-service/metrics/trainingstatus/monthly/abc-123?fromCalendarDate=2026-05-01&toCalendarDate=2026-10-31`,
+			`${HOST}/metrics-service/metrics/trainingloadbalance/latest/2026-10-11`,
+			`${HOST}/metrics-service/metrics/heataltitudeacclimation/latest/2026-10-11`,
+			`${HOST}/metrics-service/metrics/heataltitudeacclimation/daily/2026-09-20/2026-10-11`,
+			`${HOST}/metrics-service/metrics/heataltitudeacclimation/weekly/2025-11-02/2026-10-31`,
+		]);
+		assert.equal(http.urls.filter((u) => u.includes("socialProfile")).length, 1);
+	});
+
+	it("builds VO₂ max, running economy and hill score history, sport only when asked", async () => {
+		const { http, client } = await api([{ url: HOST, json: [] }]);
+		await client.maxMetricsLatest("2026-10-11");
+		await client.maxMetricsLatest("2026-10-11", "cycling");
+		await client.maxMetricsWeekly("2026-09-20", "2026-10-11");
+		await client.maxMetricsWeekly("2026-09-20", "2026-10-11", "running");
+		await client.maxMetricsMonthly("2025-11-01", "2026-10-31", "running");
+		await client.runningEconomyDaily("2026-09-14", "2026-10-11");
+		await client.runningEconomyWeekly("2025-10-12", "2026-10-11");
+		await client.hillScoreStats("2026-09-14", "2026-10-11", "daily");
+		await client.hillScoreStats("2025-11-02", "2026-10-31", "monthly");
+		assert.deepEqual(http.urls.slice(-9), [
+			`${HOST}/metrics-service/metrics/maxmet/latest/2026-10-11`,
+			`${HOST}/metrics-service/metrics/maxmet/latest/2026-10-11?sport=cycling`,
+			`${HOST}/metrics-service/metrics/maxmet/weekly/2026-09-20/2026-10-11`,
+			`${HOST}/metrics-service/metrics/maxmet/weekly/2026-09-20/2026-10-11?sport=running`,
+			`${HOST}/metrics-service/metrics/maxmet/monthly/2025-11-01/2026-10-31?sport=running`,
+			`${HOST}/metrics-service/metrics/runningeconomy/daily?startDate=2026-09-14&endDate=2026-10-11`,
+			`${HOST}/metrics-service/metrics/runningeconomy/weekly?startDate=2025-10-12&endDate=2026-10-11`,
+			`${HOST}/metrics-service/metrics/hillscore/stats?startDate=2026-09-14&endDate=2026-10-11&aggregation=daily`,
+			`${HOST}/metrics-service/metrics/hillscore/stats?startDate=2025-11-02&endDate=2026-10-31&aggregation=monthly`,
+		]);
+		assert.ok(!http.urls.some((u) => u.includes("socialProfile")));
+	});
+
+	it("builds the power curve over its inclusive span, power-to-weight and swim speed", async () => {
+		const { http, client } = await api([{ url: HOST, json: {} }]);
+		// The 28 days ending 2026-10-11: Garmin counts both ends (the web's 10-12 reaches a day too far).
+		await client.cyclingPowerCurve("2026-09-14", "2026-10-11");
+		await client.cyclingPowerRecords();
+		await client.powerToWeightRange("2025-10-13", "2026-10-11", "weekly");
+		await client.powerToWeightRange("2026-09-20", "2026-10-11", "daily", "Running");
+		// The FTP index's W/kg: daily, every sport.
+		await client.powerToWeightRange("2025-10-10", "2026-10-11", "daily");
+		await client.criticalSwimSpeedLatest("2026-10-11");
+		await client.criticalSwimSpeedRange("2026-10-05", "2026-10-11");
+		await client.criticalSwimSpeedRange("2026-07-20", "2026-10-11", "weekly");
+		assert.deepEqual(http.urls.slice(-8), [
+			`${HOST}/fitnessstats-service/powerCurve?startDate=2026-09-14&endDate=2026-10-11&sport=cycling`,
+			`${HOST}/fitnessstats-service/powerCurve?sport=cycling`,
+			`${HOST}/biometric-service/stats/powerToWeight/range/2025-10-13/2026-10-11?aggregation=weekly`,
+			`${HOST}/biometric-service/stats/powerToWeight/range/2026-09-20/2026-10-11?aggregation=daily&sport=Running`,
+			`${HOST}/biometric-service/stats/powerToWeight/range/2025-10-10/2026-10-11?aggregation=daily`,
+			`${HOST}/biometric-service/criticalSwimSpeed/latest/2026-10-11`,
+			`${HOST}/biometric-service/criticalSwimSpeed/range/2026-10-05/2026-10-11`,
+			`${HOST}/biometric-service/criticalSwimSpeed/range/2026-07-20/2026-10-11/?aggregation=weekly`,
+		]);
+	});
+
+	it("builds the race predictions by display name and the readiness history on its REST route", async () => {
+		const readings = [{ calendarDate: "2026-10-11", score: 18, level: "POOR" }];
+		const { http, client } = await api([
+			profile,
+			{ url: "/trainingreadiness/2026-09-14/2026-10-11", times: 1, json: readings },
+			{ url: "/trainingreadiness/2023-10-08/2024-10-08", times: 1, json: [] },
+			{ url: "/trainingreadiness/", text: "" },
+			{ url: HOST, json: [] },
+		]);
+		await client.racePredictionsLatest();
+		await client.racePredictionsMonthly("2025-11-01", "2026-10-31");
+		assert.deepEqual(await client.trainingReadinessRange("2026-09-14", "2026-10-11"), readings);
+		assert.deepEqual(http.urls.filter((u) => !u.includes("socialProfile")).slice(-3), [
+			`${HOST}/metrics-service/metrics/racepredictions/latest/abc-123`,
+			`${HOST}/metrics-service/metrics/racepredictions/monthly/abc-123?fromCalendarDate=2025-11-01&toCalendarDate=2026-10-31`,
+			`${HOST}/metrics-service/metrics/trainingreadiness/2026-09-14/2026-10-11`,
+		]);
+		// A plain GET: Home's GraphQL query only proxies this route.
+		assert.equal(http.requests.at(-1)!.method ?? "GET", "GET");
+		assert.ok(!http.urls.some((u) => u.includes("graphql")));
+		// A span without readings is [], and so is an empty body.
+		assert.deepEqual(await client.trainingReadinessRange("2023-10-08", "2024-10-08"), []);
+		assert.deepEqual(await client.trainingReadinessRange("2016-10-15", "2017-10-15"), []);
+		assert.deepEqual(await client.trainingReadiness("2026-10-20"), []);
+	});
+
+	it("keys HRV stress by the profile's numeric id, fetched with the display name", async () => {
+		const { http, client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId: 12345678 } },
+			{ url: HOST, json: [] },
+		]);
+		await client.racePredictionsLatest();
+		await client.hrvStressDaily("2026-10-05", "2026-10-11");
+		assert.equal(http.urls.at(-1), `${HOST}/metrics-service/internal/manualstresslevel/daily/12345678/2026-10-05/2026-10-11`);
+		assert.equal(http.urls.filter((u) => u.includes("socialProfile")).length, 1);
+	});
+
+	it("refuses HRV stress for a profile without a numeric id", async () => {
+		for (const profileId of [undefined, "1/../2", 0, 1.5]) {
+			const { http, client } = await api([
+				{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId } },
+				{ url: HOST, json: [] },
+			]);
+			await assert.rejects(() => client.hrvStressDaily("2026-10-05", "2026-10-11"), GarminApiError);
+			assert.ok(!http.urls.some((u) => u.includes("manualstresslevel")));
+		}
+	});
+
+	it("refuses a reversed HRV stress window before asking anything: Garmin answers it with HTTP 500, retried twice", async () => {
+		const { http, client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId: 12345678 } },
+			{ url: HOST, json: [] },
+		]);
+		const asked = http.urls.length;
+		await assert.rejects(() => client.hrvStressDaily("2026-10-11", "2026-10-05"), TypeError);
+		// Not even the profile the id comes from.
+		assert.equal(http.urls.length, asked);
+		// A one-day window is not reversed, and a ten-year one has no cap.
+		assert.deepEqual(await client.hrvStressDaily("2026-10-11", "2026-10-11"), []);
+		assert.deepEqual(await client.hrvStressDaily("2016-10-04", "2026-10-11"), []);
+		assert.deepEqual(http.urls.filter((u) => u.includes("manualstresslevel")), [
+			`${HOST}/metrics-service/internal/manualstresslevel/daily/12345678/2026-10-11/2026-10-11`,
+			`${HOST}/metrics-service/internal/manualstresslevel/daily/12345678/2016-10-04/2026-10-11`,
+		]);
+	});
+
+	it("reads the new routes' empty bodies (HTTP 204) as no data and refuses a bad date", async () => {
+		const { client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "abc-123", profileId: 12345678 } },
+			{ url: HOST, text: "" },
+		]);
+		assert.equal(await client.trainingStatusDaily("2026-10-11"), null);
+		assert.equal(await client.trainingStatusMonthly("2026-05-01", "2026-10-31"), null);
+		assert.equal(await client.trainingLoadBalance("2026-10-11"), null);
+		assert.equal(await client.heatAltitudeAcclimation("2026-10-11"), null);
+		assert.deepEqual(await client.heatAltitudeAcclimationWeekly("2025-11-02", "2026-10-31"), []);
+		assert.equal(await client.maxMetricsLatest("2026-10-11", "running"), null);
+		assert.deepEqual(await client.maxMetricsMonthly("2025-11-01", "2026-10-31"), []);
+		assert.deepEqual(await client.runningEconomyWeekly("2025-10-12", "2026-10-11"), []);
+		assert.equal(await client.cyclingPowerCurve("2026-09-14", "2026-10-11"), null);
+		assert.deepEqual(await client.powerToWeightRange("2025-10-13", "2026-10-11", "weekly"), []);
+		assert.equal(await client.criticalSwimSpeedLatest("2026-10-11"), null);
+		assert.equal(await client.criticalSwimSpeedRange("2026-07-20", "2026-10-11", "weekly"), null);
+		assert.equal(await client.hillScoreStats("2026-07-20", "2026-10-11", "weekly"), null);
+		assert.deepEqual(await client.hrvStressDaily("2026-09-20", "2026-10-11"), []);
+		assert.equal(await client.racePredictionsLatest(), null);
+		assert.deepEqual(await client.racePredictionsMonthly("2025-11-01", "2026-10-31"), []);
+		await assert.rejects(() => client.cyclingPowerCurve("2026-09-14", "12/10/2026"), TypeError);
+		await assert.rejects(() => client.maxMetricsWeekly("2026-9-20", "2026-10-11"), TypeError);
+		await assert.rejects(() => client.trainingStatusWeekly("2026-09-20", ""), TypeError);
+		await assert.rejects(() => client.trainingReadinessRange("2026-09-14", "2026-10-1"), TypeError);
 	});
 });
 

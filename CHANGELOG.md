@@ -12,6 +12,54 @@ GitHub release takes its notes from the matching section here — see
 
 ### Added
 
+- **Performance Stats.** More → Performance Stats rebuilds Garmin's
+  performance pages, each a copy of the app's from its own screenshots, with
+  its own history kept in the data folder:
+  - **VO₂ Max**: today's dial and class for running and cycling, and 4w, 12w
+    and 6m charts; the dial links to Fitness Age.
+  - **HRV Status**: the night's dial, figures and HRV timeline, and 7d / 4w
+    averages against your baseline, with the overnight line on a chip. The
+    sync keeps each night's readings, which Garmin later drops.
+  - **Race Predictor**: the four predictions, and their paces over 4w, 6m and
+    1y with a chip per distance.
+  - **Hill Score**: today's score with its endurance, strength and VO₂ factors
+    in sheets; 4w, 12w and 1y; and a month page from the year's list.
+  - **Training Status**: the current status with its load focus and the VO₂
+    Max, HRV Status and Load rows that open their pages, and 4w, 12w and 6m
+    of statuses on a strip with their dates.
+  - **Load**, from Training Status and Home's Load Focus and Training Load
+    cards: Load Focus against its optimal ranges, Exercise Load's daily totals
+    with the activities behind them, and Training Load's four-week acute load
+    with its optimal band, the chronic load and the load ratio.
+  - **Endurance Score**: today's dial and top contributors, and 12w / 1y of
+    weekly and monthly scores with the sports behind each.
+  - **Heat Acclimation**, from Training Status and Home's heat card: the day's
+    acclimation and its trend, and 7d / 4w of daily progress. Training
+    Status's Heat Acclimation row reads the same history.
+  - **Training Readiness**, also from Home's In Focus card: the day's reading
+    on Garmin's dial with when and why it was updated, and its six factors,
+    each opening a sheet — the night's sleep, recovery time, HRV, acute load,
+    recent sleep scores and recent stress. The sync keeps every reading of the
+    day, and a day stepper goes back through the history.
+  - **Training Effect**: 7d and 4w of each day's aerobic and anaerobic effect,
+    and a card per activity opening its primary benefit, its two scales and
+    the activity itself.
+  - **Cycling Power Curve**: your best power at each duration from 1 second
+    to 5 hours, for 4w, 3m and 1y against your all-time Record, with the
+    records table — read from the rides already synced.
+  - **Running Tolerance**: this week's impact load against your tolerance, and
+    12w / 1y of Sunday weeks against the tolerance line, with the distance
+    you actually ran on a chip and a list of the weeks.
+  - **FTP**: today's W/kg dial with its class and what it is based on, for
+    cycling and cross country skiing, and 4w / 12w / 1y of FTP in Watts or
+    W/kg.
+  - **Running Lactate Threshold**: today's threshold heart rate, pace, power
+    and W/kg, and 4w / 12w / 1y of the heart rate with pace, power or W/kg on
+    a second axis.
+  - **Running Economy**: the newest reading on Garmin's dial with its class,
+    and 4w / 12w / 1y of scores with their average and best.
+  - **Critical Swim Speed** and **HRV Stress**: Garmin's pages as they look
+    without data, ready for a first CSS result or HRV stress test.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
@@ -35,6 +83,20 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **Hill score syncs a year at a time** (Garmin takes up to 401 days), not 28
+  days, and Garmin's class 4 reads "Skilled", as the app's help names it.
+- **Running tolerance syncs a year at a time** too (Garmin takes up to 366
+  days), and Home's card rounds its kilometres as Garmin does: 21,450 m is
+  21.5 km.
+- **Home's VO₂ Max dial** uses Garmin's own scale ends, which moves its marker
+  by under 1%.
+- **Home's Training Readiness card** writes "Well-recovered", as Garmin does.
+- **Home's Lactate Threshold card** rounds the pace from Garmin's speed as the
+  app does: 4:29, not 4:28.
+- **Home's Running Economy card** writes "Well-Trained", as Garmin does.
+- **The activity index** keeps each activity's training effect, benefit,
+  load and a ride's best powers. It is listed again once, about a request per
+  hundred activities.
 - **Everything is JSON now.** A day's properties are written to
   `<data folder>/days/<year>.json` instead of a markdown note's frontmatter,
   beside the series and indexes that were already JSON. The first time this

@@ -3,10 +3,10 @@ import type { HealthRange } from "./health-stats";
 import { shiftDate } from "./series";
 
 /**
- * The period maths every range stat on the shared Health Stats route uses:
- * a day, a week, four weeks or a year as the app pages through them, the
- * labels on the page, the cards that switch it, and the means behind its
- * figures.
+ * The period maths every range stat on the shared Health Stats and
+ * Performance Stats routes uses: a day, a week, weeks, months or a year as the
+ * app pages through them, the labels on the page, the cards that switch it,
+ * and the means behind its figures.
  *
  * Measured on Stress (ref/health-stats/stress/README.md) and shared by the
  * stats whose specs page the same way:
@@ -21,21 +21,58 @@ import { shiftDate } from "./series";
  * - Labels: "Today", "Wednesday, October 7"; "Oct 2 - 8", and a past year's
  *   without the spaces, "Oct 16-22, 2025"; "Oct 10, 2025 - Oct 8, 2026".
  *
+ * Performance Stats adds 12w, 3m and 6m, and pages some ranges another way:
+ * a stat's `spans` (`stat-registry.ts`) name the `SpanRule` a range follows,
+ * and `spanOf` cuts the period by it. Health's spans are the defaults.
+ *
  * Pure. Dates are local `YYYY-MM-DD` strings.
  */
 
-/** The ranges a stat can page through. */
-export type PeriodRange = HealthRange;
+/**
+ * The ranges a stat can page through: Health Stats' 1d, 7d, 4w and 1y, and
+ * Performance Stats' 12w, 3m and 6m among them.
+ */
+export type PeriodRange = "1d" | "7d" | "4w" | "12w" | "3m" | "6m" | "1y";
+
+/** Every range, in the order a range control lists them. */
+export const PERIOD_RANGES: readonly PeriodRange[] = ["1d", "7d", "4w", "12w", "3m", "6m", "1y"];
+
 /** The ranges that span more than a day. */
 export type SpanRange = Exclude<PeriodRange, "1d">;
 
-/** The days a period covers, which is also how far "<" moves it. */
-export const PERIOD_DAYS: Readonly<Record<SpanRange, number>> = { "7d": 7, "4w": 28, "1y": 364 };
+/** The days a range's default period covers, which is also how far "<" moves it. 3m counts months instead. */
+export const PERIOD_DAYS: Readonly<Record<Exclude<SpanRange, "3m">, number>> = { "7d": 7, "4w": 28, "12w": 84, "6m": 182, "1y": 364 };
 
-/** Where a stat's page is: its range, how many periods back, and the day 1d last showed. */
-export interface PeriodRoute {
-	range: PeriodRange;
-	/** Days, weeks, four weeks or years of fifty-two weeks back from the current one: 0 or less. */
+/**
+ * How a range cuts its period. `spanOf` steps it back one whole rule at a
+ * time: n days, n weeks, n months.
+ *
+ * - `{ days }`: the n days ending today. Every range's default but 3m's
+ *   (`PERIOD_DAYS`): 7d 7, 4w 28, 12w 84, 6m 182, 1y 364.
+ * - `{ weeks, weekStart }`: the week holding today, so far, and the n − 1
+ *   whole weeks before it, weeks starting on `weekStart` (0 Sunday … 6
+ *   Saturday): Running Tolerance's 12w, Sunday weeks, Jul 26 – Oct 11.
+ * - `{ months }`: from n months back, plus a day, to today: 3m's default,
+ *   Jul 12 – Oct 11; a 1y of Oct 12, 2025 – Oct 11, 2026.
+ * - `{ months, calendar: true }`: n calendar months, this one so far the
+ *   last: Hill Score's 1y, "Nov 2025 - Oct 2026".
+ * - `{ monthEnds }`: a point on each of the n − 1 month ends before this
+ *   month, and today: Race Predictor's 6m, May 31 – Oct 11 (`monthEndsOf`).
+ */
+export type SpanRule =
+	| { days: number }
+	| { weeks: number; weekStart: number }
+	| { months: number; calendar?: boolean }
+	| { monthEnds: number };
+
+/**
+ * Where a stat's page is: its range, how many periods back, and the day 1d
+ * last showed. `R` is the ranges its route takes: Health's four, unless the
+ * page is a Performance one (`PeriodRoute<PeriodRange>`).
+ */
+export interface PeriodRoute<R extends PeriodRange = HealthRange> {
+	range: R;
+	/** Days on 1d, else whole periods of the range (`spanOf`), back from the current one: 0 or less. */
 	offset: number;
 	/** The day 1d last showed, kept while another range is open, so 1d reopens on it. */
 	date?: string;
@@ -92,11 +129,62 @@ export function offsetOfDay(date: string, today: string): number {
 	return back(daysBetween(date, today));
 }
 
-/** The days a 7d, 4w or 1y page covers. */
+/** A range's period where its stat does not set one: its `PERIOD_DAYS`, or 3m's three months. */
+export function defaultSpan(range: SpanRange): SpanRule {
+	return range === "3m" ? { months: 3 } : { days: PERIOD_DAYS[range] };
+}
+
+/** The days a range's default period covers: Health's 7d, 4w and 1y. */
 export function periodOf(range: SpanRange, offset: number, today: string): Span {
-	const n = PERIOD_DAYS[range];
-	const to = shiftDate(today, n * Math.min(0, offset));
-	return { from: shiftDate(to, -(n - 1)), to };
+	return spanOf(defaultSpan(range), offset, today);
+}
+
+/**
+ * The days a period covers by its rule, `offset` whole rules back from the
+ * current one (`SpanRule`). The current period ends today; a past one on its
+ * rule's last day. A later period than now is the current one.
+ */
+export function spanOf(rule: SpanRule, offset: number, today: string): Span {
+	const k = Math.min(0, offset);
+	if ("days" in rule) {
+		const to = shiftDate(today, rule.days * k);
+		return { from: shiftDate(to, -(rule.days - 1)), to };
+	}
+	if ("weeks" in rule) {
+		// The first day of the period's last week: today's week, or whole periods before it.
+		const last = shiftDate(weekStartOf(today, rule.weekStart), 7 * rule.weeks * k);
+		return { from: shiftDate(last, -7 * (rule.weeks - 1)), to: k === 0 ? today : shiftDate(last, 6) };
+	}
+	const month = today.slice(0, 7);
+	if ("monthEnds" in rule) {
+		const last = shiftMonth(month, rule.monthEnds * k);
+		return { from: lastDayOfMonth(shiftMonth(last, -(rule.monthEnds - 1))), to: k === 0 ? today : lastDayOfMonth(last) };
+	}
+	if (rule.calendar) {
+		const last = shiftMonth(month, rule.months * k);
+		return { from: `${shiftMonth(last, -(rule.months - 1))}-01`, to: k === 0 ? today : lastDayOfMonth(last) };
+	}
+	return { from: shiftDate(addMonths(today, rule.months * (k - 1)), 1), to: addMonths(today, rule.months * k) };
+}
+
+/** The first day of the week `date` falls in, weeks starting on `weekStart` (0 Sunday … 6 Saturday). */
+export function weekStartOf(date: string, weekStart: number): string {
+	const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+	return shiftDate(date, -((dow - weekStart + 7) % 7));
+}
+
+/**
+ * A `{ monthEnds }` period's points: the last day of each month it covers,
+ * then its own last day where that is not one — today, on the current period.
+ */
+export function monthEndsOf(span: Span): string[] {
+	const out: string[] = [];
+	for (let month = span.from.slice(0, 7); month <= span.to.slice(0, 7); month = shiftMonth(month, 1)) {
+		const end = lastDayOfMonth(month);
+		if (end >= span.from && end <= span.to) out.push(end);
+	}
+	if (out[out.length - 1] !== span.to) out.push(span.to);
+	return out;
 }
 
 /** Every day of a span, oldest first. */
@@ -121,16 +209,20 @@ export function canStepBack(oldest: string | undefined, complete: boolean, from:
 /*  Routes                                                             */
 /* ------------------------------------------------------------------ */
 
-/** The range control: 1d reopens on the day it last showed, the others on the current period. */
-export function switchRange(route: PeriodRoute, range: PeriodRange, today: string): PeriodRoute {
+/**
+ * The range control: 1d reopens on the day it last showed, the others on the
+ * current period. `range` is one of the stat's own, so one its route takes.
+ */
+export function switchRange<R extends PeriodRange>(route: PeriodRoute<R>, range: PeriodRange, today: string): PeriodRoute<R> {
 	if (range === route.range) return route;
+	const next = range as R;
 	const shown = route.range === "1d" ? dayOf(route, today) : route.date;
-	if (range === "1d") return { range, offset: shown ? offsetOfDay(shown, today) : 0 };
-	return shown ? { range, offset: 0, date: shown } : { range, offset: 0 };
+	if (range === "1d") return { range: next, offset: shown ? offsetOfDay(shown, today) : 0 };
+	return shown ? { range: next, offset: 0, date: shown } : { range: next, offset: 0 };
 }
 
 /** "<" (−1) and ">" (+1): a whole period, never past the current one. */
-export function stepRoute(route: PeriodRoute, by: number): PeriodRoute {
+export function stepRoute<R extends PeriodRange>(route: PeriodRoute<R>, by: number): PeriodRoute<R> {
 	return { ...route, offset: back(-(route.offset + by)) };
 }
 
@@ -145,7 +237,7 @@ export function weekOffset(weekEnd: string, today: string): number {
 }
 
 /** A 1y week card: the page switches to 7d on exactly that week, keeping the day 1d remembers. */
-export function weekCardRoute(route: PeriodRoute, weekEnd: string, today: string): PeriodRoute {
+export function weekCardRoute(route: PeriodRoute<PeriodRange>, weekEnd: string, today: string): PeriodRoute {
 	const offset = weekOffset(weekEnd, today);
 	return route.date ? { range: "7d", offset, date: route.date } : { range: "7d", offset };
 }
@@ -195,6 +287,17 @@ export function periodLabel(from: string, to: string, today: string): string {
 /** The 1y label, always with both years: "Oct 10, 2025 - Oct 8, 2026". */
 export function yearLabel(from: string, to: string): string {
 	return `${shortDate(from)}, ${yearOf(from)} - ${shortDate(to)}, ${yearOf(to)}`;
+}
+
+/** A month: "March 2026". Takes a `YYYY-MM` month or any day in it. */
+export function monthLabel(month: string): string {
+	return `${MONTHS[Number(month.slice(5, 7)) - 1]} ${yearOf(month)}`;
+}
+
+/** Calendar months, by the months `from` and `to` fall in: "Nov 2025 - Oct 2026". */
+export function monthsLabel(from: string, to: string): string {
+	const short = (date: string) => `${SHORT_MONTHS[Number(date.slice(5, 7)) - 1]} ${yearOf(date)}`;
+	return `${short(from)} - ${short(to)}`;
 }
 
 /** Any period's label: 1d's day, 7d's and 4w's span, 1y's both years. */

@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/trainingreadiness/{date}",
 	"plugin": "GarminApi.trainingReadiness",
 	"firstRecorded": "2026-09-26T07:59:19.350Z",
-	"updatedAt": "2026-09-26T07:59:19.350Z",
-	"samples": 3,
+	"updatedAt": "2026-10-12T08:11:53.156Z",
+	"samples": 5,
 	"shape": {
 		"type": [
 			"array"
@@ -16,6 +16,7 @@
 			"fields": {
 				"acuteLoad": {
 					"type": [
+						"null",
 						"number"
 					]
 				},
@@ -102,6 +103,7 @@
 				},
 				"score": {
 					"type": [
+						"null",
 						"number"
 					]
 				},

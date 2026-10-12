@@ -1,0 +1,45 @@
+{
+	"endpoint": "lactate-threshold-stats-heart-rate-range",
+	"path": "/biometric-service/stats/lactateThresholdHeartRate/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.lactateThresholdHeartRateRange",
+	"firstRecorded": "2026-10-11T18:35:05.915Z",
+	"updatedAt": "2026-10-12T11:54:36.924Z",
+	"samples": 4,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"from": {
+					"type": [
+						"string"
+					]
+				},
+				"series": {
+					"type": [
+						"string"
+					]
+				},
+				"until": {
+					"type": [
+						"string"
+					]
+				},
+				"updatedDate": {
+					"type": [
+						"string"
+					]
+				},
+				"value": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

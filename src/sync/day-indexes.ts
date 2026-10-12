@@ -1,12 +1,26 @@
 import { BLOOD_PRESSURE_INDEX } from "./blood-pressure-index";
 import { BODY_BATTERY_INDEX } from "./body-battery-index";
 import type { DayIndexDef } from "./day-index";
+import { CRITICAL_SWIM_SPEED_INDEX } from "./critical-swim-speed-index";
+import { ENDURANCE_SCORE_INDEX } from "./endurance-score-index";
+import { FTP_INDEX } from "./ftp-index";
+import { HEAT_ACCLIMATION_INDEX } from "./heat-acclimation-index";
+import { HRV_STRESS_INDEX } from "./hrv-stress-index";
+import { LACTATE_THRESHOLD_INDEX } from "./lactate-threshold-index";
+import { RUNNING_ECONOMY_INDEX } from "./running-economy-index";
+import { RUNNING_TOLERANCE_INDEX, RUNNING_TOLERANCE_WEEKS_INDEX } from "./running-tolerance-index";
+import { TRAINING_READINESS_INDEX } from "./training-readiness-index";
 import { HEALTH_STATUS_INDEX } from "./health-status-index";
 import { FITNESS_AGE_INDEX } from "./fitness-age-index";
 import { HEART_RATE_INDEX } from "./heart-rate-index";
+import { HILL_SCORE_INDEX } from "./hill-score-index";
+import { HRV_STATUS_INDEX } from "./hrv-status-index";
 import { PULSE_OX_INDEX } from "./pulse-ox-index";
+import { RACE_PREDICTIONS_INDEX } from "./race-predictor-index";
 import { RESPIRATION_INDEX } from "./respiration-index";
 import { STRESS_INDEX } from "./stress-index";
+import { TRAINING_STATUS_INDEX } from "./training-status-index";
+import { VO2_MAX_INDEX } from "./vo2-max-index";
 import { WEIGHT_INDEX } from "./weight-index";
 
 /**
@@ -24,7 +38,7 @@ import { WEIGHT_INDEX } from "./weight-index";
  * Pure, so the tests can check every entry; a definition must not import
  * Obsidian.
  */
-export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX, HEART_RATE_INDEX, BODY_BATTERY_INDEX, RESPIRATION_INDEX, HEALTH_STATUS_INDEX, FITNESS_AGE_INDEX, WEIGHT_INDEX, PULSE_OX_INDEX, BLOOD_PRESSURE_INDEX];
+export const DAY_INDEXES: readonly DayIndexDef[] = [STRESS_INDEX, HEART_RATE_INDEX, BODY_BATTERY_INDEX, RESPIRATION_INDEX, HEALTH_STATUS_INDEX, FITNESS_AGE_INDEX, WEIGHT_INDEX, PULSE_OX_INDEX, BLOOD_PRESSURE_INDEX, VO2_MAX_INDEX, HILL_SCORE_INDEX, HRV_STATUS_INDEX, RACE_PREDICTIONS_INDEX, TRAINING_STATUS_INDEX, ENDURANCE_SCORE_INDEX, HEAT_ACCLIMATION_INDEX, TRAINING_READINESS_INDEX, RUNNING_TOLERANCE_INDEX, RUNNING_TOLERANCE_WEEKS_INDEX, FTP_INDEX, LACTATE_THRESHOLD_INDEX, RUNNING_ECONOMY_INDEX, CRITICAL_SWIM_SPEED_INDEX, HRV_STRESS_INDEX];
 
 /** A registered index by its kind. */
 export function dayIndex(kind: string): DayIndexDef | undefined {

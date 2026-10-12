@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { DOT, PANE_COLUMN, PHONE, linePath, plotBox, type ChartFrame } from "../src/dashboard/stat-charts";
+import { DOT, PANE_COLUMN, PHONE, linePath, linePlot, plotBox, stepAxis, type ChartFrame, type LineChartFrame } from "../src/dashboard/stat-charts";
 
 /** A made-up frame, with the ticks a heart-rate chart might have rather than Stress's 0 to 100. */
 const FRAME: ChartFrame = { left: 40, inset: 20, gridLeft: 30, gridInset: 10, top: 10, baseline: 110, labelRight: 25, dotY: 120, labelY: 130, height: 150 };
@@ -68,5 +68,32 @@ describe("linePath", () => {
 			"M0 1 L10 2 M30 4",
 		);
 		assert.equal(linePath([]), "");
+	});
+});
+
+describe("the line-chart kit (Performance Stats)", () => {
+	const LINE: LineChartFrame = { left: 39, inset: 16, top: 100, baseline: 200, labelRight: 22, axisDots: { small: { y: 210, r: 2 }, large: { y: 212, r: 4 } }, labelY: 228, pointRadius: 4, height: 240 };
+
+	it("lays out the ticks, the axis and the points, joined straight and clamped to the ticks", () => {
+		const p = linePlot(LINE, PHONE, {
+			ticks: [100, 50, 0],
+			axis: { dots: [{ x: 0, large: true }, { x: 0.5, large: false }, { x: 1, large: true }], labels: [{ x: 1, text: "10-11" }] },
+			points: [{ x: 0, value: 50 }, { x: 1, value: 120 }],
+		});
+		assert.deepEqual(p.grid.map((g) => [g.label, g.y, g.x1, g.x2]), [["100", 100, 39, 386], ["50", 150, 39, 386], ["0", 200, 39, 386]]);
+		assert.deepEqual(p.dots, [{ x: 39, y: 212, r: 4 }, { x: 212.5, y: 210, r: 2 }, { x: 386, y: 212, r: 4 }]);
+		assert.deepEqual(p.labels, [{ x: 386, y: 228, text: "10-11" }]);
+		assert.equal(p.line, "M39 150 L386 100");
+	});
+
+	it("marks every n-th day from the first, then the last; the ends or all of them labelled", () => {
+		const days = Array.from({ length: 15 }, (_, i) => `2026-09-${String(i + 1).padStart(2, "0")}`);
+		const ends = stepAxis(days, { every: 7, count: 12, labelled: "ends" });
+		assert.deepEqual(ends.dots, [{ x: 0, large: true }, { x: 0.5, large: false }, { x: 1, large: true }]);
+		assert.deepEqual(ends.labels, [{ x: 0, text: "09-01" }, { x: 1, text: "09-15" }]);
+		const all = stepAxis(days, { every: 5, count: 2, labelled: "all" });
+		assert.deepEqual(all.labels.map((l) => l.text), ["09-01", "09-06", "09-15"]);
+		// A lone day is a day axis.
+		assert.deepEqual(stepAxis(["2026-09-01"], { every: 7, count: 12, labelled: "ends" }).dots, [{ x: 0.5, large: true }]);
 	});
 });

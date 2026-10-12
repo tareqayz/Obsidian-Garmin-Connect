@@ -1,0 +1,133 @@
+{
+	"endpoint": "training-load-balance-latest",
+	"path": "/metrics-service/metrics/trainingloadbalance/latest/{date}",
+	"plugin": "GarminApi.trainingLoadBalance",
+	"firstRecorded": "2026-10-11T19:31:11.348Z",
+	"updatedAt": "2026-10-12T06:44:01.337Z",
+	"samples": 7,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"metricsTrainingLoadBalanceDTOMap": {
+				"type": [
+					"null",
+					"object"
+				],
+				"fields": {
+					"3611994638": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"calendarDate": {
+								"type": [
+									"string"
+								]
+							},
+							"deviceId": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicHigh": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicHighTargetMax": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicHighTargetMin": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicLow": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicLowTargetMax": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAerobicLowTargetMin": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAnaerobic": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAnaerobicTargetMax": {
+								"type": [
+									"number"
+								]
+							},
+							"monthlyLoadAnaerobicTargetMin": {
+								"type": [
+									"number"
+								]
+							},
+							"primaryTrainingDevice": {
+								"type": [
+									"boolean"
+								]
+							},
+							"trainingBalanceFeedbackPhrase": {
+								"type": [
+									"string"
+								]
+							}
+						}
+					}
+				}
+			},
+			"recordedDevices": {
+				"type": [
+					"array",
+					"null"
+				],
+				"items": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"category": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceId": {
+							"type": [
+								"number"
+							]
+						},
+						"deviceName": {
+							"type": [
+								"string"
+							]
+						},
+						"imageURL": {
+							"type": [
+								"string"
+							]
+						}
+					}
+				}
+			},
+			"userId": {
+				"type": [
+					"number"
+				]
+			}
+		}
+	}
+}

@@ -29,11 +29,12 @@ export interface AccountInfo {
 	lactateThreshold?: {
 		date?: string;
 		heartRate?: number;
-		/** Metres per second. See `lactateSpeed` for the unit Garmin actually sends. */
+		/** Metres per second to 5 dp, as the lactate threshold index keeps it (3.72221). See `lactateOf` for the unit Garmin actually sends. */
 		speed?: number;
+		/** The pace in the units of the last sync; pages format their own from `speed`. */
 		pace?: string;
 	};
-	ftp?: Partial<Record<FtpSport, { date?: string; watts?: number; wattsPerKg?: number }>>;
+	ftp?: Partial<Record<FtpSport, FtpLatest>>;
 	runningEconomy?: { date?: string; score?: number; classification?: string };
 	cyclingAbility?: Record<string, string | number>;
 	trainingPlans?: Array<{ name?: string; type?: string; status?: string; start?: string; end?: string; weeks?: number }>;
@@ -58,6 +59,27 @@ export interface AccountInfo {
 }
 
 export type FtpSport = "running" | "cycling" | "xcSkiing";
+
+/**
+ * A sport's FTP as `powerToWeight/latest/{today}` gives it: what the FTP
+ * page's Current shows, its dial, its "Based On" rows and its "no data in the
+ * past year" state (ref/performance-stats/ftp/README.md).
+ */
+export interface FtpLatest {
+	/** The newer of the FTP's and the weigh-in's day (`calendarDate`): Current's date line. */
+	date?: string;
+	watts?: number;
+	/** W/kg to 2 dp, rounded: 4.029 → 4.03. */
+	wattsPerKg?: number;
+	/** The day the FTP was set (`ftpCreateTime`): "Cycling FTP 274 W Oct 13, 2025". */
+	ftpDate?: string;
+	/** The weight behind `wattsPerKg`, kg to 1 dp. */
+	weight?: number;
+	/** The weigh-in's day (`weightCreateTime`). */
+	weightDate?: string;
+	/** Garmin's `isStale`: the FTP is more than a year old, judged when the account synced. */
+	stale?: boolean;
+}
 
 /** Garmin's `sport` on a power-to-weight row → the key it is kept under. */
 const FTP_SPORTS: Record<string, FtpSport> = {
@@ -182,13 +204,21 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 	for (const row of p.ftp ?? []) {
 		const sport = FTP_SPORTS[String(row.sport)];
 		if (!sport || ftp[sport]) continue;
-		const entry: { date?: string; watts?: number; wattsPerKg?: number } = {};
+		const entry: FtpLatest = {};
 		const date = dayOf(row.calendarDate);
 		if (date) entry.date = date;
 		const watts = num(row.functionalThresholdPower);
 		if (watts !== undefined) entry.watts = watts;
 		const ratio = num(row.powerToWeight);
 		if (ratio !== undefined) entry.wattsPerKg = Math.round(ratio * 100) / 100;
+		// Both times are the account's wall clock: their own days, as the page dates them.
+		const ftpDate = dayOf(row.ftpCreateTime);
+		if (ftpDate) entry.ftpDate = ftpDate;
+		const weight = num(row.weight);
+		if (weight !== undefined && weight > 0) entry.weight = Math.round(weight * 10) / 10;
+		const weightDate = dayOf(row.weightCreateTime);
+		if (weightDate) entry.weightDate = weightDate;
+		if (typeof row.isStale === "boolean") entry.stale = row.isStale;
 		if (Object.keys(entry).length) ftp[sport] = entry;
 	}
 	if (Object.keys(ftp).length) out.ftp = ftp;
@@ -338,7 +368,9 @@ export const PR_TYPES: Record<number, string> = {
  *
  * `speed` arrives as tenths of the real value: 0.3722 for a threshold pace of
  * 4:29/km, which sits where it should between this account's predicted 10K
- * (3.64 m/s) and 5K (3.89 m/s) paces. Hence ×10.
+ * (3.64 m/s) and 5K (3.89 m/s) paces. Hence ×10. It is kept to 5 dp, as the
+ * lactate threshold index keeps it: a pace from it stays within 0.0004 s/km,
+ * where 3 dp could round a pace near a half second the other way.
  */
 function lactateOf(
 	rows: Array<Record<string, unknown>> | null | undefined,
@@ -358,7 +390,7 @@ function lactateOf(
 	out.heartRate ??= num(user?.lactateThresholdHeartRate);
 	if (out.heartRate === undefined) delete out.heartRate;
 	if (rawSpeed !== undefined && rawSpeed > 0) {
-		out.speed = Math.round(rawSpeed * 10 * 1000) / 1000;
+		out.speed = Math.round(rawSpeed * 10 * 100000) / 100000;
 		const text = pace(out.speed, 1, units);
 		if (text) out.pace = text;
 	}

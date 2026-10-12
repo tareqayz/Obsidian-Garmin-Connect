@@ -147,7 +147,11 @@ describe("banded dials", () => {
 		assert.equal(g.value, "55");
 		assert.equal(g.label, "Excellent");
 		assert.equal(g.tone, "blue");
-		assert.ok(g.at! > 0.83 && g.at! < 0.849, `at ${g.at}`);
+		// The VO₂ Max page's dial, which the card shares: Excellent is 0.70–0.85 of it, 51.1–55.4.
+		assert.ok(Math.abs(g.at! - 0.836) < 0.001, `at ${g.at}`);
+		// The open ends run to the web gauge's: 29.7 below Fair, 63.4 above Superior.
+		assert.equal(vo2Gauge(29.7, 23, "male").at, 0);
+		assert.equal(vo2Gauge(63.4, 23, "male").at, 1);
 		assert.equal(vo2Gauge(55, 23, "female").label, "Superior");
 		// The same number grades higher with age: 40 is Excellent at 65.
 		assert.equal(vo2Gauge(40, 65, "male").label, "Excellent");
@@ -186,6 +190,11 @@ describe("banded dials", () => {
 		assert.ok(odd.at! >= 0.179 && odd.at! <= 0.366);
 		assert.equal(economyView({ runningEconomy: { classification: "INTERMEDIATE" } }), null);
 		assert.equal(economyView({ runningEconomy: { score: 224, classification: "NEW_CLASS" } })!.at, undefined);
+	});
+
+	it("names the Running Economy card's class as its page does: Well-Trained", () => {
+		const g = economyView({ runningEconomy: { date: "2026-09-28", score: 200, classification: "WELL_TRAINED" } })!;
+		assert.deepEqual([g.value, g.label, g.tone], ["200", "Well-Trained", "green"]);
 	});
 });
 
@@ -226,6 +235,17 @@ describe("stat cards", () => {
 		assert.deepEqual({ load: t.load, tolerance: t.tolerance }, { load: "19.1", tolerance: "38 km" });
 		assert.ok(Math.abs(t.share - 0.5078) < 0.001);
 		assert.equal(toleranceView(input([row("2026-09-24", { running_tolerance: 37561, running_tolerance_load: 19072 })]), "imperial")!.tolerance, "23 mi");
+	});
+
+	it("rounds Running Tolerance's load as the page does: half up on the metres, a trailing .0 dropped", () => {
+		const load = (m: number, units: "metric" | "imperial" = "metric") =>
+			toleranceView(input([row("2026-10-11", { running_tolerance: 37070, running_tolerance_load: m })]), units)!.load;
+		// The capture day's 28.2; the web's 21450 m → "21.5", where toFixed(1) on 21.45 says "21.4".
+		assert.deepEqual([load(28158), load(21450), load(14150)], ["28.2", "21.5", "14.2"]);
+		// "10 km" on the phone for 10009 m: no ".0".
+		assert.deepEqual([load(10009), load(0)], ["10", "0"]);
+		// Miles the same way: 28158 m is 17.496 mi.
+		assert.equal(load(28158, "imperial"), "17.5");
 	});
 
 	it("shows training load as the app does", () => {
@@ -340,6 +360,19 @@ describe("stat cards", () => {
 		);
 		assert.equal(l.updated, "Sep 19");
 		assert.equal(lactateView(null, "metric", "2026-09-24"), null);
+	});
+
+	it("words the threshold pace from the speed in today's units, rounded as the Running Lactate Threshold page rounds it", () => {
+		const pace = (speed: number | undefined, units: "metric" | "imperial", stored = "4:29") =>
+			lactateView({ lactateThreshold: { heartRate: 182, ...(speed === undefined ? {} : { speed }), pace: stored } }, units, "2026-10-11")!.stats[1]!.value;
+		// 1000 ÷ 3.72221 = 268.658 s: half up to 4:29 (flooring gives 4:28), as the page's Current.
+		assert.equal(pace(3.72221, "metric"), "4:29 /km");
+		// The stored string has the units of the last sync; today's setting wins: 1609.344 ÷ 3.72221 = 432.37 s.
+		assert.equal(pace(3.72221, "imperial"), "7:12 /mi");
+		// 0.5 s rounds up: 1000 ÷ 3.7243947858… = 268.5 s.
+		assert.equal(pace(1000 / 268.5, "metric"), "4:29 /km");
+		// A file without the speed keeps the pace it was written with.
+		assert.equal(pace(undefined, "metric", "4:30"), "4:30 /km");
 	});
 
 	it("dates fitness age by when Garmin recalculated it", () => {

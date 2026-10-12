@@ -10,18 +10,18 @@ a job that checks it against the live one every day.
 | File | What it is |
 | --- | --- |
 | [`endpoints.json`](endpoints.json) | Every endpoint, its request shape, and what this plugin does with it. |
-| [`schema/`](schema/) | The response shapes actually observed: 68 files for the 69 checked endpoints. `blood-pressure-last` has none, because it only ever returned an empty list on the recording account. |
+| [`schema/`](schema/) | The response shapes actually observed: 101 files. Every checked endpoint has one but four — `activity-gear`, `blood-pressure-last`, `critical-swim-speed-latest` and `hrv-stress-daily` — which only ever returned an empty answer on the recording account; three belong to routes no longer checked. |
 
 ## endpoints.json
 
-167 endpoints. For 134 of them the request half is **generated** from
+192 endpoints. For 139 of them the request half is **generated** from
 [`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)
 by `scripts/api/extract-endpoints.py`, which reads that library's AST and folds
 its URL expressions back into path templates. That library is the closest thing
 Garmin has to a spec, because it is kept current by people who notice when it
 breaks.
 
-The other 33 are routes upstream does not know, seen in the Garmin Connect app's
+The other 53 are routes upstream does not know, seen in the Garmin Connect app's
 and web app's own traffic: GraphQL queries, and most of what the Health Stats
 pages call. They carry `"source": "plugin"`, which keeps a regeneration from
 marking them retired, and their `upstream.summary` says where they were seen.
@@ -91,20 +91,25 @@ the news this file exists to carry.
 
 It drives the plugin's own `GarminApi` — not a parallel HTTP client — so a path,
 header or parameter that stops working here is one that stops working in the
-plugin. 69 endpoints and about 500 response paths, sampling the last three
+plugin. 102 endpoints and about 630 response paths, sampling the last three
 complete days and a fourteen-day range. The weekly routes ask for their usual 52
 weeks, and the weight and blood pressure ranges for 52 weeks too: the weekly
 forms accept no other span, and a rare weigh-in needs the wider net.
 
-Eighteen of the 69 have no caller in the plugin yet. They are routes the
-Health Stats work catalogued for pages still to be built, and until they are
-wired up or unchecked the check spends a request on each:
+Twenty-seven of the 102 have no caller in the plugin. The Health and
+Performance Stats work catalogued them: weekly, monthly and latest forms of
+routes the pages read another way, and routes for pages still to be built.
+Until they are wired up or unchecked, the check spends a request on each:
 
 `activities-for-day`, `blood-pressure-day`, `blood-pressure-last`,
-`daily-events`, `health-snapshot-detail`, `health-status-summary`,
-`heart-rate-zones`, `hrv-data-range`, `lifestyle-logging-data`, `naps`,
-`rhr-day`, `weekly-blood-pressure`, `weekly-fitnessage`, `weekly-heart-rate`,
-`weekly-stress`, `weekly-weigh-ins`, `weight-goal`, `weight-latest`.
+`critical-swim-speed-latest`, `daily-events`, `health-snapshot-detail`,
+`health-status-summary`, `heart-rate-zones`, `heat-altitude-acclimation-weekly`,
+`hill-score-stats`, `lifestyle-logging-data`, `max-metrics-latest`,
+`max-metrics-monthly`, `max-metrics-weekly`, `naps`, `race-predictions-latest`,
+`race-predictions-monthly`, `running-economy-weekly`,
+`training-load-balance-latest`, `training-status-daily`,
+`training-status-monthly`, `weekly-blood-pressure`, `weekly-fitnessage`,
+`weekly-heart-rate`, `weekly-stress`, `weekly-weigh-ins`, `weight-goal`.
 
 [`docs/garmin-api.md`](../docs/garmin-api.md#available-but-unused) lists their
 methods.

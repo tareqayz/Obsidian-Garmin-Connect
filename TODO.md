@@ -9,13 +9,14 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats.**
-  - The classic dashboard, retired in 0.2 (d32f311), was the only place with
-    history charts for HRV, training readiness, recovery, training status and
-    load, VO₂ max, endurance and race predictions.
-  - Home's At a Glance cards show the latest values, and the day files keep
-    the history.
-  - Rebuild them as Garmin's Performance Stats pages, through `/garmin-page`.
+- **Performance Stats: check the Inferred items.** Every page is built (see
+  "Performance Stats" below; status board `ref/performance-stats/STATUS.md`).
+  What's left is checking the Inferred items against the phone — above all a
+  weekday set of shots and the previous periods — and the Figma follow-ups
+  listed there.
+- **Cycling Ability and Altitude Acclimation** were left out of Performance
+  Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
+  gets its own branch when shots exist.
 - **Activity details for the other sports.** Runs have their page (see
   "Activity details" under Activities); every other sport's rows still open
   nothing. Each needs its own phone shots: cycling, swimming, strength and
@@ -27,6 +28,111 @@ Known gaps and open questions, by area.
 - **Remove `LegacyDashboardView`** (`src/dashboard/legacy-view.ts`) in the
   release after 0.2. It only turns tabs saved with the classic dashboard into
   Home.
+
+## Performance Stats
+
+Built from the 2026-10-11 phone shots (`ref/performance-stats/`). **Inferred**
+items, to check on the phone:
+
+- **All pages:** previous periods (‹) were not shot; the shots are from a
+  Sunday, so rolling 4w / 12w spans and Monday-aligned weeks look the same —
+  a weekday set settles it; Help sheets are left out; the wide-pane layouts
+  are ours.
+- **VO₂ Max:** the cycling tab's ranges show Garmin's web copy "You have no
+  data for this time period."; Current with no reading shows "No data
+  available"; the y step becomes 2 past a spread of 4; the copy for Good,
+  Fair and Poor; no "Yesterday" label; the running dial's marker sits about 3°
+  short of the shot's (the rule's 279.8° against 283.0°), and Hill Score's VO₂
+  sheet inherits it.
+- **HRV Status:** the dial's band gaps are fixed fractions (no linear rule
+  fits) and its marker sits 1.5° short; the copy is known for 2 of Garmin's 21
+  feedback phrases; Unbalanced and Low dials were never seen; the 7d axis's
+  bottom tick rule is a guess; gaps in a night's readings are bridged.
+- **Race Predictor:** turning a chip off keeps the axis (the twin's choice)
+  and the last chip stays on; a period without data hides the legend and
+  chips; imperial units.
+- **Hill Score:** the copy for 19 of 21 phrases; factor words other than
+  "Low"; the marker's colour where the drawn band and the class disagree
+  (scores 25, 50–51, 70–71, 85); calibrating and pre-history days; October's
+  month page.
+- **Training Status:** 6m was not shot (the daily strip over 182 days, labels
+  every 26 days); the copy for 27 of Garmin's 28 status phrases, and the Load
+  Focus words other than "Low Aerobic Shortage"; "…Cycling VO₂ Max Trend";
+  the Paused status, and the No Status and Paused colours; Current before the
+  watch syncs (yesterday's row).
+- **Load:** the Load Focus titles and copy other than Low Aerobic Shortage,
+  and the load copy for every status but Optimal; the bars' stacking order
+  (legend order from the bottom); list rows for sports other than running (no
+  chevron; no distance on stair climbing); a ratio above 2.3 ("2+"); miles.
+- **Endurance Score:** the 1y Endurance Score tab was not shot; days other
+  than today, and today before the watch syncs; a week without a scored day;
+  the colours of groups and types not seen here (ours: a type of its own is
+  pink, Multisport purple); the class ids of Recreational, Intermediate and
+  Elite; where the phone's 1d legend wraps.
+- **Heat Acclimation:** only "Trending up" was shot — the other trends' glyph,
+  line and copy are ours ("Trending down from N%.", "Maintaining
+  acclimation.", no copy); 72°F for imperial accounts; a day without a row,
+  and the 0% state; the line bridging the history's Jan 5–9 gap.
+- **Training Readiness:** a past day on the phone (ours: the first reading
+  after waking, as the web shows it — and the first of several wake-ups);
+  the words after "Updated @" for a realtime update; recovery hours floored,
+  and "Low Need" / "Moderate Need"; factor words for unseen bands; the title
+  and copy for 35 of Garmin's 38 titles and 78 of its 80 copy keys, and most
+  sheets' copy; the dial below 4.1 or above 97.9 and the marker colour per
+  level; the HRV sheet's Overnight Averages chip; the Sleep Score sheet below
+  its legend; empty, onboarding and no-sleep states.
+- **Training Effect:** a day with several activities (ours: each chart's day
+  maximum, as the web draws it); benefit labels other than Threshold, and the
+  band titles and copy other than aerobic 4.x and anaerobic 0.x; the related
+  activity's disc for sports other than runs and swims (ours: grey) and
+  whether it opens anything; a detail whose activity is gone; a 0.0 / 0.0
+  activity (a card, no bar); the 640–999 pt layout.
+- **Running Tolerance:** the current week's header on a weekday (ours: "OCT 11
+  - 12") and past years' headers; the copy for 7 of Garmin's 8 phrases; the
+  ring at or over the tolerance (ours: orange, full); Help. Garmin's own
+  weekly rows disagree with its days six times between Jul 19 and Sep 12,
+  2026; the page shows the weeks as sent, as the app does.
+- **FTP:** Current once an FTP is over a year old (Cycling's is from
+  2026-10-13; ours: Garmin's empty state, as Cross Country Skiing shows it)
+  and Cross Country Skiing with a fresh FTP; Cross Country Skiing's 4w / 12w
+  / 1y in Watts; previous periods and the empty period; the y axis beyond
+  these shots; a week block with two different rows (ours: the last); 12w and
+  1y blocks on a weekday; the unit after a range change (ours: back to
+  Watts); where "Learn how to update your … FTP" leads; Help.
+- **Running Lactate Threshold:** previous periods; 12w's block rule (ours:
+  each block's last change) and 12w / 1y on a weekday; the empty states and
+  "--" on Current, and Current with only some figures; the chip after a range
+  change (ours: back to Pace); imperial paces; tapping or scrubbing a point;
+  the axis rule beyond these shots; Help.
+- **Running Economy:** previous periods; the empty and single-point periods;
+  Current with no reading ever, and "Today" for a same-day reading; the copy
+  for six of Garmin's seven classes; the dots, line and legend colours for
+  classes other than Intermediate and Trained; y steps other than 1 and 5;
+  the 1y axis when the last block starts after the last month; the marker on
+  a class boundary; tapping a point; Help.
+- **Cycling Power Curve:** previous periods; 3m and 1y scrolled; the 1y empty
+  line's wording; a tap on a record's date or the chart (ours: none — rides
+  have no page); other cycling types counting, and a ride left out of the
+  power curve; the 5-hour row filling; ties (ours: the earliest ride); the y
+  axis above 1,000 W; spans on a weekday; a multisport bike leg with power. A
+  record deleted on Garmin keeps showing until that ride is listed again
+  (Sync activity history).
+- **Critical Swim Speed and HRV Stress** have never had data on this account,
+  so only their empty states are 1:1. Inferred: everything with data — CSS's
+  dated pace, its points (a day on 7d, a week block on 12w / 1y), the y axis
+  and the results rows (date format unknown), several results on a day; HRV
+  Stress's daily 0–100 bars and anything under them; the index field names
+  (bump each index's `version` when the first real row arrives); statute
+  units; the ⋮ menu and Help; "‹" stops at an empty history (ours; the phone
+  keeps it on).
+- **Figma follow-ups** (file 8D338zFIJ1a2zrsuligjva; the shared Performance band
+  was tidied on 2026-10-12 — new shared Period Arrow / Nav, Segmented, More
+  Button, Glyph Disc, Stats, Legend Row, Chart Heading, an Economy dial kind,
+  48 variables and 13 text styles): swap each page's local copies (Period
+  Arrow / Nav above all) for the shared ones; re-link page text to the new
+  styles; move existing Title Bars to the new Action variants (None / Help /
+  More) and re-measure an Edit variant; a wide stepper with a 17 pt Semi Bold
+  label for Training Effect.
 
 ## Home
 

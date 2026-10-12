@@ -111,6 +111,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"sleep-daily": async (api, w) => [await api.sleepStats(w.rangeStart, w.rangeEnd)],
 	"hrv-data": (api, w) => perDay(w, (d) => api.hrv(d)),
 	"training-readiness": (api, w) => perDay(w, (d) => api.trainingReadiness(d)),
+	"training-readiness-range": async (api, w) => [await api.trainingReadinessRange(w.rangeStart, w.rangeEnd)],
 	"endurance-score": (api, w) => perDay(w, (d) => api.enduranceScore(d)),
 	"training-status": (api, w) => perDay(w, (d) => api.trainingStatus(d)),
 	"daily-weigh-ins": (api, w) => perDay(w, (d) => api.bodyComposition(d)),
@@ -130,7 +131,11 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"daily-intensity-minutes-stats": async (api, w) => [await api.dailyIntensityStats(w.rangeStart, w.rangeEnd)],
 	"body-battery-events": async (api, w) => [await api.bodyBatteryEvents(w.days[0]!)],
 	"fitnessage-data": async (api, w) => [await api.fitnessAge(w.days[0]!)],
-	"running-tolerance": async (api, w) => [await api.runningTolerance(w.days.at(-1)!, w.days[0]!)],
+	// Both shapes: the daily rows (Current, the day files) and the weekly ones the 12w and 1y charts draw.
+	"running-tolerance": async (api, w) => [
+		await api.runningTolerance(w.days.at(-1)!, w.days[0]!),
+		await api.runningTolerance(w.days.at(-1)!, w.days[0]!, "weekly"),
+	],
 	"lactate-threshold-biometric-latest": async (api) => [await api.lactateThreshold()],
 	"lactate-threshold-biometric-power-to-weight-latest": async (api, w) => [await api.powerToWeight(w.days[0]!)],
 	"device-last-used": async (api) => [await api.lastUsedDevice()],
@@ -154,6 +159,36 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"health-status-summary": (api, w) => perDay(w, (d) => api.healthStatusSummary(d)),
 	"health-status-range": async (api, w) => [await api.healthStatusRange(w.rangeStart, w.rangeEnd)],
 	"hrv-data-range": async (api, w) => [await api.hrvDaily(w.rangeStart, w.rangeEnd)],
+	// Performance Stats pages.
+	"endurance-score-stats": async (api, w) => [await api.enduranceStats(w.rangeStart, w.rangeEnd, "daily")],
+	// A year, as the lactate threshold index asks: a change-point route, so a few days are usually [] (this account
+	// changes 2–3 times a month, others less often).
+	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	// As the FTP index asks: every sport, a year (a few weeks would usually be [], a change-point route).
+	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"training-status-daily": async (api, w) => [await api.trainingStatusDaily(w.days[0]!)],
+	"training-status-weekly": async (api, w) => [await api.trainingStatusWeekly(w.rangeStart, w.rangeEnd)],
+	"training-status-monthly": async (api, w) => [await api.trainingStatusMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"training-load-balance-latest": async (api, w) => [await api.trainingLoadBalance(w.days[0]!)],
+	"heat-altitude-acclimation-latest": async (api, w) => [await api.heatAltitudeAcclimation(w.days[0]!)],
+	"heat-altitude-acclimation-daily": async (api, w) => [await api.heatAltitudeAcclimationDaily(w.rangeStart, w.rangeEnd)],
+	"heat-altitude-acclimation-weekly": async (api, w) => [await api.heatAltitudeAcclimationWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"max-metrics-latest": async (api, w) => [await api.maxMetricsLatest(w.days[0]!)],
+	"max-metrics-weekly": async (api, w) => [await api.maxMetricsWeekly(w.rangeStart, w.rangeEnd)],
+	"max-metrics-monthly": async (api, w) => [await api.maxMetricsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	// A year, as the index asks it: a few weeks are often [] (readings come only from qualifying runs), which checks no shape.
+	"running-economy-daily": async (api, w) => [await api.runningEconomyDaily(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"running-economy-weekly": async (api, w) => [await api.runningEconomyWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "daily")],
+	"critical-swim-speed-latest": async (api, w) => [await api.criticalSwimSpeedLatest(w.days[0]!)],
+	// A year, inside the 367-day cap, as the CSS index asks: results are rare (Garmin suggests a test every eight weeks), so 14 days would usually be empty.
+	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"hill-score-stats": async (api, w) => [await api.hillScoreStats(w.rangeStart, w.rangeEnd, "daily")],
+	// No cap: one call over the 3660 days the HRV stress index asks sees a test as soon as one exists.
+	"hrv-stress-daily": async (api, w) => [await api.hrvStressDaily(isoDay(3659, new Date(`${w.rangeEnd}T00:00:00Z`)), w.rangeEnd)],
+	"race-predictions-latest": async (api) => [await api.racePredictionsLatest()],
+	"race-predictions-monthly": async (api, w) => [await api.racePredictionsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"daily-fitnessage-stats": async (api, w) => [await api.fitnessAgeDaily(w.rangeStart, w.rangeEnd)],
 	"weekly-fitnessage": async (api, w) => [await api.fitnessAgeWeekly(w.rangeEnd)],
 	"weight-latest": async (api, w) => [await api.weightLatest(w.days[0]!)],

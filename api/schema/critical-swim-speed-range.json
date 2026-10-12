@@ -1,0 +1,35 @@
+{
+	"endpoint": "critical-swim-speed-range",
+	"path": "/biometric-service/criticalSwimSpeed/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.criticalSwimSpeedRange",
+	"firstRecorded": "2026-10-11T19:31:13.059Z",
+	"updatedAt": "2026-10-11T19:31:13.059Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"object"
+		],
+		"fields": {
+			"aggregatedResults": {
+				"type": [
+					"array"
+				]
+			},
+			"criticalSwimSpeedDTOList": {
+				"type": [
+					"array"
+				]
+			},
+			"from": {
+				"type": [
+					"string"
+				]
+			},
+			"until": {
+				"type": [
+					"string"
+				]
+			}
+		}
+	}
+}

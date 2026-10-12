@@ -1,6 +1,9 @@
 import { CATEGORIES, RECORD_TABS, type CategoryId, type MetricId, type RangeId, type RecordTab } from "./activities";
 import { pageStat, type HealthRange, type HealthStatPageId } from "./health-stats";
+import { PERFORMANCE_REGISTRY, type PerformanceStatPageId } from "./performance-stats";
+import type { PeriodRange, PeriodRoute } from "./periods";
 import { SLEEP_FACTORS, SLEEP_RANGES, type SleepFactorId, type SleepRange, type SleepTab } from "./sleep-pages";
+import type { GlanceTarget, StatDef } from "./stat-registry";
 import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } from "./stats-pages";
 
 /**
@@ -29,6 +32,10 @@ export type Route =
 	 * `date` are the page's own: a tab, a sub-page or sheet, a particular day.
 	 */
 	| { page: "health-stat"; stat: HealthStatPageId; range: HealthRange; offset: number; tab?: string; sub?: string; date?: string }
+	/** The Performance Stats hub. */
+	| { page: "performance" }
+	/** Every Performance Stats page (`performance-stats.ts`), on the same terms as `health-stat`. */
+	| { page: "performance-stat"; stat: PerformanceStatPageId; range: PeriodRange; offset: number; tab?: string; sub?: string; date?: string }
 	/**
 	 * One activity's page, by its Garmin id. `sub` is an expanded chart
 	 * (`chart:<metric>[:<overlay>]`), so a reload reopens it. The Charts tab's
@@ -48,6 +55,9 @@ export type Route =
 	| { page: "activity-map"; id: number; overlay: MapOverlay; laps: boolean };
 
 export type HealthStatRoute = Extract<Route, { page: "health-stat" }>;
+export type PerformanceStatRoute = Extract<Route, { page: "performance-stat" }>;
+/** A page on either stats section's shared route. */
+export type StatRoute = HealthStatRoute | PerformanceStatRoute;
 export type ActivityRoute = Extract<Route, { page: "activity" }>;
 export type ActivityMapRoute = Extract<Route, { page: "activity-map" }>;
 
@@ -127,6 +137,7 @@ export function readRoute(value: unknown): Route | null {
 		case "activities":
 		case "all":
 		case "health":
+		case "performance":
 			return { page: raw.page };
 		case "records": {
 			const tab = RECORD_TABS.find((t) => t.id === raw.tab)?.id;
@@ -170,6 +181,8 @@ export function readRoute(value: unknown): Route | null {
 		}
 		case "health-stat":
 			return healthStatOf(raw);
+		case "performance-stat":
+			return performanceStatOf(raw);
 		case "activity":
 			return activityOf(raw);
 		case "activity-map": {
@@ -196,21 +209,43 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** A tab or sub-page id: a short token, nothing that could be markup or a path. */
 const TOKEN = /^[\w.:-]{1,64}$/;
 
-/** A health-stat route as the page accepts it: an unknown stat is refused, the rest repaired. */
-function healthStatOf(raw: Record<string, unknown>): HealthStatRoute | null {
-	const stat = pageStat(raw.stat);
+/** What a stat route holds besides its page: the stat, its period, and the page's own tab, sub-page and day. */
+type StatFields<Id extends string, R extends PeriodRange> = { stat: Id; range: R; offset: number; tab?: string; sub?: string; date?: string };
+
+/**
+ * A stat route's fields as its page accepts them, for a stat its section's
+ * registry found: none for a stat it did not, so the route is refused; the
+ * rest repaired. A range the stat lacks is its default, the offset a whole
+ * number at or below 0, and `tab`, `sub` and `date` kept only when they look
+ * like one.
+ */
+function statFieldsOf<Id extends string, R extends PeriodRange>(
+	raw: Record<string, unknown>,
+	stat: (Pick<StatDef<Id>, "id"> & { ranges: readonly R[]; defaultRange: R }) | undefined,
+): StatFields<Id, R> | null {
 	if (!stat) return null;
-	const route: HealthStatRoute = {
-		page: "health-stat",
+	const fields: StatFields<Id, R> = {
 		stat: stat.id,
-		range: stat.ranges.includes(raw.range as HealthRange) ? (raw.range as HealthRange) : stat.defaultRange,
+		range: stat.ranges.includes(raw.range as R) ? (raw.range as R) : stat.defaultRange,
 		// Only the past exists: a later period than now is the current one.
 		offset: Number.isInteger(raw.offset) ? Math.min(0, raw.offset as number) : 0,
 	};
-	if (typeof raw.tab === "string" && TOKEN.test(raw.tab)) route.tab = raw.tab;
-	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) route.sub = raw.sub;
-	if (typeof raw.date === "string" && DATE.test(raw.date)) route.date = raw.date;
-	return route;
+	if (typeof raw.tab === "string" && TOKEN.test(raw.tab)) fields.tab = raw.tab;
+	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) fields.sub = raw.sub;
+	if (typeof raw.date === "string" && DATE.test(raw.date)) fields.date = raw.date;
+	return fields;
+}
+
+/** A health-stat route as the page accepts it: an unknown stat, or Sleep, is refused, the rest repaired. */
+function healthStatOf(raw: Record<string, unknown>): HealthStatRoute | null {
+	const fields = statFieldsOf(raw, pageStat(raw.stat));
+	return fields && { page: "health-stat", ...fields };
+}
+
+/** A performance-stat route as the page accepts it: an unknown stat, or Cycling Ability, is refused, the rest repaired. */
+function performanceStatOf(raw: Record<string, unknown>): PerformanceStatRoute | null {
+	const fields = statFieldsOf(raw, PERFORMANCE_REGISTRY.page(raw.stat));
+	return fields && { page: "performance-stat", ...fields };
 }
 
 /** An activity route as the page accepts it: an id that can't be one is refused, the rest repaired. */
@@ -261,16 +296,80 @@ export function sleepRoute(offset = 0): Route {
 	return { page: "sleep", range: "1d", offset: Math.min(0, offset), tab: "score" };
 }
 
+/** Where a stat page opens, when not on its default range and the current period. */
+export interface StatRouteOptions {
+	range?: PeriodRange;
+	offset?: number;
+	tab?: string;
+	sub?: string;
+	date?: string;
+}
+
 /**
  * A Health Stats page as the hub, Home and the commands open it: its default
  * range, the current period, unless `opts` says otherwise. Whatever `opts`
  * holds is checked as a saved route would be.
  */
-export function healthStatRoute(
-	stat: HealthStatPageId,
-	opts: { range?: HealthRange; offset?: number; tab?: string; sub?: string; date?: string } = {},
-): HealthStatRoute {
+export function healthStatRoute(stat: HealthStatPageId, opts: StatRouteOptions = {}): HealthStatRoute {
 	return healthStatOf({ ...opts, stat })!;
+}
+
+/**
+ * A Performance Stats page as the hub, Home and the commands open it: its
+ * default range, the current period and, without a `tab`, its first tab,
+ * unless `opts` says otherwise. Whatever `opts` holds is checked as a saved
+ * route would be.
+ */
+export function performanceStatRoute(stat: PerformanceStatPageId, opts: StatRouteOptions = {}): PerformanceStatRoute {
+	return performanceStatOf({ ...opts, stat })!;
+}
+
+/**
+ * The page an At a Glance or In Focus card opens on Performance Stats: the
+ * card's stat, on the tab, sub-page and range its link names. A page that
+ * opens on a day (1d) opens on Home's, `dayOffset` days back, as Health's do.
+ */
+export function performanceTargetRoute(target: GlanceTarget<StatDef<PerformanceStatPageId>>, dayOffset = 0): PerformanceStatRoute {
+	const range = target.range ?? target.stat.defaultRange;
+	return performanceStatRoute(target.stat.id, { range, tab: target.tab, sub: target.sub, ...(range === "1d" ? { offset: dayOffset } : {}) });
+}
+
+/** The registry entry behind a stat route: its title, ranges, range names, spans and tabs. */
+export function statOfRoute(route: StatRoute): StatDef | undefined {
+	return route.page === "health-stat" ? pageStat(route.stat) : PERFORMANCE_REGISTRY.page(route.stat);
+}
+
+/** A stat page's tabs as its tab bar shows them: the one the route names is on, or the first. */
+export function statTabs(route: StatRoute): Array<{ id: string; label: string; on: boolean }> {
+	const stat = statOfRoute(route);
+	const tabs = stat?.tabs ?? [];
+	const current = route.tab !== undefined && tabs.includes(route.tab) ? route.tab : tabs[0];
+	return tabs.map((id) => ({ id, label: stat?.tabLabels?.[id] ?? id, on: id === current }));
+}
+
+/**
+ * How a stat page's range control looks: Health's own, or Performance's
+ * compact (34 tall, labels in 74 pt slots spaced across 338 / 255 / 170 pt)
+ * or wide (36 tall, packed 72 pt slots across 370 / 184 pt), and its width.
+ */
+export function rangeControlOf(route: StatRoute, segments: number): { family: "health" | "compact" | "wide"; width?: number } {
+	if (route.page === "health-stat") return { family: "health" };
+	const family = statOfRoute(route)?.rangeControl === "wide" ? "wide" : "compact";
+	const width = (family === "wide" ? WIDE_WIDTHS : COMPACT_WIDTHS)[segments];
+	return width === undefined ? { family } : { family, width };
+}
+
+const COMPACT_WIDTHS: Readonly<Record<number, number>> = { 2: 170, 3: 255, 4: 338 };
+const WIDE_WIDTHS: Readonly<Record<number, number>> = { 2: 184, 4: 370 };
+
+/**
+ * A stat page moved in place, as its range control, steppers and cards move
+ * it: another range or period of the same stat, on the same tab and sub-page,
+ * with the day 1d last showed when the move carries one.
+ */
+export function moveStatRoute(route: StatRoute, next: PeriodRoute<PeriodRange>): StatRoute {
+	const raw = { stat: route.stat, range: next.range, offset: next.offset, tab: route.tab, sub: route.sub, date: next.date };
+	return (route.page === "health-stat" ? healthStatOf(raw) : performanceStatOf(raw)) ?? route;
 }
 
 /** An activity's page as a row opens it: Overview, charts against time. */

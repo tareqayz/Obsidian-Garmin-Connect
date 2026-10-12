@@ -48,15 +48,17 @@ export interface PrimaryBenefit {
 
 /**
  * `trainingEffectLabel` as the Primary Benefit card and the Stats row read it.
- * LACTATE_THRESHOLD and TEMPO are confirmed (phone and web); the rest follow the
- * benefit sheet's list (Inferred).
+ * LACTATE_THRESHOLD and TEMPO are confirmed (phone and web), and VO2MAX as
+ * "VO₂ Max", the 2 a subscript (Load's Exercise Load list and the web's
+ * Activity List, 2026-10-11); the rest follow the benefit sheet's list
+ * (Inferred).
  */
 const BENEFITS: Readonly<Record<string, [string, BenefitGroup | null]>> = {
 	RECOVERY: ["Recovery", "Low Aerobic"],
 	AEROBIC_BASE: ["Base", "Low Aerobic"],
 	TEMPO: ["Tempo", "High Aerobic"],
 	LACTATE_THRESHOLD: ["Threshold", "High Aerobic"],
-	VO2MAX: ["VO2 Max", "High Aerobic"],
+	VO2MAX: ["VO₂ Max", "High Aerobic"],
 	ANAEROBIC_CAPACITY: ["Anaerobic Capacity", "Anaerobic"],
 	SPEED: ["Sprint", "Anaerobic"],
 	SPRINT: ["Sprint", "Anaerobic"],

@@ -261,6 +261,7 @@ export class SyncRunner {
 				dailyStats: dailyStatsSink(series),
 				sleep: sleepSink(series),
 				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
+				extras: INTRADAY_EXTRAS,
 				pauseBetweenDays: settings.pauseBetweenDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,

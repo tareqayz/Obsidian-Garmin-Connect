@@ -16,7 +16,14 @@
  * token and profile URLs are skipped, and the account's display name is
  * replaced by {displayName}. Each endpoint is matched against
  * api/endpoints.json: a catalogue id (with its GarminApi method, or "no
- * wrapper"), or NEW.
+ * wrapper"), or NEW. The most specific path wins (racepredictions/monthly/…
+ * over racepredictions/{type}/…). GraphQL POSTs share one path, so each is
+ * told apart by its root field (the response's `data` key; the query's first
+ * field in the operations list) and matched on the catalogue's `graphql` key.
+ *
+ * A query parameter sent more than once in one URL is listed once per value
+ * (`metric=a&metric=b`); one whose value changed between calls lists the
+ * values as `key=a|b`.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -106,12 +113,70 @@ function template(path) {
 const catalogueRegex = catalogue.map((e) => ({
 	entry: e,
 	re: new RegExp("^" + e.path.split("?")[0].replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{[^}]+\}/g, "[^/]+") + "$"),
+	placeholders: (e.path.match(/\{[^}]+\}/g) ?? []).length,
 }));
 
-function match(path, method = /graphql/i.test(path) ? "POST" : "GET") {
-	const hit = catalogueRegex.find(({ entry, re }) => (entry.method ?? "GET").toUpperCase() === method && re.test(path));
-	if (!hit) return { id: "NEW", plugin: "" };
-	return { id: hit.entry.id, plugin: hit.entry.plugin ?? "no wrapper" };
+const isGraphql = (path) => /graphql/i.test(path);
+
+/**
+ * The fields a GraphQL query selects at its root, aliases resolved to the
+ * field: `query{fooScalar(date:"…")}` → fooScalar, `query { a: foo(…) { x } }`
+ * → foo. Arguments, strings, nested selections, spreads and directives are
+ * skipped.
+ */
+function rootFields(query) {
+	const text = String(query ?? "");
+	const fields = [];
+	let start = -1; // the root selection set's "{"
+	let depth = 0;
+	let parens = 0;
+	for (let i = 0; i < text.length; i++) {
+		const c = text[i];
+		if (c === '"') {
+			for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === "\\") i++;
+		} else if (c === "(") parens++;
+		else if (c === ")") parens--;
+		else if (parens > 0) continue;
+		else if (c === "{") {
+			if (start < 0) start = i;
+			else depth++;
+		} else if (c === "}") {
+			if (start >= 0 && depth-- === 0) break;
+		} else if (start >= 0 && depth === 0 && /[A-Za-z_]/.test(c)) {
+			const word = text.slice(i).match(/^(\w+)(?:\s*:\s*(\w+))?/);
+			if (!/(?:\.\.\.(?:\s*on)?|@)\s*$/.test(text.slice(start + 1, i))) fields.push(word[2] ?? word[1]);
+			i += word[0].length - 1;
+		}
+	}
+	return fields;
+}
+
+/** A GraphQL response's root fields: the keys of `data`, read off the start of a truncated body too. */
+function responseFields(body) {
+	try {
+		const data = JSON.parse(body)?.data;
+		if (data && typeof data === "object") return Object.keys(data);
+	} catch {}
+	const head = String(body ?? "").match(/^\s*\{\s*"data"\s*:\s*\{\s*"(\w+)"/);
+	return head ? [head[1]] : [];
+}
+
+/**
+ * The catalogue entry a call belongs to. GraphQL goes by root field (`field`,
+ * "" when the response did not say); anything else by path, the most specific
+ * first, then one with a wrapper.
+ */
+function match(path, method = isGraphql(path) ? "POST" : "GET", field = null) {
+	if (field !== null) {
+		const hit = catalogue.find((e) => e.graphql && e.graphql === field);
+		if (hit) return { id: hit.id, plugin: hit.plugin ?? "no wrapper" };
+		return { id: field ? "NEW" : "unknown query", plugin: "" };
+	}
+	const hits = catalogueRegex
+		.filter(({ entry, re }) => (entry.method ?? "GET").toUpperCase() === method && re.test(path))
+		.sort((a, b) => a.placeholders - b.placeholders || Number(!a.entry.plugin) - Number(!b.entry.plugin));
+	if (!hits.length) return { id: "NEW", plugin: "" };
+	return { id: hits[0].entry.id, plugin: hits[0].entry.plugin ?? "no wrapper" };
 }
 
 function shapeOf(value, depth = 0) {
@@ -133,14 +198,22 @@ for (const r of responses) {
 		skipped++;
 		continue;
 	}
-	const key = template(path);
-	const g = groups.get(key) ?? { key, raw: path, method: r.method, queries: new Map(), statuses: new Set(), count: 0, sample: null, sizes: [] };
+	// GraphQL calls all POST to one path: the response's root field tells them apart.
+	const field = isGraphql(path) ? responseFields(r.body).join("+") : null;
+	const key = template(path) + (field === null ? "" : ` ${field || "?"}`);
+	const g = groups.get(key) ?? { key, raw: path, field, method: r.method, queries: new Map(), statuses: new Set(), count: 0, sample: null, sizes: [] };
 	g.count++;
 	g.statuses.add(r.status);
 	g.sizes.push(r.size);
+	const inThisCall = new Map();
 	for (const [k, v] of query) {
 		if (k === "_") continue;
-		g.queries.set(k, DATE.test(v) ? "{date}" : /^\d{4}-\d{2}-\d{2}T/.test(v) ? "{timestamp}" : scrub(v));
+		const value = DATE.test(v) ? "{date}" : /^\d{4}-\d{2}-\d{2}T/.test(v) ? "{timestamp}" : scrub(v);
+		const param = g.queries.get(k) ?? { values: [], repeated: false };
+		if (!param.values.includes(value)) param.values.push(value);
+		inThisCall.set(k, (inThisCall.get(k) ?? 0) + 1);
+		if (inThisCall.get(k) > 1) param.repeated = true;
+		g.queries.set(k, param);
 	}
 	if (!g.sample && r.body && /json/i.test(r.contentType || "") && !r.bodyTruncated) {
 		try {
@@ -158,23 +231,34 @@ const shellRows = [];
 let n = 0;
 for (const g of [...groups.values()].sort((a, b) => a.key.localeCompare(b.key))) {
 	n++;
-	const m = match(g.raw, g.method);
+	const m = match(g.raw, g.method, g.field);
 	const slug = g.key.replace(/[{}]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 	let shape = "(no JSON body)";
 	if (g.sample !== null) {
 		shape = shapeOf(g.sample);
 		writeFileSync(join(outDir, "bodies", `${String(n).padStart(2, "0")}-${slug}.json`), scrub(JSON.stringify(redact(g.sample), null, 1)));
 	}
-	const q = [...g.queries.entries()].map(([k, v]) => `${k}=${v}`).join("&");
-	const line = `| ${n} | \`${g.key}\`${q ? `<br>\`?${q}\`` : ""} | ${[...g.statuses].join(", ")} | ${g.count} | ${m.id} | ${m.plugin || "—"} | ${shape.replace(/\|/g, "\\|").slice(0, 400)} |`;
+	// Sent several times in one URL: each value as its own pair. Changed between calls: a|b.
+	const q = [...g.queries.entries()]
+		.map(([k, { values, repeated }]) => (repeated ? values.map((v) => `${k}=${v}`).join("&") : `${k}=${values.join("|")}`))
+		.join("&");
+	const path = g.field === null ? `\`${g.key}\`` : `\`${template(g.raw)}\`<br>\`query{${g.field || "?"}}\``;
+	const line = `| ${n} | ${path}${q ? `<br>\`?${q.replace(/\|/g, "\\|")}\`` : ""} | ${[...g.statuses].join(", ")} | ${g.count} | ${m.id} | ${m.plugin || "—"} | ${shape.replace(/\|/g, "\\|").slice(0, 400)} |`;
 	(SHELL.test(g.raw) ? shellRows : rows).push(line);
 }
 
+// Named by root field, like the calls above. Each query that differs other than
+// by its dates is shown once, as first sent.
 const ops = new Map();
 for (const op of gql) {
-	const name = op.operationName || (op.query ? op.query.trim().split(/\s+/).slice(0, 2).join(" ") : "raw");
-	const o = ops.get(name) ?? { name, count: 0, query: op.query, variables: new Set() };
+	const name = rootFields(op.query).join(" + ") || op.operationName || (op.query ? op.query.trim().split(/\s+/).slice(0, 2).join(" ") : "raw");
+	const o = ops.get(name) ?? { name, count: 0, queries: new Map(), variables: new Set() };
 	o.count++;
+	if (op.query) {
+		const text = scrub(op.query.trim());
+		const form = text.replace(/\d{4}-\d{2}-\d{2}(?:T[\d:.]+)?/g, "{date}");
+		if (!o.queries.has(form)) o.queries.set(form, text);
+	}
 	for (const k of Object.keys(op.variables || {})) o.variables.add(k);
 	ops.set(name, o);
 }
@@ -194,7 +278,7 @@ const md = [
 	ops.size ? "| Operation | Calls | Variables |\n|---|---|---|" : "None recorded.",
 	...[...ops.values()].map((o) => `| ${o.name} | ${o.count} | ${[...o.variables].join(", ") || "—"} |`),
 	"",
-	...[...ops.values()].filter((o) => o.query).map((o) => `### ${o.name}\n\n\`\`\`graphql\n${scrub(o.query.trim())}\n\`\`\`\n`),
+	...[...ops.values()].filter((o) => o.queries.size).map((o) => `### ${o.name}\n\n${[...o.queries.values()].map((q) => `\`\`\`graphql\n${q}\n\`\`\`\n`).join("\n")}`),
 	"",
 	"## App-shell calls (every page)",
 	"",

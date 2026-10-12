@@ -93,8 +93,9 @@ One request per day synced, for the groups that are on.
 one of them saves nothing. Respiration and pulse ox in particular cost no
 requests at all.
 
-`enduranceScore` is per-day deliberately: the range form of that endpoint
-returns weekly averages, not daily values.
+`enduranceScore` stays per day: only the day route sends the day's class and
+feedback phrase. The Endurance Score history comes from the range form with
+`aggregation=daily` (see [History index endpoints](#history-index-endpoints)).
 
 `dailySummary` throws `GarminAuthError` if the response comes back
 `privacyProtected: true`. That means the session is not fully authorised, which
@@ -109,17 +110,19 @@ event list. Queries are inline strings, as the web app sends them. Health
 Status and Health Snapshots also have REST routes, which the
 [Health Stats pages](#health-stats-pages) use.
 
-### More range calls (28-day windows)
+### More range calls
 
-| Method | Path | Group |
-| --- | --- | --- |
-| `hillScores(start, end)` | GraphQL `hillScoreScalar` | `fitness` |
-| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` |
-| `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` |
+| Method | Path | Group | Window |
+| --- | --- | --- | --- |
+| `hillScores(start, end)` | GraphQL `hillScoreScalar` (a proxy of `/metrics-service/metrics/hillscore/stats`) | `fitness` | 365 days (Garmin's cap is 401) |
+| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` | 365 days (Garmin's cap is 366) |
+| `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` | 28 days |
 
-The web app asks for 28 days of hill score and a week of snapshots, and nobody
-has published these routes' limits. Staying within what it asks for is the
-safe side of an unknown cap.
+The web app asks for a week of snapshots, and nobody has published that
+route's limit; staying within what it asks for is the safe side of an unknown
+cap. The others' caps were measured on 2026-10-12: hill score takes 401 days
+(402 is HTTP 400), running tolerance 366 (367 is HTTP 400, across a Feb 29
+too).
 
 ### Once per sync (`profile`)
 
@@ -182,10 +185,25 @@ fill the ones that are not Health Stats:
 | `sleepStats(start, end)` | `/sleep-service/stats/sleep/daily/{start}/{end}` | `sleep/` | 28 nights |
 | `activityCount()` | `/activitylist-service/activities/count` | `activities/` | how long the list is |
 | `activities(start, limit)` | as above | `activities/` | 100 activities |
+| `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | `hrv-status/` | 367 days, Garmin's cap |
+| `trainingStatusWeekly(start, end)` | `/metrics-service/metrics/trainingstatus/weekly/{who}`: a row a day, despite the name | `training-status/` | 365 days (no cap found) |
+| `enduranceStats(start, end, "daily")` | `/metrics-service/metrics/endurancescore/stats?aggregation=daily` | `endurance-score/` | 365 days (Garmin's cap is 401) |
+| `runningTolerance(start, end, "weekly")` | `/metrics-service/metrics/runningtolerance/stats?aggregation=weekly`: Sunday weeks, to date | `running-tolerance-weeks/` | 350 days, widened to whole weeks (Garmin's cap is 366) |
+| `trainingReadinessRange(start, end)` | `/metrics-service/metrics/trainingreadiness/{start}/{end}`: every reading, newest first | `training-readiness/` | 367 days, Garmin's cap |
+| `functionalThresholdPowerRange(start, end)`, `powerToWeightRange(start, end)` | `/biometric-service/stats/functionalThresholdPower/range/{start}/{end}`, `/biometric-service/stats/powerToWeight/range/{start}/{end}?aggregation=daily`: change points, every sport | `ftp/` | 367 days (Garmin's cap: end − start ≤ 366), two requests a window |
+| `lactateThresholdHeartRateRange(start, end)`, `lactateThresholdSpeedRange(start, end)` | `/biometric-service/stats/lactateThresholdHeartRate/range/{start}/{end}`, `…/lactateThresholdSpeed/range/{start}/{end}`: change points, sport `RUNNING` | `lactate-threshold/` | 367 days (Garmin's cap: end − start ≤ 366), two requests a window |
+| `runningEconomyDaily(start, end)` | `/metrics-service/metrics/runningeconomy/daily?startDate=&endDate=` | `running-economy/` | 366 days (Garmin's cap: one calendar year) |
+| `criticalSwimSpeedRange(start, end)` | `/biometric-service/criticalSwimSpeed/range/{start}/{end}` | `critical-swim-speed/` | 367 days (Garmin's cap: end − start ≤ 366) |
+| `hrvStressDaily(start, end)` | `/metrics-service/internal/manualstresslevel/daily/{pk}/{start}/{end}`: the manual HRV stress tests | `hrv-stress/` | 3660 days (no cap found); a reversed window is HTTP 500, so the wrapper refuses one |
+| `heatAltitudeAcclimationDaily(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/daily/{start}/{end}` | `heat-acclimation/` | 365 days (no cap found) |
 
 A routine sync takes the daily stats of the days it writes from the summaries it
 fetched anyway. It asks the three stats routes only for days it could not
-write, and for any gap since the index's newest day.
+write, and for any gap since the index's newest day. The Performance Stats
+indexes take a routine sync's days from what it fetched anyway (the day routes
+and the range calls above), so the last eleven routes serve their history walks (running economy's, which the
+day sync never asks, costs one request a sync); running tolerance's weeks
+ask for the last two weeks again on each sync, one request.
 
 ## Health Stats pages
 
@@ -260,15 +278,24 @@ too. Nothing in the plugin calls them yet:
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `restingHeartRate(date)` | `/userstats-service/wellness/daily/{who}` | The daily summary already carries resting heart rate. |
+| `cyclingPowerCurve(start, end)` | `/fitnessstats-service/powerCurve?startDate=&endDate=` | Both dates inclusive, no cap; without dates, the all-time Record. Cycling Power Curve builds the same curves from the activity list's best powers instead, so it asks nothing. Catalogued, not checked. |
+| `criticalSwimSpeedLatest(date)` | `/biometric-service/criticalSwimSpeed/latest/{date}` | The newest CSS result on or before the day; 204 (null) without one. Critical Swim Speed reads its index's newest row instead. |
+| `heatAltitudeAcclimationWeekly(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/weekly/{start}/{end}` | The daily rows sampled every seventh day, plus today. |
+| `hillScoreStats(start, end, aggregation)` | `/metrics-service/metrics/hillscore/stats?startDate=&endDate=&aggregation=` | The REST route the hill score GraphQL query proxies; 401 days a call. |
+| `maxMetricsLatest(date, sport)` | `/metrics-service/metrics/maxmet/latest/{date}?sport=` | The newest VO₂ Max per sport as of the day. |
+| `maxMetricsWeekly(start, end, sport)`, `maxMetricsMonthly(start, end, sport)` | `/metrics-service/metrics/maxmet/weekly/{start}/{end}?sport=`, `…/monthly/…` | A row a week (Sunday to Saturday) or a month with a reading; VO₂ Max works its periods out from the daily index. |
+| `racePredictionsLatest()` | `/metrics-service/metrics/racepredictions/latest/{who}` | Today's four predictions, in seconds. |
+| `racePredictionsMonthly(start, end)` | `/metrics-service/metrics/racepredictions/monthly/{who}?fromCalendarDate=&toCalendarDate=` | A row a month, dated by its last day; Race Predictor samples its daily index at month ends instead. |
+| `runningEconomyWeekly(start, end)` | `/metrics-service/metrics/runningeconomy/weekly?startDate=&endDate=` | 7-day blocks from `startDate`, each the block's lowest score: what Running Economy works out from its daily index. |
+| `trainingLoadBalance(date)` | `/metrics-service/metrics/trainingloadbalance/latest/{date}` | Load focus as of a day, per device; Load Focus reads the day sync's values. |
+| `trainingStatusDaily(date)` | `/metrics-service/metrics/trainingstatus/daily/{date}` | The aggregated route's day, plus `sinceDate`. |
+| `trainingStatusMonthly(start, end)` | `/metrics-service/metrics/trainingstatus/monthly/{who}?fromCalendarDate=&toCalendarDate=` | Despite the name, a row every seventh day. |
 | `healthStatusSummary(date)` | `/healthstatus-service/healthstatus/summary/{date}` | One night; 204 (null) until the night is scored. |
-| `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | 367-day cap. `{hrvSummaries}`, and 204 (null) when no night has any. |
 | `stressWeekly(end, weeks = 52)` | `/usersummary-service/stats/stress/weekly/{end}/{weeks}` | 52 weeks. The 1y pages average the daily index instead. |
 | `heartRateWeekly(end, weeks = 52)` | `/usersummary-service/stats/heartRate/weekly/{end}/{weeks}` | 52 weeks. |
 | `fitnessAgeWeekly(end, weeks = 52)` | `/fitnessage-service/stats/weekly/{end}/{weeks}` | 52 weeks. |
 | `weightWeekly(start, end)` | `/weight-service/weight/weeklyRange/{start}/{end}` | Exactly 52 weeks. |
 | `bloodPressureWeekly(start, end)` | `/bloodpressure-service/bloodpressure/weeklyRange/{start}/{end}` | Exactly 52 weeks. |
-| `weightLatest(date)` | `/weight-service/weight/latest?date=&ignorePriority=true` | The newest weigh-in on or before the date. |
 | `weightGoal(start, end)` | `/goal-service/goal/user/effective/weightgoal/{start}/{end}` | |
 | `bloodPressureDay(date)` | `/bloodpressure-service/bloodpressure/dayview/{date}` | A day's readings. |
 | `bloodPressureLast(start, end)` | `/bloodpressure-service/bloodpressure/daily/last/{start}/{end}` | Always an empty list on the recording account. |
@@ -304,8 +331,8 @@ A sync costs roughly:
   - about nine for `profile`;
   - one each for `maxMetrics` and `racePredictions` (one per year of a longer
     run);
-  - one per 28 days of the run each for hill score, running tolerance and
-    Health Snapshots;
+  - one per year of the run each for hill score and running tolerance, one
+    for running tolerance's weeks, and one per 28 days for Health Snapshots;
   - one per 50 activities in the run;
   - for each history index whose days the summaries do not cover, about one
     window request, plus its refresh window.

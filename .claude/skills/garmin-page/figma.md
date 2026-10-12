@@ -30,6 +30,29 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   Blood Pressure, Stress, Body Battery, Fitness Age, Health Snapshot). The hub frames are on
   the Sleep 1d pages: Garmin `194:30269`, Obsidian `207:32591` (light) / `209:32867` (dark). Components only that stat uses sit on its own page (a "Components" frame at
   the top left). Shared components and new variables are added by the orchestrator only.
+- Performance Stats (2026-10-11, details and measurements in `ref/performance-stats/figma-foundation.md`):
+  pages `430:6062` (Garmin hub) … `430:6096` and `430:6098` (Obsidian hub) … `430:6132`, one
+  pair per stat in phone order incl. hidden Load / Heat Acclimation (no Cycling Ability or
+  Altitude). Shared "Performance" band on 8:119 from y 4400 (twins 200 higher on 8:128): Range
+  Control 432:166→442:933 (Compact 34 tall at y 122.33; Wide 36 tall at y 116.33 — VO₂ Max,
+  Training Effect), Tabs 433:210→442:1159, Stat Dial 434:196→442:1349 (8 kinds; **dials sweep
+  300°, ends at ±150°**; Value/Label/Unit/Marker props), Dial Marker 434:107→441:562, Factor Card
+  435:120→443:420, Chip 435:125→443:431, Shape Marker 435:134→443:452, Legend Item
+  435:135→443:453, Optimal Range 435:144→443:470, Optimal Band 435:149→443:481, Status Dot /
+  Segment / Strip / Row 436:124 / 436:157 / 436:184 / 436:205 (twins 443:522 / 603 / 682 / 735),
+  Table Header / Row / Title 436:223 / 436:246 / 436:251 (443:773 / 824 / 835), Bottom Sheet
+  Full/Half 437:140→444:427. Variables `performance/*` (Garmin 431:2–431:24, Obsidian
+  431:25–431:47); text styles Dial Value L 43, Dial Unit 20, Sheet Title 22 SB (both prefixes).
+  A dial's marker can't move inside an instance: turn Marker off and place a Dial Marker.
+  Added 2026-10-12 (Garmin / twin): Period Arrow 841:179 / 841:692 and Period Nav 841:221 /
+  841:734 (Compact or Wide × Current, Past, Today), Segmented 842:179 / 842:657, More Button
+  828:165 / 828:621, Glyph Disc 842:697 / 842:726, Stats 842:741 / 842:756, Legend Row 843:213 /
+  843:714, Chart Heading 842:188 / 842:666, Stat Dial "7 Bands · Economy" 844:193 / 844:135748,
+  Dial Marker "Ring 3" 844:191 / 844:135746, Legend Item set 837:561 / 837:135701 (Size 12 | 11 ×
+  Marker), Chip Size=32, Table Row Results 52.33 (838:179 / 838:135688). Title Bar has an Action
+  axis (None / Help / More, default None; 61:10 is Action=Edit) and Page Bar an `Action` boolean.
+  Variables 825:2–825:49 (economy, lt, tolerance, power-curve, status, sport). Older pages keep
+  local copies of these; use the shared ones on new pages.
 
 ## Conventions
 
@@ -58,6 +81,7 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
 - `resize()` resets sizing modes to FIXED: set sizing modes after resizing.
 - `swapComponent` keeps nested instance-swap overrides: re-swap exposed nested instances.
   Swap top-down and re-query children after each swap (old nested ids vanish).
+  `setProperties` after `swapComponent` + `resetOverrides` drops the instance's name: rename last.
 - Instance children can't be moved ("relative-transform"): hide them and draw a sibling.
 - `vectorPaths` positions the node at the path's bbox: write coordinates in the parent's
   space. Re-setting `vectorPaths` on an existing vector shifts it — delete and recreate.
@@ -68,3 +92,7 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
 - A failed `use_figma` script commits nothing (atomic). `get_metadata` on a full page is too
   large — list top-level children with a read-only `use_figma` instead.
 - No `--background-modifier-cover` variable: backdrops are black at 50 % layer opacity.
+- Cloning a component set resets every variant's text to the set's default: to twin a set,
+  detach, convert back to components and re-combine. Per-variant preview text in a set also
+  resets to the default when the file commits; instances keep their own values (set them with
+  `setProperties` per instance).

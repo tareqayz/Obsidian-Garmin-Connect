@@ -1,4 +1,4 @@
-import type { PeriodAxis } from "./periods";
+import { axisDay, dayAxis, type PeriodAxis } from "./periods";
 
 /**
  * Chart geometry the Health Stats pages share: a chart's frame, measured off
@@ -11,6 +11,12 @@ import type { PeriodAxis } from "./periods";
  * Each chart keeps the phone's insets and heights and stretches its plot
  * across whatever width it gets; a pane, where the chart sits in a 748pt
  * column, has a frame of its own.
+ *
+ * The Performance Stats line charts (VO₂ Max, Hill Score and the rest) share
+ * a second kit below: a `LineChartFrame` measured off the stat's twin, and
+ * `linePlot`, which lays out the gridlines, the axis and the points; with
+ * `stepAxis` for an axis that marks every n-th day, and `acuteAxis` for the
+ * acute load's, whose labels sit off its lines (Load, Training Readiness).
  *
  * Pure.
  */
@@ -119,4 +125,164 @@ export function linePath(points: ReadonlyArray<[number, number | null]>): string
 		pen = true;
 	}
 	return d.trim();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Line charts (Performance Stats)                                    */
+/* ------------------------------------------------------------------ */
+
+/** A line chart's box, measured off a twin. */
+export interface LineChartFrame {
+	/** The plot's first x, and its last one's inset from the box's right edge; the gridlines run the same. */
+	left: number;
+	inset: number;
+	/** The top and the bottom gridline. */
+	top: number;
+	baseline: number;
+	/** The y labels' right edge. */
+	labelRight: number;
+	/** The axis' dots under the plot: a day's (small) and an end's or a labelled day's (large), centre and radius. */
+	axisDots: { small: { y: number; r: number }; large: { y: number; r: number } };
+	/** The axis labels' centre. */
+	labelY: number;
+	/** A reading's dot. */
+	pointRadius: number;
+	/** The box's height, down to whatever follows the chart. */
+	height: number;
+}
+
+export interface LinePlot {
+	width: number;
+	height: number;
+	/** The plot's ends. */
+	left: number;
+	right: number;
+	top: number;
+	baseline: number;
+	labelRight: number;
+	/** Top first. */
+	grid: Array<{ y: number; x1: number; x2: number; label: string }>;
+	dots: Array<{ x: number; y: number; r: number }>;
+	labels: Array<{ x: number; y: number; text: string }>;
+	points: Array<{ x: number; y: number }>;
+	/** The points joined straight, in order; empty for fewer than two. */
+	line: string;
+	pointRadius: number;
+}
+
+/** What a line chart draws: ticks top first, the axis' marks and the points as fractions of the plot. */
+export interface LineInput {
+	ticks: readonly number[];
+	axis: PeriodAxis;
+	points: ReadonlyArray<{ x: number; value: number }>;
+}
+
+/** A line chart at `width`, its box laid out by `frame`. A value off the ticks is drawn at the nearest one. */
+export function linePlot(frame: LineChartFrame, width: number, input: LineInput): LinePlot {
+	const right = Math.max(frame.left + 60, width - frame.inset);
+	const span = right - frame.left;
+	const lo = input.ticks.length ? Math.min(...input.ticks) : 0;
+	const hi = input.ticks.length ? Math.max(...input.ticks) : 1;
+	const x = (fraction: number) => r2(frame.left + fraction * span);
+	const y = (value: number) => r2(frame.baseline - ((Math.min(hi, Math.max(lo, value)) - lo) / (hi - lo || 1)) * (frame.baseline - frame.top));
+	const points = input.points.map((p) => ({ x: x(p.x), y: y(p.value) }));
+	return {
+		width,
+		height: frame.height,
+		left: frame.left,
+		right: r2(right),
+		top: frame.top,
+		baseline: frame.baseline,
+		labelRight: frame.labelRight,
+		grid: input.ticks.map((v) => ({ y: y(v), x1: frame.left, x2: r2(right), label: String(v) })),
+		dots: input.axis.dots.map((d) => {
+			const dot = d.large ? frame.axisDots.large : frame.axisDots.small;
+			return { x: x(d.x), y: dot.y, r: dot.r };
+		}),
+		labels: input.axis.labels.map((l) => ({ x: x(l.x), y: frame.labelY, text: l.text })),
+		points,
+		line: points.length > 1 ? points.map((p, i) => `${i ? "L" : "M"}${p.x} ${p.y}`).join(" ") : "",
+		pointRadius: frame.pointRadius,
+	};
+}
+
+/** An axis that marks every n-th day of a period rather than each one. */
+export interface AxisSteps {
+	/** Days between two marks, from the period's first day. */
+	every: number;
+	/** How many marks at most before the last day's, which always ends the axis. */
+	count: number;
+	/** Large and labelled "MM-DD": the two ends only, or every mark. */
+	labelled: "ends" | "all";
+}
+
+/**
+ * An axis from a period's first day to its last that marks `every` days
+ * from the first, `count` of them at most, then the last day: VO₂ Max's 12w
+ * (every 7 days, the ends labelled) and 6m (every 36, all labelled). Fewer
+ * than two days fall back to `dayAxis`.
+ */
+export function stepAxis(days: readonly string[], steps: AxisSteps): PeriodAxis {
+	const n = days.length;
+	if (n < 2) return dayAxis(days);
+	const at = [...Array.from({ length: steps.count }, (_, k) => k * steps.every).filter((d) => d < n - 1), n - 1];
+	const marks = at.map((d, i) => ({ x: d / (n - 1), large: steps.labelled === "all" || i === 0 || i === at.length - 1, day: days[d]! }));
+	return {
+		dots: marks.map(({ x, large }) => ({ x, large })),
+		labels: marks.filter((m) => m.large).map((m) => ({ x: m.x, text: axisDay(m.day) })),
+	};
+}
+
+/* ------------------------------------------------------------------ */
+/*  The acute load axis (Load, Training Readiness)                     */
+/* ------------------------------------------------------------------ */
+
+/** ⌈value / unit⌉ × unit, and at least one unit: the round label step Garmin's load charts count in. */
+export function stepUp(value: number, unit = 25): number {
+	return Math.max(1, Math.ceil(value / unit)) * unit;
+}
+
+/** A load axis label: whole below a thousand ("375"), else thousands to a tenth ("1.1k"). */
+export function loadLabel(value: number): string {
+	return value < 1000 ? String(Math.round(value)) : `${Number((value / 1000).toFixed(1)).toLocaleString()}k`;
+}
+
+/** A mark on a y axis: its value, and `at`, that value as a fraction of the domain (0 the zero line, 1 the top line). */
+export interface AxisMark {
+	value: number;
+	at: number;
+}
+
+/** A y axis whose labels need not sit on its gridlines, from 0 to `top`: the acute load's (`acuteAxis`), Load Ratio's. */
+export interface MarkedAxis {
+	/** The domain's top: where the top gridline sits. The acute load's is 1.5 × the period's largest. */
+	top: number;
+	/** The gridlines, top first: the acute load's at the domain's thirds, 1053, 702, 351, 0. */
+	grid: AxisMark[];
+	/** The labels, top first, each at its own value: the acute load's "1.1k" (1125, `at` 1.07), "750", "375", "0". */
+	labels: Array<AxisMark & { text: string }>;
+}
+
+/**
+ * The acute load axis as Garmin draws it on Load's Training Load tab and
+ * Training Readiness' Acute Load sheet (ref/performance-stats/training-load,
+ * 2026-10-11): the domain runs from 0 to 1.5 × the period's largest acute
+ * load M, and its gridlines sit at the domain's thirds (0, M/2, M, 1.5·M);
+ * the labels count in S = ⌈1.5·M / 3 / 25⌉ × 25 and each stands at its own
+ * value, so they sit off the lines and the top one may pass the top line.
+ * M 702 → lines 351 / 702 / 1053, labels 375 / 750 / "1.1k" (9 pt above the
+ * phone's top line); M 604 → lines 302 / 604 / 906, labels 325 / 650 / 975.
+ * Whether M counts the band's top (1.5 × chronic) too is unseen: here it is
+ * the acute load alone. Without a load to scale by the domain is 0–75, the
+ * labels on the lines (Inferred).
+ */
+export function acuteAxis(maxAcute: number | undefined): MarkedAxis {
+	const loaded = maxAcute !== undefined && Number.isFinite(maxAcute) && maxAcute > 0;
+	const step = stepUp(loaded ? (1.5 * maxAcute) / 3 : 0);
+	const top = loaded ? 1.5 * maxAcute : 3 * step;
+	return {
+		top,
+		grid: [3, 2, 1, 0].map((k) => ({ value: (top * k) / 3, at: k / 3 })),
+		labels: [3, 2, 1, 0].map((k) => ({ value: k * step, at: (k * step) / top, text: loadLabel(k * step) })),
+	};
 }

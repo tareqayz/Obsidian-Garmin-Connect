@@ -1,5 +1,5 @@
 import type { DailySummary, GarminApi } from "../garmin/endpoints";
-import type { MetricGroup } from "./metrics";
+import type { DayData, MetricGroup } from "./metrics";
 
 /**
  * Day indexes: one short row a day for a stat's whole history, a file per
@@ -116,7 +116,14 @@ export interface DayIndexSpec<R extends DayRow> {
 	emptyWindowsToStop: number;
 	/** How far back from today Garmin keeps the stat at all; a walk stops there. */
 	maxHistoryDays?: number;
-	/** One window, `start`..`end` inclusive, as rows. The definition owns the request. */
+	/**
+	 * Requests one window costs: 1, the default, unless `fetchWindow` asks
+	 * more than one route for it (FTP's watts and W/kg, 2). The engine books
+	 * this much a window, so a sync's report and a history walk's log count
+	 * what was really asked.
+	 */
+	requestsPerWindow?: number;
+	/** One window, `start`..`end` inclusive, as rows. The definition owns the request(s). */
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
 	/**
 	 * A day's row from the daily summary a routine sync fetched anyway, so the
@@ -124,6 +131,24 @@ export interface DayIndexSpec<R extends DayRow> {
 	 * The row's date is `date` whatever the row says.
 	 */
 	fromSummary?(summary: DailySummary, date: string): DayRowInput<R> | null | undefined;
+	/**
+	 * A day's row from what the day sync fetched anyway for the day file, for
+	 * a stat the daily summary doesn't carry: the run's own days then cost
+	 * nothing either. Not with `fromSummary`.
+	 */
+	fromDay?: DayFeed<R>;
+}
+
+/**
+ * Reads an index's row out of a synced day's payloads, as `mapDay` gets them.
+ * A day counts as covered — its row replaced, or dropped when `read` gives
+ * nothing — only when every part in `needs` came back, so a failed fetch
+ * leaves the day to the window fetch instead of deleting the row the index
+ * holds. The row's date is `date` whatever the row says.
+ */
+export interface DayFeed<R extends DayRow> {
+	needs: ReadonlyArray<keyof DayData>;
+	read(day: DayData, date: string): DayRowInput<R> | null | undefined;
 }
 
 export interface DayIndexDef<R extends DayRow = DayRow> {
@@ -141,8 +166,11 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 	readonly refreshDays: number;
 	readonly emptyWindowsToStop: number;
 	readonly maxHistoryDays?: number;
+	/** Requests a window costs, as the engine books it: 1 unless the definition says otherwise. */
+	readonly requestsPerWindow: number;
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
 	fromSummary?(summary: DailySummary, date: string): DayRowInput<R> | null | undefined;
+	readonly fromDay?: DayFeed<R>;
 	/** A clean row: a valid date, only the columns, each kept as its spec says, in order. Null when nothing is left. */
 	normalize(row: unknown): R | null;
 	/** Folds a batch into the rows. Every day asked about is replaced by what was found, or dropped. */
@@ -264,6 +292,8 @@ export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayInde
 		refreshDays: spec.refreshDays ?? 0,
 		emptyWindowsToStop: spec.emptyWindowsToStop,
 		...(spec.maxHistoryDays !== undefined ? { maxHistoryDays: spec.maxHistoryDays } : {}),
+		requestsPerWindow: spec.requestsPerWindow ?? 1,
+		...(spec.fromDay ? { fromDay: { needs: [...spec.fromDay.needs], read: spec.fromDay.read.bind(spec.fromDay) } } : {}),
 		fetchWindow: (api, start, end) => spec.fetchWindow(api, start, end),
 		normalize,
 		merge,
@@ -368,6 +398,14 @@ function problemWith(spec: DayIndexSpec<DayRow>): string | null {
 	if (spec.maxHistoryDays !== undefined && (!Number.isInteger(spec.maxHistoryDays) || spec.maxHistoryDays < 1)) {
 		return "maxHistoryDays must be 1 or more";
 	}
+	if (spec.requestsPerWindow !== undefined && (!Number.isInteger(spec.requestsPerWindow) || spec.requestsPerWindow < 1)) {
+		return "requestsPerWindow must be a whole number from 1";
+	}
 	if (typeof spec.fetchWindow !== "function") return "fetchWindow is missing";
+	if (spec.fromDay) {
+		if (spec.fromSummary) return "fromSummary and fromDay cannot both feed an index";
+		if (!Array.isArray(spec.fromDay.needs) || !spec.fromDay.needs.length) return "fromDay needs at least one part";
+		if (typeof spec.fromDay.read !== "function") return "fromDay.read is missing";
+	}
 	return null;
 }

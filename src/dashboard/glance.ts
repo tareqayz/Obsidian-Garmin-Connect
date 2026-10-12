@@ -15,8 +15,15 @@ import {
 	titleCase,
 	weekdayLetter,
 } from "./day";
+import { economyGauge, enduranceGauge, ftpGauge, hillGauge, vo2Gauge, type Gauge, type Tone } from "./gauges";
 import type { HomeInput } from "./home";
+import { paceOf, paceText, paceUnit } from "./running-lactate-threshold-pages";
 import type { DayRow } from "./series";
+
+/* The dials live in `gauges.ts`, shared with the Performance Stats pages,
+   and are re-exported for the cards that read them from here. */
+export { ftpGauge, readinessDial, vo2Gauge } from "./gauges";
+export type { Gauge, GaugeSegment, Tone } from "./gauges";
 
 /**
  * At a Glance: Garmin's 36 stat cards, the list of them a person keeps, and
@@ -63,9 +70,6 @@ export type GlanceId =
 	| "vo2max"
 	| "weight"
 	| "xcSkiFtp";
-
-/** Obsidian's named colours, which is what the Figma twin binds every series to. */
-export type Tone = "red" | "orange" | "yellow" | "green" | "cyan" | "blue" | "purple" | "pink";
 
 export interface GlanceStat {
 	id: GlanceId;
@@ -178,35 +182,11 @@ export function sameList(a: readonly GlanceId[], b: readonly GlanceId[]): boolea
 /*  Dials                                                              */
 /* ------------------------------------------------------------------ */
 
-export interface GaugeSegment {
-	/** Fractions of the dial, 0 at its start and 1 at its end. */
-	from: number;
-	to: number;
-	tone: Tone;
-}
-
-/** A banded dial: Garmin's gauge for VO₂ Max, FTP, Endurance and the rest. */
-export interface Gauge {
-	/** The number in the middle, formatted. */
-	value: string;
-	/** The band's name, under the dial. */
-	label?: string;
-	segments: GaugeSegment[];
-	/** Where the marker sits, as a fraction of the dial. None when it cannot be placed. */
-	at?: number;
-	/** The marker takes the colour of the band it sits in. */
-	tone?: Tone;
-}
-
 export type Trend = "up" | "down" | "flat";
 
 export interface TrendGauge extends Gauge {
 	trend?: Trend;
 }
-
-const FIVE: Tone[] = ["red", "orange", "green", "blue", "purple"];
-const SIX: Tone[] = ["red", "orange", "green", "blue", "purple", "pink"];
-const SEVEN: Tone[] = ["red", "orange", "yellow", "green", "blue", "purple", "pink"];
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
@@ -218,25 +198,6 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
  */
 const DAILY = 7;
 const VO2_WINDOW = 28;
-
-function bands(bounds: readonly number[], tones: readonly Tone[]): GaugeSegment[] {
-	return tones.map((tone, i) => ({ from: bounds[i]!, to: bounds[i + 1]!, tone }));
-}
-
-function bandAt(segments: readonly GaugeSegment[], at: number): number {
-	const i = segments.findIndex((s) => at < s.to);
-	return i < 0 ? segments.length - 1 : i;
-}
-
-function gauge(value: string, segments: GaugeSegment[], at: number | undefined, label?: string): Gauge {
-	return { value, label, segments, at, tone: at === undefined ? undefined : segments[bandAt(segments, at)]!.tone };
-}
-
-/** Linear interpolation of `value` inside `[lo, hi]`, placed inside a band. */
-function within(value: number, lo: number, hi: number, band: GaugeSegment): number {
-	const t = hi === lo ? 0.5 : clamp01((value - lo) / (hi - lo));
-	return band.from + t * (band.to - band.from);
-}
 
 /**
  * Which way a number moved over the last week, the arrow under Endurance and
@@ -261,11 +222,9 @@ export function trendOf(rows: readonly DayRow[], date: string, key: string, tole
 	return delta > 0 ? "up" : "down";
 }
 
-/* Endurance Score. Garmin sends the class limits with the score — they depend on
-   age and sex — and the dial is linear between its own ends, which is what puts
-   6,336 a third of the way round. */
+/* Endurance Score: the day row keeps the class limits Garmin sends with the
+   score (`enduranceGauge` draws them). */
 
-const ENDURANCE_CLASSES = ["Recreational", "Intermediate", "Trained", "Well-Trained", "Expert", "Superior", "Elite"];
 const ENDURANCE_LIMITS = [
 	"endurance_intermediate_from",
 	"endurance_trained_from",
@@ -279,133 +238,32 @@ export function enduranceView(input: HomeInput): TrendGauge | null {
 	const r = latestWith(input.rows, input.date, "endurance_score", DAILY);
 	const score = num(r, "endurance_score");
 	if (score === undefined) return null;
-	const low = num(r, "endurance_gauge_low");
-	const high = num(r, "endurance_gauge_high");
-	const limits = ENDURANCE_LIMITS.map((k) => num(r, k));
-	const known = low !== undefined && high !== undefined && high > low && limits.every((v) => v !== undefined);
-	const f = (v: number) => clamp01((v - low!) / (high! - low!));
-	const segments = known ? bands([0, ...limits.map((v) => f(v!)), 1], SEVEN) : bands([0, 1, 2, 3, 4, 5, 6, 7].map((i) => i / 7), SEVEN);
-	const cls = num(r, "endurance_classification");
-	const index = cls !== undefined && cls >= 1 && cls <= 7 ? cls - 1 : known ? limits.filter((v) => score >= v!).length : undefined;
-	const at = known ? f(score) : index !== undefined ? (index + 0.5) / 7 : undefined;
+	const scale = {
+		low: num(r, "endurance_gauge_low"),
+		high: num(r, "endurance_gauge_high"),
+		limits: ENDURANCE_LIMITS.map((k) => num(r, k)),
+	};
 	return {
-		...gauge(score.toLocaleString(), segments, at, index !== undefined ? ENDURANCE_CLASSES[index] : undefined),
+		...enduranceGauge(score, scale, num(r, "endurance_classification")),
 		trend: trendOf(input.rows, input.date, "endurance_score", 0.0025),
 	};
 }
-
-/* Hill Score: 0–100 on a linear dial, bands read off the app. */
-
-const HILL_CLASSES = ["Recreational", "Challenger", "Trained", "Well-Trained", "Expert", "Elite"];
-const HILL_BOUNDS = [0, 0.255, 0.505, 0.705, 0.855, 0.945, 1];
 
 export function hillView(input: HomeInput): TrendGauge | null {
 	const r = latestWith(input.rows, input.date, "hill_score", DAILY);
 	const score = num(r, "hill_score");
 	if (score === undefined) return null;
-	const segments = bands(HILL_BOUNDS, SIX);
-	const at = clamp01(score / 100);
-	const cls = num(r, "hill_score_classification");
-	const index = cls !== undefined && cls >= 1 && cls <= 6 ? cls - 1 : bandAt(segments, at);
 	return {
-		...gauge(String(Math.round(score)), segments, at, HILL_CLASSES[index]),
+		...hillGauge(score, num(r, "hill_score_classification")),
 		trend: trendOf(input.rows, input.date, "hill_score", 0),
 	};
 }
 
-/* VO₂ Max. Graded against Garmin's age-and-sex table (from The Cooper
-   Institute). Unlike FTP the dial is not linear: every band has a fixed arc and
-   the marker is placed inside its band. */
-
-type Sex = "male" | "female";
-
-/** Lower limits of Fair, Good, Excellent and Superior, by the top of each age band. */
-const VO2_TABLE: Record<Sex, Array<[number, [number, number, number, number]]>> = {
-	male: [
-		[29, [41.7, 45.4, 51.1, 55.4]],
-		[39, [40.5, 44.0, 48.3, 54.0]],
-		[49, [38.5, 42.4, 46.4, 52.5]],
-		[59, [35.6, 39.2, 43.4, 48.9]],
-		[69, [32.3, 35.5, 39.5, 45.7]],
-		[Infinity, [29.4, 32.3, 36.7, 42.1]],
-	],
-	female: [
-		[29, [36.1, 39.5, 43.9, 49.6]],
-		[39, [34.4, 37.8, 42.4, 47.4]],
-		[49, [33.0, 36.3, 39.7, 45.3]],
-		[59, [30.1, 33.0, 36.7, 41.1]],
-		[69, [27.5, 30.0, 33.0, 37.8]],
-		[Infinity, [25.9, 28.1, 30.9, 36.7]],
-	],
-};
-const VO2_CLASSES = ["Poor", "Fair", "Good", "Excellent", "Superior"];
-const VO2_BOUNDS = [0, 0.402, 0.546, 0.69, 0.849, 1];
-
-export function vo2Gauge(value: number, age: number | undefined, sex: Sex | undefined): Gauge {
-	const segments = bands(VO2_BOUNDS, FIVE);
-	const shown = String(Math.round(value));
-	if (age === undefined || !sex) return gauge(shown, segments, undefined);
-	const limits = VO2_TABLE[sex].find(([top]) => age <= top)![1];
-	const index = limits.filter((l) => value >= l).length;
-	// The open ends get a band's worth of range each, scaled to their arc.
-	const lo = index === 0 ? limits[0] - (limits[1] - limits[0]) * 2.8 : limits[index - 1]!;
-	const hi = index === 4 ? limits[3] + (limits[3] - limits[2]) : limits[index]!;
-	return gauge(shown, segments, within(value, lo, hi, segments[index]!), VO2_CLASSES[index]);
-}
-
-/* FTP, as W/kg. A linear dial from 0 to about 6 W/kg for men, graded by
-   Garmin's FTP table; the women's dial is the same shape, scaled. */
-
-const FTP_TABLE: Record<Sex, [number, number, number, number]> = {
-	male: [2.23, 2.79, 3.93, 5.05],
-	female: [1.9, 2.36, 3.33, 4.3],
-};
-const FTP_CLASSES = ["Untrained", "Fair", "Good", "Excellent", "Superior"];
-
-export function ftpGauge(wattsPerKg: number, sex: Sex | undefined): Gauge {
-	const limits = FTP_TABLE[sex ?? "male"];
-	const top = limits[3] * (6 / 5.05);
-	const f = (v: number) => clamp01(v / top);
-	const segments = bands([0, ...limits.map(f), 1], FIVE);
-	// Without the sex the bands are only a guess, so the class name is left off.
-	const label = sex ? FTP_CLASSES[limits.filter((l) => wattsPerKg >= l).length] : undefined;
-	return gauge(wattsPerKg.toFixed(2), segments, f(wattsPerKg), label);
-}
-
-/* Training Readiness: 0–100, Garmin's own bands (Poor 1–24 … Prime 95–100). */
-
-export function readinessDial(score: number): Gauge {
-	return gauge(String(score), bands([0, 0.25, 0.5, 0.75, 0.95, 1], FIVE), clamp01(score / 100));
-}
-
-/* Running Economy. Lower is better and only a class name comes back, so the
-   marker sits inside the named class. The limits that place it there are
-   read off one reading of the app's dial (223–224, just into Intermediate),
-   and are clamped to the class so a wrong guess cannot contradict the name. */
-
-const ECONOMY_CLASSES = ["RECREATIONAL", "INTERMEDIATE", "TRAINED", "WELL_TRAINED", "EXPERT", "SUPERIOR", "ELITE"];
-const ECONOMY_BOUNDS = [0, 0.179, 0.366, 0.55, 0.728, 0.818, 0.906, 1];
-/** Each class's worse and better limit, in the score's own units. */
-const ECONOMY_RANGES: Array<[number, number]> = [
-	[235, 225],
-	[225, 215],
-	[215, 205],
-	[205, 195],
-	[195, 190],
-	[190, 185],
-	[185, 175],
-];
+/* VO₂ Max and FTP are drawn by `vo2Gauge` and `ftpGauge`, in `glanceModel`. */
 
 export function economyView(account: AccountInfo | null): Gauge | null {
 	const e = account?.runningEconomy;
-	if (e?.score === undefined) return null;
-	const segments = bands(ECONOMY_BOUNDS, SEVEN);
-	const index = ECONOMY_CLASSES.indexOf((e.classification ?? "").toUpperCase());
-	const shown = String(Math.round(e.score));
-	if (index < 0) return gauge(shown, segments, undefined, titleCase(e.classification));
-	const [worse, better] = ECONOMY_RANGES[index]!;
-	const at = within(worse - e.score, 0, worse - better, segments[index]!);
-	return gauge(shown, segments, at, titleCase(e.classification));
+	return e?.score === undefined ? null : economyGauge(e.score, e.classification);
 }
 
 /* ------------------------------------------------------------------ */
@@ -646,7 +504,7 @@ export function loadFocusView(input: HomeInput): LoadFocusView | null {
 }
 
 export interface ToleranceView {
-	/** Acute impact load, "19.1": Garmin counts it in kilometre (or mile) equivalents. */
+	/** Acute impact load, "19.1", "10": Garmin counts it in kilometre (or mile) equivalents. */
 	load: string;
 	/** How much of the weekly tolerance the load is, for the ring. */
 	share: number;
@@ -662,7 +520,9 @@ export function toleranceView(input: HomeInput, units: "metric" | "imperial"): T
 	// Both arrive in metres, whatever the unit setting.
 	const per = units === "imperial" ? 1609.344 : 1000;
 	return {
-		load: (load / per).toFixed(1),
+		// Tenths rounded half up on the metres, a trailing ".0" dropped, as the
+		// Running Tolerance page writes it: 21450 m is "21.5" (toFixed says 21.4), 10009 m "10".
+		load: String(Math.round(load / (per / 10)) / 10),
 		share: clamp01(load / tolerance),
 		tolerance: `${Math.round(tolerance / per)} ${units === "imperial" ? "mi" : "km"}`,
 	};
@@ -836,12 +696,19 @@ export interface LactateView {
 	updated?: string;
 }
 
+/**
+ * The Running Lactate Threshold card: the page's Current in a row. The pace
+ * comes from the threshold speed in today's units, rounded as the page
+ * rounds it (268.658 s → "4:29 /km"); a file without the speed keeps the
+ * pace it was written with, in the units of its sync.
+ */
 export function lactateView(account: AccountInfo | null, units: "metric" | "imperial", today: string): LactateView | null {
 	const lt = account?.lactateThreshold;
 	const ftp = account?.ftp?.running;
 	const stats: LactateView["stats"] = [];
 	if (lt?.heartRate !== undefined) stats.push({ value: `${lt.heartRate} bpm`, label: "Heart Rate", shape: "dot", tone: "red" });
-	if (lt?.pace) stats.push({ value: `${lt.pace} /${units === "imperial" ? "mi" : "km"}`, label: "Pace", shape: "square", tone: "blue" });
+	const pace = lt?.speed !== undefined && lt.speed > 0 ? paceText(paceOf(lt.speed, units)) : lt?.pace;
+	if (pace) stats.push({ value: `${pace} ${paceUnit(units)}`, label: "Pace", shape: "square", tone: "blue" });
 	if (ftp?.watts !== undefined) stats.push({ value: `${ftp.watts} W`, label: "Power", shape: "triangle", tone: "purple" });
 	if (ftp?.wattsPerKg !== undefined) {
 		stats.push({ value: `${ftp.wattsPerKg.toFixed(2)} W/kg`, label: "Power (W/kg)", shape: "diamond", tone: "pink" });

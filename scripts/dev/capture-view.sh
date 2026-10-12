@@ -30,8 +30,11 @@ JS="(()=>{window.__p0=window.__p0||{}; if(window.__p0['$KEY']!==undefined) retur
  const visH=Math.floor(rect.height); const total=sc.scrollHeight; const tops=[];
  try {
   for(let k=0; k<20; k++){ const want=Math.min(k*(visH-60), Math.max(0,total-visH)); sc.scrollTop=want; await wait(300); wc.invalidate(); await wait(400);
-   const cw=Math.min(rect.width, Math.ceil($W*z)+30);
-   const img=await wc.capturePage({x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(cw),height:visH},{stayHidden:true});
+   // Unzoomed, from the page's own left edge, not the view's: the view pads the page in, and a crop
+   // from the view's edge cut the page's last ~12 pt (2026-10-12, VO2 Max's end label). A zoomed
+   // page reports its rect in other units; its crop keeps the view's edge and the 30 pt slack.
+   const left=z===1?Math.max(rect.x, root.getBoundingClientRect().x):rect.x; const cw=Math.min(rect.right-left, Math.ceil($W*z)+30);
+   const img=await wc.capturePage({x:Math.round(left),y:Math.round(rect.y),width:Math.round(cw),height:visH},{stayHidden:true});
    require('fs').writeFileSync('$OUT-'+k+'.png', img.toPNG()); tops.push(sc.scrollTop); if(sc.scrollTop>=total-visH-2) break; }
  } finally {
   sticky.forEach(e=>e.style.position=''); root.style.width=saved.w; root.style.zoom=saved.z; root.style.margin=saved.m;

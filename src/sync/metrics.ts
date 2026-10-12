@@ -97,8 +97,10 @@ export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
 export type PropertyValue = number | string | Array<Record<string, unknown>>;
 export type Properties = Record<string, PropertyValue>;
 
+/** `/hrv-service/hrv/{date}`: the night's summary, its five-minute readings and its sleep window. Null (HTTP 204) for a night without data. */
 export interface HrvData {
 	hrvSummary?: {
+		calendarDate?: string;
 		lastNightAvg?: number | null;
 		lastNight5MinHigh?: number | null;
 		status?: string | null;
@@ -111,8 +113,26 @@ export interface HrvData {
 			markerValue?: number | null;
 			[key: string]: unknown;
 		} | null;
+		/** The key of the HRV Status page's copy: `HRV_BALANCED_6`, `ONBOARDING_1`. */
+		feedbackPhrase?: string | null;
 		[key: string]: unknown;
 	};
+	/**
+	 * Five-minute values, oldest first; a gap is left out, not sent as null.
+	 * Empty on a night without an overnight value and on every night before
+	 * 2026-06-01, which Garmin no longer keeps readings for.
+	 */
+	hrvReadings?: Array<{ hrvValue?: number | null; readingTimeGMT?: string | null; readingTimeLocal?: string | null }> | null;
+	/** The sleep window, zone-less: null on a night without readings. Use the `…Local` pair for the watch's clock. */
+	sleepStartTimestampGMT?: string | null;
+	sleepStartTimestampLocal?: string | null;
+	sleepEndTimestampGMT?: string | null;
+	sleepEndTimestampLocal?: string | null;
+	/** The sleep start, and the last reading. */
+	startTimestampGMT?: string | null;
+	startTimestampLocal?: string | null;
+	endTimestampGMT?: string | null;
+	endTimestampLocal?: string | null;
 	[key: string]: unknown;
 }
 

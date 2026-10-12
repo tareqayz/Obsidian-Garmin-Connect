@@ -1,18 +1,26 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import type { GlanceId } from "../src/dashboard/glance";
+import { PERFORMANCE_REGISTRY } from "../src/dashboard/performance-stats";
 import {
 	HOME,
 	activityMapRoute,
 	activityRoute,
 	categoryRoute,
 	healthStatRoute,
+	moveStatRoute,
+	performanceStatRoute,
+	performanceTargetRoute,
 	pop,
 	push,
 	pushOrReturn,
+	rangeControlOf,
 	readRoute,
 	readStack,
 	replace,
 	sleepRoute,
+	statOfRoute,
+	statTabs,
 	statsRoute,
 	top,
 	type Route,
@@ -180,6 +188,164 @@ describe("health-stat routes", () => {
 	it("survive a reload in a stack", () => {
 		const route = healthStatRoute("respiration", { range: "7d", offset: -1 });
 		assert.deepEqual(readStack([{ page: "more" }, { page: "health" }, route]), [HOME, { page: "more" }, { page: "health" }, route]);
+	});
+});
+
+describe("performance-stat routes", () => {
+	it("open on the stat's default range and the current period", () => {
+		assert.deepEqual(performanceStatRoute("vo2-max"), { page: "performance-stat", stat: "vo2-max", range: "1d", offset: 0 });
+		assert.deepEqual(performanceStatRoute("training-effect"), { page: "performance-stat", stat: "training-effect", range: "7d", offset: 0 });
+		assert.deepEqual(performanceStatRoute("vo2-max", { range: "12w", offset: -2, tab: "cycling", sub: "fitness-age", date: "2026-10-01" }), {
+			page: "performance-stat",
+			stat: "vo2-max",
+			range: "12w",
+			offset: -2,
+			tab: "cycling",
+			sub: "fitness-age",
+			date: "2026-10-01",
+		});
+	});
+
+	it("take the ranges Performance adds where the stat has them, and only there", () => {
+		assert.equal(performanceStatRoute("cycling-power-curve", { range: "3m" }).range, "3m");
+		assert.equal(performanceStatRoute("race-predictor", { range: "6m" }).range, "6m");
+		assert.equal(performanceStatRoute("hill-score", { range: "12w" }).range, "12w");
+		assert.equal(performanceStatRoute("race-predictor", { range: "12w" }).range, "1d");
+		assert.equal(performanceStatRoute("training-effect", { range: "1y" }).range, "7d");
+		// A day stepper only: there is nothing else to be on.
+		assert.equal(performanceStatRoute("training-readiness", { range: "4w" }).range, "1d");
+		// Health's pages never take them.
+		assert.deepEqual(readRoute({ page: "health-stat", stat: "stress", range: "12w" }), healthStatRoute("stress"));
+		assert.deepEqual(healthStatRoute("stress", { range: "6m" }), healthStatRoute("stress"));
+	});
+
+	it("read back what the pages accept, repairing the rest", () => {
+		const route = performanceStatRoute("training-load", { tab: "training", offset: -3 });
+		assert.deepEqual(readRoute(route), route);
+		assert.deepEqual(readRoute({ page: "performance-stat", stat: "ftp", range: "5y", offset: 7 }), performanceStatRoute("ftp"));
+		assert.equal((readRoute({ page: "performance-stat", stat: "ftp", offset: -3 }) as { offset: number }).offset, -3);
+		assert.equal((readRoute({ page: "performance-stat", stat: "ftp", offset: 1.5 }) as { offset: number }).offset, 0);
+		assert.equal((readRoute({ page: "performance-stat", stat: "ftp", offset: "-3" }) as { offset: number }).offset, 0);
+		assert.deepEqual(readRoute({ page: "performance" }), { page: "performance" });
+	});
+
+	it("refuse an unknown stat, Cycling Ability, which has no page, and the other section's stats", () => {
+		assert.equal(readRoute({ page: "performance-stat", stat: "darts" }), null);
+		assert.equal(readRoute({ page: "performance-stat", stat: "cycling-ability", range: "1d" }), null);
+		assert.equal(readRoute({ page: "performance-stat", stat: "stress" }), null);
+		assert.equal(readRoute({ page: "health-stat", stat: "vo2-max" }), null);
+		assert.equal(readRoute({ page: "performance-stat" }), null);
+	});
+
+	it("keep a tab, a sub-page and a day only when they look like one", () => {
+		const read = (extra: Record<string, unknown>) => readRoute({ page: "performance-stat", stat: "hill-score", ...extra }) as Record<string, unknown>;
+		assert.equal(read({ tab: "contributors" }).tab, "contributors");
+		assert.equal(read({ sub: "2026-03" }).sub, "2026-03");
+		assert.equal(read({ tab: "<img src=x>" }).tab, undefined);
+		assert.equal(read({ sub: "../../etc" }).sub, undefined);
+		assert.equal(read({ sub: "x".repeat(65) }).sub, undefined);
+		assert.equal(read({ date: "2026-10-01" }).date, "2026-10-01");
+		assert.equal(read({ date: "2026-10-1" }).date, undefined);
+		assert.equal("tab" in read({}), false);
+	});
+
+	it("open the pages only another page links to", () => {
+		assert.deepEqual(performanceStatRoute("heat-acclimation", { range: "4w" }), { page: "performance-stat", stat: "heat-acclimation", range: "4w", offset: 0 });
+		assert.deepEqual(performanceStatRoute("training-load", { tab: "focus" }), { page: "performance-stat", stat: "training-load", range: "4w", offset: 0, tab: "focus" });
+	});
+
+	it("survive a reload in a stack, and go back down to a page already open", () => {
+		const status = performanceStatRoute("training-status");
+		const load = performanceStatRoute("training-load", { tab: "focus" });
+		const stack = readStack([{ page: "more" }, { page: "performance" }, status, load]);
+		assert.deepEqual(stack, [HOME, { page: "more" }, { page: "performance" }, status, load]);
+		assert.deepEqual(pop(stack), [HOME, { page: "more" }, { page: "performance" }, status]);
+		assert.deepEqual(pushOrReturn([...stack, activityRoute(1)], status), [HOME, { page: "more" }, { page: "performance" }, status]);
+	});
+});
+
+describe("stat page moves", () => {
+	it("keep the page's tab and sub-page, and carry the day 1d last showed", () => {
+		const route = performanceStatRoute("vo2-max", { range: "4w", offset: -1, tab: "cycling", sub: "fitness-age" });
+		assert.deepEqual(moveStatRoute(route, { range: "12w", offset: 0, date: "2026-10-09" }), {
+			page: "performance-stat",
+			stat: "vo2-max",
+			range: "12w",
+			offset: 0,
+			tab: "cycling",
+			sub: "fitness-age",
+			date: "2026-10-09",
+		});
+		assert.deepEqual(moveStatRoute(route, { range: "4w", offset: -2 }), { ...route, offset: -2 });
+	});
+
+	it("move a Health page as the shell always has, key for key", () => {
+		const route = healthStatRoute("stress", { range: "7d", offset: -1 });
+		assert.deepEqual(moveStatRoute(route, { range: "1d", offset: -3 }), { page: "health-stat", stat: "stress", range: "1d", offset: -3 });
+		assert.equal(
+			JSON.stringify(moveStatRoute(route, { range: "4w", offset: 0, date: "2026-10-05" })),
+			'{"page":"health-stat","stat":"stress","range":"4w","offset":0,"date":"2026-10-05"}',
+		);
+	});
+
+	it("find the stat behind a route in its own section", () => {
+		assert.equal(statOfRoute(healthStatRoute("stress"))?.title, "Stress");
+		assert.equal(statOfRoute(performanceStatRoute("ftp"))?.title, "FTP");
+		assert.deepEqual(statOfRoute(performanceStatRoute("vo2-max"))?.rangeLabels, { "1d": "Current" });
+	});
+});
+
+describe("stat page controls", () => {
+	it("list a page's tabs with their names, the route's on or else the first", () => {
+		assert.deepEqual(statTabs(performanceStatRoute("vo2-max")), [
+			{ id: "running", label: "VO₂ Max", on: true },
+			{ id: "cycling", label: "Cycling", on: false },
+		]);
+		assert.deepEqual(
+			statTabs(performanceStatRoute("training-load", { tab: "training" })).map((t) => [t.label, t.on]),
+			[
+				["Load Focus", false],
+				["Exercise Load", false],
+				["Training Load", true],
+			],
+		);
+		// A tab the page doesn't have opens on the first.
+		assert.equal(statTabs(performanceStatRoute("ftp", { tab: "swim" }))[0]!.on, true);
+		assert.deepEqual(statTabs(healthStatRoute("stress")), []);
+	});
+
+	it("size the range control by section and stat: Health's own, compact, or wide", () => {
+		assert.deepEqual(rangeControlOf(healthStatRoute("stress"), 4), { family: "health" });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-status"), 4), { family: "compact", width: 338 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("hrv-status"), 3), { family: "compact", width: 255 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("hrv-stress"), 2), { family: "compact", width: 170 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("vo2-max"), 4), { family: "wide", width: 370 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-effect"), 2), { family: "wide", width: 184 });
+		assert.deepEqual(rangeControlOf(performanceStatRoute("training-readiness"), 1), { family: "compact" });
+	});
+});
+
+describe("Performance cards' routes", () => {
+	const target = (id: GlanceId) => PERFORMANCE_REGISTRY.glanceTarget(id)!;
+
+	it("open the card's stat on its tab, a day page on the day Home shows", () => {
+		assert.deepEqual(performanceTargetRoute(target("cyclingVo2"), -1), { page: "performance-stat", stat: "vo2-max", range: "1d", offset: -1, tab: "cycling" });
+		assert.deepEqual(performanceTargetRoute(target("xcSkiFtp")), { page: "performance-stat", stat: "ftp", range: "1d", offset: 0, tab: "xc" });
+		assert.deepEqual(performanceTargetRoute(target("readiness"), -2), performanceStatRoute("training-readiness", { offset: -2 }));
+		// A page without a day opens on its current period.
+		assert.deepEqual(performanceTargetRoute(target("loadFocus"), -1), { page: "performance-stat", stat: "training-load", range: "4w", offset: 0, tab: "focus" });
+		assert.deepEqual(performanceTargetRoute(target("trainingLoad"), -1).tab, "training");
+	});
+
+	it("open on the range and sub-page a link names", () => {
+		const hill = PERFORMANCE_REGISTRY.page("hill-score")!;
+		assert.deepEqual(performanceTargetRoute({ stat: hill, range: "1y", sub: "2026-03" }, -1), {
+			page: "performance-stat",
+			stat: "hill-score",
+			range: "1y",
+			offset: 0,
+			sub: "2026-03",
+		});
 	});
 });
 

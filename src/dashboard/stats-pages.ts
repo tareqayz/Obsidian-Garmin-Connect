@@ -2,7 +2,7 @@ import type { DailyStatsRow } from "../sync/daily-stats";
 import type { DaySeries } from "../sync/intraday";
 import { formatDistance } from "./activities";
 import { shortDate } from "./day";
-import { daysBetween, lastDayOfMonth, longDate, MONTHS, SHORT_MONTHS, shiftMonth, WEEKDAYS, weekdayOf } from "./periods";
+import { daysBetween, lastDayOfMonth, longDate, MONTHS, SHORT_MONTHS, shiftMonth, WEEKDAYS, weekdayOf, weekStartOf } from "./periods";
 import { shiftDate } from "./series";
 import type { BarTone, ChartSpec, FrameId } from "./stats-charts";
 
@@ -158,11 +158,8 @@ interface Span {
 	label: string;
 }
 
-/** The first day of the week `date` falls in. */
-export function weekStartOf(date: string, weekStart: number): string {
-	const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-	return shiftDate(date, -((dow - weekStart + 7) % 7));
-}
+/** The first day of the week `date` falls in: shared from `periods.ts`, kept exported here for its callers. */
+export { weekStartOf };
 
 function daysFrom(from: string, n: number): string[] {
 	return Array.from({ length: n }, (_, i) => shiftDate(from, i));

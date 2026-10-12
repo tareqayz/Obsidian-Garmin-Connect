@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { HEALTH_STATS } from "../src/dashboard/health-stats";
 import {
 	addMonths,
 	axisDay,
@@ -10,23 +11,34 @@ import {
 	dayLabel,
 	dayOf,
 	daysOf,
+	defaultSpan,
 	meanOf,
 	monthAxis,
+	monthEndsOf,
+	monthLabel,
+	monthsLabel,
 	offsetOfDay,
+	PERIOD_RANGES,
 	periodLabel,
 	periodOf,
 	rangeLabel,
 	rollingWeeks,
+	spanOf,
 	stepRoute,
 	switchRange,
 	weekCardRoute,
 	weekOffset,
+	weekStartOf,
 	weekTitle,
 	weekdayOf,
 	weeksOf,
 	yearLabel,
+	type PeriodRange,
 	type PeriodRoute,
+	type SpanRule,
 } from "../src/dashboard/periods";
+import { shiftDate } from "../src/dashboard/series";
+import { spanRuleOf } from "../src/dashboard/stat-registry";
 
 /** The day Stress was measured, which these rules come from. */
 const TODAY = "2026-10-08";
@@ -180,5 +192,133 @@ describe("means", () => {
 		assert.deepEqual(round[50], { from: "2026-09-25", to: "2026-10-01", value: 10, days: 1 });
 		assert.deepEqual(floor[0], { from: "2025-10-10", to: "2025-10-16", days: 0 });
 		assert.equal(weeksOf([{ date: "2026-10-08", v: 30 }, { date: "2026-10-07", v: 31 }], TODAY, (r) => r.v, "round")[51]!.value, 31);
+	});
+});
+
+/** The day of the Performance Stats shots, a Sunday: every span rule below is checked on it. */
+const SHOT_DAY = "2026-10-11";
+
+describe("span rules, today 2026-10-11", () => {
+	const span = (rule: SpanRule, offset = 0) => spanOf(rule, offset, SHOT_DAY);
+
+	it("list the ranges in the range control's order, Performance's among Health's", () => {
+		assert.deepEqual(PERIOD_RANGES, ["1d", "7d", "4w", "12w", "3m", "6m", "1y"]);
+	});
+
+	it("count days ending today by default: 7d 7, 4w 28, 12w 84, 6m 182, 1y 364; 3m counts months", () => {
+		assert.deepEqual(
+			(["7d", "4w", "12w", "3m", "6m", "1y"] as const).map(defaultSpan),
+			[{ days: 7 }, { days: 28 }, { days: 84 }, { months: 3 }, { days: 182 }, { days: 364 }],
+		);
+		assert.deepEqual(periodOf("7d", 0, SHOT_DAY), { from: "2026-10-05", to: "2026-10-11" });
+		assert.deepEqual(periodOf("4w", 0, SHOT_DAY), { from: "2026-09-14", to: "2026-10-11" });
+		assert.deepEqual(periodOf("12w", 0, SHOT_DAY), { from: "2026-07-20", to: "2026-10-11" });
+		assert.deepEqual(periodOf("12w", -1, SHOT_DAY), { from: "2026-04-27", to: "2026-07-19" });
+		assert.deepEqual(periodOf("3m", 0, SHOT_DAY), { from: "2026-07-12", to: "2026-10-11" });
+		assert.deepEqual(periodOf("6m", 0, SHOT_DAY), { from: "2026-04-13", to: "2026-10-11" });
+		assert.deepEqual(periodOf("1y", 0, SHOT_DAY), { from: "2025-10-13", to: "2026-10-11" });
+		assert.equal(rangeLabel("6m", periodOf("6m", 0, SHOT_DAY), SHOT_DAY), "Apr 13 - Oct 11");
+	});
+
+	it("weeks: the week so far, then whole weeks back from its first day", () => {
+		const sundays = { weeks: 12, weekStart: 0 };
+		assert.deepEqual(span(sundays), { from: "2026-07-26", to: "2026-10-11" });
+		assert.deepEqual(span(sundays, -1), { from: "2026-05-03", to: "2026-07-25" });
+		assert.equal(daysOf(span(sundays, -1)).length, 84);
+		assert.deepEqual(span({ weeks: 52, weekStart: 0 }), { from: "2025-10-19", to: "2026-10-11" });
+		// Monday weeks end on this Sunday: the same twelve weeks as 84 days.
+		assert.deepEqual(span({ weeks: 12, weekStart: 1 }), span({ days: 84 }));
+		// Wednesday weeks have five days of this one so far.
+		assert.deepEqual(span({ weeks: 2, weekStart: 3 }), { from: "2026-09-30", to: "2026-10-11" });
+		assert.deepEqual(span({ weeks: 2, weekStart: 3 }, -1), { from: "2026-09-16", to: "2026-09-29" });
+	});
+
+	it("months: from n months back, plus a day, to today", () => {
+		assert.deepEqual(span({ months: 3 }), { from: "2026-07-12", to: "2026-10-11" });
+		assert.deepEqual(span({ months: 3 }, -1), { from: "2026-04-12", to: "2026-07-11" });
+		assert.deepEqual(span({ months: 12 }), { from: "2025-10-12", to: "2026-10-11" });
+		assert.deepEqual(span({ months: 12 }, -1), { from: "2024-10-12", to: "2025-10-11" });
+	});
+
+	it("calendar months: this month so far and the whole months before it", () => {
+		const calendar = { months: 12, calendar: true };
+		assert.deepEqual(span(calendar), { from: "2025-11-01", to: "2026-10-11" });
+		assert.deepEqual(span(calendar, -1), { from: "2024-11-01", to: "2025-10-31" });
+		assert.equal(monthsLabel(span(calendar).from, span(calendar).to), "Nov 2025 - Oct 2026");
+		assert.equal(monthsLabel(span(calendar, -1).from, span(calendar, -1).to), "Nov 2024 - Oct 2025");
+		assert.deepEqual(span({ months: 1, calendar: true }), { from: "2026-10-01", to: "2026-10-11" });
+	});
+
+	it("month ends: a point on each month end before this month, and today", () => {
+		assert.deepEqual(span({ monthEnds: 6 }), { from: "2026-05-31", to: "2026-10-11" });
+		assert.deepEqual(monthEndsOf(span({ monthEnds: 6 })), ["2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-11"]);
+		assert.deepEqual(span({ monthEnds: 12 }), { from: "2025-11-30", to: "2026-10-11" });
+		assert.equal(monthEndsOf(span({ monthEnds: 12 })).length, 12);
+		// A past period ends on a month end, so it has no today point.
+		assert.deepEqual(span({ monthEnds: 6 }, -1), { from: "2025-11-30", to: "2026-04-30" });
+		assert.deepEqual(monthEndsOf(span({ monthEnds: 6 }, -1)), ["2025-11-30", "2025-12-31", "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"]);
+	});
+
+	it("step back a whole rule at a time, each period ending the day before the next begins", () => {
+		const rules: SpanRule[] = [
+			{ days: 7 },
+			{ days: 182 },
+			{ weeks: 12, weekStart: 0 },
+			{ weeks: 3, weekStart: 3 },
+			{ months: 3 },
+			{ months: 12 },
+			{ months: 12, calendar: true },
+		];
+		for (const rule of rules) {
+			for (const offset of [0, -1, -2, -7]) {
+				assert.equal(shiftDate(span(rule, offset - 1).to, 1), span(rule, offset).from, `${JSON.stringify(rule)} at ${offset}`);
+			}
+			// A later period than now is the current one.
+			assert.deepEqual(span(rule, 2), span(rule), JSON.stringify(rule));
+		}
+		// Month-end periods follow on from point to point.
+		const before = monthEndsOf(span({ monthEnds: 6 }, -2));
+		assert.equal(before[before.length - 1], "2025-10-31");
+		assert.equal(span({ monthEnds: 6 }, -1).from, "2025-11-30");
+		assert.deepEqual(span({ monthEnds: 6 }, 2), span({ monthEnds: 6 }));
+	});
+
+	it("find a week's first day for any week start", () => {
+		assert.equal(weekStartOf(SHOT_DAY, 0), "2026-10-11");
+		assert.equal(weekStartOf(SHOT_DAY, 1), "2026-10-05");
+		assert.equal(weekStartOf(SHOT_DAY, 3), "2026-10-07");
+		assert.equal(weekStartOf(SHOT_DAY, 6), "2026-10-10");
+	});
+
+	it("name a month and a run of calendar months", () => {
+		assert.equal(monthLabel("2026-03"), "March 2026");
+		assert.equal(monthLabel(SHOT_DAY), "October 2026");
+		assert.equal(monthsLabel("2025-11-01", SHOT_DAY), "Nov 2025 - Oct 2026");
+		assert.equal(periodLabel("2026-05-31", SHOT_DAY, SHOT_DAY), "May 31 - Oct 11");
+	});
+
+	it("switch and step a Performance page's route through its own ranges", () => {
+		const route: PeriodRoute<PeriodRange> = { range: "12w", offset: -1 };
+		assert.deepEqual(stepRoute(route, -1), { range: "12w", offset: -2 });
+		assert.deepEqual(switchRange(route, "3m", SHOT_DAY), { range: "3m", offset: 0 });
+		assert.deepEqual(switchRange({ range: "1d", offset: -2 }, "6m", SHOT_DAY), { range: "6m", offset: 0, date: "2026-10-09" });
+		assert.deepEqual(weekCardRoute(route, "2026-10-04", SHOT_DAY), { range: "7d", offset: -1 });
+	});
+});
+
+describe("Health's spans, today 2026-10-11", () => {
+	it("are the defaults, so every Health page pages as it did", () => {
+		for (const stat of HEALTH_STATS) {
+			assert.equal(stat.spans, undefined, stat.id);
+			for (const range of stat.ranges) {
+				if (range === "1d") continue;
+				for (const offset of [0, -1, -9]) {
+					assert.deepEqual(spanOf(spanRuleOf(stat, range), offset, SHOT_DAY), periodOf(range, offset, SHOT_DAY), `${stat.id} ${range} ${offset}`);
+				}
+			}
+		}
+		assert.deepEqual(periodOf("7d", -1, SHOT_DAY), { from: "2026-09-28", to: "2026-10-04" });
+		assert.deepEqual(periodOf("4w", -1, SHOT_DAY), { from: "2026-08-17", to: "2026-09-13" });
+		assert.deepEqual(periodOf("1y", -1, SHOT_DAY), { from: "2024-10-14", to: "2025-10-12" });
 	});
 });

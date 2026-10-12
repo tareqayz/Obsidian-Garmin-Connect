@@ -28,6 +28,9 @@ export const GARMIN_HOME_VIEW = "garmin-home";
 
 /** The series files' entry among the versions: not a name an index can have. */
 const SERIES = "#series";
+/** The day files' and account.json's entries, which the stat pages watch beside the indexes'. */
+const DAYS = "#days";
+const ACCOUNT = "#account";
 
 /** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
 const REMEMBERED_ACTIVITIES = 8;
@@ -44,17 +47,20 @@ const REMEMBERED_ACTIVITIES = 8;
  * The registered day indexes (`day-indexes.ts`) are not part of that
  * rebuild: a page reads one when it asks (`readIndex`), and a change in an
  * index's folder only moves that index's version, which the pages reading it
- * watch.
+ * watch. The stat pages read the day files and account.json the same way
+ * (`readDays`, `readAccount`), each once per version of its own (`#days`,
+ * `#account`), while Home's rebuild goes on reading them for itself.
  */
 export class GarminHomeView extends ItemView {
 	private plugin: GarminPlugin;
 	private component: ReturnType<typeof Home> | undefined;
 	private pending = 0;
 	private stack: Route[] = [HOME];
-	/** By index kind, and `SERIES`: moved, a moment after the files settle, whenever one changes. */
+	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
-	private indexCache = new Map<string, { version: number; data: Promise<DayIndexData> }>();
+	/** What a page read, by the same keys, for as long as its version holds. */
+	private cache = new Map<string, { version: number; data: Promise<unknown> }>();
 	private activities = new Map<number, ActivityDetail>();
 	private tileSource: TileSource | null = null;
 
@@ -131,6 +137,8 @@ export class GarminHomeView extends ItemView {
 				onSleepHistory: (view: HistoryView) => new SleepHistoryModal(this.app, view).open(),
 				readSeries: (days: string[]) => this.readSeries(days),
 				readIndex: ((kind: string) => this.readIndex(kind)) as ReadIndex,
+				readDays: () => this.cached(DAYS, () => this.rows()),
+				readAccount: () => this.cached(ACCOUNT, () => this.store().readAccount()),
 				loadIntraday: (date: string, keys: readonly string[]) => this.plugin.sync.loadIntraday(date, keys),
 				loadActivity: (id: number) => this.loadActivity(id),
 				cachedActivity: (id: number) => this.activities.get(id) ?? null,
@@ -158,6 +166,8 @@ export class GarminHomeView extends ItemView {
 			if (store.isSeriesPath(file.path)) this.bump(SERIES);
 			else if (file.path.startsWith(`${store.sleepFolder}/`)) this.bump("sleep");
 			else if (file.path.startsWith(`${store.dailyStatsFolder}/`)) this.bump("daily-stats");
+			else if (file.path.startsWith(`${store.daysFolder}/`)) this.bump(DAYS);
+			else if (file.path === store.accountPath) this.bump(ACCOUNT);
 			this.scheduleRefresh();
 		};
 		this.registerEvent(this.app.vault.on("modify", onFile));
@@ -263,18 +273,23 @@ export class GarminHomeView extends ItemView {
 	}
 
 	/**
-	 * A day index as a Health Stats page reads it: a registered one by its
-	 * kind, or the sleep and daily stats indexes. Read once per version, so
-	 * pages sharing an index share the read.
+	 * A day index as a stat page reads it: a registered one by its kind, or
+	 * the sleep and daily stats indexes. Read once per version, so pages
+	 * sharing an index share the read.
 	 */
 	private readIndex(kind: string): Promise<DayIndexData> {
-		const version = this.versions.get(kind) ?? 0;
-		const cached = this.indexCache.get(kind);
-		if (cached?.version === version) return cached.data;
-		const data = this.loadIndex(kind);
-		this.indexCache.set(kind, { version, data });
+		return this.cached(kind, () => this.loadIndex(kind));
+	}
+
+	/** A read once per version of `key`: a failed one is tried again on the next ask. */
+	private cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+		const version = this.versions.get(key) ?? 0;
+		const hit = this.cache.get(key);
+		if (hit?.version === version) return hit.data as Promise<T>;
+		const data = load();
+		this.cache.set(key, { version, data });
 		data.catch(() => {
-			if (this.indexCache.get(kind)?.data === data) this.indexCache.delete(kind);
+			if (this.cache.get(key)?.data === data) this.cache.delete(key);
 		});
 		return data;
 	}
@@ -289,13 +304,13 @@ export class GarminHomeView extends ItemView {
 
 	/** Moves one version, once a burst of file events settles: a sync writes a year file and the meta together. */
 	private bump(key: string): void {
-		this.indexCache.delete(key);
+		this.cache.delete(key);
 		window.clearTimeout(this.bumps.get(key));
 		this.bumps.set(
 			key,
 			window.setTimeout(() => {
 				this.bumps.delete(key);
-				this.indexCache.delete(key);
+				this.cache.delete(key);
 				const version = (this.versions.get(key) ?? 0) + 1;
 				this.versions.set(key, version);
 				if (key === SERIES) this.component?.setSeriesVersion(version);

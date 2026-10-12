@@ -25,7 +25,8 @@
 		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
 		"schema": "Recorded response shape, relative to api/.",
 		"status": "gone-upstream = present in an earlier catalogue, no longer in python-garminconnect.",
-		"reads": "Response paths the plugin reads but tolerates missing \u2014 a property that will not appear rather than a sync that breaks. Reported by the daily check, never fatal."
+		"reads": "Response paths the plugin reads but tolerates missing \u2014 a property that will not appear rather than a sync that breaks. Reported by the daily check, never fatal.",
+		"graphql": "POST /graphql-gateway/graphql entries only: the query's root field, which tells entries on that one path apart (scripts/garmin-web/summarize.mjs matches captured calls on it)."
 	},
 	"endpoints": [
 		{
@@ -1112,6 +1113,72 @@
 			}
 		},
 		{
+			"id": "critical-swim-speed-latest",
+			"method": "GET",
+			"path": "/biometric-service/criticalSwimSpeed/latest/{date}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.criticalSwimSpeedLatest",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [],
+			"reads": [],
+			"schema": "schema/critical-swim-speed-latest.json",
+			"notes": "HTTP 204 (null) on 2026-10-11 and 2026-10-12: the recording account has never had a CSS result, so the result's shape is unknown and no schema can be recorded (api:record-file drops a null sample). The web's and phone's Current view. The Critical Swim Speed page takes its Current from the CSS index's newest row instead."
+		},
+		{
+			"id": "critical-swim-speed-range",
+			"method": "GET",
+			"path": "/biometric-service/criticalSwimSpeed/range/{startDate}/{endDate}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"aggregation"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.criticalSwimSpeedRange",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"criticalSwimSpeedDTOList",
+				"aggregatedResults"
+			],
+			"schema": "schema/critical-swim-speed-range.json",
+			"notes": "{from, until, criticalSwimSpeedDTOList: [], aggregatedResults: []} on the recording account (no CSS result ever), from/until echoing the request: the rows' shape is unknown, and the recorded shape is that empty wrapper. The 7d view asks the bare path; 12w and 1y add a trailing slash and aggregation=weekly (.../range/2026-07-20/2026-10-11/?aggregation=weekly). No parameter, daily, weekly with or without the slash, monthly and an unknown value all answer 200 here. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200; 368, 731 and 3660 \u2192 HTTP 400 (daily and weekly); across Feb 29, 2023-10-11..2024-10-11 \u2192 200 and 2023-10-10..2024-10-11 \u2192 400. Reversed \u2192 HTTP 400. The Critical Swim Speed index asks daily over 367-day windows."
+		},
+		{
 			"id": "cycling-ftp",
 			"method": "GET",
 			"path": "/biometric-service/biometric/latestFunctionalThresholdPower/CYCLING",
@@ -1965,11 +2032,74 @@
 				"overallScore"
 			],
 			"schema": "schema/endurance-score.json",
-			"notes": "Per-day deliberately: the range form returns weekly averages, not daily values.",
+			"notes": "One day: overallScore, classification (0 calibrating), feedbackPhrase (numeric), the gauge ends and six class lower limits (per account: age band and sex), and contributors (\u2264 3 entries plus group 8, = the day's row of endurancescore/stats aggregation=daily). null (HTTP 204) for a day without a score: today until the watch syncs, before the history. Calibrating days: overallScore null, classification 0, feedbackPhrase 2, contributors [{group 8, 100}]. Without calendarDate: the newest scored day.",
 			"reads": [
 				"classification",
-				"feedbackPhrase"
+				"feedbackPhrase",
+				"contributors",
+				"contributors[].activityTypeId",
+				"contributors[].group",
+				"contributors[].contribution",
+				"gaugeLowerLimit",
+				"gaugeUpperLimit",
+				"classificationLowerLimitIntermediate",
+				"classificationLowerLimitTrained",
+				"classificationLowerLimitWellTrained",
+				"classificationLowerLimitExpert",
+				"classificationLowerLimitSuperior",
+				"classificationLowerLimitElite"
 			]
+		},
+		{
+			"id": "endurance-score-stats",
+			"method": "GET",
+			"path": "/metrics-service/metrics/endurancescore/stats",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"aggregation"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "get_endurance_score",
+				"summary": "The range form of get_endurance_score (startdate and enddate); verified through the plugin's client 2026-10-11.",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": null
+			},
+			"plugin": "GarminApi.enduranceStats",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"groupMap"
+			],
+			"reads": [
+				"avg",
+				"max",
+				"groupMap",
+				"groupMap.*.groupAverage",
+				"groupMap.*.groupMax",
+				"groupMap.*.enduranceContributorDTOList",
+				"enduranceScoreDTO",
+				"groupMap.*.enduranceContributorDTOList[].activityTypeId",
+				"groupMap.*.enduranceContributorDTOList[].group",
+				"groupMap.*.enduranceContributorDTOList[].contribution",
+				"enduranceScoreDTO.calendarDate",
+				"enduranceScoreDTO.classification",
+				"enduranceScoreDTO.feedbackPhrase"
+			],
+			"schema": "schema/endurance-score-stats.json",
+			"notes": "aggregation=daily|weekly|monthly, 401 days a call at most for all three (402 is HTTP 400). groupMap: daily a key for every calendar day ({groupAverage = groupMax = the day's score, enduranceContributorDTOList = the day's list}, null/[] without data); weekly one group per Monday week touching the window, keyed by its Monday even before the start (the account's week start is ignored); monthly one per calendar month keyed by the 1st. groupAverage = floor(mean of the window's scored days in the group); groupMax = their max; contributions = mean of the daily shares over the window's days in the group that have a list (calibrating days count as group 8 at 100). avg = floor(mean of the non-null groupAverages); max = the highest day. enduranceScoreDTO = the newest scored day \u2264 endDate, null when none. The endurance-score index walks it daily. The recorded schema comes from weekly and monthly samples only: the daily form keys every calendar day, so each date would be a field."
 		},
 		{
 			"id": "fitnessage-data",
@@ -2068,7 +2198,24 @@
 					"end"
 				],
 				"line": 1499
-			}
+			},
+			"plugin": "GarminApi.functionalThresholdPowerRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].from",
+				"[].series",
+				"[].value"
+			],
+			"reads": [
+				"[].until",
+				"[].updatedDate"
+			],
+			"schema": "schema/functional-threshold-power-range.json",
+			"notes": "One row per day and sport on which Garmin recomputed power-to-weight: an FTP change for that sport, or a weigh-in (every sport, value unchanged). {from = until = updatedDate, series cycling | cross_country_skiing | running (= lactate threshold power), value W}. No parameters = daily + LATEST, every sport; sport is case-insensitive. weekly = 7-day blocks counted back from {end} (Monday weeks only when {end} is a Sunday; 2025-10-15..2026-10-14 gives Thursday\u2013Wednesday rows), the block's last row per sport; monthly = calendar months. Cap end \u2212 start \u2264 366 days: 366 and 367 calendar days \u2192 200, 368 \u2192 HTTP 400, also across Feb 29 (2023-10-11..2024-10-11 \u2192 200 [], 2023-10-10..2024-10-11 \u2192 400). An empty window \u2192 []. History from 2025-08-02 (35 dates, 46 rows to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 13:50. The FTP page's index asks daily without a sport."
 		},
 		{
 			"id": "gear",
@@ -2205,12 +2352,32 @@
 				"[].elevationGain",
 				"[].movingDuration",
 				"[].aerobicTrainingEffect",
+				"[].anaerobicTrainingEffect",
+				"[].trainingEffectLabel",
+				"[].aerobicTrainingEffectMessage",
+				"[].anaerobicTrainingEffectMessage",
+				"[].activityTrainingLoad",
 				"[].beginTimestamp",
 				"[].activityType.typeId",
 				"[].activityType.parentTypeId",
-				"[].isParent"
+				"[].isParent",
+				"[].maxAvgPower_1",
+				"[].maxAvgPower_2",
+				"[].maxAvgPower_5",
+				"[].maxAvgPower_10",
+				"[].maxAvgPower_20",
+				"[].maxAvgPower_30",
+				"[].maxAvgPower_60",
+				"[].maxAvgPower_120",
+				"[].maxAvgPower_300",
+				"[].maxAvgPower_600",
+				"[].maxAvgPower_1200",
+				"[].maxAvgPower_1800",
+				"[].maxAvgPower_3600",
+				"[].maxAvgPower_7200",
+				"[].excludeFromPowerCurveReports"
 			],
-			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time."
+			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load). Rides' maxAvgPower_* (integer W) and excludeFromPowerCurveReports feed the Cycling Power Curve page through the index."
 		},
 		{
 			"id": "goals",
@@ -2361,6 +2528,7 @@
 				"args": [],
 				"line": null
 			},
+			"graphql": "cyclingAbility",
 			"plugin": "GarminApi.cyclingAbility",
 			"groups": [
 				"profile"
@@ -2388,6 +2556,7 @@
 				"args": [],
 				"line": null
 			},
+			"graphql": "healthSnapshotScalar",
 			"plugin": "GarminApi.healthSnapshots",
 			"groups": [
 				"health"
@@ -2415,6 +2584,7 @@
 				"args": [],
 				"line": null
 			},
+			"graphql": "healthStatusSummary",
 			"plugin": "GarminApi.healthStatus",
 			"groups": [
 				"health"
@@ -2446,15 +2616,48 @@
 				"args": [],
 				"line": null
 			},
+			"graphql": "hillScoreScalar",
 			"plugin": "GarminApi.hillScores",
 			"groups": [
 				"fitness"
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
+			"critical": [
+				"[].calendarDate"
+			],
+			"reads": [
+				"[].overallScore",
+				"[].strengthScore",
+				"[].enduranceScore",
+				"[].hillScoreClassificationId",
+				"[].hillScoreFeedbackPhraseId",
+				"[].primaryTrainingDevice"
+			],
 			"schema": "schema/graphql-hill-scores.json",
-			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation."
+			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation. Proxies GET metrics-service/metrics/hillscore/stats: the same rows and the same 401-day cap (402 is the gateway's 400, naming the REST URL). The day sync asks a year a call, and the hill-score index walks the history the same way."
+		},
+		{
+			"id": "graphql-training-readiness-range",
+			"method": "POST",
+			"path": "/graphql-gateway/graphql",
+			"service": "graphql-gateway",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": true,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic (Home), 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"graphql": "trainingReadinessRangeScalar",
+			"check": false,
+			"schema": "schema/graphql-training-readiness-range.json",
+			"notes": "Retired: trainingReadinessRangeScalar(startDate,endDate) proxies GET metrics-service/metrics/trainingreadiness/{startDate}/{endDate} (training-readiness-range), which the plugin calls instead: the same rows in the same order (72 of 72 for 2026-09-15..10-12), and asked for 3,660 days it fails with that route's 400. Home's web app asks 28 days (72 rows, up to 9 a day)."
 		},
 		{
 			"id": "graphql-upcoming-events",
@@ -2473,6 +2676,7 @@
 				"args": [],
 				"line": null
 			},
+			"graphql": "myDayCardEventsScalar",
 			"plugin": "GarminApi.upcomingEvents",
 			"groups": [
 				"profile"
@@ -2804,6 +3008,126 @@
 			]
 		},
 		{
+			"id": "heat-altitude-acclimation-daily",
+			"method": "GET",
+			"path": "/metrics-service/metrics/heataltitudeacclimation/daily/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.heatAltitudeAcclimationDaily",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].heatAcclimationPercentage",
+				"[].altitudeAcclimation"
+			],
+			"reads": [
+				"[].heatTrend",
+				"[].previousHeatAcclimationPercentage",
+				"[].altitudeTrend",
+				"[].previousAltitudeAcclimation",
+				"[].currentAltitude"
+			],
+			"schema": "schema/heat-altitude-acclimation-daily.json",
+			"notes": "A row a day, oldest first: heat %, previous %, trend, altitude (m) with its previous value and trend, current altitude (m). No cap: 28, 29, 366, 367 and 3660 days all return 200; 3660 days return the whole history (431 rows, 2025-08-02..2026-10-11). Days without data are left out (2026-01-05..09), as are future days; a span with none returns []. Today's row exists from about 00:01 local, with the overnight decay, before the watch syncs (2026-10-12: 95 from 97 DEACCLIMATIZING). previousHeatAcclimationPercentage is the reading before, yesterday's % on 428 of 429 days. heatTrend is null exactly when the % is 0; ACCLIMATIZING exactly when it rose. Past rows are not revised (web 2026-10-11 = live 2026-10-12; day files 431/431). The Heat Acclimation index reads it."
+		},
+		{
+			"id": "heat-altitude-acclimation-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/heataltitudeacclimation/latest/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.heatAltitudeAcclimation",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"heatAcclimationPercentage",
+				"altitudeAcclimation"
+			],
+			"reads": [
+				"heatTrend",
+				"previousHeatAcclimationPercentage",
+				"heatAcclimationDate",
+				"altitudeTrend",
+				"currentAltitude"
+			],
+			"schema": "schema/heat-altitude-acclimation-latest.json",
+			"notes": "16 keys, as maxmet's heatAltitudeAcclimation: heat acclimation % and trend (ACCLIMATIZING, ACCLIMATIZED, DEACCLIMATIZING or null), altitude acclimation and current altitude in metres, each with its previous value and the day it was worked out. The Training Status Current factor (97% Trending Up from 79%). For a day without a row it sends the newest earlier row, with that row's calendarDate (2026-01-07 \u2192 2026-01-04). GraphQL heatAltitudeAcclimationScalar(date) sends the same object."
+		},
+		{
+			"id": "heat-altitude-acclimation-weekly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/heataltitudeacclimation/weekly/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.heatAltitudeAcclimationWeekly",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].heatAcclimationPercentage",
+				"[].altitudeAcclimation"
+			],
+			"reads": [
+				"[].heatTrend",
+				"[].altitudeTrend",
+				"[].currentAltitude"
+			],
+			"schema": "schema/heat-altitude-acclimation-weekly.json",
+			"notes": "Rows as heat-altitude-acclimation-daily, a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day, like training-status-monthly: 24 for 6m (2026-05-01..10-31), 50 for 1y (2025-11-02..2026-10-31). The Training Status 6m and 1y Heat and Altitude Acclimation charts. No cap seen up to 364 days. Its rows are the daily route's rows on the sampled days (24 of 24 from 2026-05-01, 50 of 50 from 2025-11-02). The plugin does not call it."
+		},
+		{
 			"id": "hill-score",
 			"method": "GET",
 			"path": "/metrics-service/metrics/hillscore",
@@ -2824,6 +3148,50 @@
 				],
 				"line": 2274
 			}
+		},
+		{
+			"id": "hill-score-stats",
+			"method": "GET",
+			"path": "/metrics-service/metrics/hillscore/stats",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"aggregation"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "get_hill_score",
+				"summary": "The range form of get_hill_score (startdate and enddate), which upstream sends with aggregation=daily; weekly and monthly observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [
+					"startdate",
+					"enddate"
+				],
+				"line": null
+			},
+			"plugin": "GarminApi.hillScoreStats",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"periodAvgScore",
+				"hillScoreDTOList"
+			],
+			"reads": [
+				"maxScore",
+				"hillScoreDTOList[].calendarDate",
+				"hillScoreDTOList[].overallScore",
+				"hillScoreDTOList[].strengthScore",
+				"hillScoreDTOList[].enduranceScore"
+			],
+			"schema": "schema/hill-score-stats.json",
+			"notes": "{userProfilePK, startDate, endDate, periodAvgScore, maxScore, hillScoreDTOList}. 401 days a call at most, whatever the aggregation (402 is HTTP 400). hillScoreDTOList: the days, newest first, rows as hill-score's, with daily and weekly aggregation alike (weekly 2026-07-20..10-11 sent 84), null with monthly, [] before the history. Days before the first row are left out, and today until the watch has scored it; every day from the first has a row, the first two weeks calibrating (no scores, hillScoreClassificationId 0, hillScoreFeedbackPhraseId 1). periodAvgScore is floor(mean of the scored days) per period, counting only the window's days: daily one key (the first row's date), weekly one per Monday week touching the window, keyed by its Monday even before the start (the account's week start is ignored), monthly keyed by each month's 1st; null for a period without a score. maxScore is the best day, null without one. vo2Max and vo2MaxPreciseValue are always null in the list. periodAvgScore is keyed by date, so the daily check sees new keys."
 		},
 		{
 			"id": "hrv-data",
@@ -2858,11 +3226,20 @@
 				"hrvSummary.status"
 			],
 			"schema": "schema/hrv-data.json",
-			"notes": "Returns null on days with no overnight HRV recording.",
+			"notes": "Null (HTTP 204) for a night with no data, including today before it syncs. hrvReadings are 5-minute values, gaps left out; [] with null sleep times on a night without an overnight value and on every night before 2026-06-01 (no readings kept, as for HR/stress intraday). The summary equals the night's hrv-data-range row. lastNight5MinHigh = the top reading. Times: use the ...Local fields. The day sync keeps a night with readings in its series file (extra.hrvDay) and the HRV Status 1d page loads one on view.",
 			"reads": [
 				"hrvSummary.baseline.balancedLow",
 				"hrvSummary.baseline.balancedUpper",
-				"hrvSummary.baseline.lowUpper"
+				"hrvSummary.baseline.lowUpper",
+				"hrvSummary.baseline.markerValue",
+				"hrvSummary.feedbackPhrase",
+				"hrvReadings[].hrvValue",
+				"hrvReadings[].readingTimeLocal",
+				"hrvReadings[].readingTimeGMT",
+				"sleepStartTimestampLocal",
+				"sleepEndTimestampLocal",
+				"sleepStartTimestampGMT",
+				"sleepEndTimestampGMT"
 			]
 		},
 		{
@@ -2895,18 +3272,54 @@
 			"check": true,
 			"critical": [
 				"hrvSummaries",
-				"hrvSummaries[].calendarDate"
+				"hrvSummaries[].calendarDate",
+				"hrvSummaries[].status"
 			],
 			"reads": [
 				"hrvSummaries[].lastNightAvg",
 				"hrvSummaries[].weeklyAvg",
 				"hrvSummaries[].lastNight5MinHigh",
-				"hrvSummaries[].baseline",
-				"hrvSummaries[].status",
-				"hrvSummaries[].feedbackPhrase"
+				"hrvSummaries[].baseline.lowUpper",
+				"hrvSummaries[].baseline.balancedLow",
+				"hrvSummaries[].baseline.balancedUpper",
+				"hrvSummaries[].baseline.markerValue",
+				"hrvSummaries[].feedbackPhrase",
+				"hrvSummaries[].createTimeStamp"
 			],
 			"schema": "schema/hrv-data-range.json",
-			"notes": "{hrvSummaries, userProfilePk}, a night a row in ms; nights without a reading are left out, and a span with none is HTTP 204 (null). The HRV Status 7d/4w views and Health Status's HRV tile read it. 367 days a call at most (368 is HTTP 400), not the 28 of the stats routes."
+			"notes": "{hrvSummaries, userProfilePk}, a night a row in ms, oldest first; nights without data are left out and a span with none is HTTP 204 (null). 367 days a call at most (368 is HTTP 400, re-verified 2026-10-12). History from 2025-08-03. status NONE: ONBOARDING_1 (first 18 nights, baseline null, weeklyAvg from night 4) or ONBOARDING_2 (after gaps: weeklyAvg and markerValue null). lastNightAvg/lastNight5MinHigh can be null with weeklyAvg and status present. markerValue = (weeklyAvg - (balancedLow - D/2)) / (2D), D = balancedUpper - balancedLow, when weeklyAvg >= balancedLow; another mapping below. Rows can appear up to 26 days after their night. The HRV Status page's index (hrv-status) reads it."
+		},
+		{
+			"id": "hrv-stress-daily",
+			"method": "GET",
+			"path": "/metrics-service/internal/manualstresslevel/daily/{userProfilePk}/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"userProfilePk",
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.hrvStressDaily",
+			"groups": [
+				"hrv"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [],
+			"schema": "schema/hrv-stress-daily.json",
+			"notes": "Keyed by the numeric profile id (socialProfile's profileId, which the plugin keeps from the display name lookup) rather than the display name. [] on the recording account for every window, the whole history included (no HRV stress test: it needs a chest strap; userstats availability lists ACTIVITY_HRV_STRESS_TEST as unavailable), so a row's shape is unknown and no schema can be recorded (api:record-file drops [] samples). No cap: 7, 28, 367, 368, 731, 3660 and 9,781 days (2000-01-01..2026-10-11) \u2192 200 []. A reversed window \u2192 HTTP 500, which the client retries as transient, so GarminApi.hrvStressDaily refuses start > end. The web report (id 65, chartconfig ACTIVITY_HRV_STRESS_TEST, BAR_DAILY, 7D/30D) asks 7 days and a Sunday-aligned 4-week block; the plugin's HRV Stress index asks 3660-day windows."
 		},
 		{
 			"id": "hydration-data",
@@ -3034,7 +3447,7 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-latest.json",
-			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate.",
+			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate. Equals the newest row of the two range routes (2026-09-19: 182 bpm, 0.37222118); calendarDate is the saving run's local wall-clock time (2026-09-19T11:29:57.527), 7 min after that run set the running FTP (11:22:14).",
 			"reads": [
 				"[].calendarDate",
 				"[].speed",
@@ -3069,12 +3482,17 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
-			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg.",
+			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg. As of {date}: latest/2026-10-07 returns the 2025-11-02 weigh-in's rows, latest/2025-09-10 the cycling FTP of 2025-09-06 (224 W). calendarDate = the newer of ftpCreateTime and weightCreateTime (local wall clock), origin 'weight' or 'power' says which; weight in kg. isStale is judged against now, not {date} (every 2025 FTP is stale even as of 2025-09-10): true once the FTP is more than a year old, which the FTP page shows as 'No \u2026 FTP data in the past year'. ?sport=Running (the Running Lactate Threshold web page) returns the RUNNING row only.",
 			"reads": [
 				"[].sport",
 				"[].calendarDate",
 				"[].functionalThresholdPower",
-				"[].powerToWeight"
+				"[].powerToWeight",
+				"[].ftpCreateTime",
+				"[].weight",
+				"[].weightCreateTime",
+				"[].isStale",
+				"[].origin"
 			]
 		},
 		{
@@ -3099,7 +3517,23 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThresholdHeartRateRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].from",
+				"[].until",
+				"[].series",
+				"[].value",
+				"[].updatedDate"
+			],
+			"schema": "schema/lactate-threshold-stats-heart-rate-range.json",
+			"notes": "A row per day Garmin saved a running lactate threshold estimate (value bpm, from = until = updatedDate), on the same days as lactate-threshold-stats-speed-range; a value can repeat. No parameters = daily + LATEST + RUNNING; sport is case-sensitive: RUNNING works, Running/running \u2192 HTTP 404, CYCLING \u2192 []. weekly = 7-day blocks counted back from {end}, the block's last change (from/until the block, updatedDate the change day); monthly = calendar months, the month's last change inside [start, end] (2025-09-01..10-10 \u2192 Oct 8's 183; from 2025-11-11 no November row), from/until the whole month. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200, 368 and 731 \u2192 HTTP 400, also across Feb 29. A window without a change \u2192 []; no carry-in. History from 2025-08-03 (40 days to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 15:00. The Running Lactate Threshold index asks daily."
 		},
 		{
 			"id": "lactate-threshold-stats-speed-range",
@@ -3123,7 +3557,23 @@
 				"summary": "Returns Running Lactate Threshold information, including heart rate, power, and speed.",
 				"args": [],
 				"line": 1544
-			}
+			},
+			"plugin": "GarminApi.lactateThresholdSpeedRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [],
+			"reads": [
+				"[].from",
+				"[].until",
+				"[].series",
+				"[].value",
+				"[].updatedDate"
+			],
+			"schema": "schema/lactate-threshold-stats-speed-range.json",
+			"notes": "A row per day Garmin saved a running lactate threshold estimate (value in tenths of m/s on a 0.1 km/h grid: 0.37222118 \u00d7 36 = 13.4 km/h; 1000 \u00f7 (value \u00d7 10) = 268.66 s/km = 4:29 /km; from = until = updatedDate), on the same days as lactate-threshold-stats-heart-rate-range; a value can repeat. No parameters = daily + LATEST + RUNNING; sport is case-sensitive: RUNNING works, Running/running \u2192 HTTP 404, CYCLING \u2192 []. weekly = 7-day blocks counted back from {end}, the block's last change (from/until the block, updatedDate the change day); monthly = calendar months, the month's last change inside [start, end] (2025-09-01..10-10 \u2192 Oct 8's row, not Oct 13's; from 2025-11-11 no November row), from/until the whole month. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200, 368 and 731 \u2192 HTTP 400, also across Feb 29. A window without a change \u2192 []; no carry-in. History from 2025-08-03 (40 days to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 15:00. The Running Lactate Threshold index asks daily."
 		},
 		{
 			"id": "lifestyle-logging-data",
@@ -3189,6 +3639,89 @@
 			}
 		},
 		{
+			"id": "max-metrics-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/maxmet/latest/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.maxMetricsLatest",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"generic"
+			],
+			"reads": [
+				"generic.calendarDate",
+				"generic.vo2MaxPreciseValue",
+				"generic.vo2MaxValue",
+				"cycling.calendarDate",
+				"cycling.vo2MaxPreciseValue",
+				"cycling.vo2MaxValue",
+				"heatAltitudeAcclimation"
+			],
+			"schema": "schema/max-metrics-latest.json",
+			"notes": "{userId, generic, cycling, heatAltitudeAcclimation}: the newest VO2 Max per sport as of the day, each dated (cycling's can be old: 2025-10-15 on 2026-10-11), and the day's acclimation. Every report page asks it on load without sport; the VO2 Max report's running and cycling routes add sport=running|cycling."
+		},
+		{
+			"id": "max-metrics-monthly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/maxmet/monthly/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.maxMetricsMonthly",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].generic"
+			],
+			"reads": [
+				"[].generic.calendarDate",
+				"[].generic.vo2MaxPreciseValue",
+				"[].cycling.calendarDate",
+				"[].cycling.vo2MaxPreciseValue",
+				"[].heatAltitudeAcclimation.calendarDate"
+			],
+			"schema": "schema/max-metrics-monthly.json",
+			"notes": "Rows as max-metrics-latest, a row a month: its newest reading (heatAltitudeAcclimation dated by the month's last day), the current month's at the newest day (6m 2026-05-01..10-31: 6 rows). The VO2 Max 6m and 1y views (calendar months), all, running and cycling. No cap seen; the web asks a year (2025-11-01..2026-10-31)."
+		},
+		{
 			"id": "max-metrics-range",
 			"method": "GET",
 			"path": "/metrics-service/metrics/maxmet/daily/{startDate}/{endDate}",
@@ -3234,6 +3767,48 @@
 				"[].heatAltitudeAcclimation.altitudeTrend",
 				"[].calendarDate"
 			]
+		},
+		{
+			"id": "max-metrics-weekly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/maxmet/weekly/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.maxMetricsWeekly",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].generic"
+			],
+			"reads": [
+				"[].generic.calendarDate",
+				"[].generic.vo2MaxPreciseValue",
+				"[].cycling.calendarDate",
+				"[].cycling.vo2MaxPreciseValue",
+				"[].heatAltitudeAcclimation.calendarDate",
+				"[].heatAltitudeAcclimation.heatAcclimationPercentage"
+			],
+			"schema": "schema/max-metrics-weekly.json",
+			"notes": "Rows as max-metrics-latest, one per week of the account (Sunday to Saturday here) that has a reading: its newest (generic/cycling dated by the reading, heatAltitudeAcclimation by the week's Saturday), then the newest day. Weeks without a reading are left out (6m: 24 rows, 2026-07-19..25 missing). The VO2 Max 4w view (the Sunday block, 4 rows) and Training Status 6m and 1y, which start on the Sunday on or before the span's first day (6m 2026-04-26..10-31). No cap seen; the web asks up to 370 days (2024-10-27..2025-10-31)."
 		},
 		{
 			"id": "menstrual-calendar-data",
@@ -3444,6 +4019,125 @@
 			]
 		},
 		{
+			"id": "power-curve",
+			"method": "GET",
+			"path": "/fitnessstats-service/powerCurve",
+			"service": "fitnessstats-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate",
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.cyclingPowerCurve",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "range",
+			"check": false,
+			"critical": [
+				"entries"
+			],
+			"reads": [
+				"startDate",
+				"endDate",
+				"entries[].duration",
+				"entries[].power",
+				"entries[].activityId",
+				"entries[].activityDate"
+			],
+			"schema": "schema/power-curve.json",
+			"notes": "Both dates inclusive, whole days (2025-10-13..2025-10-13 returns that day's two rides; ..2025-10-24 leaves out an Oct 25 ride). Both or neither (one alone \u2192 HTTP 400). No cap (2016-10-12..2026-10-11 \u2192 200, = all time). sport defaults to cycling, case-insensitive; running \u2192 400. {startDate, endDate as asked, entries}: [] when no ride in the span has power, else 15 durations (1 \u2026 18000 s) {duration, power W, activityId, activityDate = the ride's local start day}, nulls for a duration no ride reached. power = the list's maxAvgPower_<duration>. Per-duration maxima are not smoothed (one ride: 1200 s 170 < 1800 s 171). Ties are broken by decimals the API rounds away. The Cycling Power Curve page computes the same curves from the activity index; this route is reference only."
+		},
+		{
+			"id": "power-curve-records",
+			"method": "GET",
+			"path": "/fitnessstats-service/powerCurve",
+			"service": "fitnessstats-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.cyclingPowerRecords",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "sync",
+			"check": false,
+			"critical": [
+				"entries"
+			],
+			"reads": [
+				"entries[].duration",
+				"entries[].power",
+				"entries[].activityId",
+				"entries[].activityDate"
+			],
+			"schema": "schema/power-curve-records.json",
+			"notes": "power-curve without dates: the all-time curve, startDate and endDate null, behind the report's Record line and Power Records table (whose rows have Delete buttons on the web; never touched). All time, not a lookback: the 2025-09-13 1 s record still holds on 2026-10-12. It equals any span that covers every ride. sport=CYCLING or no parameters give the same. The Cycling Power Curve page computes the Record from the activity index; this route is reference only."
+		},
+		{
+			"id": "power-to-weight-range",
+			"method": "GET",
+			"path": "/biometric-service/stats/powerToWeight/range/{startDate}/{endDate}",
+			"service": "biometric-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [
+				"aggregation",
+				"sport"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.powerToWeightRange",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].from",
+				"[].until",
+				"[].series",
+				"[].value"
+			],
+			"reads": [
+				"[].updatedDate"
+			],
+			"schema": "schema/power-to-weight-range.json",
+			"notes": "Rows as functional-threshold-power-range ({from, until, series, value in W/kg, updatedDate}). The web's FTP report asks aggregation=weekly without a sport for every range (1y = 52 weeks, 2025-10-13..2026-10-11): every sport in one payload, series naming each (running, cycling, cross_country_skiing); the Running Lactate Threshold page adds sport=Running with daily (4w), weekly (12w) or monthly (1y). Rows pair one to one with functional-threshold-power-range's (same day and series); value = W \u00f7 the weight on that day (the day's last weigh-in, else the newest before: 67.0, 67.199, 68.0 kg here). Same aggregations; weekly blocks count back from {end}. Cap end \u2212 start \u2264 366 days (367 \u2192 200, 368 \u2192 HTTP 400). The FTP page's index asks daily without a sport."
+		},
+		{
 			"id": "power-zones",
 			"method": "GET",
 			"path": "/biometric-service/powerZones/sports/all",
@@ -3603,7 +4297,86 @@
 				"[].timeMarathon"
 			],
 			"schema": "schema/race-predictions.json",
-			"notes": "The plugin sends `daily` for {type}. Garmin rejects ranges longer than a year."
+			"notes": "The plugin sends `daily` for {type}. Rows oldest first, one per calendar day, each echoing the asked span as fromCalendarDate/toCalendarDate; times in whole seconds. A window holding any prediction returns every day, with null times where there is none (before the history, future days); a window with none returns []. Cap: one calendar year (end <= start + 1 year): 366 days is 200, 367 is HTTP 400 with or without data; 2023-10-12..2024-10-12 (367 days across Feb 29) is 200. History from 2025-08-09, a row every day since, including days without a run; today's row exists early (2026-10-12 at 04:03). Feeds the race-predictions index (<dataFolder>/race-predictions/) every Race Predictor view reads."
+		},
+		{
+			"id": "race-predictions-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/racepredictions/latest/{displayName}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "get_race_predictions",
+				"summary": "get_race_predictions called without dates; listed apart from race-predictions ({type} = daily, as the sync sends it) for its own wrapper and probe.",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.racePredictionsLatest",
+			"groups": [
+				"races"
+			],
+			"cadence": "sync",
+			"check": true,
+			"critical": [
+				"calendarDate",
+				"time5K",
+				"time10K",
+				"timeHalfMarathon",
+				"timeMarathon"
+			],
+			"reads": [],
+			"schema": "schema/race-predictions-latest.json",
+			"notes": "{userId, calendarDate, time5K, time10K, timeHalfMarathon, timeMarathon} in seconds, fromCalendarDate and toCalendarDate null: the Race Predictor's Most Recent view. It is the newest daily row (2026-10-11 at 22:51 on Oct 11; 2026-10-12 at 04:03 on Oct 12): the page reads the index's newest row instead."
+		},
+		{
+			"id": "race-predictions-monthly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/racepredictions/monthly/{displayName}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromCalendarDate",
+				"toCalendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": "get_race_predictions",
+				"summary": "get_race_predictions with _type='monthly'; listed apart from race-predictions ({type} = daily, as the sync sends it) for its own wrapper and probe.",
+				"args": [
+					"startdate",
+					"enddate",
+					"_type"
+				],
+				"line": null
+			},
+			"plugin": "GarminApi.racePredictionsMonthly",
+			"groups": [
+				"races"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].time5K",
+				"[].time10K",
+				"[].timeHalfMarathon",
+				"[].timeMarathon"
+			],
+			"reads": [],
+			"schema": "schema/race-predictions-monthly.json",
+			"notes": "Rows as race-predictions, a row a month dated by the month's last day, the current month's by the newest day (2025-11-01..2026-10-31: 12 rows, the last 2026-10-11), each carrying the asked span as fromCalendarDate/toCalendarDate. The web Race Predictor's 6 Months and 1 Year (calendar months); the phone plots the same month ends. Equals the daily row of each month's last day, clipped to the window end and the newest row (2026-05-15..2026-08-15: May 31, Jun 30, Jul 31, Aug 15). A month without a prediction is a row of nulls dated its 1st (2024-11-01..2025-10-31: Nov 1 ... Jul 1, then Aug 31, Sep 30, Oct 31). Cap one calendar year: 2025-10-12..2026-10-12 is 200 (13 rows); 367 days and 2 years are HTTP 400. The Race Predictor derives it from the daily index and does not call it."
 		},
 		{
 			"id": "remove-gear-from-activity",
@@ -3749,6 +4522,42 @@
 			"notes": "Typed and tested but not wired into the sync. `metricId=60` selects resting heart rate."
 		},
 		{
+			"id": "running-economy-daily",
+			"method": "GET",
+			"path": "/metrics-service/metrics/runningeconomy/daily",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.runningEconomyDaily",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].score"
+			],
+			"reads": [
+				"[].classification"
+			],
+			"schema": "schema/running-economy-daily.json",
+			"notes": "[{calendarDate, score, classification}], oldest first. With a reading in the window: one row per calendar day, score and classification null on days without one (also before the history and today). Without one: []. Cap endDate \u2264 startDate + 1 calendar year: 366 calendar days \u2192 200, 367 \u2192 HTTP 400 (2025-10-10..2026-10-11), 367 across Feb 29 \u2192 200, 368 \u2192 400. Whole-number scores (ml O\u2082/kg/km), lower is better. classification follows the help table (Recreational \u2265 225, Intermediate 215\u2013224, Trained 205\u2013214, Well-Trained 195\u2013204, Expert 190\u2013194, Superior 185\u2013189, Elite \u2264 184; 87 of 87 days agree). History from 2025-08-16. The Running Economy index asks it in 366-day windows."
+		},
+		{
 			"id": "running-economy-latest",
 			"method": "GET",
 			"path": "/metrics-service/metrics/runningeconomy/latest/{date}",
@@ -3773,14 +4582,52 @@
 			],
 			"cadence": "sync",
 			"check": true,
-			"critical": [],
-			"schema": "schema/running-economy-latest.json",
-			"notes": "Latest running economy score and classification.",
-			"reads": [
+			"critical": [
 				"calendarDate",
-				"score",
+				"score"
+			],
+			"schema": "schema/running-economy-latest.json",
+			"notes": "{calendarDate, score, classification}: the newest reading on or before {date} (latest/2026-09-14 \u2192 2026-07-30 221). HTTP 204 (null) before the first reading. The account sync asks it for today (account.runningEconomy); the web also asks it for each range's first day.",
+			"reads": [
 				"classification"
 			]
+		},
+		{
+			"id": "running-economy-weekly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/runningeconomy/weekly",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [
+				"startDate",
+				"endDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.runningEconomyWeekly",
+			"groups": [
+				"fitness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].startDate",
+				"[].endDate",
+				"[].score"
+			],
+			"reads": [
+				"[].classification"
+			],
+			"schema": "schema/running-economy-weekly.json",
+			"notes": "[{startDate, endDate, score, classification}]: 7-day blocks counted from startDate (any weekday), endDate = startDate + 6 even past the window; a block counts only readings up to the window's endDate. score = the block's LOWEST daily score, not a mean (2026-03-28..04-03 holds 216/217/218 \u2192 216; 124 of 124 blocks agree; floor(mean) fails that one). null for a block without a reading; [] for a window without one. Same 1-year cap (366 \u2192 200, 367 \u2192 400). The phone's 12w and 1y equal it with the period's first and last day; the plugin computes it from the daily index."
 		},
 		{
 			"id": "running-tolerance",
@@ -3812,15 +4659,22 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
+			"critical": [
+				"[].calendarDate"
+			],
 			"schema": "schema/running-tolerance.json",
-			"notes": "Called with aggregation=daily, in 28-day windows.",
+			"notes": "aggregation=daily|weekly, 366 days a call at most (367 \u2192 HTTP 400; daily also across Feb 29). daily: {calendarDate, acuteImpactLoad (weighted, m), acuteDistance (7-day run distance, m), acuteTolerance (m), runningToleranceFeedBackPhrase (key)}, one row per day with data, in no date order; missing days omitted; [] before the history. weekly: Sunday weeks (the account's) sorted, {startOfWeek, endOfWeek = first/last day with a row in week \u2229 window, calendarDate = endOfWeek, totalImpactLoad, totalDistance, tolerance = the week to date at endOfWeek, weekIndex = weeks since 1989-12-31}; zero-filled weeks without runs. The weekly rows can disagree with the daily ones (6 of 61 weeks here) and are what the app shows. monthly: the month-end day's week-to-date record, not month totals. The sync calls daily in 365-day windows (day files, running-tolerance index); the running-tolerance-weeks index calls weekly.",
 			"reads": [
-				"[].calendarDate",
 				"[].acuteImpactLoad",
 				"[].acuteDistance",
 				"[].acuteTolerance",
-				"[].runningToleranceFeedBackPhrase"
+				"[].runningToleranceFeedBackPhrase",
+				"[].totalImpactLoad",
+				"[].totalDistance",
+				"[].tolerance",
+				"[].startOfWeek",
+				"[].endOfWeek",
+				"[].weekIndex"
 			]
 		},
 		{
@@ -4359,6 +5213,40 @@
 			}
 		},
 		{
+			"id": "training-load-balance-latest",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingloadbalance/latest/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingLoadBalance",
+			"groups": [
+				"training"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"metricsTrainingLoadBalanceDTOMap"
+			],
+			"reads": [
+				"recordedDevices"
+			],
+			"schema": "schema/training-load-balance-latest.json",
+			"notes": "Load focus as of a day, keyed by device id: monthlyLoadAerobicLow / AerobicHigh / Anaerobic (floats) with TargetMin / TargetMax (integers that move day to day) and trainingBalanceFeedbackPhrase. The loads cover the 28 days ending on the date (the phone labels Oct 11's 'Sep 14 - Oct 11'; the web dialog labels the same numbers 'Sep 13 - Oct 11' and steps a day). An activity counts whole on the day it ends and leaves 28 days later; Garmin splits it across the buckets (a Recovery swim, load 62.41, added 44.85 low and 17.69 anaerobic), so the activity list summed by benefit does not reproduce them. A day without its own record returns metricsTrainingLoadBalanceDTOMap null (and recordedDevices null) with no fallback (today before the watch syncs; before 2025-08-09; future days). No range route: trainingloadbalance/daily/{start}/{end} and trainingloadbalance/{start}/{end} are 404. The day sync stores the same entry from training-status's mostRecentTrainingLoadBalance (load_* in the day files), which the Load page reads. Home's form is GraphQL trainingLoadBalanceScalar(calendarDate, fullHistoryScan)."
+		},
+		{
 			"id": "training-plan-by-id",
 			"method": "GET",
 			"path": "/trainingplan-service/trainingplan/phased/{planId}",
@@ -4439,7 +5327,7 @@
 				"[].level"
 			],
 			"schema": "schema/training-readiness.json",
-			"notes": "An array; the plugin reads element 0.",
+			"notes": "Every reading of the day, newest first (1\u201311; inputContext AFTER_WAKEUP_RESET, AFTER_POST_EXERCISE_RESET, UPDATE_REALTIME_VARIABLES); [] for a day without one (today before the watch syncs, a missed day, the future). The range route's rows for the day, field for field. The day files keep element 0, the newest; the training-readiness index keeps the first AFTER_WAKEUP_RESET reading (the one Garmin's page shows for a past day) and the readinessDay extra every reading. recoveryTime is in minutes.",
 			"reads": [
 				"[].sleepScore",
 				"[].hrvFactorPercent",
@@ -4459,8 +5347,71 @@
 				"[].sleepHistoryFactorFeedback",
 				"[].stressHistoryFactorPercent",
 				"[].stressHistoryFactorFeedback",
-				"[].hrvWeeklyAverage"
+				"[].hrvWeeklyAverage",
+				"[].calendarDate",
+				"[].timestamp",
+				"[].timestampLocal",
+				"[].validSleep",
+				"[].primaryActivityTracker"
 			]
+		},
+		{
+			"id": "training-readiness-range",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingreadiness/{startDate}/{endDate}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"startDate",
+				"endDate"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Named by the GraphQL gateway's 400 for Home's trainingReadinessRangeScalar, then probed live, 2026-10-12 (ref/performance-stats/training-readiness/README.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingReadinessRange",
+			"groups": [
+				"readiness"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].timestamp",
+				"[].score",
+				"[].level"
+			],
+			"reads": [
+				"[].timestampLocal",
+				"[].inputContext",
+				"[].feedbackShort",
+				"[].feedbackLong",
+				"[].sleepScoreFactorPercent",
+				"[].sleepScoreFactorFeedback",
+				"[].recoveryTimeFactorPercent",
+				"[].recoveryTimeFactorFeedback",
+				"[].acwrFactorPercent",
+				"[].acwrFactorFeedback",
+				"[].hrvFactorPercent",
+				"[].hrvFactorFeedback",
+				"[].sleepHistoryFactorPercent",
+				"[].sleepHistoryFactorFeedback",
+				"[].stressHistoryFactorPercent",
+				"[].stressHistoryFactorFeedback",
+				"[].sleepScore",
+				"[].recoveryTime",
+				"[].acuteLoad",
+				"[].hrvWeeklyAverage",
+				"[].primaryActivityTracker"
+			],
+			"schema": "schema/training-readiness-range.json",
+			"notes": "Every reading over the span, newest first, several a day; rows as training-readiness's, field for field. 367 days a call at most (368 is HTTP 400); days without readings are left out, and a span without any is []. History from 2025-08-02 on the recording account (1,111 readings on 432 days to 2026-10-12). Home's GraphQL trainingReadinessRangeScalar proxies this route. Garmin's page shows the newest reading for today and the first AFTER_WAKEUP_RESET reading for a past day: the training-readiness index keeps that one a day, the history in three requests."
 		},
 		{
 			"id": "training-status",
@@ -4503,7 +5454,120 @@
 				"acuteTrainingLoadDTO.acwrStatus"
 			],
 			"schema": "schema/training-status.json",
-			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced."
+			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced. A day without a status returns every part null (2026-10-12). heatAltitudeAcclimationDTO was null on all three days fetched; mostRecentVO2Max.heatAltitudeAcclimation carries the day's heat even when generic is an older reading (2026-10-09: generic 2026-10-03, heat 68 dated 2026-10-09). Its mostRecentTrainingStatus entry is the day's training-status-weekly row (sinceDate set): the Training Status index takes the run's own days from it. mostRecentVO2Max.heatAltitudeAcclimation is the day's heat-altitude-acclimation-daily row on any day with one (2026-07-23, 10-09, 10-11 equal). On a day without one it is the newest earlier row (2026-01-07 \u2192 01-04), so check its calendarDate: the Heat Acclimation index takes the run's own days from it only when it is dated the day, and leaves the rest to heat-altitude-acclimation-daily."
+		},
+		{
+			"id": "training-status-daily",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingstatus/daily/{date}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"date"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingStatusDaily",
+			"groups": [
+				"training"
+			],
+			"cadence": "day",
+			"check": true,
+			"critical": [
+				"latestTrainingStatusData"
+			],
+			"reads": [
+				"recordedDevices",
+				"lastPrimarySyncDate"
+			],
+			"schema": "schema/training-status-daily.json",
+			"notes": "The Training Status page's Current view, and Training Readiness's day. latestTrainingStatusData is keyed by device id, each {calendarDate, sinceDate, trainingStatus, trainingStatusFeedbackPhrase, trainingPaused, primaryTrainingDevice, acuteTrainingLoadDTO {dailyTrainingLoadAcute, dailyTrainingLoadChronic, min/maxTrainingLoadChronic, dailyAcuteChronicWorkloadRatio, acwrStatus, acwrPercent}}, as in training-status's mostRecentTrainingStatus; pick primaryTrainingDevice. 2026-10-11: status 4 MAINTAINING_2, acute 498, chronic 393, ratio 1.2 OPTIMAL. For a day without a status (today before the watch syncs) it sends the newest earlier entry with sinceDate null (2026-10-12 -> 2026-10-11's). sinceDate = max(first day of the run of equal trainingStatus, the day - 13), a day without a row ending the run: 435 of 435 days."
+		},
+		{
+			"id": "training-status-monthly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingstatus/monthly/{displayName}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromCalendarDate",
+				"toCalendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingStatusMonthly",
+			"groups": [
+				"training"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"reportData"
+			],
+			"reads": [
+				"fromCalendarDate",
+				"toCalendarDate",
+				"recordedDevices"
+			],
+			"schema": "schema/training-status-monthly.json",
+			"notes": "Despite the name, a row a week: a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day; rows as training-status-weekly. The Training Status 6m (2026-05-01..10-31, 24 rows) and 1y (2025-11-02..2026-10-31, 50 rows) views. No cap seen up to the web's 364 days. Its rows are the weekly route's rows on the sampled days (117 of 117: two live probes, two web bodies); a sample day without a row is skipped (3660 days from 2016-10-14 -> 63 rows from 2025-08-07). The Training Status page derives it and does not call it."
+		},
+		{
+			"id": "training-status-weekly",
+			"method": "GET",
+			"path": "/metrics-service/metrics/trainingstatus/weekly/{displayName}",
+			"service": "metrics-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName"
+			],
+			"query": [
+				"fromCalendarDate",
+				"toCalendarDate"
+			],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-11 (ref/performance-stats/web-survey.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.trainingStatusWeekly",
+			"groups": [
+				"training"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"reportData"
+			],
+			"reads": [
+				"fromCalendarDate",
+				"toCalendarDate",
+				"recordedDevices"
+			],
+			"schema": "schema/training-status-weekly.json",
+			"notes": "Despite the name, a row a day: reportData.<deviceId> lists every day of the span that has a status, oldest first, each equal to that day's training-status-daily entry with sinceDate null. No cap: 28, 29, 84, 182, 365, 366, 367 and 3660 days all return 200; 3660 days return the whole history (435 rows, 2025-08-02..2026-10-11). Days without a status are left out (2025-08-08; today before the watch syncs; future days); a span with none returns reportData {} and recordedDevices []. trainingStatus codes: 0 NO_STATUS, 1 DETRAINING, 2 UNPRODUCTIVE, 3 OVERREACHING, 4 MAINTAINING, 5 RECOVERY, 6 PEAKING, 7 PRODUCTIVE, 8 STRAINED (one to one with the phrase prefix). Rows are not revised after their day (web 2026-10-11 22:4x = live 2026-10-12; day files 435/435). The Training Status index reads it."
 		},
 		{
 			"id": "unschedule-workout",

@@ -29,6 +29,7 @@ import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
+import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef } from "./intraday-registry";
 import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
 	bucketWorkoutsByDate,
@@ -80,6 +81,12 @@ export type WriteOutcome = "written" | "unchanged" | "missing";
 /** Where a day's intraday series end up — a file per day. */
 export interface SeriesTarget {
 	write(date: string, series: DaySeries): Promise<"written" | "unchanged">;
+	/**
+	 * The day's file as it stands, so the blocks a sync keeps itself (an
+	 * extra's `fromDay`) can be folded in without losing the rest. Without
+	 * it those blocks only ride along with a day the sync writes anyway.
+	 */
+	read?(date: string): Promise<DaySeries | null>;
 }
 
 /** Where a day's properties end up. Obsidian lives behind this. */
@@ -183,6 +190,13 @@ export interface SyncOptions {
 	 */
 	indexes?: readonly DayIndexRuntime[];
 	/**
+	 * The registered intraday extras (`INTRADAY_EXTRAS`). Those with
+	 * `fromDay` are kept from the day's own payloads into its series file,
+	 * every day of the run whose group is on, at no request of their own;
+	 * the rest load on view only. Needs `series`.
+	 */
+	extras?: readonly IntradayDef[];
+	/**
 	 * How many of the newest days in a run get intraday series. They cost six
 	 * requests a day, and a year's backfill of them would be 2,190 requests for
 	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
@@ -282,8 +296,9 @@ export const INTRADAY_DAYS = 7;
 
 /**
  * Windows for the range calls whose limits nobody has published. The web app
- * asks for 28 days of hill score and a week of snapshots; staying at or under
- * what it asks for is the safe side of an unknown limit.
+ * asks for a week of snapshots; staying at or under what it asks for is the
+ * safe side of an unknown limit. Hill scores (401 days) and running tolerance
+ * (366 days) have known caps, and go a year a request.
  */
 const SHORT_RANGE_DAYS = 28;
 
@@ -414,12 +429,16 @@ export async function syncRange(
 	const oldest = due[due.length - 1] ?? opts.from;
 	const newest = due[0] ?? opts.to;
 
+	/** Range parts that came back whole: what a `fromDay` index may read for every day of the run. */
+	const rangeOk = new Set<keyof DayData>();
+
 	let maxMetricsByDate = new Map<string, MaxMetrics>();
 	if (wanted.maxMetrics) {
 		const got = await fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b));
 		report.requests += got.requests;
 		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
 		else if (maxMetricsByDate.size === 0) {
 			note(report, log, "VO2 Max: Garmin returned no rows for this range");
@@ -433,18 +452,23 @@ export async function syncRange(
 		report.requests += got.requests;
 		racesByDate = byCalendarDate(got.rows);
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("races");
+		// A window holding any prediction sends every day, null where there is none: count the days with a time.
+		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
 		if (got.error) note(report, log, `race predictions: ${got.error}`);
-		else if (racesByDate.size === 0) {
+		else if (predicted === 0) {
 			note(report, log, "race predictions: Garmin returned no rows for this range");
 		}
-		log.detail("race prediction days", racesByDate.size);
+		log.detail("race prediction days", predicted);
 	}
 
 	let hillByDate = new Map<string, HillScore>();
 	if (wanted.hillScores) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), SHORT_RANGE_DAYS);
+		// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
+		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("hillScore");
 		if (got.error) note(report, log, `hill score: ${got.error}`);
 		// Several devices can report the same day; the primary one wins.
 		hillByDate = byDate(
@@ -455,9 +479,11 @@ export async function syncRange(
 
 	let toleranceByDate = new Map<string, RunningTolerance>();
 	if (wanted.runningTolerance) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), SHORT_RANGE_DAYS);
+		// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
+		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
+		if (!got.error) rangeOk.add("runningTolerance");
 		if (got.error) note(report, log, `running tolerance: ${got.error}`);
 		toleranceByDate = byCalendarDate(got.rows);
 	}
@@ -477,6 +503,9 @@ export async function syncRange(
 
 	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
 	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
+	// Blocks kept from the day's own payloads go where the series go.
+	const extras = opts.series ? (opts.extras ?? []) : [];
+	const kept = keptKeys(extras);
 	let emptyRun = 0;
 	let done = 0;
 
@@ -519,15 +548,19 @@ export async function syncRange(
 			healthSnapshots: snapshotsByDate.get(date) ?? null,
 			series,
 		};
+		for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
 		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
 		const count = Object.keys(properties).length;
 
 		const result: DayResult = { date, status: "no-data", properties: count };
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
-		if (series && !isEmptySeries(series) && opts.series) {
+		// Every synced day, not only the newest few: what Garmin may drop later is kept now.
+		const fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
+		const writing = series && !isEmptySeries(series) ? series : null;
+		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await opts.series.write(date, series)) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept)) === "written") report.seriesWritten += 1;
 			} catch (err) {
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
@@ -591,6 +624,28 @@ export async function syncRange(
 		if (fatal) return stop(report, fatal, log);
 	}
 	return finish(report, log);
+}
+
+/**
+ * A day's series file after the sync: the series it made for the day, when it
+ * made one, with the blocks the extras keep (`fresh`) folded in over what the
+ * file holds (`keepBlocks`). Only reads the file when there are kept blocks to
+ * carry or fold in. A target that cannot read gets the day's series and its
+ * fresh blocks alone, and no write of kept blocks by themselves, which would
+ * replace a file it cannot see. Null when nothing was written.
+ */
+async function writeSeries(
+	target: SeriesTarget,
+	date: string,
+	writing: DaySeries | null,
+	fresh: Readonly<Record<string, unknown>>,
+	kept: readonly string[],
+): Promise<"written" | "unchanged" | null> {
+	const merging = writing ? kept.length > 0 : Object.keys(fresh).length > 0;
+	if (merging && !target.read && !writing) return null;
+	const stored = merging && target.read ? await target.read(date) : null;
+	const next = keepBlocks(stored, writing, fresh, kept);
+	return next ? target.write(date, next) : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -713,12 +768,12 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 /*  Registered day indexes                                             */
 /* ------------------------------------------------------------------ */
 
-/** A registered index during a run: what the run's daily summaries gave it. */
+/** A registered index during a run: what the run's daily summaries, or its days' payloads, gave it. */
 interface IndexRun {
 	runtime: DayIndexRuntime;
-	/** Rows from `def.fromSummary`. */
+	/** Rows from `def.fromSummary` or `def.fromDay`. */
 	rows: DayRow[];
-	/** Every day whose summary came back, row or not. */
+	/** Every day they covered, row or not. */
 	dates: Set<string>;
 }
 
@@ -728,6 +783,23 @@ function takeSummary(run: IndexRun, date: string, summary: DailySummary | null |
 	if (!read) return;
 	try {
 		const row = summary && typeof summary === "object" ? read(summary, date) : null;
+		run.dates.add(date);
+		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
+		if (clean) run.rows.push(clean);
+	} catch {
+		// The window fetch covers the day instead.
+	}
+}
+
+/**
+ * A synced day's payloads as a row for an index that reads them (`fromDay`).
+ * A day missing one of the parts it reads stays for the window fetch.
+ */
+function takeDay(run: IndexRun, date: string, data: DayData, came: (part: keyof DayData) => boolean): void {
+	const feed = run.runtime.def.fromDay;
+	if (!feed || !feed.needs.every(came)) return;
+	try {
+		const row = feed.read(data, date);
 		run.dates.add(date);
 		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
 		if (clean) run.rows.push(clean);
@@ -747,13 +819,15 @@ export interface IndexFeed {
 
 /**
  * Hands a registered index what a routine sync saw. `seen` is what the run's
- * daily summaries gave it, through `def.fromSummary`; with `fetchMissing`,
+ * daily summaries or day payloads gave it, through `def.fromSummary` or
+ * `def.fromDay`; with `fetchMissing`,
  * every other day of `from..to` is asked of the index's window fetch, and so
  * is any stretch between the index's newest day and `from`, so a vault left
  * closed for a fortnight comes back without a hole. An index without
- * `fromSummary` fetches the run's days that way too: one request per
- * `windowDays`. An index with `refreshDays` has its last days asked again
- * whether it holds them or not, for the rows Garmin revises late.
+ * `fromSummary` or `fromDay` fetches the run's days that way too: one window per
+ * `windowDays`, booked as `requestsPerWindow` requests. An index with
+ * `refreshDays` has its last days asked again whether it holds them or not,
+ * for the rows Garmin revises late.
  */
 export async function feedIndex<R extends DayRow>(
 	runtime: DayIndexRuntime<R>,
@@ -785,7 +859,7 @@ export async function feedIndex<R extends DayRow>(
 		const missing = dateRange(start, to).filter((d) => !dates.has(d));
 		windows: for (const span of spansOf(missing)) {
 			for (const window of chunkRange(span.from, span.to, def.windowDays)) {
-				out.requests += 1;
+				out.requests += def.requestsPerWindow;
 				try {
 					const got = await runtime.fetchWindow(window.from, window.to);
 					for (const raw of got) {
@@ -848,9 +922,10 @@ export interface WalkResult<R extends DayRow = DayRow> {
 
 /**
  * Walks a registered index's history back from `until`, `def.windowDays` a
- * request, until `def.emptyWindowsToStop` windows in a row without a row say
- * the history has started (once past `notBefore`), or until
- * `def.maxHistoryDays` before `today`, as far back as Garmin keeps the stat.
+ * window (`def.requestsPerWindow` requests each, 1 for most indexes), until
+ * `def.emptyWindowsToStop` windows in a row without a row say the history
+ * has started (once past `notBefore`), or until `def.maxHistoryDays` before
+ * `today`, as far back as Garmin keeps the stat.
  */
 export async function walkHistory<R extends DayRow>(
 	def: DayIndexDef<R>,
@@ -878,7 +953,7 @@ export async function walkHistory<R extends DayRow>(
 		if (last) start = floor;
 		const rows: R[] = [];
 		try {
-			out.requests += 1;
+			out.requests += def.requestsPerWindow;
 			for (const raw of await fetchWindow(start, end)) {
 				const row = def.normalize(raw);
 				if (row) rows.push(row);
@@ -1134,6 +1209,8 @@ interface DayFetch {
 	requests: number;
 	/** The daily summary came back, empty or not. */
 	summaryFetched: boolean;
+	/** The day's parts that came back, empty or not: what a `fromDay` index may read. */
+	ok: Set<keyof DayData>;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1164,13 +1241,16 @@ async function fetchDay(
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false };
+	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false, ok: new Set() };
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
 			if (name === "summary") out.summaryFetched = true;
 			if (isIntradayJob(name)) assignIntraday(out.intraday, name, result.value);
-			else assign(out.data, name, result.value);
+			else {
+				assign(out.data, name, result.value);
+				out.ok.add(name);
+			}
 			return;
 		}
 		// One endpoint being unavailable for one day must not lose the rest of
@@ -1275,6 +1355,11 @@ async function fetchRange<T>(
 function note(report: SyncReport, log: Log, text: string): void {
 	report.warnings.push(text);
 	log.warn(text);
+}
+
+/** A race prediction row with any time: Garmin null-fills the days of a window that have none. */
+function hasRaceTime(row: RacePrediction): boolean {
+	return [row.time5K, row.time10K, row.timeHalfMarathon, row.timeMarathon].some((t) => typeof t === "number" && Number.isFinite(t));
 }
 
 /** Indexes a range response by the day it describes. */

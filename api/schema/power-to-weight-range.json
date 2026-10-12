@@ -1,0 +1,45 @@
+{
+	"endpoint": "power-to-weight-range",
+	"path": "/biometric-service/stats/powerToWeight/range/{startDate}/{endDate}",
+	"plugin": "GarminApi.powerToWeightRange",
+	"firstRecorded": "2026-10-11T19:31:12.917Z",
+	"updatedAt": "2026-10-12T10:37:19.178Z",
+	"samples": 4,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"from": {
+					"type": [
+						"string"
+					]
+				},
+				"series": {
+					"type": [
+						"string"
+					]
+				},
+				"until": {
+					"type": [
+						"string"
+					]
+				},
+				"updatedDate": {
+					"type": [
+						"string"
+					]
+				},
+				"value": {
+					"type": [
+						"number"
+					]
+				}
+			}
+		}
+	}
+}

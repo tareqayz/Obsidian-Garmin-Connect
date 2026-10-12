@@ -3,8 +3,8 @@
 	"path": "/activitylist-service/activities/search/activities",
 	"plugin": "GarminApi.activities",
 	"firstRecorded": "2026-09-26T07:59:19.346Z",
-	"updatedAt": "2026-09-26T07:59:19.346Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T12:49:44.828Z",
+	"samples": 2,
 	"shape": {
 		"type": [
 			"array"
@@ -107,10 +107,17 @@
 						"boolean"
 					]
 				},
+				"averageBikingCadenceInRevPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"averageHR": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"averageRunningCadenceInStepsPerMinute": {
 					"type": [
@@ -154,6 +161,12 @@
 					"optional": true
 				},
 				"avgGroundContactTime": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgLeftBalance": {
 					"type": [
 						"number"
 					],
@@ -227,6 +240,12 @@
 					"type": [
 						"number"
 					]
+				},
+				"caloriesConsumed": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"cloudPositioningStatus": {
 					"type": [
@@ -321,6 +340,12 @@
 						}
 					}
 				},
+				"excludeFromPowerCurveReports": {
+					"type": [
+						"boolean"
+					],
+					"optional": true
+				},
 				"fastestSplit_100": {
 					"type": [
 						"number"
@@ -340,6 +365,12 @@
 					"optional": true
 				},
 				"fastestSplit_1609": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_40000": {
 					"type": [
 						"number"
 					],
@@ -369,7 +400,8 @@
 				"hasIntensityIntervals": {
 					"type": [
 						"boolean"
-					]
+					],
+					"optional": true
 				},
 				"hasPolyline": {
 					"type": [
@@ -389,27 +421,38 @@
 				"hrTimeInZone_1": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"hrTimeInZone_2": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"hrTimeInZone_3": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"hrTimeInZone_4": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"hrTimeInZone_5": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
+				},
+				"intensityFactor": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"isAtpActivity": {
 					"type": [
@@ -477,6 +520,102 @@
 						"string"
 					]
 				},
+				"max20MinPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_1": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_10": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_120": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_1200": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_1800": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_2": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_20": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_30": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_300": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_3600": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_5": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_60": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_600": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxAvgPower_7200": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxBikingCadenceInRevPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"maxDoubleCadence": {
 					"type": [
 						"number"
@@ -492,7 +631,8 @@
 				"maxHR": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"maxPower": {
 					"type": [
@@ -517,6 +657,12 @@
 						"number"
 					]
 				},
+				"maxTemperature": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"maxVerticalSpeed": {
 					"type": [
 						"number"
@@ -540,10 +686,17 @@
 					],
 					"optional": true
 				},
+				"minTemperature": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"moderateIntensityMinutes": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"movingDuration": {
 					"type": [
@@ -622,6 +775,18 @@
 					"optional": true
 				},
 				"powerTimeInZone_5": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_6": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"powerTimeInZone_7": {
 					"type": [
 						"number"
 					],
@@ -750,6 +915,18 @@
 									"number"
 								]
 							},
+							"numClimbSends": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
+							"numFalls": {
+								"type": [
+									"number"
+								],
+								"optional": true
+							},
 							"splitType": {
 								"type": [
 									"string"
@@ -837,6 +1014,12 @@
 						"string"
 					]
 				},
+				"trainingStressScore": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"unitOfPoolLength": {
 					"type": [
 						"object"
@@ -884,7 +1067,14 @@
 				"vigorousIntensityMinutes": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
+				},
+				"waterConsumed": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"waterEstimated": {
 					"type": [

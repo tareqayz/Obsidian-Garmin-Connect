@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { TrainingStatusView } from "../../../dashboard/home";
+	import StatusStrip from "../health/StatusStrip.svelte";
 	import HomeCard from "./HomeCard.svelte";
 	import Stat from "./Stat.svelte";
 	import { lucide } from "./lucide";
@@ -24,9 +25,7 @@
 			</div>
 		</div>
 		<div class="history">
-			{#each status.history as h}
-				<span style:flex-grow={h.days} style:background={TONE[h.tone]}></span>
-			{/each}
+			<StatusStrip periods={status.history.map((h) => ({ days: h.days, color: TONE[h.tone] }))} />
 		</div>
 		<div class="axis">
 			<span>Last 4w</span>
@@ -85,18 +84,11 @@
 		flex-direction: column;
 		gap: 10px;
 	}
+	/* The strip is Training Status's own (`StatusStrip`), on a rule. */
 	.history {
-		display: flex;
-		gap: 2px;
-		height: 12px;
 		margin-top: 14px;
 		padding-top: 14px;
 		border-top: 1px solid var(--background-modifier-border);
-		box-sizing: content-box;
-	}
-	.history span {
-		flex-basis: 0;
-		border-radius: 6px;
 	}
 	.axis {
 		display: flex;

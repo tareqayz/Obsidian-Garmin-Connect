@@ -18,67 +18,132 @@
 
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { HEALTH_RANGES, pageStat } from "../../../dashboard/health-stats";
-	import { stepRoute, switchRange, type PeriodRange, type PeriodRoute } from "../../../dashboard/periods";
-	import type { HealthStatRoute } from "../../../dashboard/routes";
+	import { HEALTH_RANGES } from "../../../dashboard/health-stats";
+	import { stepRoute, switchRange, type PeriodRange, type PeriodRoute, type Span } from "../../../dashboard/periods";
+	import { moveStatRoute, rangeControlOf, statOfRoute, type StatRoute } from "../../../dashboard/routes";
+	import { statPeriodLabel, statSpan } from "../../../dashboard/stat-registry";
 	import HistoryBanner from "../activities/HistoryBanner.svelte";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
 
 	/**
-	 * A Health Stats page around its body: the bar with back and the stat's
-	 * title, the range control with the stat's own ranges, the period with its
-	 * steppers, all staying put while the rest scrolls; the history banner
-	 * while the stat's index is still coming; and the body, told whether the
-	 * page is laid out as the twins' 1190pt panes (from 1000pt), where a
-	 * chart takes its pane frame.
+	 * A stat page around its body, Health Stats' and Performance Stats'
+	 * alike: the bar with back and the stat's title, the range control with
+	 * the stat's own ranges, the period with its steppers, all staying put
+	 * while the rest scrolls; the history banner while the stat's index is
+	 * still coming; and the body, told whether the page is laid out as the
+	 * twins' 1190pt panes (from 1000pt), where a chart takes its pane frame.
 	 *
-	 * The range control and the steppers move this page in place with the
-	 * shared period rules (`periods.ts`): 1d reopens on the day it last
-	 * showed, the others on the current period, "<" and ">" a period at a
-	 * time, never past the current one.
+	 * The stat is the route's section's (`statOfRoute`). The range control and
+	 * the steppers move this page in place with the shared period rules
+	 * (`periods.ts`): 1d reopens on the day it last showed, the others on the
+	 * current period, "<" and ">" a period at a time, never past the current
+	 * one; the page keeps its tab and sub-page (`moveStatRoute`). Health's
+	 * range control is its own; Performance's is the compact or the wide one
+	 * its stat names (`rangeControlOf`), and the period stepper goes with it:
+	 * a wide page's (VO₂ Max, Training Effect) has 24 pt discs and a Body
+	 * Semibold label (Training Effect's a Nav Title one, `navTitle`), a
+	 * compact page's (Hill Score, HRV Status and the rest) Health's 20 pt
+	 * discs and a Nav Title label.
 	 */
 	interface Props {
-		/** The page's route: its stat, range, period and remembered day. */
-		route: HealthStatRoute;
+		/** The page's route: its stat, range, period, remembered day, tab and sub-page. */
+		route: StatRoute;
 		today: string;
-		/** The period's label: "Today", "Oct 2 - 8"; null for a page without a period (no stepper row). */
-		label: string | null;
+		/**
+		 * The period's label: "Today", "Oct 2 - 8"; null for a page without a
+		 * period (no stepper row). Left out, the shell words the period by the
+		 * stat's span rule (`statPeriodLabel`).
+		 */
+		label?: string | null;
 		/** The bar's title, where it is not the stat's: a sub-page's own name. */
 		title?: string;
 		/** "<": older data exists, or may (the index is still coming). */
-		canGoBack: boolean;
+		canGoBack?: boolean;
+		/** ">": a later period exists. Left out, every period before the current one has one. */
+		canGoForward?: boolean;
 		onBack: () => void;
 		/** Changes this page without adding a step: the props' `swap`. */
-		swap: (route: HealthStatRoute) => void;
+		swap: (route: StatRoute) => void;
 		/** The stat's day index, for the banner; a stat without one leaves it out. */
 		history?: StatHistory;
 		/** Custom properties for the whole page, such as a stat's colours. */
 		style?: string;
+		/** The range control's segments, where they are not the stat's own. */
+		ranges?: readonly PeriodRange[];
+		/** The segments' names, where they are not the stat's own ("Current" for 1d). */
+		rangeLabels?: Partial<Record<PeriodRange, string>>;
+		/** False: the label alone, without "<" and ">" (VO₂ Max's Current, "Today"). */
+		steppers?: boolean;
 		/**
-		 * The page under the header, told whether it is laid out as a pane and
+		 * Training Effect's wide stepper (twin Period Nav 683:100): the label
+		 * in Nav Title, 17/22 Semi Bold, where VO₂ Max's is Body Semibold 15,
+		 * and the page 3.67 pt under the stepper, where VO₂ Max's is 16.
+		 */
+		navTitle?: boolean;
+		/** "<" (−1) and ">" (+1) of the page's own, in place of a whole period: Hill Score's month page. */
+		step?: (by: number) => void;
+		/**
+		 * Under the bar, over the range control and the period: Load's tabs.
+		 * In a pane a stat without a range control has them in its place, at
+		 * the left of the header's row (twin 609:1491).
+		 */
+		top?: Snippet<[{ pane: boolean }]>;
+		/**
+		 * The page under the header, told whether it is laid out as a pane,
+		 * the period it shows (`span`, null on 1d, by the stat's span rule) and
 		 * given `move`, which switches this page in place: a day card's
 		 * `dayCardRoute`, a week card's `weekCardRoute`.
 		 */
-		children: Snippet<[{ pane: boolean; move: (next: PeriodRoute) => void }]>;
+		children: Snippet<[{ pane: boolean; move: (next: PeriodRoute<PeriodRange>) => void; span: Span | null }]>;
 	}
 
-	let { route, today, label, title, canGoBack, onBack, swap, history, style, children }: Props = $props();
+	let {
+		route,
+		today,
+		label,
+		title,
+		canGoBack = false,
+		canGoForward,
+		onBack,
+		swap,
+		history,
+		style,
+		ranges: ownRanges,
+		rangeLabels: ownLabels,
+		steppers = true,
+		navTitle = false,
+		step,
+		top,
+		children,
+	}: Props = $props();
 
-	let stat = $derived(pageStat(route.stat));
-	let ranges: readonly PeriodRange[] = $derived(stat?.ranges ?? HEALTH_RANGES);
-	let period: PeriodRoute = $derived(route.date ? { range: route.range, offset: route.offset, date: route.date } : { range: route.range, offset: route.offset });
-	let canGoForward = $derived(route.offset < 0);
+	let stat = $derived(statOfRoute(route));
+	let ranges: readonly PeriodRange[] = $derived(ownRanges ?? stat?.ranges ?? HEALTH_RANGES);
+	let names = $derived(ownLabels ?? stat?.rangeLabels);
+	let period: PeriodRoute<PeriodRange> = $derived(route.date ? { range: route.range, offset: route.offset, date: route.date } : { range: route.range, offset: route.offset });
+	let span = $derived(stat ? statSpan(stat, period, today) : null);
+	let shown = $derived(label !== undefined ? label : stat ? statPeriodLabel(stat, period, today) : null);
+	let forward = $derived(canGoForward ?? route.offset < 0);
+	/* Health's range control, or Performance's compact or wide one (twin 442:933). */
+	let control = $derived(rangeControlOf(route, ranges.length));
+	let perf = $derived(control.family !== "health");
 
 	/* The twins' panes start at 1000pt. */
 	let width = $state(0);
 	let pane = $derived(width >= 1000);
+	/* A pane's header row takes `top` where a stat without a range control has none (Load's tabs). */
+	let inRow = $derived(pane && top !== undefined && ranges.length < 2);
 
 	/** This page, moved: a range or a period. Never a new step. */
-	function move(next: PeriodRoute) {
-		const target: HealthStatRoute = { page: "health-stat", stat: route.stat, range: next.range, offset: next.offset };
-		if (next.date) target.date = next.date;
-		swap(target);
+	function move(next: PeriodRoute<PeriodRange>) {
+		swap(moveStatRoute(route, next));
+	}
+
+	/** "<" and ">": the page's own step, or a whole period. */
+	function stepBy(by: number) {
+		if (step) step(by);
+		else move(stepRoute(period, by));
 	}
 
 	let banner = $derived.by(() => {
@@ -103,25 +168,40 @@
 <div class="stat-page" {style} bind:clientWidth={width}>
 	<div class="sticky">
 		<PageBar title={title ?? stat?.title ?? ""} {onBack} />
-		{#if label !== null || ranges.length > 1}
-		<div class="controls" class:single={ranges.length < 2} class:bare={label === null}>
+		{#if !inRow}{@render top?.({ pane })}{/if}
+		{#if shown !== null || ranges.length > 1 || inRow}
+		<div
+			class="controls"
+			class:single={ranges.length < 2}
+			class:bare={shown === null}
+			class:perf
+			class:compact={control.family === "compact"}
+			class:wide={control.family === "wide"}
+			class:nav-title={navTitle}
+			class:with-top={inRow}
+		>
+			{#if inRow}<div class="top-slot">{@render top?.({ pane })}</div>{/if}
 			{#if ranges.length > 1}
-				<div class="range-control">
+				<div class="range-control" style:width={control.width === undefined ? undefined : `${control.width}px`}>
 					{#each ranges as range (range)}
-						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{stat?.rangeLabels?.[range] ?? range}</button>
+						<button class:on={range === route.range} aria-pressed={range === route.range} onclick={() => move(switchRange(period, range, today))}>{names?.[range] ?? range}</button>
 					{/each}
 				</div>
 			{/if}
-			{#if label !== null}
-			<div class="period">
-				<button class="step" aria-label="Previous period" disabled={!canGoBack} onclick={() => move(stepRoute(period, -1))}>
-					<span use:lucide={"chevron-left"}></span>
-				</button>
-				<strong>{label}</strong>
-				<button class="step" class:hidden={!canGoForward} aria-label="Next period" disabled={!canGoForward} onclick={() => move(stepRoute(period, 1))}>
-					<span use:lucide={"chevron-right"}></span>
-				</button>
-			</div>
+			{#if shown !== null}
+				{#if steppers}
+				<div class="period">
+					<button class="step" aria-label="Previous period" disabled={!canGoBack} onclick={() => stepBy(-1)}>
+						<span use:lucide={"chevron-left"}></span>
+					</button>
+					<strong>{shown}</strong>
+					<button class="step" class:hidden={!forward} aria-label="Next period" disabled={!forward} onclick={() => stepBy(1)}>
+						<span use:lucide={"chevron-right"}></span>
+					</button>
+				</div>
+				{:else}
+				<div class="period plain"><strong>{shown}</strong></div>
+				{/if}
 			{/if}
 		</div>
 		{/if}
@@ -134,7 +214,7 @@
 			</div>
 		{/if}
 
-		{@render children({ pane, move })}
+		{@render children({ pane, move, span })}
 	</div>
 </div>
 
@@ -218,6 +298,74 @@
 	.single .period {
 		margin-top: 0;
 	}
+	/* The label alone: no steppers either side. */
+	.period.plain {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	/*
+	 * Performance Stats' range controls (twin 442:933). Compact: 34 pt, its
+	 * labels in 74 pt slots spaced across the stat's width (338 / 255 / 170),
+	 * radius 3, 22 pt under the bar. Wide (VO₂ Max, Training Effect): 36 pt,
+	 * packed 72 pt slots centred in 370 / 184, radius 4, 16 pt under the bar,
+	 * the period 17.3 pt below it. A stat with one range has no control: its
+	 * period sits 26 pt under the bar, or under the `top` slot (Load's tabs).
+	 */
+	.controls.compact {
+		padding-top: 22.33px;
+	}
+	/* Wide, as VO₂ Max's twin places it: the range control at 60.33 under a 44 pt bar, the period row 16 under it, 16 over the body. */
+	.controls.wide {
+		height: 108.33px;
+		padding-top: 16.33px;
+	}
+	.controls.perf.bare {
+		height: auto;
+		padding-bottom: 16px;
+	}
+	.controls.perf.single {
+		height: auto;
+		padding: 25px 0 15.8px;
+	}
+	.compact .range-control,
+	.wide .range-control {
+		padding: 0;
+	}
+	.compact .range-control {
+		border-radius: 3px;
+	}
+	.wide .range-control {
+		justify-content: center;
+		height: 36px;
+		border-radius: var(--radius-s, 4px);
+	}
+	.compact .range-control button {
+		width: 74px;
+		text-align: center;
+	}
+	.wide .range-control button {
+		width: 72px;
+		padding: 8px 0;
+		text-align: center;
+	}
+	/*
+	 * A wide page's stepper (VO₂ Max's Period Nav, 470:32): 24 pt discs with a
+	 * 5 × 10 pt chevron either side of a Body Semibold label, 16 pt under the
+	 * range control. Its row is 2 pt taller than Health's, so a row alone
+	 * starts 1 pt higher and keeps its centre. A compact page's follows below.
+	 */
+	.perf .period {
+		grid-template-columns: 24px minmax(0, 1fr) 24px;
+		margin-top: 24.9px;
+	}
+	.perf .period.plain {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.perf.single .period {
+		margin-top: 0;
+	}
+	.wide .period {
+		margin-top: 16px;
+	}
 	.period strong {
 		font-size: 17px;
 		line-height: 22px;
@@ -226,6 +374,23 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.perf .period strong {
+		font-size: 15px;
+		line-height: 20px;
+		font-weight: 600;
+	}
+	/*
+	 * Training Effect's wide stepper (`navTitle`, twin 683:100): a Nav Title
+	 * label, 17/22, and the page 3.67 under the stepper (its charts at 140,
+	 * the header 96 under the bar). A pane's row keeps its 72 pt below.
+	 */
+	.controls.nav-title {
+		height: 96px;
+	}
+	.nav-title .period strong {
+		font-size: 17px;
+		line-height: 22px;
 	}
 	.step {
 		display: inline-flex;
@@ -241,6 +406,52 @@
 	.step :global(svg) {
 		width: 14px;
 		height: 14px;
+	}
+	.perf .step {
+		width: 24px;
+		height: 24px;
+	}
+	/* Lucide's chevron at 20 pt is the twin's 5 × 10; 1.8 of its 24 units is the twin's 1.5 pt stroke. */
+	.perf .step :global(svg) {
+		width: 20px;
+		height: 20px;
+		stroke-width: 1.8px;
+	}
+	/*
+	 * A compact page's stepper (Hill Score's Period Nav, twin 503:59; HRV
+	 * Status's agrees): Health's 20 pt discs, each with a 4 × 8 pt chevron of
+	 * 1.1 pt, either side of a Nav Title label, 17/22 Semi Bold where
+	 * Health's is bold. The 22 pt row sits 25.53 under the range control (at
+	 * 66.33), so the header still ends 165 down; alone, as on Hill Score's
+	 * month page, it sits 25.86 under the bar and the header ends at 109.
+	 * Wide pages keep the 24 pt stepper above.
+	 */
+	.compact .period {
+		grid-template-columns: 20px minmax(0, 1fr) 20px;
+		margin-top: 25.53px;
+	}
+	.compact .period.plain {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.compact.single .period {
+		margin-top: 0;
+	}
+	.controls.compact.single {
+		padding: 25.86px 0 17.14px;
+	}
+	.compact .period strong {
+		font-size: 17px;
+		line-height: 22px;
+	}
+	.compact .step {
+		width: 20px;
+		height: 20px;
+	}
+	/* Lucide's chevron at 16.5 pt is the twin's 4.13 × 8.26; 1.6 of its 24 units is 1.1 pt. */
+	.compact .step :global(svg) {
+		width: 16.5px;
+		height: 16.5px;
+		stroke-width: 1.6px;
 	}
 	.step:disabled {
 		opacity: 0.4;
@@ -279,6 +490,14 @@
 		.controls.single {
 			justify-content: flex-end;
 		}
+		/* `top` in the range control's place, the period still on the right (Load, twin 609:1438). */
+		.controls.with-top {
+			justify-content: space-between;
+		}
+		.top-slot {
+			flex: none;
+			align-self: stretch;
+		}
 		.controls.bare {
 			height: 72px;
 			padding-bottom: 0;
@@ -292,6 +511,16 @@
 		}
 		.period .step.hidden {
 			display: none;
+		}
+		.controls.perf,
+		.controls.perf.bare,
+		.controls.perf.single {
+			height: 72px;
+			padding: 0 32px;
+		}
+		.wide .period,
+		.perf .period {
+			margin: 0;
 		}
 	}
 </style>

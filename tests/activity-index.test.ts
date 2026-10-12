@@ -78,6 +78,46 @@ describe("rowOf", () => {
 	});
 });
 
+describe("rowOf — Performance Stats fields", () => {
+	it("keeps training effect to a tenth, the benefit, its copy keys and the load", () => {
+		const r = rowOf({
+			...dubaiRun,
+			aerobicTrainingEffect: 4.099999904632568,
+			anaerobicTrainingEffect: 0,
+			trainingEffectLabel: "LACTATE_THRESHOLD",
+			aerobicTrainingEffectMessage: "HIGHLY_IMPACTING_TEMPO_23",
+			anaerobicTrainingEffectMessage: "NO_ANAEROBIC_BENEFIT_0",
+			activityTrainingLoad: 164.6251983642578,
+		})!;
+		assert.equal(r.aerobic, 4.1);
+		assert.equal(r.anaerobic, 0);
+		assert.equal(r.benefit, "LACTATE_THRESHOLD");
+		assert.equal(r.aerobicMsg, "HIGHLY_IMPACTING_TEMPO_23");
+		assert.equal(r.anaerobicMsg, "NO_ANAEROBIC_BENEFIT_0");
+		assert.equal(r.load, 164.63);
+		assert.equal(r.power, undefined);
+	});
+
+	it("keeps a ride's best powers by seconds, and its power-curve opt-out", () => {
+		const ride: Activity = {
+			...dubaiRun,
+			activityType: { typeId: 10, typeKey: "road_biking", parentTypeId: 2 },
+			maxAvgPower_1: 523,
+			maxAvgPower_20: 376.4,
+			maxAvgPower_1200: 187,
+			maxAvgPower_3600: 181,
+			maxAvgPower_7200: null,
+			excludeFromPowerCurveReports: true,
+		};
+		const r = rowOf(ride)!;
+		assert.deepEqual(r.power, { "1": 523, "20": 376, "1200": 187, "3600": 181 });
+		assert.equal(r.noPowerCurve, true);
+		const back = parseYear(serializeYear("2026", [r]))[0]!;
+		assert.deepEqual(back, r);
+		assert.deepEqual(Object.keys(back).slice(-2), ["power", "noPowerCurve"]);
+	});
+});
+
 describe("mergeListing", () => {
 	const t0 = Date.UTC(2026, 8, 1);
 	const index = [row(1, t0), row(2, t0 + 24 * HOUR), row(3, t0 + 60 * HOUR), row(4, t0 + 72 * HOUR)];
@@ -156,9 +196,11 @@ describe("year files", () => {
 
 describe("index meta", () => {
 	it("round-trips and rejects another version", () => {
-		const meta = { version: 1 as const, complete: true, units: "metric" as const, total: 338 };
+		const meta = { version: 2 as const, complete: true, units: "metric" as const, total: 338 };
 		assert.deepEqual(parseMeta(serializeMeta(meta)), meta);
-		assert.equal(parseMeta('{"version":2,"complete":true}'), null);
+		// Version 1 rows lack training effect and power: they read as no index, so the history is listed again.
+		assert.equal(parseMeta('{"version":1,"complete":true}'), null);
+		assert.equal(parseMeta('{"version":3,"complete":true}'), null);
 		assert.equal(parseMeta("nope"), null);
 	});
 });
