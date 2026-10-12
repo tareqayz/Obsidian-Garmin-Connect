@@ -2360,9 +2360,24 @@
 				"[].beginTimestamp",
 				"[].activityType.typeId",
 				"[].activityType.parentTypeId",
-				"[].isParent"
+				"[].isParent",
+				"[].maxAvgPower_1",
+				"[].maxAvgPower_2",
+				"[].maxAvgPower_5",
+				"[].maxAvgPower_10",
+				"[].maxAvgPower_20",
+				"[].maxAvgPower_30",
+				"[].maxAvgPower_60",
+				"[].maxAvgPower_120",
+				"[].maxAvgPower_300",
+				"[].maxAvgPower_600",
+				"[].maxAvgPower_1200",
+				"[].maxAvgPower_1800",
+				"[].maxAvgPower_3600",
+				"[].maxAvgPower_7200",
+				"[].excludeFromPowerCurveReports"
 			],
-			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load)."
+			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load). Rides' maxAvgPower_* (integer W) and excludeFromPowerCurveReports feed the Cycling Power Curve page through the index."
 		},
 		{
 			"id": "goals",
@@ -4029,7 +4044,7 @@
 				"workouts"
 			],
 			"cadence": "range",
-			"check": true,
+			"check": false,
 			"critical": [
 				"entries"
 			],
@@ -4042,7 +4057,7 @@
 				"entries[].activityDate"
 			],
 			"schema": "schema/power-curve.json",
-			"notes": "endDate is EXCLUSIVE: the web asks the day after the span (4w 2026-09-14..10-12 for the 28 days to 10-11; 3m 2026-08-01..11-01 for August to October; 1y 2025-11-02..2026-11-01). {startDate, endDate, entries: 15 durations (1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200, 18000 s), each with power in W and the ride's activityId and activityDate, both null for a duration no ride lasted}; entries is [] for a span without power data. The Cycling Power Curve report; sport=cycling is the only value seen. No cap seen up to a year."
+			"notes": "Both dates inclusive, whole days (2025-10-13..2025-10-13 returns that day's two rides; ..2025-10-24 leaves out an Oct 25 ride). Both or neither (one alone \u2192 HTTP 400). No cap (2016-10-12..2026-10-11 \u2192 200, = all time). sport defaults to cycling, case-insensitive; running \u2192 400. {startDate, endDate as asked, entries}: [] when no ride in the span has power, else 15 durations (1 \u2026 18000 s) {duration, power W, activityId, activityDate = the ride's local start day}, nulls for a duration no ride reached. power = the list's maxAvgPower_<duration>. Per-duration maxima are not smoothed (one ride: 1200 s 170 < 1800 s 171). Ties are broken by decimals the API rounds away. The Cycling Power Curve page computes the same curves from the activity index; this route is reference only."
 		},
 		{
 			"id": "power-curve-records",
@@ -4068,7 +4083,7 @@
 				"workouts"
 			],
 			"cadence": "sync",
-			"check": true,
+			"check": false,
 			"critical": [
 				"entries"
 			],
@@ -4079,7 +4094,7 @@
 				"entries[].activityDate"
 			],
 			"schema": "schema/power-curve-records.json",
-			"notes": "power-curve without dates: the all-time curve, startDate and endDate null, behind the report's Record line and Power Records table (whose rows have Delete buttons on the web; never touched)."
+			"notes": "power-curve without dates: the all-time curve, startDate and endDate null, behind the report's Record line and Power Records table (whose rows have Delete buttons on the web; never touched). All time, not a lookback: the 2025-09-13 1 s record still holds on 2026-10-12. It equals any span that covers every ride. sport=CYCLING or no parameters give the same. The Cycling Power Curve page computes the Record from the activity index; this route is reference only."
 		},
 		{
 			"id": "power-to-weight-range",

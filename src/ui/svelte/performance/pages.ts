@@ -2,6 +2,7 @@ import type { Component } from "svelte";
 import type { PerformanceStatPageId } from "../../../dashboard/performance-stats";
 import type { PerformanceStatRoute } from "../../../dashboard/routes";
 import type { StatPageProps } from "../health/pages";
+import CyclingPowerCurvePage from "../cycling-power-curve/CyclingPowerCurvePage.svelte";
 import EnduranceScorePage from "../endurance-score/EnduranceScorePage.svelte";
 import FtpPage from "../ftp/FtpPage.svelte";
 import HeatAcclimationPage from "../heat-acclimation/HeatAcclimationPage.svelte";
@@ -47,4 +48,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	ftp: FtpPage,
 	"running-lactate-threshold": RunningLactateThresholdPage,
 	"running-economy": RunningEconomyPage,
+	"cycling-power-curve": CyclingPowerCurvePage,
 };

@@ -61,11 +61,6 @@ export function yearBefore(end: string): string {
 	return isoDay(363, new Date(`${end}T00:00:00Z`));
 }
 
-/** The day after `end`, for the power curve, whose end date is exclusive. */
-export function dayAfter(end: string): string {
-	return isoDay(-1, new Date(`${end}T00:00:00Z`));
-}
-
 /** The snapshot detail and epoch routes need a real id, so they start from the newest one listed. */
 async function newestSnapshot(
 	api: GarminApi,
@@ -185,9 +180,6 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	// A year, as the index asks it: a few weeks are often [] (readings come only from qualifying runs), which checks no shape.
 	"running-economy-daily": async (api, w) => [await api.runningEconomyDaily(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"running-economy-weekly": async (api, w) => [await api.runningEconomyWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
-	// The power curve's end is exclusive, so the span runs to the day after.
-	"power-curve": async (api, w) => [await api.cyclingPowerCurve(yearBefore(w.rangeEnd), dayAfter(w.rangeEnd))],
-	"power-curve-records": async (api) => [await api.cyclingPowerRecords()],
 	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "daily")],
 	"critical-swim-speed-latest": async (api, w) => [await api.criticalSwimSpeedLatest(w.days[0]!)],
 	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(w.rangeStart, w.rangeEnd)],

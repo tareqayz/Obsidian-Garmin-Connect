@@ -360,9 +360,10 @@ describe("Performance Stats URLs", () => {
 		assert.ok(!http.urls.some((u) => u.includes("socialProfile")));
 	});
 
-	it("builds the power curve with the exclusive end, power-to-weight and swim speed as the web sends them", async () => {
+	it("builds the power curve over its inclusive span, power-to-weight and swim speed", async () => {
 		const { http, client } = await api([{ url: HOST, json: {} }]);
-		await client.cyclingPowerCurve("2026-09-14", "2026-10-12");
+		// The 28 days ending 2026-10-11: Garmin counts both ends (the web's 10-12 reaches a day too far).
+		await client.cyclingPowerCurve("2026-09-14", "2026-10-11");
 		await client.cyclingPowerRecords();
 		await client.powerToWeightRange("2025-10-13", "2026-10-11", "weekly");
 		await client.powerToWeightRange("2026-09-20", "2026-10-11", "daily", "Running");
@@ -372,7 +373,7 @@ describe("Performance Stats URLs", () => {
 		await client.criticalSwimSpeedRange("2026-10-05", "2026-10-11");
 		await client.criticalSwimSpeedRange("2026-07-20", "2026-10-11", "weekly");
 		assert.deepEqual(http.urls.slice(-8), [
-			`${HOST}/fitnessstats-service/powerCurve?startDate=2026-09-14&endDate=2026-10-12&sport=cycling`,
+			`${HOST}/fitnessstats-service/powerCurve?startDate=2026-09-14&endDate=2026-10-11&sport=cycling`,
 			`${HOST}/fitnessstats-service/powerCurve?sport=cycling`,
 			`${HOST}/biometric-service/stats/powerToWeight/range/2025-10-13/2026-10-11?aggregation=weekly`,
 			`${HOST}/biometric-service/stats/powerToWeight/range/2026-09-20/2026-10-11?aggregation=daily&sport=Running`,
@@ -444,7 +445,7 @@ describe("Performance Stats URLs", () => {
 		assert.equal(await client.maxMetricsLatest("2026-10-11", "running"), null);
 		assert.deepEqual(await client.maxMetricsMonthly("2025-11-01", "2026-10-31"), []);
 		assert.deepEqual(await client.runningEconomyWeekly("2025-10-12", "2026-10-11"), []);
-		assert.equal(await client.cyclingPowerCurve("2026-09-14", "2026-10-12"), null);
+		assert.equal(await client.cyclingPowerCurve("2026-09-14", "2026-10-11"), null);
 		assert.deepEqual(await client.powerToWeightRange("2025-10-13", "2026-10-11", "weekly"), []);
 		assert.equal(await client.criticalSwimSpeedLatest("2026-10-11"), null);
 		assert.equal(await client.criticalSwimSpeedRange("2026-07-20", "2026-10-11", "weekly"), null);

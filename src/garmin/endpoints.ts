@@ -380,6 +380,8 @@ export interface Activity {
 	vO2MaxValue?: number | null;
 	averageRunningCadenceInStepsPerMinute?: number | null;
 	/** Rides: the activity's best average power over 1 s … 2 h, `maxAvgPower_<seconds>`, in W. */
+	[key: `maxAvgPower_${number}`]: number | null | undefined;
+	/** true when the rider left the ride out of the power curve. */
 	excludeFromPowerCurveReports?: boolean | null;
 	/** Epoch ms of the start; the list is ordered by it, newest first. */
 	beginTimestamp?: number | null;
@@ -834,7 +836,7 @@ export interface PowerCurvePoint {
 /** A cycling power curve: 15 durations from 1 s to 5 h. The all-time form has null dates. */
 export interface PowerCurve {
 	startDate?: string | null;
-	/** As asked: the day after the span. */
+	/** As asked; inclusive. */
 	endDate?: string | null;
 	entries?: PowerCurvePoint[] | null;
 	[key: string]: unknown;
@@ -1884,19 +1886,27 @@ export class GarminApi extends GarminClient {
 	 * The cycling power curve over a span: the best average power for 15
 	 * durations, 1 s to 5 h, and the ride each came from.
 	 *
-	 * **`endExclusive` is the day after the span.** The web asks 2026-09-14 →
-	 * 2026-10-12 for the four weeks ending 2026-10-11, and 2026-08-01 →
-	 * 2026-11-01 for August to October.
+	 * Both ends are inclusive, whole days: 2025-10-13..2025-10-13 returns that
+	 * day's rides. No cap: a 10-year span returns 200 and equals the all-time
+	 * curve. Both dates or neither: one alone is HTTP 400. `sport=cycling` is
+	 * the default and the only sport (running → 400). The web asks for the day
+	 * after the span, which over-reaches by a day.
+	 *
+	 * Uncalled: the Cycling Power Curve page computes the same curves from the
+	 * activity index.
 	 */
-	async cyclingPowerCurve(start: string, endExclusive: string): Promise<PowerCurve | null> {
+	async cyclingPowerCurve(start: string, end: string): Promise<PowerCurve | null> {
 		assertIsoDate(start, "start");
-		assertIsoDate(endExclusive, "endExclusive");
+		assertIsoDate(end, "end");
 		return this.request("/fitnessstats-service/powerCurve", {
-			query: { startDate: start, endDate: endExclusive, sport: "cycling" },
+			query: { startDate: start, endDate: end, sport: "cycling" },
 		});
 	}
 
-	/** The all-time cycling power curve, behind the web's Record line and Power Records table. */
+	/**
+	 * The all-time cycling power curve, behind the web's Record line and Power
+	 * Records table: all time, not a lookback. Uncalled, as `cyclingPowerCurve`.
+	 */
 	async cyclingPowerRecords(): Promise<PowerCurve | null> {
 		return this.request("/fitnessstats-service/powerCurve", { query: { sport: "cycling" } });
 	}

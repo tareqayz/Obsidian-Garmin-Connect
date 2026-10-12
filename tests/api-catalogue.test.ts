@@ -18,7 +18,7 @@ import {
 	schemaPath,
 	type CatalogueEntry,
 } from "../scripts/api/catalogue";
-import { assertProbesMatchCatalogue, dayAfter, PROBES, yearBefore } from "../scripts/api/probes";
+import { assertProbesMatchCatalogue, PROBES, yearBefore } from "../scripts/api/probes";
 import { hasPath } from "../scripts/api/schema";
 
 const catalogue = loadCatalogue();
@@ -119,11 +119,5 @@ describe("probe windows", () => {
 	it("span the 52 weeks the weekly ranges insist on", () => {
 		assert.equal(yearBefore("2026-10-08"), "2025-10-10");
 		assert.equal(yearBefore("2025-12-30"), "2025-01-01");
-	});
-
-	// The power curve's end date is exclusive: the web asks 10-12 for a span ending 10-11.
-	it("run the power curve to the day after the span", () => {
-		assert.equal(dayAfter("2026-10-11"), "2026-10-12");
-		assert.equal(dayAfter("2026-12-31"), "2027-01-01");
 	});
 });

@@ -619,7 +619,7 @@ every activity on the account, with Garmin's raw numbers:
 | `benefit` | — | `trainingEffectLabel`, the primary benefit: `LACTATE_THRESHOLD`, `VO2MAX`, `TEMPO`… |
 | `aerobicMsg`, `anaerobicMsg` | — | `aerobicTrainingEffectMessage`, `anaerobicTrainingEffectMessage`: the scales' copy keys |
 | `load` | — | `activityTrainingLoad`, the exercise load |
-| `power` | W | A ride's best average power by duration in seconds: `maxAvgPower_1` … `maxAvgPower_7200` |
+| `power` | W | A ride's best average power by duration in seconds: `maxAvgPower_1` … `maxAvgPower_7200`, and `maxAvgPower_18000` if Garmin sends it (no 5-hour ride seen) |
 | `noPowerCurve` | — | `true` when the rider left the ride out of the power curve (`excludeFromPowerCurveReports`) |
 
 Numbers are rounded to two decimals, past anything a page shows; a key is left

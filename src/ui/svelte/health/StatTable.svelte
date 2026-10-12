@@ -7,7 +7,9 @@
 	 * columns.
 	 *
 	 * - "records": Cycling Power Records, Peak · Watts (centred) · Date, the
-	 *   date a link to its ride; rows alternate from the card colour.
+	 *   date a link to its ride, or muted text where the row opens nothing
+	 *   (rides have no page yet, twin 779:131507); rows alternate from the
+	 *   card colour.
 	 * - "based-on": FTP's Based On, three plain columns on the page.
 	 * - "results": Critical Swim Speed's Pace (over its unit) · Date.
 	 * - "status": Training Status's Status · Dates, its rows `StatusRow`s
@@ -58,7 +60,7 @@
 		{#if kind === "status"}
 			<StatusRow status={row.cells[0] ?? ""} dates={row.cells[1] ?? ""} color={row.color ?? "var(--background-modifier-border)"} tone={toneOf(i, first)} dimmed={row.dimmed} onclick={row.onclick} />
 		{:else}
-			<div class="row" class:card={toneOf(i, first) === "card"}>
+			<div class="row" class:alt={toneOf(i, first) === "card"}>
 				{#each row.cells as cell, c (c)}
 					{#if kind === "records" && c === 2 && row.onclick}
 						<button class="c3 link" onclick={row.onclick}>{cell}</button>
@@ -108,7 +110,8 @@
 	.row {
 		background: var(--background-primary);
 	}
-	.row.card {
+	/* The zebra's card colour. Not `.card`: Obsidian styles that class globally (padding, a 10 pt margin, a border). */
+	.row.alt {
 		background: var(--background-primary-alt);
 	}
 	.header > span,
@@ -132,6 +135,10 @@
 	}
 	.records .c3 {
 		left: 70.15%;
+	}
+	/* A date that opens nothing is muted, not dressed as a link. */
+	.records .row > span.c3 {
+		color: var(--text-muted);
 	}
 	.link {
 		height: auto;
