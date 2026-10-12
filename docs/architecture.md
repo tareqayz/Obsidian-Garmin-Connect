@@ -169,8 +169,8 @@ runner.ts        reads settings → builds SyncOptions and the DayTarget (the da
 engine.ts        syncRange: endpointsFor(groups) → only the calls this config needs
    │               ├─ the activity list (workouts), merged into the activity index
    │               │  (series-store.ts)
-   │               ├─ range calls, once for the window: maxMetrics, racePredictions
-   │               │  and hillScores (a request per 365 days), runningTolerance and
+   │               ├─ range calls, once for the window: maxMetrics, racePredictions,
+   │               │  hillScores and runningTolerance (a request per 365 days), and
    │               │  healthSnapshots (a request per 28 days)
    │               ├─ then the days, NEWEST → OLDEST. Per day: summary (it serves
    │               │  activity, heart, stress, respiration and spo2), sleep, hrv,

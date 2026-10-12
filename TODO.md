@@ -11,8 +11,8 @@ Known gaps and open questions, by area.
 
 - **Performance Stats, the rest.** Training Status with Load and Heat
   Acclimation, Training Readiness, HRV Status, Race Predictor, VO₂ Max,
-  Training Effect, Endurance Score and Hill Score are built (see "Performance
-  Stats" below). Still to come through `/garmin-page`: Running Tolerance, FTP,
+  Training Effect, Running Tolerance, Endurance Score and Hill Score are built
+  (see "Performance Stats" below). Still to come through `/garmin-page`: FTP,
   Running Lactate Threshold, Running Economy, Cycling Power Curve, Critical
   Swim Speed and HRV Stress (plan and status board:
   `ref/performance-stats/STATUS.md`).
@@ -89,6 +89,11 @@ items, to check on the phone:
   activity's disc for sports other than runs and swims (ours: grey) and
   whether it opens anything; a detail whose activity is gone; a 0.0 / 0.0
   activity (a card, no bar); the 640–999 pt layout.
+- **Running Tolerance:** the current week's header on a weekday (ours: "OCT 11
+  - 12") and past years' headers; the copy for 7 of Garmin's 8 phrases; the
+  ring at or over the tolerance (ours: orange, full); Help. Garmin's own
+  weekly rows disagree with its days six times between Jul 19 and Sep 12,
+  2026; the page shows the weeks as sent, as the app does.
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

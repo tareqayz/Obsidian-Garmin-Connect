@@ -44,6 +44,9 @@ GitHub release takes its notes from the matching section here — see
   - **Training Effect**: 7d and 4w of each day's aerobic and anaerobic effect,
     and a card per activity opening its primary benefit, its two scales and
     the activity itself.
+  - **Running Tolerance**: this week's impact load against your tolerance, and
+    12w / 1y of Sunday weeks against the tolerance line, with the distance
+    you actually ran on a chip and a list of the weeks.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
@@ -69,6 +72,9 @@ GitHub release takes its notes from the matching section here — see
 
 - **Hill score syncs a year at a time** (Garmin takes up to 401 days), not 28
   days, and Garmin's class 4 reads "Skilled", as the app's help names it.
+- **Running tolerance syncs a year at a time** too (Garmin takes up to 366
+  days), and Home's card rounds its kilometres as Garmin does: 21,450 m is
+  21.5 km.
 - **Home's VO₂ Max dial** uses Garmin's own scale ends, which moves its marker
   by under 1%.
 - **Home's Training Readiness card** writes "Well-recovered", as Garmin does.

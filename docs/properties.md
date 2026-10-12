@@ -400,8 +400,7 @@ From `/metrics-service/metrics/trainingstatus/aggregated/{date}`.
 | `running_tolerance_feedback` | string | — | `runningToleranceFeedBackPhrase` |
 
 Hill score and running tolerance are range calls — one request per window,
-not per day: a year at a time for hill score (Garmin's cap is 401 days), 28
-days for running tolerance.
+not per day, a year at a time (Garmin's caps are 401 and 366 days).
 
 Where `<status>` is `mostRecentTrainingStatus.latestTrainingStatusData.<deviceId>`,
 `<acute>` is `acuteTrainingLoadDTO` inside that entry (or at the top level, if an
@@ -720,6 +719,8 @@ They are listed here because they are part of what the plugin writes.
 | `race-predictions/` | `races` | Race Predictor | Predicted times in seconds: `time5k`, `time10k`, `half`, `marathon` |
 | `training-status/` | `training` | Training Status, Load's Training Load tab | `code` (Garmin's status: 0 No Status, 1 Detraining … 8 Strained), `phrase` (the copy's key); the `acute` and `chronic` load and their `ratio` (one decimal), with its status `acwr`, gauge place `acwrPct` and copy key `acwrFeedback`; the VO₂ Max `trend` (3 rising, 2 level, 1 falling) and its sport `trendSport`; `paused` |
 | `endurance-score/` | `fitness` | Endurance Score | `score`, `classId` (1 Recreational … 7 Elite; 0 while calibrating), `phraseId`, and `contrib`: the day's contributors as text, a group (`g`) or activity type (`t`) id and its share, largest first ("g0:93.54 t31:2.37 g8:2.03") |
+| `running-tolerance/` | `training` | Running Tolerance's Current | In metres, as Garmin sends them: `load` (the acute impact load), `distance` (the run distance of the seven days ending the day), `tolerance` (the weekly tolerance); `phrase`, the copy's key |
+| `running-tolerance-weeks/` | `training` | Running Tolerance's 12w and 1y | A Sunday week, keyed by its Sunday and kept as Garmin sends it: `from` and `to` (the first and last days with data), and in metres `load` (the week's impact load), `distance` and `tolerance` |
 | `training-readiness/` | `readiness` | Training Readiness | The day's morning reading, the first after waking: `time` (minutes from midnight on the watch's clock), `ctx` (Garmin's `inputContext`), `score` (1–100), `level`, the title and copy keys `short` and `long`; then each factor's value where it has one, with Garmin's percent and band of it: `sleep`, `sleepPct`, `sleepFb`; `recovery` (minutes), `recoveryPct`, `recoveryFb`; `acute`, `acwrPct`, `acwrFb`; `hrv` (ms), `hrvPct`, `hrvFb`; `sleepHistPct`, `sleepHistFb`; `stressHistPct`, `stressHistFb` |
 | `heat-acclimation/` | `fitness` | Heat Acclimation, Training Status's Heat Acclimation row | `pct` (0–100), `prev` (Garmin's previous reading, which the trend line quotes), `trend` (`ACCLIMATIZING`, `ACCLIMATIZED`, `DEACCLIMATIZING`; none at 0%); kept for a later altitude page: `altitude` and `altitudePrev` (m), `altitudeTrend`, `altitudeNow` (the altitude it was worked out at, m) |
 

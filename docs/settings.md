@@ -111,8 +111,9 @@ See [properties](properties.md) for every property each group writes.
   longer than a year makes one call per year.
 - **Range calls not on the toggles.** `fitness`, `training` and `health` each
   add range calls of their own: VO₂ Max and hill score, running tolerance, and
-  Health Snapshots. They are one request per year of the run for VO₂ Max and
-  hill score, and per 28 days for the others.
+  Health Snapshots. They are one request per year of the run for VO₂ Max, hill
+  score and running tolerance (and one for running tolerance's weeks), and per
+  28 days for Health Snapshots.
 
 A group also gates its pages' history:
 

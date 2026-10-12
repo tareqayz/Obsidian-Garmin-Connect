@@ -115,13 +115,14 @@ Status and Health Snapshots also have REST routes, which the
 | Method | Path | Group | Window |
 | --- | --- | --- | --- |
 | `hillScores(start, end)` | GraphQL `hillScoreScalar` (a proxy of `/metrics-service/metrics/hillscore/stats`) | `fitness` | 365 days (Garmin's cap is 401) |
-| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` | 28 days |
+| `runningTolerance(start, end)` | `/metrics-service/metrics/runningtolerance/stats?aggregation=daily` | `training` | 365 days (Garmin's cap is 366) |
 | `healthSnapshots(start, end)` | GraphQL `healthSnapshotScalar` | `health` | 28 days |
 
-The web app asks for 28 days of running tolerance and a week of snapshots, and
-nobody has published those routes' limits; staying within what it asks for is
-the safe side of an unknown cap. Hill score's cap was measured on 2026-10-12:
-401 days return, 402 is HTTP 400.
+The web app asks for a week of snapshots, and nobody has published that
+route's limit; staying within what it asks for is the safe side of an unknown
+cap. The others' caps were measured on 2026-10-12: hill score takes 401 days
+(402 is HTTP 400), running tolerance 366 (367 is HTTP 400, across a Feb 29
+too).
 
 ### Once per sync (`profile`)
 
@@ -187,6 +188,7 @@ fill the ones that are not Health Stats:
 | `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | `hrv-status/` | 367 days, Garmin's cap |
 | `trainingStatusWeekly(start, end)` | `/metrics-service/metrics/trainingstatus/weekly/{who}`: a row a day, despite the name | `training-status/` | 365 days (no cap found) |
 | `enduranceStats(start, end, "daily")` | `/metrics-service/metrics/endurancescore/stats?aggregation=daily` | `endurance-score/` | 365 days (Garmin's cap is 401) |
+| `runningTolerance(start, end, "weekly")` | `/metrics-service/metrics/runningtolerance/stats?aggregation=weekly`: Sunday weeks, to date | `running-tolerance-weeks/` | 350 days, widened to whole weeks (Garmin's cap is 366) |
 | `trainingReadinessRange(start, end)` | `/metrics-service/metrics/trainingreadiness/{start}/{end}`: every reading, newest first | `training-readiness/` | 367 days, Garmin's cap |
 | `heatAltitudeAcclimationDaily(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/daily/{start}/{end}` | `heat-acclimation/` | 365 days (no cap found) |
 
@@ -194,7 +196,8 @@ A routine sync takes the daily stats of the days it writes from the summaries it
 fetched anyway. It asks the three stats routes only for days it could not
 write, and for any gap since the index's newest day. The Performance Stats
 indexes take a routine sync's days from what it fetched anyway (the day routes
-and the range calls above), so the last five routes serve their history walks.
+and the range calls above), so the last six routes serve their history walks; running tolerance's weeks
+ask for the last two weeks again on each sync, one request.
 
 ## Health Stats pages
 
@@ -312,8 +315,8 @@ A sync costs roughly:
   - about nine for `profile`;
   - one each for `maxMetrics` and `racePredictions` (one per year of a longer
     run);
-  - one per year of the run for hill score, and one per 28 days each for
-    running tolerance and Health Snapshots;
+  - one per year of the run each for hill score and running tolerance, one
+    for running tolerance's weeks, and one per 28 days for Health Snapshots;
   - one per 50 activities in the run;
   - for each history index whose days the summaries do not cover, about one
     window request, plus its refresh window.
