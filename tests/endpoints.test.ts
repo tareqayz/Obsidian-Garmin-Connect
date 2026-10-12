@@ -289,7 +289,9 @@ describe("Performance Stats URLs", () => {
 		await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11");
 		await client.lactateThresholdSpeedRange("2025-10-13", "2026-10-11");
 		await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "CYCLING");
-		assert.deepEqual(http.urls.slice(-8), [
+		// The FTP index's window: every sport in one payload, 367 days at most.
+		await client.functionalThresholdPowerRange("2025-10-10", "2026-10-11");
+		assert.deepEqual(http.urls.slice(-9), [
 			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-09-14&endDate=2026-10-11&aggregation=daily`,
 			`${HOST}/metrics-service/metrics/runningtolerance/stats?startDate=2026-07-26&endDate=2026-10-11&aggregation=weekly`,
 			`${HOST}/metrics-service/metrics/endurancescore/stats?startDate=2026-07-20&endDate=2026-10-11&aggregation=weekly`,
@@ -298,6 +300,7 @@ describe("Performance Stats URLs", () => {
 			`${HOST}/biometric-service/stats/lactateThresholdHeartRate/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
 			`${HOST}/biometric-service/stats/lactateThresholdSpeed/range/2025-10-13/2026-10-11?sport=RUNNING&aggregation=daily&aggregationStrategy=LATEST`,
 			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-13/2026-10-11?sport=CYCLING&aggregation=daily&aggregationStrategy=LATEST`,
+			`${HOST}/biometric-service/stats/functionalThresholdPower/range/2025-10-10/2026-10-11?aggregation=daily&aggregationStrategy=LATEST`,
 		]);
 		assert.ok(!http.urls.some((u) => u.includes("socialProfile")));
 	});
@@ -307,6 +310,7 @@ describe("Performance Stats URLs", () => {
 		assert.equal(await client.enduranceStats("2026-07-20", "2026-10-11", "weekly"), null);
 		assert.deepEqual(await client.lactateThresholdHeartRateRange("2025-10-13", "2026-10-11"), []);
 		assert.deepEqual(await client.functionalThresholdPowerRange("2025-10-13", "2026-10-11", "RUNNING"), []);
+		assert.deepEqual(await client.functionalThresholdPowerRange("2023-10-11", "2024-10-11"), []);
 		await assert.rejects(() => client.lactateThresholdSpeedRange("2025-10-13", "11/10/2026"), TypeError);
 	});
 
@@ -362,14 +366,17 @@ describe("Performance Stats URLs", () => {
 		await client.cyclingPowerRecords();
 		await client.powerToWeightRange("2025-10-13", "2026-10-11", "weekly");
 		await client.powerToWeightRange("2026-09-20", "2026-10-11", "daily", "Running");
+		// The FTP index's W/kg: daily, every sport.
+		await client.powerToWeightRange("2025-10-10", "2026-10-11", "daily");
 		await client.criticalSwimSpeedLatest("2026-10-11");
 		await client.criticalSwimSpeedRange("2026-10-05", "2026-10-11");
 		await client.criticalSwimSpeedRange("2026-07-20", "2026-10-11", "weekly");
-		assert.deepEqual(http.urls.slice(-7), [
+		assert.deepEqual(http.urls.slice(-8), [
 			`${HOST}/fitnessstats-service/powerCurve?startDate=2026-09-14&endDate=2026-10-12&sport=cycling`,
 			`${HOST}/fitnessstats-service/powerCurve?sport=cycling`,
 			`${HOST}/biometric-service/stats/powerToWeight/range/2025-10-13/2026-10-11?aggregation=weekly`,
 			`${HOST}/biometric-service/stats/powerToWeight/range/2026-09-20/2026-10-11?aggregation=daily&sport=Running`,
+			`${HOST}/biometric-service/stats/powerToWeight/range/2025-10-10/2026-10-11?aggregation=daily`,
 			`${HOST}/biometric-service/criticalSwimSpeed/latest/2026-10-11`,
 			`${HOST}/biometric-service/criticalSwimSpeed/range/2026-10-05/2026-10-11`,
 			`${HOST}/biometric-service/criticalSwimSpeed/range/2026-07-20/2026-10-11/?aggregation=weekly`,

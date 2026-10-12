@@ -180,6 +180,13 @@ describe("defineDayIndex — checks", () => {
 		assert.throws(bad({ listKey: "year" }), /listKey/);
 	});
 
+	it("books one request a window unless the fetch asks more than one route (FTP's watts and W/kg, two)", () => {
+		assert.equal(DEF.requestsPerWindow, 1);
+		assert.equal(defineDayIndex({ ...SPEC, requestsPerWindow: 2 }).requestsPerWindow, 2);
+		assert.throws(bad({ requestsPerWindow: 0 }), /requestsPerWindow/);
+		assert.throws(bad({ requestsPerWindow: 1.5 }), /requestsPerWindow/);
+	});
+
 	it("refuses columns that cannot be kept", () => {
 		assert.throws(bad({ columns: {} }), /no columns/);
 		assert.throws(bad({ columns: { date: {} } }), /cannot be used/);
@@ -222,6 +229,8 @@ describe("DAY_INDEXES", () => {
 			kinds.add(def.kind);
 			folders.add(def.folder);
 			assert.ok(def.windowDays >= 1 && def.windowDays <= MAX_WINDOW_DAYS, def.kind);
+			// One route a window for every index but FTP, which asks the watts and the W/kg.
+			assert.equal(def.requestsPerWindow, def.kind === "ftp" ? 2 : 1, def.kind);
 			assert.equal(dayIndex(def.kind), def);
 		}
 		assert.equal(dayIndex("nope"), undefined);

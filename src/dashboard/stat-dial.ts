@@ -46,7 +46,7 @@ export interface DialSpec {
 	/** Running Tolerance: a full ring, a track and the value's share, no bands. */
 	full?: boolean;
 	value: DialText;
-	/** The line under the value: the class, "100", "7d Avg". */
+	/** The line under the value: the class, "100", "7d Avg". `strong` sets it in the text colour rather than muted, never bold (FTP's class word). */
 	label: DialText & { strong?: boolean };
 	/** A unit set after the value on its baseline (HRV Status's "ms"). */
 	unit?: { size: number; line: number };
@@ -55,7 +55,8 @@ export interface DialSpec {
 export const DIAL_KINDS: Readonly<Record<DialKind, DialSpec>> = {
 	vo2: { radius: 84, width: 8, gap: 1.9, outline: 2, separators: true, value: { top: 66.91, size: 35, line: 42 }, label: { top: 109.45, size: 15, line: 20 } },
 	readiness: { radius: 88, width: 8, gap: 3, outline: 4, value: { top: 67.59, size: 35, line: 42 }, label: { top: 107.17, size: 16, line: 21 } },
-	ftp: { radius: 83, width: 8, gap: 1.9, outline: 2, value: { top: 65.9, size: 35, line: 42 }, label: { top: 110.78, size: 15, line: 20, strong: true } },
+	// The FTP shot's gaps are 2.17° at half brightness; its class word is regular, in the text colour (the twin's white label).
+	ftp: { radius: 83, width: 8, gap: 2.17, outline: 2, value: { top: 65.9, size: 35, line: 42 }, label: { top: 110.78, size: 15, line: 20, strong: true } },
 	hill: { radius: 85.6, width: 6, gap: 1.9, outline: 2, value: { top: 61.61, size: 43, line: 52 }, label: { top: 112.65, size: 16, line: 21 } },
 	endurance: { radius: 85.6, width: 6, gap: 1.85, outline: 2, value: { top: 61.62, size: 43, line: 52 }, label: { top: 112.89, size: 16, line: 21 } },
 	hrv: {

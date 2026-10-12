@@ -2205,15 +2205,17 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
-			"reads": [
+			"critical": [
 				"[].from",
+				"[].series",
+				"[].value"
+			],
+			"reads": [
 				"[].until",
-				"[].value",
 				"[].updatedDate"
 			],
 			"schema": "schema/functional-threshold-power-range.json",
-			"notes": "Called per sport (RUNNING = the lactate threshold power, CYCLING, CROSS_COUNTRY_SKIING) with aggregation=daily, aggregationStrategy=LATEST: a row per day the FTP was updated, even when unchanged (cycling 274 W on 2025-10-13, 2025-11-02, 2026-10-08). The FTP page's history."
+			"notes": "One row per day and sport on which Garmin recomputed power-to-weight: an FTP change for that sport, or a weigh-in (every sport, value unchanged). {from = until = updatedDate, series cycling | cross_country_skiing | running (= lactate threshold power), value W}. No parameters = daily + LATEST, every sport; sport is case-insensitive. weekly = 7-day blocks counted back from {end} (Monday weeks only when {end} is a Sunday; 2025-10-15..2026-10-14 gives Thursday\u2013Wednesday rows), the block's last row per sport; monthly = calendar months. Cap end \u2212 start \u2264 366 days: 366 and 367 calendar days \u2192 200, 368 \u2192 HTTP 400, also across Feb 29 (2023-10-11..2024-10-11 \u2192 200 [], 2023-10-10..2024-10-11 \u2192 400). An empty window \u2192 []. History from 2025-08-02 (35 dates, 46 rows to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 13:50. The FTP page's index asks daily without a sport."
 		},
 		{
 			"id": "gear",
@@ -3465,12 +3467,17 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
-			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg.",
+			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg. As of {date}: latest/2026-10-07 returns the 2025-11-02 weigh-in's rows, latest/2025-09-10 the cycling FTP of 2025-09-06 (224 W). calendarDate = the newer of ftpCreateTime and weightCreateTime (local wall clock), origin 'weight' or 'power' says which; weight in kg. isStale is judged against now, not {date} (every 2025 FTP is stale even as of 2025-09-10): true once the FTP is more than a year old, which the FTP page shows as 'No \u2026 FTP data in the past year'.",
 			"reads": [
 				"[].sport",
 				"[].calendarDate",
 				"[].functionalThresholdPower",
-				"[].powerToWeight"
+				"[].powerToWeight",
+				"[].ftpCreateTime",
+				"[].weight",
+				"[].weightCreateTime",
+				"[].isStale",
+				"[].origin"
 			]
 		},
 		{
@@ -4111,7 +4118,7 @@
 				"[].updatedDate"
 			],
 			"schema": "schema/power-to-weight-range.json",
-			"notes": "Rows as functional-threshold-power-range ({from, until, series, value in W/kg, updatedDate}): with weekly aggregation a row per Monday-to-Sunday week and sport in which it was updated, weeks without one left out. The FTP page asks aggregation=weekly without a sport for every range (1y = 52 weeks, 2025-10-13..2026-10-11): every sport in one payload, series naming each (running, cycling, cross_country_skiing); the Running Lactate Threshold page adds sport=Running with daily (4w), weekly (12w) or monthly (1y). No cap seen up to a year."
+			"notes": "Rows as functional-threshold-power-range ({from, until, series, value in W/kg, updatedDate}). The web's FTP report asks aggregation=weekly without a sport for every range (1y = 52 weeks, 2025-10-13..2026-10-11): every sport in one payload, series naming each (running, cycling, cross_country_skiing); the Running Lactate Threshold page adds sport=Running with daily (4w), weekly (12w) or monthly (1y). Rows pair one to one with functional-threshold-power-range's (same day and series); value = W \u00f7 the weight on that day (the day's last weigh-in, else the newest before: 67.0, 67.199, 68.0 kg here). Same aggregations; weekly blocks count back from {end}. Cap end \u2212 start \u2264 366 days (367 \u2192 200, 368 \u2192 HTTP 400). The FTP page's index asks daily without a sport."
 		},
 		{
 			"id": "power-zones",

@@ -824,9 +824,10 @@ export interface IndexFeed {
  * every other day of `from..to` is asked of the index's window fetch, and so
  * is any stretch between the index's newest day and `from`, so a vault left
  * closed for a fortnight comes back without a hole. An index without
- * `fromSummary` or `fromDay` fetches the run's days that way too: one request per
- * `windowDays`. An index with `refreshDays` has its last days asked again
- * whether it holds them or not, for the rows Garmin revises late.
+ * `fromSummary` or `fromDay` fetches the run's days that way too: one window per
+ * `windowDays`, booked as `requestsPerWindow` requests. An index with
+ * `refreshDays` has its last days asked again whether it holds them or not,
+ * for the rows Garmin revises late.
  */
 export async function feedIndex<R extends DayRow>(
 	runtime: DayIndexRuntime<R>,
@@ -858,7 +859,7 @@ export async function feedIndex<R extends DayRow>(
 		const missing = dateRange(start, to).filter((d) => !dates.has(d));
 		windows: for (const span of spansOf(missing)) {
 			for (const window of chunkRange(span.from, span.to, def.windowDays)) {
-				out.requests += 1;
+				out.requests += def.requestsPerWindow;
 				try {
 					const got = await runtime.fetchWindow(window.from, window.to);
 					for (const raw of got) {
@@ -921,9 +922,10 @@ export interface WalkResult<R extends DayRow = DayRow> {
 
 /**
  * Walks a registered index's history back from `until`, `def.windowDays` a
- * request, until `def.emptyWindowsToStop` windows in a row without a row say
- * the history has started (once past `notBefore`), or until
- * `def.maxHistoryDays` before `today`, as far back as Garmin keeps the stat.
+ * window (`def.requestsPerWindow` requests each, 1 for most indexes), until
+ * `def.emptyWindowsToStop` windows in a row without a row say the history
+ * has started (once past `notBefore`), or until `def.maxHistoryDays` before
+ * `today`, as far back as Garmin keeps the stat.
  */
 export async function walkHistory<R extends DayRow>(
 	def: DayIndexDef<R>,
@@ -951,7 +953,7 @@ export async function walkHistory<R extends DayRow>(
 		if (last) start = floor;
 		const rows: R[] = [];
 		try {
-			out.requests += 1;
+			out.requests += def.requestsPerWindow;
 			for (const raw of await fetchWindow(start, end)) {
 				const row = def.normalize(raw);
 				if (row) rows.push(row);

@@ -458,7 +458,7 @@ Nothing in the day files; about nine requests per sync, written to
 | `sex` — `male` / `female` | user settings `userData.gender`. Garmin grades VO2 Max and FTP against tables that differ by sex |
 | `device` — `name`, `imageUrl`, `lastUpload` | `deviceservice/mylastused` |
 | `lactateThreshold` — `date`, `heartRate`, `speed` (m/s), `pace` | `biometric/latestLactateThreshold`, user settings as a fallback. Garmin's `speed` is tenths of m/s |
-| `ftp.running` / `ftp.cycling` / `ftp.xcSkiing` — `date`, `watts`, `wattsPerKg` | `biometric/powerToWeight/latest/{date}`, one call with no `sport` filter, which returns a row per sport |
+| `ftp.running` / `ftp.cycling` / `ftp.xcSkiing` — `date`, `watts`, `wattsPerKg` (2 dp), `ftpDate`, `weight` (kg, 1 dp), `weightDate`, `stale` | `biometric/powerToWeight/latest/{date}`, one call with no `sport` filter, which returns a row per sport. `date` is the newer of the FTP's day (`ftpCreateTime`) and the weigh-in's (`weightCreateTime`); `stale` is Garmin's `isStale`, an FTP more than a year old |
 | `runningEconomy` — `score`, `classification` | `runningeconomy/latest/{date}` |
 | `cyclingAbility` | GraphQL `cyclingAbility.latest` |
 | `trainingPlans` | `trainingplan/plans`, completed plans left out |

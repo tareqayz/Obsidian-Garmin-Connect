@@ -1661,11 +1661,19 @@ export class GarminApi extends GarminClient {
 		return this.biometricRange("lactateThresholdSpeed", start, end, "RUNNING");
 	}
 
-	/** FTP over a range for one sport, a row per change. Running's is the lactate threshold power. */
+	/**
+	 * FTP over a range, in watts. A row per day and sport on which
+	 * power-to-weight was recomputed: the sport's FTP changed, or a weigh-in
+	 * was logged (every sport gets a row, the FTP unchanged). Without a sport,
+	 * every sport in one payload, `series` naming each; running's is the
+	 * lactate threshold power. end − start ≤ 366 days (368 calendar days is
+	 * HTTP 400, also across Feb 29); a window without a change returns [].
+	 * The FTP index asks it without a sport.
+	 */
 	async functionalThresholdPowerRange(
 		start: string,
 		end: string,
-		sport: "RUNNING" | "CYCLING" | "CROSS_COUNTRY_SKIING",
+		sport?: "RUNNING" | "CYCLING" | "CROSS_COUNTRY_SKIING",
 	): Promise<BiometricChange[]> {
 		return this.biometricRange("functionalThresholdPower", start, end, sport);
 	}
@@ -1674,13 +1682,14 @@ export class GarminApi extends GarminClient {
 		metric: "lactateThresholdHeartRate" | "lactateThresholdSpeed" | "functionalThresholdPower",
 		start: string,
 		end: string,
-		sport: string,
+		sport?: string,
 	): Promise<BiometricChange[]> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
+		const daily = { aggregation: "daily", aggregationStrategy: "LATEST" };
 		const data = await this.request<BiometricChange[] | null>(
 			`/biometric-service/stats/${metric}/range/${start}/${end}`,
-			{ query: { sport, aggregation: "daily", aggregationStrategy: "LATEST" } },
+			{ query: sport ? { sport, ...daily } : daily },
 		);
 		return data ?? [];
 	}
@@ -1859,9 +1868,11 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * W/kg over a span, as `functionalThresholdPowerRange`'s rows. Without a
-	 * sport, as the FTP page asks (always weekly), every sport comes in one
-	 * payload with `series` naming each; the Running Lactate Threshold page asks
+	 * W/kg over a span, as `functionalThresholdPowerRange`'s rows. Rows pair one
+	 * to one with `functionalThresholdPowerRange`'s; the value is W ÷ the weight
+	 * on that day. Same cap. Without a sport every sport comes in one payload
+	 * with `series` naming each, as the FTP index asks it (daily) and the web's
+	 * FTP report does (weekly); the Running Lactate Threshold page asks
 	 * `Running`, daily, weekly or monthly.
 	 */
 	async powerToWeightRange(

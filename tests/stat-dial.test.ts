@@ -13,7 +13,8 @@ import { DIAL_CENTRE, DIAL_KINDS, dialAngle, dialFraction, dialGeometry, segment
 const TWIN: Record<Exclude<DialKind, "tolerance">, { angles: number[]; tones: Tone[]; at?: number; cap: [number, number]; marker?: [number, number] }> = {
 	vo2: { angles: [-150, -30, 15, 60, 105, 150], tones: ["red", "orange", "green", "blue", "purple"], at: 102.8, cap: [58, 167.28], marker: [176.01, 115.72] },
 	readiness: { angles: [-150, -84.9, -4.8, 75.2, 139.1, 150], tones: ["red", "orange", "green", "blue", "purple"], at: -105.6, cap: [56, 170.75], marker: [17.09, 120.59] },
-	ftp: { angles: [-150, -38.9, -10.95, 45, 101.9, 150], tones: ["red", "orange", "green", "blue", "purple"], at: 51.3, cap: [58.5, 166.42], marker: [159.65, 48.61] },
+	// The FTP page's own edges (2.22 / 2.78 / 3.92 / 5.04 W/kg on its linear 0–6 dial).
+	ftp: { angles: [-150, -39, -11, 46, 102, 150], tones: ["red", "orange", "green", "blue", "purple"], at: 51.3, cap: [58.5, 166.42], marker: [159.65, 48.61] },
 	hill: { angles: [-150, -72, 4.55, 64.5, 108, 135.1, 150], tones: ["red", "orange", "green", "blue", "purple", "pink"], at: -62.9, cap: [56.7, 169.53], marker: [24.47, 60.37] },
 	endurance: {
 		angles: [-150, -84.3, -54.25, -20.05, 10.1, 44.35, 74.4, 150],

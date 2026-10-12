@@ -3,8 +3,8 @@
 	"path": "/biometric-service/stats/functionalThresholdPower/range/{startDate}/{endDate}",
 	"plugin": "GarminApi.functionalThresholdPowerRange",
 	"firstRecorded": "2026-10-11T18:35:06.203Z",
-	"updatedAt": "2026-10-11T18:35:06.203Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T10:37:18.916Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"array"

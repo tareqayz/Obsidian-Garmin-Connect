@@ -400,6 +400,9 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 - **`fetchWindow(api, start, end)`** owns its request, through the API batch's
   wrapper or `api.request`. **`fromSummary(summary, date)`** makes the run's own
   days free: the daily summary is fetched anyway.
+- **`requestsPerWindow`** (1 by default) is what a window costs when
+  `fetchWindow` asks more than one route: FTP's watts and W/kg are 2. The
+  engine books it per window, in a sync's report and a history walk's log.
 - Bump **`version`** when a row's meaning changes: an `index.json` of another
   version reads as none, and the history is fetched again.
 - **`fromDay`** (a `DayFeed`, not with `fromSummary`) does the same from
@@ -426,8 +429,8 @@ series-store.ts   mergeDayIndex: one file per year, rewritten only on change
 home-view.ts      readIndex(kind), read once per version; versions[kind] moves when the folder changes
 ```
 
-A routine sync feeds an index without `fromSummary` one window request per
-`windowDays` of the run. Index files do not rebuild Home: only the pages that
+A routine sync feeds an index without `fromSummary` one window per
+`windowDays` of the run, `requestsPerWindow` requests each. Index files do not rebuild Home: only the pages that
 read the index re-read it. `readIndex("sleep")` and `readIndex("daily-stats")`
 read the two older indexes the same way, for pages that need nights or steps.
 

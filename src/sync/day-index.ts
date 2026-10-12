@@ -116,7 +116,14 @@ export interface DayIndexSpec<R extends DayRow> {
 	emptyWindowsToStop: number;
 	/** How far back from today Garmin keeps the stat at all; a walk stops there. */
 	maxHistoryDays?: number;
-	/** One window, `start`..`end` inclusive, as rows. The definition owns the request. */
+	/**
+	 * Requests one window costs: 1, the default, unless `fetchWindow` asks
+	 * more than one route for it (FTP's watts and W/kg, 2). The engine books
+	 * this much a window, so a sync's report and a history walk's log count
+	 * what was really asked.
+	 */
+	requestsPerWindow?: number;
+	/** One window, `start`..`end` inclusive, as rows. The definition owns the request(s). */
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
 	/**
 	 * A day's row from the daily summary a routine sync fetched anyway, so the
@@ -159,6 +166,8 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 	readonly refreshDays: number;
 	readonly emptyWindowsToStop: number;
 	readonly maxHistoryDays?: number;
+	/** Requests a window costs, as the engine books it: 1 unless the definition says otherwise. */
+	readonly requestsPerWindow: number;
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
 	fromSummary?(summary: DailySummary, date: string): DayRowInput<R> | null | undefined;
 	readonly fromDay?: DayFeed<R>;
@@ -283,6 +292,7 @@ export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayInde
 		refreshDays: spec.refreshDays ?? 0,
 		emptyWindowsToStop: spec.emptyWindowsToStop,
 		...(spec.maxHistoryDays !== undefined ? { maxHistoryDays: spec.maxHistoryDays } : {}),
+		requestsPerWindow: spec.requestsPerWindow ?? 1,
 		...(spec.fromDay ? { fromDay: { needs: [...spec.fromDay.needs], read: spec.fromDay.read.bind(spec.fromDay) } } : {}),
 		fetchWindow: (api, start, end) => spec.fetchWindow(api, start, end),
 		normalize,
@@ -387,6 +397,9 @@ function problemWith(spec: DayIndexSpec<DayRow>): string | null {
 	if (!Number.isInteger(spec.emptyWindowsToStop) || spec.emptyWindowsToStop < 1) return "emptyWindowsToStop must be 1 or more";
 	if (spec.maxHistoryDays !== undefined && (!Number.isInteger(spec.maxHistoryDays) || spec.maxHistoryDays < 1)) {
 		return "maxHistoryDays must be 1 or more";
+	}
+	if (spec.requestsPerWindow !== undefined && (!Number.isInteger(spec.requestsPerWindow) || spec.requestsPerWindow < 1)) {
+		return "requestsPerWindow must be a whole number from 1";
 	}
 	if (typeof spec.fetchWindow !== "function") return "fetchWindow is missing";
 	if (spec.fromDay) {

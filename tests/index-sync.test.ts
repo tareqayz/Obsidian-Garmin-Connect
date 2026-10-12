@@ -67,6 +67,14 @@ describe("walkHistory", () => {
 		assert.deepEqual(got.covered, { from: "2026-08-31", to: "2026-10-04" });
 	});
 
+	it("books each window as the definition's requests: two a window for one that asks two routes", async () => {
+		const source = windows("2026-09-20", "2026-10-04");
+		const twice = defineDayIndex({ ...SPEC, requestsPerWindow: 2 });
+		const got = await walkHistory(twice, source.fetch, { until: "2026-10-04" });
+		assert.equal(source.calls.length, 5);
+		assert.equal(got.requests, 10);
+	});
+
 	it("does not count a window of sentinels as a window with data", async () => {
 		const empty = new Set(["2026-09-28", "2026-09-29"]);
 		const source = windows("2026-09-28", "2026-09-29", { empty });
@@ -212,6 +220,14 @@ describe("feedIndex", () => {
 		assert.equal(got.requests, 1);
 		assert.equal(sink.merged[0]!.batch.rows.length, 3);
 		assert.deepEqual([...sink.merged[0]!.batch.dates].sort(), ["2026-09-10", "2026-09-11", "2026-09-12"]);
+	});
+
+	it("books a window as the definition's requests", async () => {
+		const source = windows("2026-01-01", "2026-12-31");
+		const { rt } = runtime({ requestsPerWindow: 2 }, source.fetch);
+		const got = await feedIndex(rt, { rows: [], dates: [] }, "2026-09-10", "2026-09-12", { fetchMissing: true });
+		assert.deepEqual(source.calls, ["2026-09-10 2026-09-12"]);
+		assert.equal(got.requests, 2);
 	});
 
 	it("fills the stretch since the index's newest day, a window at a time", async () => {
@@ -376,6 +392,14 @@ describe("syncRange — registered day indexes", () => {
 		assert.deepEqual(source.calls, ["2026-09-10 2026-09-12"]);
 		assert.equal(report.requests, 1);
 		assert.equal(sink.merged[0]!.batch.rows.length, 3);
+	});
+
+	it("counts an index's window in the report as the requests it costs, other indexes' as one", async () => {
+		const nowhere: DayTarget = { exists: () => false, write: async () => "missing" };
+		const one = runtime({ fromSummary }, windows("2026-01-01", "2026-12-31").fetch);
+		const two = runtime({ kind: "two-routes", folder: "two-routes", fromSummary, requestsPerWindow: 2 }, windows("2026-01-01", "2026-12-31").fetch);
+		const report = await syncRange(summarySource([]), nowhere, { ...base, groups: ["stress"], indexes: [one.rt, two.rt] });
+		assert.equal(report.requests, 3);
 	});
 
 	it("stops the run on a 429 from an index's window", async () => {

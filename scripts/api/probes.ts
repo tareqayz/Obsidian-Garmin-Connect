@@ -168,7 +168,8 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"endurance-score-stats": async (api, w) => [await api.enduranceStats(w.rangeStart, w.rangeEnd, "daily")],
 	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(w.rangeStart, w.rangeEnd)],
 	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(w.rangeStart, w.rangeEnd)],
-	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(w.rangeStart, w.rangeEnd, "CYCLING")],
+	// As the FTP index asks: every sport, a year (a few weeks would usually be [], a change-point route).
+	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"training-status-daily": async (api, w) => [await api.trainingStatusDaily(w.days[0]!)],
 	"training-status-weekly": async (api, w) => [await api.trainingStatusWeekly(w.rangeStart, w.rangeEnd)],
 	"training-status-monthly": async (api, w) => [await api.trainingStatusMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
@@ -184,7 +185,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	// The power curve's end is exclusive, so the span runs to the day after.
 	"power-curve": async (api, w) => [await api.cyclingPowerCurve(yearBefore(w.rangeEnd), dayAfter(w.rangeEnd))],
 	"power-curve-records": async (api) => [await api.cyclingPowerRecords()],
-	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "weekly")],
+	"power-to-weight-range": async (api, w) => [await api.powerToWeightRange(yearBefore(w.rangeEnd), w.rangeEnd, "daily")],
 	"critical-swim-speed-latest": async (api, w) => [await api.criticalSwimSpeedLatest(w.days[0]!)],
 	"critical-swim-speed-range": async (api, w) => [await api.criticalSwimSpeedRange(w.rangeStart, w.rangeEnd)],
 	"hill-score-stats": async (api, w) => [await api.hillScoreStats(w.rangeStart, w.rangeEnd, "daily")],
