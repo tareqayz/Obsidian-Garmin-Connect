@@ -323,6 +323,7 @@ order, as each is rebuilt; so far:
 | VO₂ Max | Current, 4w, 12w, 6m, for running and cycling | `fitness` |
 | Running Economy | Current, 4w, 12w, 1y, with the average and the best (lower is better) | `fitness` |
 | Training Effect | 7d, 4w, and a page per activity with its benefit and scales | `workouts` |
+| Cycling Power Curve | 4w, 3m, 1y: your best power by duration against the all-time Record, and the records table | `workouts` |
 | FTP | Current, 4w, 12w, 1y, for cycling and cross country skiing, in Watts or W/kg | `fitness` |
 | Running Tolerance | Current, 12w, 1y in Sunday weeks, with the Actual Distance chip | `training` |
 | Running Lactate Threshold | Current, 4w, 12w, 1y: heart rate, with pace, power or W/kg on a chip | `fitness` |
@@ -338,8 +339,9 @@ not in the list and open from Training Status's rows instead:
   its trend, and 7d and 4w of daily progress.
 
 The histories are cheap: a year of Garmin's data per request, about two or
-three requests each for the whole history. Load and Training Effect keep none
-of their own: they read Training Status's, the day files and the activity list. Cycling Ability
+three requests each for the whole history. Load, Training Effect and Cycling
+Power Curve keep none of their own: they read Training Status's, the day files
+and the activity list. Cycling Ability
 and Altitude Acclimation are left out for now.
 
 ## Commands
@@ -350,7 +352,7 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
-| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open running economy**, **Open training effect**, **Open FTP**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score** |
+| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open running economy**, **Open training effect**, **Open cycling power curve**, **Open FTP**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score** |
 
 | Syncs | Commands |
 | --- | --- |

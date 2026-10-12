@@ -44,6 +44,9 @@ GitHub release takes its notes from the matching section here — see
   - **Training Effect**: 7d and 4w of each day's aerobic and anaerobic effect,
     and a card per activity opening its primary benefit, its two scales and
     the activity itself.
+  - **Cycling Power Curve**: your best power at each duration from 1 second
+    to 5 hours, for 4w, 3m and 1y against your all-time Record, with the
+    records table — read from the rides already synced.
   - **Running Tolerance**: this week's impact load against your tolerance, and
     12w / 1y of Sunday weeks against the tolerance line, with the distance
     you actually ran on a chip and a list of the weeks.

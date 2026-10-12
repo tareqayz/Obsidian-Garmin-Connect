@@ -277,6 +277,7 @@ too. Nothing in the plugin calls them yet:
 | Method | Path | Notes |
 | --- | --- | --- |
 | `restingHeartRate(date)` | `/userstats-service/wellness/daily/{who}` | The daily summary already carries resting heart rate. |
+| `cyclingPowerCurve(start, end)` | `/fitnessstats-service/powerCurve?startDate=&endDate=` | Both dates inclusive, no cap; without dates, the all-time Record. Cycling Power Curve builds the same curves from the activity list's best powers instead, so it asks nothing. Catalogued, not checked. |
 | `healthStatusSummary(date)` | `/healthstatus-service/healthstatus/summary/{date}` | One night; 204 (null) until the night is scored. |
 | `stressWeekly(end, weeks = 52)` | `/usersummary-service/stats/stress/weekly/{end}/{weeks}` | 52 weeks. The 1y pages average the daily index instead. |
 | `heartRateWeekly(end, weeks = 52)` | `/usersummary-service/stats/heartRate/weekly/{end}/{weeks}` | 52 weeks. |

@@ -11,10 +11,10 @@ Known gaps and open questions, by area.
 
 - **Performance Stats, the rest.** Training Status with Load and Heat
   Acclimation, Training Readiness, HRV Status, Race Predictor, VO₂ Max,
-  Running Economy, Training Effect, FTP, Running Tolerance, Running Lactate
-  Threshold, Endurance Score and Hill Score are built (see "Performance Stats"
-  below). Still to come through `/garmin-page`: Cycling Power Curve, Critical
-  Swim Speed and HRV Stress (plan and status board:
+  Running Economy, Training Effect, Cycling Power Curve, FTP, Running
+  Tolerance, Running Lactate Threshold, Endurance Score and Hill Score are
+  built (see "Performance Stats" below). Still to come through
+  `/garmin-page`: Critical Swim Speed and HRV Stress (plan and status board:
   `ref/performance-stats/STATUS.md`).
 - **Cycling Ability and Altitude Acclimation** were left out of Performance
   Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
@@ -112,6 +112,13 @@ items, to check on the phone:
   classes other than Intermediate and Trained; y steps other than 1 and 5;
   the 1y axis when the last block starts after the last month; the marker on
   a class boundary; tapping a point; Help.
+- **Cycling Power Curve:** previous periods; 3m and 1y scrolled; the 1y empty
+  line's wording; a tap on a record's date or the chart (ours: none — rides
+  have no page); other cycling types counting, and a ride left out of the
+  power curve; the 5-hour row filling; ties (ours: the earliest ride); the y
+  axis above 1,000 W; spans on a weekday; a multisport bike leg with power. A
+  record deleted on Garmin keeps showing until that ride is listed again
+  (Sync activity history).
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an
