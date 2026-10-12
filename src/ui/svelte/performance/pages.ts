@@ -3,6 +3,7 @@ import type { PerformanceStatPageId } from "../../../dashboard/performance-stats
 import type { PerformanceStatRoute } from "../../../dashboard/routes";
 import type { StatPageProps } from "../health/pages";
 import EnduranceScorePage from "../endurance-score/EnduranceScorePage.svelte";
+import HeatAcclimationPage from "../heat-acclimation/HeatAcclimationPage.svelte";
 import HillScorePage from "../hill-score/HillScorePage.svelte";
 import HrvStatusPage from "../hrv-status/HrvStatusPage.svelte";
 import RacePredictorPage from "../race-predictor/RacePredictorPage.svelte";
@@ -33,4 +34,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	"training-status": TrainingStatusPage,
 	"endurance-score": EnduranceScorePage,
 	"training-load": TrainingLoadPage,
+	"heat-acclimation": HeatAcclimationPage,
 };

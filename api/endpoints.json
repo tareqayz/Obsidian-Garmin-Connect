@@ -3037,11 +3037,13 @@
 			],
 			"reads": [
 				"[].heatTrend",
+				"[].previousHeatAcclimationPercentage",
 				"[].altitudeTrend",
+				"[].previousAltitudeAcclimation",
 				"[].currentAltitude"
 			],
 			"schema": "schema/heat-altitude-acclimation-daily.json",
-			"notes": "A row a day, oldest first, rows as heat-altitude-acclimation-latest (22 for the 4w block 2026-09-20..10-11). The Training Status 4w Heat Acclimation chart. No cap seen; the web asks 28 days at most."
+			"notes": "A row a day, oldest first: heat %, previous %, trend, altitude (m) with its previous value and trend, current altitude (m). No cap: 28, 29, 366, 367 and 3660 days all return 200; 3660 days return the whole history (431 rows, 2025-08-02..2026-10-11). Days without data are left out (2026-01-05..09), as are future days; a span with none returns []. Today's row exists from about 00:01 local, with the overnight decay, before the watch syncs (2026-10-12: 95 from 97 DEACCLIMATIZING). previousHeatAcclimationPercentage is the reading before, yesterday's % on 428 of 429 days. heatTrend is null exactly when the % is 0; ACCLIMATIZING exactly when it rose. Past rows are not revised (web 2026-10-11 = live 2026-10-12; day files 431/431). The Heat Acclimation index reads it."
 		},
 		{
 			"id": "heat-altitude-acclimation-latest",
@@ -3081,7 +3083,7 @@
 				"currentAltitude"
 			],
 			"schema": "schema/heat-altitude-acclimation-latest.json",
-			"notes": "16 keys, as maxmet's heatAltitudeAcclimation: heat acclimation % and trend (ACCLIMATIZING, ACCLIMATIZED, DEACCLIMATIZING or null), altitude acclimation and current altitude in metres, each with its previous value and the day it was worked out. The Training Status Current factor (97% Trending Up from 79%)."
+			"notes": "16 keys, as maxmet's heatAltitudeAcclimation: heat acclimation % and trend (ACCLIMATIZING, ACCLIMATIZED, DEACCLIMATIZING or null), altitude acclimation and current altitude in metres, each with its previous value and the day it was worked out. The Training Status Current factor (97% Trending Up from 79%). For a day without a row it sends the newest earlier row, with that row's calendarDate (2026-01-07 \u2192 2026-01-04). GraphQL heatAltitudeAcclimationScalar(date) sends the same object."
 		},
 		{
 			"id": "heat-altitude-acclimation-weekly",
@@ -3120,7 +3122,7 @@
 				"[].currentAltitude"
 			],
 			"schema": "schema/heat-altitude-acclimation-weekly.json",
-			"notes": "Rows as heat-altitude-acclimation-daily, a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day, like training-status-monthly: 24 for 6m (2026-05-01..10-31), 50 for 1y (2025-11-02..2026-10-31). The Training Status 6m and 1y Heat and Altitude Acclimation charts. No cap seen up to 364 days."
+			"notes": "Rows as heat-altitude-acclimation-daily, a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day, like training-status-monthly: 24 for 6m (2026-05-01..10-31), 50 for 1y (2025-11-02..2026-10-31). The Training Status 6m and 1y Heat and Altitude Acclimation charts. No cap seen up to 364 days. Its rows are the daily route's rows on the sampled days (24 of 24 from 2026-05-01, 50 of 50 from 2025-11-02). The plugin does not call it."
 		},
 		{
 			"id": "hill-score",
@@ -5376,7 +5378,7 @@
 				"acuteTrainingLoadDTO.acwrStatus"
 			],
 			"schema": "schema/training-status.json",
-			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced. A day without a status returns every part null (2026-10-12). heatAltitudeAcclimationDTO was null on all three days fetched; mostRecentVO2Max.heatAltitudeAcclimation carries the day's heat even when generic is an older reading (2026-10-09: generic 2026-10-03, heat 68 dated 2026-10-09). Its mostRecentTrainingStatus entry is the day's training-status-weekly row (sinceDate set): the Training Status index takes the run's own days from it."
+			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced. A day without a status returns every part null (2026-10-12). heatAltitudeAcclimationDTO was null on all three days fetched; mostRecentVO2Max.heatAltitudeAcclimation carries the day's heat even when generic is an older reading (2026-10-09: generic 2026-10-03, heat 68 dated 2026-10-09). Its mostRecentTrainingStatus entry is the day's training-status-weekly row (sinceDate set): the Training Status index takes the run's own days from it. mostRecentVO2Max.heatAltitudeAcclimation is the day's heat-altitude-acclimation-daily row on any day with one (2026-07-23, 10-09, 10-11 equal). On a day without one it is the newest earlier row (2026-01-07 \u2192 01-04), so check its calendarDate: the Heat Acclimation index takes the run's own days from it only when it is dated the day, and leaves the rest to heat-altitude-acclimation-daily."
 		},
 		{
 			"id": "training-status-daily",

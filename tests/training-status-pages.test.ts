@@ -34,6 +34,7 @@ import {
 } from "../src/dashboard/training-status-pages";
 import { shiftDate } from "../src/sync/day-index";
 import type { TrainingStatusRow } from "../src/sync/training-status-index";
+import { HEAT_ROWS, OCT_12_ROW } from "./heat-acclimation-fixture";
 import { BY_DATE, DAYS, HRV, ROWS, TODAY, VO2 } from "./training-status-fixture";
 
 /**
@@ -44,8 +45,8 @@ import { BY_DATE, DAYS, HRV, ROWS, TODAY, VO2 } from "./training-status-fixture"
  * 6m windows roll daily, so they only reproduce with today pinned.
  */
 
-/** A man of 23, as the VO₂ Max page grades him. */
-const CTX: TrainingStatusContext = { today: TODAY, complete: true, days: DAYS, vo2: VO2, age: 23, sex: "male", hrv: HRV };
+/** A man of 23, as the VO₂ Max page grades him; the Heat Acclimation row from the heat-acclimation index's history. */
+const CTX: TrainingStatusContext = { today: TODAY, complete: true, days: DAYS, vo2: VO2, age: 23, sex: "male", hrv: HRV, heat: HEAT_ROWS };
 
 function view(range: TrainingStatusRoute["range"], opts: { offset?: number; sub?: string; ctx?: Partial<TrainingStatusContext>; rows?: TrainingStatusRow[] } = {}) {
 	const route: TrainingStatusRoute = { range, offset: opts.offset ?? 0, ...(opts.sub ? { sub: opts.sub } : {}) };
@@ -402,7 +403,7 @@ describe("edge states (Inferred)", () => {
 	});
 
 	it("no rows ever: No Status with the Help's 'How to Get Training Status', and the ranges' empty line", () => {
-		const c = current({ rows: [], ctx: { days: [], vo2: [], hrv: [] } });
+		const c = current({ rows: [], ctx: { days: [], vo2: [], hrv: [], heat: [] } });
 		assert.deepEqual([c.date, c.status, c.word, c.since, c.focus, c.empty], [undefined, "none", "No Status", undefined, undefined, NO_STATUS_YET]);
 		assert.deepEqual(c.factors.map((f) => f.value), ["--", "--", "--", "--"]);
 		assert.equal(NO_STATUS_YET.title, "How to Get Training Status");
@@ -430,10 +431,15 @@ describe("edge states (Inferred)", () => {
 		assert.equal(loadValue(BY_DATE.get("2026-09-28")), "702 - High");
 		assert.equal(loadValue(BY_DATE.get("2026-10-10")), "281 - Low");
 		assert.equal(loadValue(undefined), "--");
-		// A heat source stands in for the day files' when the page has one; nothing at all is "--".
-		assert.equal(current({ ctx: { heat: { date: TODAY, pct: 95 } } }).factors[3]!.value, "95%");
-		assert.equal(current({ ctx: { days: [] } }).factors[3]!.value, "--");
+		// Heat Acclimation: the heat-acclimation index's newest row on or before today, as its 1d shows it.
 		assert.equal(current({ ctx: { today: "2026-10-10" } }).factors[3]!.value, "79%");
+		assert.equal(current({ ctx: { days: [] } }).factors[3]!.value, "97%");
+		// Before the watch syncs the index has today's overnight decay; the day files still say 97%.
+		assert.equal(current({ ctx: { heat: [...HEAT_ROWS, OCT_12_ROW], today: "2026-10-12" } }).factors[3]!.value, "95%");
+		// The day files' while the index has none (before its first sync); nothing at all is "--".
+		assert.equal(current({ ctx: { heat: [] } }).factors[3]!.value, "97%");
+		assert.equal(current({ ctx: { heat: [], today: "2026-10-10" } }).factors[3]!.value, "79%");
+		assert.equal(current({ ctx: { heat: [], days: [] } }).factors[3]!.value, "--");
 		// No phrase in the day file that day: no Load Focus line.
 		assert.equal(current({ ctx: { days: DAYS.slice(0, 2) } }).focus, undefined);
 	});

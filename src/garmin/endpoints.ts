@@ -249,16 +249,22 @@ export interface FitnessAge {
  * in metres; trends `ACCLIMATIZING`, `ACCLIMATIZED`, `DEACCLIMATIZING` or null.
  */
 export interface Acclimation {
+	/** The local day the row is for: date a row by this. */
 	calendarDate?: string;
+	/** 0–100, whole. */
 	heatAcclimationPercentage?: number | null;
+	/** Null exactly when the % is 0; ACCLIMATIZING exactly when it rose. */
 	heatTrend?: string | null;
 	altitudeAcclimation?: number | null;
 	altitudeTrend?: string | null;
 	currentAltitude?: number | null;
-	/** The reading before, which Training Status's "Trending Up from 79%" compares against. */
+	/**
+	 * The reading before (yesterday's on 428 of 429 days), which Heat
+	 * Acclimation's "Trending up from 79%." compares against.
+	 */
 	previousHeatAcclimationPercentage?: number | null;
 	previousAltitudeAcclimation?: number | null;
-	/** The days the two values were last worked out, which can trail `calendarDate`. */
+	/** The days the two values were last worked out: within a day of `calendarDate`, either side. */
 	heatAcclimationDate?: string | null;
 	altitudeAcclimationDate?: string | null;
 	[key: string]: unknown;
@@ -1664,13 +1670,22 @@ export class GarminApi extends GarminClient {
 		return this.request(`/metrics-service/metrics/trainingloadbalance/latest/${date}`);
 	}
 
-	/** Heat and altitude acclimation as of a day, with the previous reading. */
+	/**
+	 * Heat and altitude acclimation as of a day, with the previous reading. A
+	 * day without a row of its own gets the newest earlier row, dated its own
+	 * day (2026-01-07 → 2026-01-04).
+	 */
 	async heatAltitudeAcclimation(date: string): Promise<Acclimation | null> {
 		assertIsoDate(date);
 		return this.request(`/metrics-service/metrics/heataltitudeacclimation/latest/${date}`);
 	}
 
-	/** Heat and altitude acclimation a day: the Training Status 4w charts. */
+	/**
+	 * Heat and altitude acclimation a day, oldest first: the Heat Acclimation
+	 * index and the Training Status 4w charts. No cap: 3660 days return the
+	 * whole history. Days without data are left out; today has a row from
+	 * about 00:01 local, before the watch syncs.
+	 */
 	async heatAltitudeAcclimationDaily(start: string, end: string): Promise<Acclimation[]> {
 		return this.acclimationRange("daily", start, end);
 	}

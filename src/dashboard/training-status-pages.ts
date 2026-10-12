@@ -1,8 +1,10 @@
+import type { HeatAcclimationRow } from "../sync/heat-acclimation-index";
 import type { HrvStatusRow } from "../sync/hrv-status-index";
 import type { TrainingStatusRow } from "../sync/training-status-index";
 import type { Vo2MaxRow } from "../sync/vo2-max-index";
 import { latestWith, num, rowOn, shortDate, str } from "./day";
 import type { Sex } from "./gauges";
+import { heatPercent, heatRowOn } from "./heat-acclimation-pages";
 import { statusLook } from "./hrv-status-copy";
 import { axisDay, canStepBack, dayLabel, daysBetween, daysOf, periodLabel, type PeriodRange, type Span, type SpanRange } from "./periods";
 import { PERFORMANCE_REGISTRY } from "./performance-stats";
@@ -28,8 +30,9 @@ import { readingsOf, vo2Dial, type Vo2Tab } from "./vo2-max-pages";
 /**
  * Garmin Connect's Training Status page (Performance Stats), worked out from
  * the training status index (`src/sync/training-status-index.ts`), the day
- * files, and the VO₂ Max and HRV Status indexes. Rules measured on the phone
- * on 2026-10-11 (ref/performance-stats/training-status/README.md):
+ * files, and the VO₂ Max, HRV Status and Heat Acclimation indexes. Rules
+ * measured on the phone on 2026-10-11
+ * (ref/performance-stats/training-status/README.md):
  *
  * - Current is the index's newest row on or before today, whatever the
  *   route's offset (there is no date row): its status (the badge, the word),
@@ -76,7 +79,7 @@ export interface TrainingStatusContext {
 	today: string;
 	/** The index's meta says it holds the whole history. */
 	complete: boolean;
-	/** The day files (`readDays()`), oldest first: Current's `load_focus`, and the heat % until Heat Acclimation has a source of its own. */
+	/** The day files (`readDays()`), oldest first: Current's `load_focus`, and the heat % while the heat-acclimation index has none. */
 	days?: readonly DayRow[];
 	/** The VO₂ Max index's rows: the VO₂ Max row. */
 	vo2?: readonly Vo2MaxRow[];
@@ -85,8 +88,8 @@ export interface TrainingStatusContext {
 	sex?: Sex;
 	/** The HRV Status index's rows: the HRV Status row. */
 	hrv?: readonly HrvStatusRow[];
-	/** The newest heat % on or before today from a heat source, when the page has one; the day files' otherwise. */
-	heat?: { date: string; pct: number } | null;
+	/** The heat-acclimation index's rows: the Heat Acclimation row, as the page it opens reads them. */
+	heat?: readonly HeatAcclimationRow[];
 }
 
 const TRAINING_STATUS_STAT = PERFORMANCE_REGISTRY.page("training-status")!;
@@ -206,10 +209,16 @@ export function loadValue(row: Pick<TrainingStatusRow, "acute" | "acwr"> | undef
 	return word ? `${row.acute} - ${word}` : String(row.acute);
 }
 
-/** The Heat Acclimation row: the newest heat % on or before today, "97%". */
+/**
+ * The Heat Acclimation row, "97%": the heat-acclimation index's newest row on
+ * or before today, as Heat Acclimation's 1d shows it — today's overnight
+ * decay too, which the index has before the watch syncs and the day files
+ * do not. The day files' newest heat % while the index has none (before its
+ * first sync).
+ */
 export function heatValue(ctx: Pick<TrainingStatusContext, "today" | "days" | "heat">): string {
-	const pct = ctx.heat && ctx.heat.date <= ctx.today ? ctx.heat.pct : num(latestWith(ctx.days ?? [], ctx.today, "heat_acclimation_pct"), "heat_acclimation_pct");
-	return pct === undefined ? DASH : `${pct}%`;
+	const pct = heatRowOn(ctx.heat ?? [], ctx.today)?.pct ?? num(latestWith(ctx.days ?? [], ctx.today, "heat_acclimation_pct"), "heat_acclimation_pct");
+	return pct === undefined ? DASH : heatPercent(pct);
 }
 
 /** The four rows under Current, each opening its page as the phone did: VO₂ Max's Current, HRV Status 1d, Load on Load Focus, Heat Acclimation 1d. */

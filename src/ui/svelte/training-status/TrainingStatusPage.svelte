@@ -5,6 +5,7 @@
 	import { vo2Person } from "../../../dashboard/vo2-max-pages";
 	import type { AccountInfo } from "../../../sync/account";
 	import type { DayIndexMeta } from "../../../sync/day-index";
+	import { HEAT_ACCLIMATION_INDEX, type HeatAcclimationRow } from "../../../sync/heat-acclimation-index";
 	import { HRV_STATUS_INDEX, type HrvStatusRow } from "../../../sync/hrv-status-index";
 	import { TRAINING_STATUS_INDEX, type TrainingStatusRow } from "../../../sync/training-status-index";
 	import { VO2_MAX_INDEX, type Vo2MaxRow } from "../../../sync/vo2-max-index";
@@ -22,14 +23,16 @@
 	 * its rows; 4w, 12w and 6m draw the period's runs and list them. A row's
 	 * tap selects its run in the route's `sub`, a second tap clears it, and a
 	 * range or a period step drops it. Everything comes from the
-	 * training-status index, the day files (Load Focus, the heat %) and the
-	 * VO₂ Max and HRV Status indexes, so the page works offline.
+	 * training-status index, the day files (Load Focus; the heat % while the
+	 * heat-acclimation index has none) and the VO₂ Max, HRV Status and Heat
+	 * Acclimation indexes, so the page works offline.
 	 */
 	let { route, today, canSync, onBack, go, swap, readIndex, onSyncHistory, versions, history, readDays, readAccount }: PerformanceStatPageProps = $props();
 
 	const KIND = TRAINING_STATUS_INDEX.kind;
 	const VO2_KIND = VO2_MAX_INDEX.kind;
 	const HRV_KIND = HRV_STATUS_INDEX.kind;
+	const HEAT_KIND = HEAT_ACCLIMATION_INDEX.kind;
 
 	let rows = $state.raw<TrainingStatusRow[]>([]);
 	let meta = $state.raw<DayIndexMeta | null>(null);
@@ -81,7 +84,23 @@
 		};
 	});
 
-	/* Load Focus and the heat % from the day files; the VO₂ class for the newest chronological age there and the account's sex. */
+	/* The Heat Acclimation row: the heat-acclimation index's days. */
+	let heat = $state.raw<HeatAcclimationRow[]>([]);
+	$effect(() => {
+		void versions[HEAT_KIND];
+		let live = true;
+		readIndex<HeatAcclimationRow>(HEAT_KIND).then(
+			(index) => {
+				if (live) heat = index.rows;
+			},
+			() => {},
+		);
+		return () => {
+			live = false;
+		};
+	});
+
+	/* Load Focus (and the heat % until the heat index has a row) from the day files; the VO₂ class for the newest chronological age there and the account's sex. */
 	let days = $state.raw<DayRow[]>([]);
 	$effect(() => {
 		void versions["#days"];
@@ -112,7 +131,7 @@
 	});
 
 	let complete = $derived(meta?.complete ?? false);
-	let view = $derived(trainingStatusView(route, rows, { today, complete, days, vo2, hrv, ...vo2Person(days, account, today) }));
+	let view = $derived(trainingStatusView(route, rows, { today, complete, days, vo2, hrv, heat, ...vo2Person(days, account, today) }));
 
 	/** The shell's range control and steppers: a range or a period drops the selected run, which the shell would keep. */
 	function move(next: StatRoute) {
