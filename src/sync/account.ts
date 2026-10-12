@@ -29,8 +29,9 @@ export interface AccountInfo {
 	lactateThreshold?: {
 		date?: string;
 		heartRate?: number;
-		/** Metres per second. See `lactateSpeed` for the unit Garmin actually sends. */
+		/** Metres per second to 5 dp, as the lactate threshold index keeps it (3.72221). See `lactateOf` for the unit Garmin actually sends. */
 		speed?: number;
+		/** The pace in the units of the last sync; pages format their own from `speed`. */
 		pace?: string;
 	};
 	ftp?: Partial<Record<FtpSport, FtpLatest>>;
@@ -367,7 +368,9 @@ export const PR_TYPES: Record<number, string> = {
  *
  * `speed` arrives as tenths of the real value: 0.3722 for a threshold pace of
  * 4:29/km, which sits where it should between this account's predicted 10K
- * (3.64 m/s) and 5K (3.89 m/s) paces. Hence ×10.
+ * (3.64 m/s) and 5K (3.89 m/s) paces. Hence ×10. It is kept to 5 dp, as the
+ * lactate threshold index keeps it: a pace from it stays within 0.0004 s/km,
+ * where 3 dp could round a pace near a half second the other way.
  */
 function lactateOf(
 	rows: Array<Record<string, unknown>> | null | undefined,
@@ -387,7 +390,7 @@ function lactateOf(
 	out.heartRate ??= num(user?.lactateThresholdHeartRate);
 	if (out.heartRate === undefined) delete out.heartRate;
 	if (rawSpeed !== undefined && rawSpeed > 0) {
-		out.speed = Math.round(rawSpeed * 10 * 1000) / 1000;
+		out.speed = Math.round(rawSpeed * 10 * 100000) / 100000;
 		const text = pace(out.speed, 1, units);
 		if (text) out.pace = text;
 	}

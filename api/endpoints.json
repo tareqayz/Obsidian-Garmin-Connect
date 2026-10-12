@@ -3432,7 +3432,7 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-latest.json",
-			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate.",
+			"notes": "Rows split the value: one carries speed (tenths of m/s), another the heart rate, spelled hearRate. Equals the newest row of the two range routes (2026-09-19: 182 bpm, 0.37222118); calendarDate is the saving run's local wall-clock time (2026-09-19T11:29:57.527), 7 min after that run set the running FTP (11:22:14).",
 			"reads": [
 				"[].calendarDate",
 				"[].speed",
@@ -3467,7 +3467,7 @@
 			"check": true,
 			"critical": [],
 			"schema": "schema/lactate-threshold-biometric-power-to-weight-latest.json",
-			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg. As of {date}: latest/2026-10-07 returns the 2025-11-02 weigh-in's rows, latest/2025-09-10 the cycling FTP of 2025-09-06 (224 W). calendarDate = the newer of ftpCreateTime and weightCreateTime (local wall clock), origin 'weight' or 'power' says which; weight in kg. isStale is judged against now, not {date} (every 2025 FTP is stale even as of 2025-09-10): true once the FTP is more than a year old, which the FTP page shows as 'No \u2026 FTP data in the past year'.",
+			"notes": "Called once with no sport filter, as the web app does: one row per sport Garmin holds a threshold for (RUNNING, CYCLING, CROSS_COUNTRY_SKIING). Carries FTP watts and W/kg. As of {date}: latest/2026-10-07 returns the 2025-11-02 weigh-in's rows, latest/2025-09-10 the cycling FTP of 2025-09-06 (224 W). calendarDate = the newer of ftpCreateTime and weightCreateTime (local wall clock), origin 'weight' or 'power' says which; weight in kg. isStale is judged against now, not {date} (every 2025 FTP is stale even as of 2025-09-10): true once the FTP is more than a year old, which the FTP page shows as 'No \u2026 FTP data in the past year'. ?sport=Running (the Running Lactate Threshold web page) returns the RUNNING row only.",
 			"reads": [
 				"[].sport",
 				"[].calendarDate",
@@ -3513,11 +3513,12 @@
 			"reads": [
 				"[].from",
 				"[].until",
+				"[].series",
 				"[].value",
 				"[].updatedDate"
 			],
 			"schema": "schema/lactate-threshold-stats-heart-rate-range.json",
-			"notes": "Called with sport=RUNNING, aggregation=daily, aggregationStrategy=LATEST: a row per day the running lactate threshold heart rate changed ({from, until, series, value bpm, updatedDate}); 27 rows for 2025-10-13..2026-10-11. The Running Lactate Threshold page's history."
+			"notes": "A row per day Garmin saved a running lactate threshold estimate (value bpm, from = until = updatedDate), on the same days as lactate-threshold-stats-speed-range; a value can repeat. No parameters = daily + LATEST + RUNNING; sport is case-sensitive: RUNNING works, Running/running \u2192 HTTP 404, CYCLING \u2192 []. weekly = 7-day blocks counted back from {end}, the block's last change (from/until the block, updatedDate the change day); monthly = calendar months, the month's last change inside [start, end] (2025-09-01..10-10 \u2192 Oct 8's 183; from 2025-11-11 no November row), from/until the whole month. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200, 368 and 731 \u2192 HTTP 400, also across Feb 29. A window without a change \u2192 []; no carry-in. History from 2025-08-03 (40 days to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 15:00. The Running Lactate Threshold index asks daily."
 		},
 		{
 			"id": "lactate-threshold-stats-speed-range",
@@ -3552,11 +3553,12 @@
 			"reads": [
 				"[].from",
 				"[].until",
+				"[].series",
 				"[].value",
 				"[].updatedDate"
 			],
 			"schema": "schema/lactate-threshold-stats-speed-range.json",
-			"notes": "As the heart-rate range, for the threshold speed: value in tenths of m/s like latestLactateThreshold (0.37222 = 3.7222 m/s = 4:29 /km)."
+			"notes": "A row per day Garmin saved a running lactate threshold estimate (value in tenths of m/s on a 0.1 km/h grid: 0.37222118 \u00d7 36 = 13.4 km/h; 1000 \u00f7 (value \u00d7 10) = 268.66 s/km = 4:29 /km; from = until = updatedDate), on the same days as lactate-threshold-stats-heart-rate-range; a value can repeat. No parameters = daily + LATEST + RUNNING; sport is case-sensitive: RUNNING works, Running/running \u2192 HTTP 404, CYCLING \u2192 []. weekly = 7-day blocks counted back from {end}, the block's last change (from/until the block, updatedDate the change day); monthly = calendar months, the month's last change inside [start, end] (2025-09-01..10-10 \u2192 Oct 8's row, not Oct 13's; from 2025-11-11 no November row), from/until the whole month. Cap end \u2212 start \u2264 366 days: 367 calendar days \u2192 200, 368 and 731 \u2192 HTTP 400, also across Feb 29. A window without a change \u2192 []; no carry-in. History from 2025-08-03 (40 days to 2026-10-11); no row revised between 2026-10-11 22:29 and 2026-10-12 15:00. The Running Lactate Threshold index asks daily."
 		},
 		{
 			"id": "lifestyle-logging-data",

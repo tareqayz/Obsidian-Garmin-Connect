@@ -27,14 +27,15 @@ describe("mapAccount", () => {
 		assert.equal(mapAccount({}), null);
 	});
 
-	it("joins the lactate threshold rows and reads speed in tenths", () => {
+	it("joins the lactate threshold rows and reads speed in tenths, kept to 5 dp as the index keeps it", () => {
 		const account = mapAccount({ lactate }, "metric")!;
 		assert.deepEqual(account.lactateThreshold, {
 			date: "2026-09-19",
 			heartRate: 182,
-			speed: 3.722,
+			speed: 3.72221,
 			pace: "4:29",
 		});
+		assert.equal(mapAccount({ lactate }, "imperial")!.lactateThreshold?.pace, "7:12");
 	});
 
 	it("falls back to user settings for the threshold heart rate", () => {

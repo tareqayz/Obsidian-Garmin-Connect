@@ -1651,12 +1651,30 @@ export class GarminApi extends GarminClient {
 		});
 	}
 
-	/** Running lactate threshold heart rate over a range, a row per change. */
+	/**
+	 * Running lactate threshold heart rate over a range, in bpm. A row per day
+	 * Garmin saved a new running lactate threshold estimate; the heart rate
+	 * and speed routes have rows on the same days, and a value can repeat.
+	 * Defaults are daily + LATEST + RUNNING; `sport` is case-sensitive here
+	 * (Running → HTTP 404, CYCLING → []), so keep `RUNNING` uppercase.
+	 * end − start ≤ 366 days (368 calendar days is HTTP 400, also across
+	 * Feb 29). A window without a change returns []; nothing is carried in.
+	 * The lactate threshold index asks it.
+	 */
 	async lactateThresholdHeartRateRange(start: string, end: string): Promise<BiometricChange[]> {
 		return this.biometricRange("lactateThresholdHeartRate", start, end, "RUNNING");
 	}
 
-	/** Running lactate threshold speed over a range, a row per change, in tenths of m/s. */
+	/**
+	 * Running lactate threshold speed over a range, in tenths of m/s
+	 * (0.37222118 = 13.4 km/h = 4:29 /km). A row per day Garmin saved a new
+	 * running lactate threshold estimate, on the heart rate route's days; a
+	 * value can repeat. Defaults are daily + LATEST + RUNNING; `sport` is
+	 * case-sensitive here (Running → HTTP 404, CYCLING → []), so keep
+	 * `RUNNING` uppercase. end − start ≤ 366 days (368 calendar days is HTTP
+	 * 400, also across Feb 29). A window without a change returns []; nothing
+	 * is carried in. The lactate threshold index asks it.
+	 */
 	async lactateThresholdSpeedRange(start: string, end: string): Promise<BiometricChange[]> {
 		return this.biometricRange("lactateThresholdSpeed", start, end, "RUNNING");
 	}
@@ -1678,6 +1696,11 @@ export class GarminApi extends GarminClient {
 		return this.biometricRange("functionalThresholdPower", start, end, sport);
 	}
 
+	/**
+	 * A biometric's change rows, daily + LATEST. `sport` goes as given: FTP's
+	 * route takes it in any case or not at all, the lactate threshold routes
+	 * only `RUNNING` (or none) — `Running` is HTTP 404 there.
+	 */
 	private async biometricRange(
 		metric: "lactateThresholdHeartRate" | "lactateThresholdSpeed" | "functionalThresholdPower",
 		start: string,

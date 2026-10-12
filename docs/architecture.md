@@ -401,8 +401,9 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
   wrapper or `api.request`. **`fromSummary(summary, date)`** makes the run's own
   days free: the daily summary is fetched anyway.
 - **`requestsPerWindow`** (1 by default) is what a window costs when
-  `fetchWindow` asks more than one route: FTP's watts and W/kg are 2. The
-  engine books it per window, in a sync's report and a history walk's log.
+  `fetchWindow` asks more than one route: FTP's watts and W/kg are 2, and
+  the lactate threshold's heart rate and speed. The engine books it per
+  window, in a sync's report and a history walk's log.
 - Bump **`version`** when a row's meaning changes: an `index.json` of another
   version reads as none, and the history is fetched again.
 - **`fromDay`** (a `DayFeed`, not with `fromSummary`) does the same from

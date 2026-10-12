@@ -17,6 +17,7 @@ import {
 } from "./day";
 import { economyGauge, enduranceGauge, ftpGauge, hillGauge, vo2Gauge, type Gauge, type Tone } from "./gauges";
 import type { HomeInput } from "./home";
+import { paceOf, paceText, paceUnit } from "./running-lactate-threshold-pages";
 import type { DayRow } from "./series";
 
 /* The dials live in `gauges.ts`, shared with the Performance Stats pages,
@@ -695,12 +696,19 @@ export interface LactateView {
 	updated?: string;
 }
 
+/**
+ * The Running Lactate Threshold card: the page's Current in a row. The pace
+ * comes from the threshold speed in today's units, rounded as the page
+ * rounds it (268.658 s → "4:29 /km"); a file without the speed keeps the
+ * pace it was written with, in the units of its sync.
+ */
 export function lactateView(account: AccountInfo | null, units: "metric" | "imperial", today: string): LactateView | null {
 	const lt = account?.lactateThreshold;
 	const ftp = account?.ftp?.running;
 	const stats: LactateView["stats"] = [];
 	if (lt?.heartRate !== undefined) stats.push({ value: `${lt.heartRate} bpm`, label: "Heart Rate", shape: "dot", tone: "red" });
-	if (lt?.pace) stats.push({ value: `${lt.pace} /${units === "imperial" ? "mi" : "km"}`, label: "Pace", shape: "square", tone: "blue" });
+	const pace = lt?.speed !== undefined && lt.speed > 0 ? paceText(paceOf(lt.speed, units)) : lt?.pace;
+	if (pace) stats.push({ value: `${pace} ${paceUnit(units)}`, label: "Pace", shape: "square", tone: "blue" });
 	if (ftp?.watts !== undefined) stats.push({ value: `${ftp.watts} W`, label: "Power", shape: "triangle", tone: "purple" });
 	if (ftp?.wattsPerKg !== undefined) {
 		stats.push({ value: `${ftp.wattsPerKg.toFixed(2)} W/kg`, label: "Power (W/kg)", shape: "diamond", tone: "pink" });

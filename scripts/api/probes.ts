@@ -166,8 +166,10 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"hrv-data-range": async (api, w) => [await api.hrvDaily(w.rangeStart, w.rangeEnd)],
 	// Performance Stats pages.
 	"endurance-score-stats": async (api, w) => [await api.enduranceStats(w.rangeStart, w.rangeEnd, "daily")],
-	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(w.rangeStart, w.rangeEnd)],
-	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(w.rangeStart, w.rangeEnd)],
+	// A year, as the lactate threshold index asks: a change-point route, so a few days are usually [] (this account
+	// changes 2–3 times a month, others less often).
+	"lactate-threshold-stats-heart-rate-range": async (api, w) => [await api.lactateThresholdHeartRateRange(yearBefore(w.rangeEnd), w.rangeEnd)],
+	"lactate-threshold-stats-speed-range": async (api, w) => [await api.lactateThresholdSpeedRange(yearBefore(w.rangeEnd), w.rangeEnd)],
 	// As the FTP index asks: every sport, a year (a few weeks would usually be [], a change-point route).
 	"functional-threshold-power-range": async (api, w) => [await api.functionalThresholdPowerRange(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"training-status-daily": async (api, w) => [await api.trainingStatusDaily(w.days[0]!)],

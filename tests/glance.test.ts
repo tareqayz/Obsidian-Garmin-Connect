@@ -357,6 +357,19 @@ describe("stat cards", () => {
 		assert.equal(lactateView(null, "metric", "2026-09-24"), null);
 	});
 
+	it("words the threshold pace from the speed in today's units, rounded as the Running Lactate Threshold page rounds it", () => {
+		const pace = (speed: number | undefined, units: "metric" | "imperial", stored = "4:29") =>
+			lactateView({ lactateThreshold: { heartRate: 182, ...(speed === undefined ? {} : { speed }), pace: stored } }, units, "2026-10-11")!.stats[1]!.value;
+		// 1000 ÷ 3.72221 = 268.658 s: half up to 4:29 (flooring gives 4:28), as the page's Current.
+		assert.equal(pace(3.72221, "metric"), "4:29 /km");
+		// The stored string has the units of the last sync; today's setting wins: 1609.344 ÷ 3.72221 = 432.37 s.
+		assert.equal(pace(3.72221, "imperial"), "7:12 /mi");
+		// 0.5 s rounds up: 1000 ÷ 3.7243947858… = 268.5 s.
+		assert.equal(pace(1000 / 268.5, "metric"), "4:29 /km");
+		// A file without the speed keeps the pace it was written with.
+		assert.equal(pace(undefined, "metric", "4:30"), "4:30 /km");
+	});
+
 	it("dates fitness age by when Garmin recalculated it", () => {
 		const f = fitnessAgeView(input([row("2026-09-24", { fitness_age: 18, chronological_age: 23 }, { fitness_age_updated: "2026-09-23" })]))!;
 		assert.deepEqual(f, { age: 18, actual: 23, updated: "Sep 23" });

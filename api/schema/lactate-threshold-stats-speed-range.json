@@ -3,8 +3,8 @@
 	"path": "/biometric-service/stats/lactateThresholdSpeed/range/{startDate}/{endDate}",
 	"plugin": "GarminApi.lactateThresholdSpeedRange",
 	"firstRecorded": "2026-10-11T18:35:06.062Z",
-	"updatedAt": "2026-10-11T18:35:06.062Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T11:54:37.054Z",
+	"samples": 4,
 	"shape": {
 		"type": [
 			"array"
