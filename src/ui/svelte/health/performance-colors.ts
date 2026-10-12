@@ -12,9 +12,17 @@ export type PerformanceStatus =
 	| "unproductive"
 	| "detraining"
 	| "strained"
-	| "overreaching";
+	| "overreaching"
+	| "none"
+	| "paused";
 
-/** Training Status by status (performance/status/*). Home's In Focus card keeps its own (`home/tones.ts`). */
+/**
+ * Training Status by status (performance/status/*). Overreaching keeps its
+ * red apart from Strained's magenta: Home's In Focus card, which merges them,
+ * keeps its own (`home/tones.ts`). No Status and Paused were never seen, so
+ * theirs are neutral greys of their own, one fainter and one firmer than
+ * Detraining's (Inferred).
+ */
 export const PERFORMANCE_STATUS_COLOR: Readonly<Record<PerformanceStatus, string>> = {
 	productive: "var(--color-green)",
 	peaking: "var(--color-purple)",
@@ -24,6 +32,8 @@ export const PERFORMANCE_STATUS_COLOR: Readonly<Record<PerformanceStatus, string
 	detraining: "var(--color-base-50)",
 	strained: "var(--color-pink)",
 	overreaching: "var(--color-red)",
+	none: "var(--color-base-30)",
+	paused: "var(--color-base-70)",
 };
 
 /** Training benefit (performance/benefit/*): Load Focus's bars, Training Effect's. */

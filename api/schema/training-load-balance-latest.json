@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/trainingloadbalance/latest/{date}",
 	"plugin": "GarminApi.trainingLoadBalance",
 	"firstRecorded": "2026-10-11T19:31:11.348Z",
-	"updatedAt": "2026-10-11T19:31:11.348Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T05:23:10.600Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"object"
@@ -12,6 +12,7 @@
 		"fields": {
 			"metricsTrainingLoadBalanceDTOMap": {
 				"type": [
+					"null",
 					"object"
 				],
 				"fields": {
@@ -91,7 +92,8 @@
 			},
 			"recordedDevices": {
 				"type": [
-					"array"
+					"array",
+					"null"
 				],
 				"items": {
 					"type": [

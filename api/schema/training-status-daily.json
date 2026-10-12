@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/trainingstatus/daily/{date}",
 	"plugin": "GarminApi.trainingStatusDaily",
 	"firstRecorded": "2026-10-11T19:31:10.931Z",
-	"updatedAt": "2026-10-11T19:31:10.931Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T05:23:10.346Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"object"
@@ -114,6 +114,7 @@
 							},
 							"sinceDate": {
 								"type": [
+									"null",
 									"string"
 								]
 							},

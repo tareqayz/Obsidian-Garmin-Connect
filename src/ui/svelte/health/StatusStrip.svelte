@@ -10,9 +10,11 @@
 	 *   days and each period gives its last 2 pt to the gap. With a
 	 *   `selected` period (a row tapped) it stays full and the rest drop to a
 	 *   16 pt foot.
+	 *
+	 * A period without a colour is days without a row: its slot stays empty.
 	 */
 	interface Props {
-		periods: ReadonlyArray<{ days: number; color: string }>;
+		periods: ReadonlyArray<{ days: number; color?: string }>;
 		size?: "card" | "page";
 		selected?: number;
 	}

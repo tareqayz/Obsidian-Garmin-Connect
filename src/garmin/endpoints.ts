@@ -681,10 +681,11 @@ export interface BiometricChange {
 
 /**
  * One device's training status on one day, in every training status route.
- * `trainingStatus` is a code the feedback phrase spells out (`MAINTAINING_2`);
- * seen so far: 1 detraining, 2 unproductive, 4 maintaining, 5 recovery,
- * 6 peaking, 7 productive, 8 strained. The acute load DTO carries the acute
- * and chronic load and their ratio.
+ * `trainingStatus` is a code the feedback phrase spells out (`MAINTAINING_2`),
+ * one to one with the phrase's prefix; seen so far: 0 no status, 1 detraining,
+ * 2 unproductive, 3 overreaching, 4 maintaining, 5 recovery, 6 peaking,
+ * 7 productive, 8 strained. The acute load DTO carries the acute and chronic
+ * load and their ratio.
  */
 export interface TrainingStatusEntry {
 	calendarDate?: string;
@@ -1586,7 +1587,8 @@ export class GarminApi extends GarminClient {
 	 * Training status **a day**, whatever the route's name says: a row per day
 	 * per device under `reportData`, each with its acute/chronic load and ratio.
 	 * The Training Status 4w view, and the 28 days behind Training Readiness's
-	 * acute load timeline.
+	 * acute load timeline. No cap: 3660 days return the whole history. Days
+	 * without a status are left out; a span with none has `reportData` {}.
 	 */
 	async trainingStatusWeekly(start: string, end: string): Promise<TrainingStatusHistory | null> {
 		return this.trainingStatusRange("weekly", start, end);
@@ -1595,7 +1597,9 @@ export class GarminApi extends GarminClient {
 	/**
 	 * Training status **a week**, whatever the route's name says: a row on every
 	 * seventh day counted from `start` (2026-05-01 gives 05-07, 05-14 …), and
-	 * one for the newest day. The 6m and 1y views, 24 and 50 rows.
+	 * one for the newest day. The 6m and 1y views, 24 and 50 rows. Its rows
+	 * are the weekly route's on the sampled days; the Training Status page
+	 * derives them.
 	 */
 	async trainingStatusMonthly(start: string, end: string): Promise<TrainingStatusHistory | null> {
 		return this.trainingStatusRange("monthly", start, end);

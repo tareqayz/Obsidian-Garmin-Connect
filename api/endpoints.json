@@ -5356,7 +5356,7 @@
 				"acuteTrainingLoadDTO.acwrStatus"
 			],
 			"schema": "schema/training-status.json",
-			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced."
+			"notes": "Status, acute load and load focus live in device-keyed maps (mostRecentTrainingStatus.latestTrainingStatusData.<id>, with acuteTrainingLoadDTO nested inside; mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<id>). The mapper prefers the entry with primaryTrainingDevice: true. The flat top-level spellings are kept as a fallback. mostRecentVO2Max is used for vo2max/acclimation only when its calendarDate is the day being synced. A day without a status returns every part null (2026-10-12). heatAltitudeAcclimationDTO was null on all three days fetched; mostRecentVO2Max.heatAltitudeAcclimation carries the day's heat even when generic is an older reading (2026-10-09: generic 2026-10-03, heat 68 dated 2026-10-09). Its mostRecentTrainingStatus entry is the day's training-status-weekly row (sinceDate set): the Training Status index takes the run's own days from it."
 		},
 		{
 			"id": "training-status-daily",
@@ -5391,7 +5391,7 @@
 				"lastPrimarySyncDate"
 			],
 			"schema": "schema/training-status-daily.json",
-			"notes": "The Training Status page's Current view, and Training Readiness's day. latestTrainingStatusData is keyed by device id, each {calendarDate, sinceDate, trainingStatus, trainingStatusFeedbackPhrase, trainingPaused, primaryTrainingDevice, acuteTrainingLoadDTO {dailyTrainingLoadAcute, dailyTrainingLoadChronic, min/maxTrainingLoadChronic, dailyAcuteChronicWorkloadRatio, acwrStatus, acwrPercent}}, as in training-status's mostRecentTrainingStatus; pick primaryTrainingDevice. 2026-10-11: status 4 MAINTAINING_2, acute 498, chronic 393, ratio 1.2 OPTIMAL."
+			"notes": "The Training Status page's Current view, and Training Readiness's day. latestTrainingStatusData is keyed by device id, each {calendarDate, sinceDate, trainingStatus, trainingStatusFeedbackPhrase, trainingPaused, primaryTrainingDevice, acuteTrainingLoadDTO {dailyTrainingLoadAcute, dailyTrainingLoadChronic, min/maxTrainingLoadChronic, dailyAcuteChronicWorkloadRatio, acwrStatus, acwrPercent}}, as in training-status's mostRecentTrainingStatus; pick primaryTrainingDevice. 2026-10-11: status 4 MAINTAINING_2, acute 498, chronic 393, ratio 1.2 OPTIMAL. For a day without a status (today before the watch syncs) it sends the newest earlier entry with sinceDate null (2026-10-12 -> 2026-10-11's). sinceDate = max(first day of the run of equal trainingStatus, the day - 13), a day without a row ending the run: 435 of 435 days."
 		},
 		{
 			"id": "training-status-monthly",
@@ -5430,7 +5430,7 @@
 				"recordedDevices"
 			],
 			"schema": "schema/training-status-monthly.json",
-			"notes": "Despite the name, a row a week: a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day; rows as training-status-weekly. The Training Status 6m (2026-05-01..10-31, 24 rows) and 1y (2025-11-02..2026-10-31, 50 rows) views. No cap seen up to the web's 364 days."
+			"notes": "Despite the name, a row a week: a row on every seventh day counted from the span's start (2026-05-01 gives 05-07, 05-14 \u2026 10-08) plus one for the newest day; rows as training-status-weekly. The Training Status 6m (2026-05-01..10-31, 24 rows) and 1y (2025-11-02..2026-10-31, 50 rows) views. No cap seen up to the web's 364 days. Its rows are the weekly route's rows on the sampled days (117 of 117: two live probes, two web bodies); a sample day without a row is skipped (3660 days from 2016-10-14 -> 63 rows from 2025-08-07). The Training Status page derives it and does not call it."
 		},
 		{
 			"id": "training-status-weekly",
@@ -5469,7 +5469,7 @@
 				"recordedDevices"
 			],
 			"schema": "schema/training-status-weekly.json",
-			"notes": "Despite the name, a row a day: reportData.<deviceId> lists the span's days oldest first, rows as training-status-daily's with sinceDate null. The Training Status 4w view asks the Sunday-aligned block (2026-09-20..10-11, 22 rows; prev 08-23..09-19, 28), Training Readiness the 28 days to its day for the acute load timeline. No cap seen; the web never asks more than 28 days."
+			"notes": "Despite the name, a row a day: reportData.<deviceId> lists every day of the span that has a status, oldest first, each equal to that day's training-status-daily entry with sinceDate null. No cap: 28, 29, 84, 182, 365, 366, 367 and 3660 days all return 200; 3660 days return the whole history (435 rows, 2025-08-02..2026-10-11). Days without a status are left out (2025-08-08; today before the watch syncs; future days); a span with none returns reportData {} and recordedDevices []. trainingStatus codes: 0 NO_STATUS, 1 DETRAINING, 2 UNPRODUCTIVE, 3 OVERREACHING, 4 MAINTAINING, 5 RECOVERY, 6 PEAKING, 7 PRODUCTIVE, 8 STRAINED (one to one with the phrase prefix). Rows are not revised after their day (web 2026-10-11 22:4x = live 2026-10-12; day files 435/435). The Training Status index reads it."
 		},
 		{
 			"id": "unschedule-workout",

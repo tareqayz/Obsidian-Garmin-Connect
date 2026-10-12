@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/trainingstatus/monthly/{displayName}",
 	"plugin": "GarminApi.trainingStatusMonthly",
 	"firstRecorded": "2026-10-11T19:31:11.211Z",
-	"updatedAt": "2026-10-11T19:31:11.211Z",
-	"samples": 2,
+	"updatedAt": "2026-10-12T05:23:10.217Z",
+	"samples": 4,
 	"shape": {
 		"type": [
 			"object"
@@ -68,6 +68,7 @@
 									"fields": {
 										"acwrPercent": {
 											"type": [
+												"null",
 												"number"
 											]
 										},
@@ -83,6 +84,7 @@
 										},
 										"dailyAcuteChronicWorkloadRatio": {
 											"type": [
+												"null",
 												"number"
 											]
 										},
@@ -120,11 +122,13 @@
 								},
 								"fitnessTrend": {
 									"type": [
+										"null",
 										"number"
 									]
 								},
 								"fitnessTrendSport": {
 									"type": [
+										"null",
 										"string"
 									]
 								},
@@ -155,11 +159,13 @@
 								},
 								"sport": {
 									"type": [
+										"null",
 										"string"
 									]
 								},
 								"subSport": {
 									"type": [
+										"null",
 										"string"
 									]
 								},
