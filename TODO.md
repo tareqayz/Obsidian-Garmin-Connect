@@ -11,9 +11,9 @@ Known gaps and open questions, by area.
 
 - **Performance Stats, the rest.** Training Status with Load and Heat
   Acclimation, Training Readiness, HRV Status, Race Predictor, VO₂ Max,
-  Training Effect, FTP, Running Tolerance, Endurance Score and Hill Score are
-  built (see "Performance Stats" below). Still to come through `/garmin-page`:
-  Running Lactate Threshold, Running Economy, Cycling Power Curve, Critical
+  Training Effect, FTP, Running Tolerance, Running Lactate Threshold, Endurance
+  Score and Hill Score are built (see "Performance Stats" below). Still to come
+  through `/garmin-page`: Running Economy, Cycling Power Curve, Critical
   Swim Speed and HRV Stress (plan and status board:
   `ref/performance-stats/STATUS.md`).
 - **Cycling Ability and Altitude Acclimation** were left out of Performance
@@ -101,6 +101,11 @@ items, to check on the phone:
   these shots; a week block with two different rows (ours: the last); 12w and
   1y blocks on a weekday; the unit after a range change (ours: back to
   Watts); where "Learn how to update your … FTP" leads; Help.
+- **Running Lactate Threshold:** previous periods; 12w's block rule (ours:
+  each block's last change) and 12w / 1y on a weekday; the empty states and
+  "--" on Current, and Current with only some figures; the chip after a range
+  change (ours: back to Pace); imperial paces; tapping or scrubbing a point;
+  the axis rule beyond these shots; Help.
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

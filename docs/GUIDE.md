@@ -95,7 +95,8 @@ The pages need more than a day's summary can hold. These files sit beside
 | `heat-acclimation/` | Heat Acclimation, and Training Status's Heat Acclimation row | `fitness` |
 | `training-readiness/` | Training Readiness; a day's every reading goes into that day's series file | `readiness` |
 | `running-tolerance/`, `running-tolerance-weeks/` | Running Tolerance: a row a day for Current, Garmin's weeks for 12w and 1y | `training` |
-| `ftp/` | FTP | `fitness` |
+| `ftp/` | FTP, and Running Lactate Threshold's power | `fitness` |
+| `lactate-threshold/` | Running Lactate Threshold's heart rate and pace | `fitness` |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 They are rewritten only when their content changes.
@@ -322,6 +323,7 @@ order, as each is rebuilt; so far:
 | Training Effect | 7d, 4w, and a page per activity with its benefit and scales | `workouts` |
 | FTP | Current, 4w, 12w, 1y, for cycling and cross country skiing, in Watts or W/kg | `fitness` |
 | Running Tolerance | Current, 12w, 1y in Sunday weeks, with the Actual Distance chip | `training` |
+| Running Lactate Threshold | Current, 4w, 12w, 1y: heart rate, with pace, power or W/kg on a chip | `fitness` |
 | Endurance Score | 1d, 12w, 1y, each with a Top Contributors tab | `fitness` |
 | Hill Score | 1d with its factors, 4w, 12w, 1y, and a month page | `fitness` |
 
@@ -346,12 +348,12 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
-| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open training effect**, **Open FTP**, **Open running tolerance**, **Open endurance score**, **Open hill score** |
+| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open training effect**, **Open FTP**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score** |
 
 | Syncs | Commands |
 | --- | --- |
 | Days | **Sync recent days**, **Sync today**, **Sync a date range…** |
-| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history**, **Sync training readiness history**, **Sync running tolerance history**, **Sync weekly running tolerance history**, **Sync FTP history** |
+| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history**, **Sync training readiness history**, **Sync running tolerance history**, **Sync weekly running tolerance history**, **Sync FTP history**, **Sync lactate threshold history** |
 
 | Other | What it does |
 | --- | --- |

@@ -50,6 +50,9 @@ GitHub release takes its notes from the matching section here — see
   - **FTP**: today's W/kg dial with its class and what it is based on, for
     cycling and cross country skiing, and 4w / 12w / 1y of FTP in Watts or
     W/kg.
+  - **Running Lactate Threshold**: today's threshold heart rate, pace, power
+    and W/kg, and 4w / 12w / 1y of the heart rate with pace, power or W/kg on
+    a second axis.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
@@ -81,6 +84,8 @@ GitHub release takes its notes from the matching section here — see
 - **Home's VO₂ Max dial** uses Garmin's own scale ends, which moves its marker
   by under 1%.
 - **Home's Training Readiness card** writes "Well-recovered", as Garmin does.
+- **Home's Lactate Threshold card** rounds the pace from Garmin's speed as the
+  app does: 4:29, not 4:28.
 - **The activity index** keeps each activity's training effect, benefit,
   load and a ride's best powers. It is listed again once, about a request per
   hundred activities.
