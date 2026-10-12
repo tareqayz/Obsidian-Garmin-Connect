@@ -9,13 +9,11 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats, the rest.** Training Status with Load and Heat
-  Acclimation, Training Readiness, HRV Status, Race Predictor, VO₂ Max,
-  Running Economy, Training Effect, Cycling Power Curve, FTP, Running
-  Tolerance, Running Lactate Threshold, Endurance Score and Hill Score are
-  built (see "Performance Stats" below). Still to come through
-  `/garmin-page`: Critical Swim Speed and HRV Stress (plan and status board:
-  `ref/performance-stats/STATUS.md`).
+- **Performance Stats: check the Inferred items.** Every page is built (see
+  "Performance Stats" below; status board `ref/performance-stats/STATUS.md`).
+  What's left is checking the Inferred items against the phone — above all a
+  weekday set of shots and the previous periods — and the Figma follow-ups
+  listed there.
 - **Cycling Ability and Altitude Acclimation** were left out of Performance
   Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
   gets its own branch when shots exist.
@@ -119,6 +117,14 @@ items, to check on the phone:
   axis above 1,000 W; spans on a weekday; a multisport bike leg with power. A
   record deleted on Garmin keeps showing until that ride is listed again
   (Sync activity history).
+- **Critical Swim Speed and HRV Stress** have never had data on this account,
+  so only their empty states are 1:1. Inferred: everything with data — CSS's
+  dated pace, its points (a day on 7d, a week block on 12w / 1y), the y axis
+  and the results rows (date format unknown), several results on a day; HRV
+  Stress's daily 0–100 bars and anything under them; the index field names
+  (bump each index's `version` when the first real row arrives); statute
+  units; the ⋮ menu and Help; "‹" stops at an empty history (ours; the phone
+  keeps it on).
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

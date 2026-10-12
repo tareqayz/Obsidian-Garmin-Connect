@@ -98,6 +98,8 @@ The pages need more than a day's summary can hold. These files sit beside
 | `ftp/` | FTP, and Running Lactate Threshold's power | `fitness` |
 | `lactate-threshold/` | Running Lactate Threshold's heart rate and pace | `fitness` |
 | `running-economy/` | Running Economy | `fitness` |
+| `critical-swim-speed/` | Critical Swim Speed | `workouts` |
+| `hrv-stress/` | HRV Stress | `hrv` |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 They are rewritten only when their content changes.
@@ -312,7 +314,7 @@ its metric group on.
 ## Performance Stats
 
 **More → Performance Stats** lists Garmin's performance pages in the app's
-order, as each is rebuilt; so far:
+order:
 
 | Page | Ranges | Group |
 | --- | --- | --- |
@@ -325,10 +327,12 @@ order, as each is rebuilt; so far:
 | Training Effect | 7d, 4w, and a page per activity with its benefit and scales | `workouts` |
 | Cycling Power Curve | 4w, 3m, 1y: your best power by duration against the all-time Record, and the records table | `workouts` |
 | FTP | Current, 4w, 12w, 1y, for cycling and cross country skiing, in Watts or W/kg | `fitness` |
+| Critical Swim Speed | Current, 7d, 12w, 1y, with the results table; Garmin's empty state until you have a CSS result | `workouts` |
 | Running Tolerance | Current, 12w, 1y in Sunday weeks, with the Actual Distance chip | `training` |
 | Running Lactate Threshold | Current, 4w, 12w, 1y: heart rate, with pace, power or W/kg on a chip | `fitness` |
 | Endurance Score | 1d, 12w, 1y, each with a Top Contributors tab | `fitness` |
 | Hill Score | 1d with its factors, 4w, 12w, 1y, and a month page | `fitness` |
+| HRV Stress | 7d, 4w; Garmin's empty state until you take an HRV stress test | `hrv` |
 
 Each has an **Open …** command and opens from its card on Home. Two pages are
 not in the list and open from Training Status's rows instead:
@@ -352,12 +356,12 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
-| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open running economy**, **Open training effect**, **Open cycling power curve**, **Open FTP**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score** |
+| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open running economy**, **Open training effect**, **Open cycling power curve**, **Open FTP**, **Open critical swim speed**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score**, **Open HRV stress** |
 
 | Syncs | Commands |
 | --- | --- |
 | Days | **Sync recent days**, **Sync today**, **Sync a date range…** |
-| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history**, **Sync training readiness history**, **Sync running tolerance history**, **Sync weekly running tolerance history**, **Sync FTP history**, **Sync lactate threshold history**, **Sync running economy history** |
+| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history**, **Sync training readiness history**, **Sync running tolerance history**, **Sync weekly running tolerance history**, **Sync FTP history**, **Sync lactate threshold history**, **Sync running economy history**, **Sync critical swim speed history**, **Sync HRV stress history** |
 
 | Other | What it does |
 | --- | --- |

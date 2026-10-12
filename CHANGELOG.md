@@ -58,6 +58,8 @@ GitHub release takes its notes from the matching section here — see
     a second axis.
   - **Running Economy**: the newest reading on Garmin's dial with its class,
     and 4w / 12w / 1y of scores with their average and best.
+  - **Critical Swim Speed** and **HRV Stress**: Garmin's pages as they look
+    without data, ready for a first CSS result or HRV stress test.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
