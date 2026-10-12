@@ -83,4 +83,6 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   large — list top-level children with a read-only `use_figma` instead.
 - No `--background-modifier-cover` variable: backdrops are black at 50 % layer opacity.
 - Cloning a component set resets every variant's text to the set's default: to twin a set,
-  detach, convert back to components and re-combine.
+  detach, convert back to components and re-combine. Per-variant preview text in a set also
+  resets to the default when the file commits; instances keep their own values (set them with
+  `setProperties` per instance).
