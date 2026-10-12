@@ -72,6 +72,7 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
 - `resize()` resets sizing modes to FIXED: set sizing modes after resizing.
 - `swapComponent` keeps nested instance-swap overrides: re-swap exposed nested instances.
   Swap top-down and re-query children after each swap (old nested ids vanish).
+  `setProperties` after `swapComponent` + `resetOverrides` drops the instance's name: rename last.
 - Instance children can't be moved ("relative-transform"): hide them and draw a sibling.
 - `vectorPaths` positions the node at the path's bbox: write coordinates in the parent's
   space. Re-setting `vectorPaths` on an existing vector shifts it — delete and recreate.
