@@ -1407,7 +1407,10 @@ export class GarminApi extends GarminClient {
 
 	/**
 	 * Predicted 5K / 10K / half / marathon times across a range, also one
-	 * request. Garmin rejects ranges longer than a year.
+	 * request. A calendar year at most (end ≤ start + 1 year; 365-day chunks
+	 * are safe). When the window holds any prediction, every day comes back,
+	 * with null times where there is none (future days too); a window with
+	 * none returns [].
 	 */
 	async racePredictions(start: string, end = start): Promise<RacePrediction[]> {
 		assertIsoDate(start, "start");
@@ -1803,7 +1806,9 @@ export class GarminApi extends GarminClient {
 	/**
 	 * Race predictions a month, dated by the month's last day (the current
 	 * month's by its newest), as the 6m and 1y views plot them. A year at most,
-	 * like `racePredictions`.
+	 * like `racePredictions`. A month without a prediction is a row of nulls
+	 * dated its 1st; the values are the daily rows', so the Race Predictor
+	 * derives them and does not call this.
 	 */
 	async racePredictionsMonthly(start: string, end: string): Promise<RacePrediction[]> {
 		assertIsoDate(start, "start");

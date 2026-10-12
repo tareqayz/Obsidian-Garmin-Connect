@@ -453,11 +453,13 @@ export async function syncRange(
 		racesByDate = byCalendarDate(got.rows);
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("races");
+		// A window holding any prediction sends every day, null where there is none: count the days with a time.
+		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
 		if (got.error) note(report, log, `race predictions: ${got.error}`);
-		else if (racesByDate.size === 0) {
+		else if (predicted === 0) {
 			note(report, log, "race predictions: Garmin returned no rows for this range");
 		}
-		log.detail("race prediction days", racesByDate.size);
+		log.detail("race prediction days", predicted);
 	}
 
 	let hillByDate = new Map<string, HillScore>();
@@ -1350,6 +1352,11 @@ async function fetchRange<T>(
 function note(report: SyncReport, log: Log, text: string): void {
 	report.warnings.push(text);
 	log.warn(text);
+}
+
+/** A race prediction row with any time: Garmin null-fills the days of a window that have none. */
+function hasRaceTime(row: RacePrediction): boolean {
+	return [row.time5K, row.time10K, row.timeHalfMarathon, row.timeMarathon].some((t) => typeof t === "number" && Number.isFinite(t));
 }
 
 /** Indexes a range response by the day it describes. */

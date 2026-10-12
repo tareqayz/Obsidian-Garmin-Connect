@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/racepredictions/{type}/{displayName}",
 	"plugin": "GarminApi.racePredictions",
 	"firstRecorded": "2026-09-26T07:59:19.348Z",
-	"updatedAt": "2026-09-26T07:59:19.348Z",
-	"samples": 1,
+	"updatedAt": "2026-10-12T01:17:59.947Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"array"
@@ -26,21 +26,25 @@
 				},
 				"time10K": {
 					"type": [
+						"null",
 						"number"
 					]
 				},
 				"time5K": {
 					"type": [
+						"null",
 						"number"
 					]
 				},
 				"timeHalfMarathon": {
 					"type": [
+						"null",
 						"number"
 					]
 				},
 				"timeMarathon": {
 					"type": [
+						"null",
 						"number"
 					]
 				},

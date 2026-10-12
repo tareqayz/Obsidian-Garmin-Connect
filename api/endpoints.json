@@ -4265,7 +4265,7 @@
 				"[].timeMarathon"
 			],
 			"schema": "schema/race-predictions.json",
-			"notes": "The plugin sends `daily` for {type}. Garmin rejects ranges longer than a year."
+			"notes": "The plugin sends `daily` for {type}. Rows oldest first, one per calendar day, each echoing the asked span as fromCalendarDate/toCalendarDate; times in whole seconds. A window holding any prediction returns every day, with null times where there is none (before the history, future days); a window with none returns []. Cap: one calendar year (end <= start + 1 year): 366 days is 200, 367 is HTTP 400 with or without data; 2023-10-12..2024-10-12 (367 days across Feb 29) is 200. History from 2025-08-09, a row every day since, including days without a run; today's row exists early (2026-10-12 at 04:03). Feeds the race-predictions index (<dataFolder>/race-predictions/) every Race Predictor view reads."
 		},
 		{
 			"id": "race-predictions-latest",
@@ -4301,7 +4301,7 @@
 			],
 			"reads": [],
 			"schema": "schema/race-predictions-latest.json",
-			"notes": "{userId, calendarDate, time5K, time10K, timeHalfMarathon, timeMarathon} in seconds, fromCalendarDate and toCalendarDate null: the Race Predictor's Most Recent view."
+			"notes": "{userId, calendarDate, time5K, time10K, timeHalfMarathon, timeMarathon} in seconds, fromCalendarDate and toCalendarDate null: the Race Predictor's Most Recent view. It is the newest daily row (2026-10-11 at 22:51 on Oct 11; 2026-10-12 at 04:03 on Oct 12): the page reads the index's newest row instead."
 		},
 		{
 			"id": "race-predictions-monthly",
@@ -4344,7 +4344,7 @@
 			],
 			"reads": [],
 			"schema": "schema/race-predictions-monthly.json",
-			"notes": "Rows as race-predictions, a row a month dated by the month's last day, the current month's by the newest day (2025-11-01..2026-10-31: 12 rows, the last 2026-10-11), each carrying the asked span as fromCalendarDate/toCalendarDate. The Race Predictor 6m and 1y views (calendar months), which the phone plots at month ends. Upstream refuses spans over 366 days, as for the daily form."
+			"notes": "Rows as race-predictions, a row a month dated by the month's last day, the current month's by the newest day (2025-11-01..2026-10-31: 12 rows, the last 2026-10-11), each carrying the asked span as fromCalendarDate/toCalendarDate. The web Race Predictor's 6 Months and 1 Year (calendar months); the phone plots the same month ends. Equals the daily row of each month's last day, clipped to the window end and the newest row (2026-05-15..2026-08-15: May 31, Jun 30, Jul 31, Aug 15). A month without a prediction is a row of nulls dated its 1st (2024-11-01..2025-10-31: Nov 1 ... Jul 1, then Aug 31, Sep 30, Oct 31). Cap one calendar year: 2025-10-12..2026-10-12 is 200 (13 rows); 367 days and 2 years are HTTP 400. The Race Predictor derives it from the daily index and does not call it."
 		},
 		{
 			"id": "remove-gear-from-activity",

@@ -4,6 +4,7 @@ import type { PerformanceStatRoute } from "../../../dashboard/routes";
 import type { StatPageProps } from "../health/pages";
 import HillScorePage from "../hill-score/HillScorePage.svelte";
 import HrvStatusPage from "../hrv-status/HrvStatusPage.svelte";
+import RacePredictorPage from "../race-predictor/RacePredictorPage.svelte";
 import Vo2MaxPage from "../vo2-max/Vo2MaxPage.svelte";
 
 /** A Performance Stats page's props: the same as a Health Stats page's, on its own route. */
@@ -25,4 +26,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	"vo2-max": Vo2MaxPage,
 	"hill-score": HillScorePage,
 	"hrv-status": HrvStatusPage,
+	"race-predictor": RacePredictorPage,
 };
