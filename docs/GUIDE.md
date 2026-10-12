@@ -317,6 +317,7 @@ order, as each is rebuilt; so far:
 | HRV Status | 1d, 7d, 4w, with the Overnight Averages chip | `hrv` |
 | Race Predictor | Current, 4w, 6m, 1y, a chip per distance | `races` |
 | VO₂ Max | Current, 4w, 12w, 6m, for running and cycling | `fitness` |
+| Training Effect | 7d, 4w, and a page per activity with its benefit and scales | `workouts` |
 | Endurance Score | 1d, 12w, 1y, each with a Top Contributors tab | `fitness` |
 | Hill Score | 1d with its factors, 4w, 12w, 1y, and a month page | `fitness` |
 
@@ -329,8 +330,8 @@ not in the list and open from Training Status's rows instead:
   its trend, and 7d and 4w of daily progress.
 
 The histories are cheap: a year of Garmin's data per request, about two or
-three requests each for the whole history. Load keeps none of its own: it
-reads Training Status's, the day files and the activity list. Cycling Ability
+three requests each for the whole history. Load and Training Effect keep none
+of their own: they read Training Status's, the day files and the activity list. Cycling Ability
 and Altitude Acclimation are left out for now.
 
 ## Commands
@@ -341,7 +342,7 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
-| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open endurance score**, **Open hill score** |
+| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open training effect**, **Open endurance score**, **Open hill score** |
 
 | Syncs | Commands |
 | --- | --- |

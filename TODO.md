@@ -11,8 +11,8 @@ Known gaps and open questions, by area.
 
 - **Performance Stats, the rest.** Training Status with Load and Heat
   Acclimation, Training Readiness, HRV Status, Race Predictor, VO₂ Max,
-  Endurance Score and Hill Score are built (see "Performance Stats" below).
-  Still to come through `/garmin-page`: Training Effect, Running Tolerance, FTP,
+  Training Effect, Endurance Score and Hill Score are built (see "Performance
+  Stats" below). Still to come through `/garmin-page`: Running Tolerance, FTP,
   Running Lactate Threshold, Running Economy, Cycling Power Curve, Critical
   Swim Speed and HRV Stress (plan and status board:
   `ref/performance-stats/STATUS.md`).
@@ -83,6 +83,12 @@ items, to check on the phone:
   sheets' copy; the dial below 4.1 or above 97.9 and the marker colour per
   level; the HRV sheet's Overnight Averages chip; the Sleep Score sheet below
   its legend; empty, onboarding and no-sleep states.
+- **Training Effect:** a day with several activities (ours: each chart's day
+  maximum, as the web draws it); benefit labels other than Threshold, and the
+  band titles and copy other than aerobic 4.x and anaerobic 0.x; the related
+  activity's disc for sports other than runs and swims (ours: grey) and
+  whether it opens anything; a detail whose activity is gone; a 0.0 / 0.0
+  activity (a card, no bar); the 640–999 pt layout.
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

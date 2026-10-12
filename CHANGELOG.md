@@ -41,6 +41,9 @@ GitHub release takes its notes from the matching section here — see
     each opening a sheet — the night's sleep, recovery time, HRV, acute load,
     recent sleep scores and recent stress. The sync keeps every reading of the
     day, and a day stepper goes back through the history.
+  - **Training Effect**: 7d and 4w of each day's aerobic and anaerobic effect,
+    and a card per activity opening its primary benefit, its two scales and
+    the activity itself.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
