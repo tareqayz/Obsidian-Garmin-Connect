@@ -47,6 +47,9 @@ GitHub release takes its notes from the matching section here — see
   - **Running Tolerance**: this week's impact load against your tolerance, and
     12w / 1y of Sunday weeks against the tolerance line, with the distance
     you actually ran on a chip and a list of the weeks.
+  - **FTP**: today's W/kg dial with its class and what it is based on, for
+    cycling and cross country skiing, and 4w / 12w / 1y of FTP in Watts or
+    W/kg.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
