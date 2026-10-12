@@ -40,7 +40,10 @@
 	 * current period, "<" and ">" a period at a time, never past the current
 	 * one; the page keeps its tab and sub-page (`moveStatRoute`). Health's
 	 * range control is its own; Performance's is the compact or the wide one
-	 * its stat names (`rangeControlOf`).
+	 * its stat names (`rangeControlOf`), and the period stepper goes with it:
+	 * a wide page's (VO₂ Max, Training Effect) has 24 pt discs and a Body
+	 * Semibold label, a compact page's (Hill Score, HRV Status and the rest)
+	 * Health's 20 pt discs and a Nav Title label.
 	 */
 	interface Props {
 		/** The page's route: its stat, range, period, remembered day, tab and sub-page. */
@@ -291,7 +294,7 @@
 	 * period sits 26 pt under the bar, or under the `top` slot (Load's tabs).
 	 */
 	.controls.compact {
-		padding-top: 22px;
+		padding-top: 22.33px;
 	}
 	/* Wide, as VO₂ Max's twin places it: the range control at 60.33 under a 44 pt bar, the period row 16 under it, 16 over the body. */
 	.controls.wide {
@@ -328,10 +331,10 @@
 		text-align: center;
 	}
 	/*
-	 * Performance's stepper (the twin's Period Nav, 470:32): 24 pt discs with a
-	 * 5 × 10 pt chevron either side of a Body Semibold label. Its row is 2 pt
-	 * taller than Health's, so a compact or single row starts 1 pt higher and
-	 * keeps its centre; a wide one sits 16 pt under the range control.
+	 * A wide page's stepper (VO₂ Max's Period Nav, 470:32): 24 pt discs with a
+	 * 5 × 10 pt chevron either side of a Body Semibold label, 16 pt under the
+	 * range control. Its row is 2 pt taller than Health's, so a row alone
+	 * starts 1 pt higher and keeps its centre. A compact page's follows below.
 	 */
 	.perf .period {
 		grid-template-columns: 24px minmax(0, 1fr) 24px;
@@ -384,6 +387,42 @@
 		width: 20px;
 		height: 20px;
 		stroke-width: 1.8px;
+	}
+	/*
+	 * A compact page's stepper (Hill Score's Period Nav, twin 503:59; HRV
+	 * Status's agrees): Health's 20 pt discs, each with a 4 × 8 pt chevron of
+	 * 1.1 pt, either side of a Nav Title label, 17/22 Semi Bold where
+	 * Health's is bold. The 22 pt row sits 25.53 under the range control (at
+	 * 66.33), so the header still ends 165 down; alone, as on Hill Score's
+	 * month page, it sits 25.86 under the bar and the header ends at 109.
+	 * Wide pages keep the 24 pt stepper above.
+	 */
+	.compact .period {
+		grid-template-columns: 20px minmax(0, 1fr) 20px;
+		margin-top: 25.53px;
+	}
+	.compact .period.plain {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.compact.single .period {
+		margin-top: 0;
+	}
+	.controls.compact.single {
+		padding: 25.86px 0 17.14px;
+	}
+	.compact .period strong {
+		font-size: 17px;
+		line-height: 22px;
+	}
+	.compact .step {
+		width: 20px;
+		height: 20px;
+	}
+	/* Lucide's chevron at 16.5 pt is the twin's 4.13 × 8.26; 1.6 of its 24 units is 1.1 pt. */
+	.compact .step :global(svg) {
+		width: 16.5px;
+		height: 16.5px;
+		stroke-width: 1.6px;
 	}
 	.step:disabled {
 		opacity: 0.4;

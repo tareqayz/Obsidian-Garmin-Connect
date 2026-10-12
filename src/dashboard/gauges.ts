@@ -191,9 +191,11 @@ export function enduranceGauge(score: number, scale: EnduranceScale = {}, classi
 	return gauge(score.toLocaleString(), segments, at, index !== undefined ? ENDURANCE_CLASSES[index] : undefined);
 }
 
-/* Hill Score: 0–100 on a linear dial, bands read off the app. */
+/* Hill Score: 0–100 on a linear dial, bands read off the app. The classes are
+   Garmin's help table's (Recreational 1-24, Challenger 25-49, Trained 50-69,
+   Skilled 70-84, Expert 85-94, Elite 95-100), in `classification` order. */
 
-export const HILL_CLASSES: readonly string[] = ["Recreational", "Challenger", "Trained", "Well-Trained", "Expert", "Elite"];
+export const HILL_CLASSES: readonly string[] = ["Recreational", "Challenger", "Trained", "Skilled", "Expert", "Elite"];
 const HILL_BOUNDS = [0, 0.255, 0.505, 0.705, 0.855, 0.945, 1];
 
 /** The class is Garmin's (`classification`, 1–6) when it sends one, else the band the score falls in. */

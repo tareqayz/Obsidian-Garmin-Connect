@@ -2581,9 +2581,19 @@
 			],
 			"cadence": "range",
 			"check": true,
-			"critical": [],
+			"critical": [
+				"[].calendarDate"
+			],
+			"reads": [
+				"[].overallScore",
+				"[].strengthScore",
+				"[].enduranceScore",
+				"[].hillScoreClassificationId",
+				"[].hillScoreFeedbackPhraseId",
+				"[].primaryTrainingDevice"
+			],
 			"schema": "schema/graphql-hill-scores.json",
-			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation."
+			"notes": "hillScoreScalar(startDate,endDate,aggregation:\"weekly\"); hillScoreDTOList is per day regardless of aggregation. Proxies GET metrics-service/metrics/hillscore/stats: the same rows and the same 401-day cap (402 is the gateway's 400, naming the REST URL). The day sync asks a year a call, and the hill-score index walks the history the same way."
 		},
 		{
 			"id": "graphql-training-readiness-range",
@@ -3156,7 +3166,7 @@
 				"hillScoreDTOList[].enduranceScore"
 			],
 			"schema": "schema/hill-score-stats.json",
-			"notes": "{userProfilePK, startDate, endDate, periodAvgScore keyed by period start, maxScore, hillScoreDTOList}. daily (the 4w view, rolling 28 days): periodAvgScore has one key, the span's start, and hillScoreDTOList the days newest first, rows as hill-score's; weekly (12w, Monday weeks) and monthly (1y 2025-11-02..2026-10-31, keyed by each month's 1st): hillScoreDTOList null. periodAvgScore is keyed by date, so the daily check sees new keys. No cap seen."
+			"notes": "{userProfilePK, startDate, endDate, periodAvgScore, maxScore, hillScoreDTOList}. 401 days a call at most, whatever the aggregation (402 is HTTP 400). hillScoreDTOList: the days, newest first, rows as hill-score's, with daily and weekly aggregation alike (weekly 2026-07-20..10-11 sent 84), null with monthly, [] before the history. Days before the first row are left out, and today until the watch has scored it; every day from the first has a row, the first two weeks calibrating (no scores, hillScoreClassificationId 0, hillScoreFeedbackPhraseId 1). periodAvgScore is floor(mean of the scored days) per period, counting only the window's days: daily one key (the first row's date), weekly one per Monday week touching the window, keyed by its Monday even before the start (the account's week start is ignored), monthly keyed by each month's 1st; null for a period without a score. maxScore is the best day, null without one. vo2Max and vo2MaxPreciseValue are always null in the list. periodAvgScore is keyed by date, so the daily check sees new keys."
 		},
 		{
 			"id": "hrv-data",

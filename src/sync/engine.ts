@@ -282,8 +282,9 @@ export const INTRADAY_DAYS = 7;
 
 /**
  * Windows for the range calls whose limits nobody has published. The web app
- * asks for 28 days of hill score and a week of snapshots; staying at or under
- * what it asks for is the safe side of an unknown limit.
+ * asks for a week of snapshots; staying at or under what it asks for is the
+ * safe side of an unknown limit. Hill scores have a known cap, 401 days, and
+ * go a year a request.
  */
 const SHORT_RANGE_DAYS = 28;
 
@@ -447,7 +448,8 @@ export async function syncRange(
 
 	let hillByDate = new Map<string, HillScore>();
 	if (wanted.hillScores) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), SHORT_RANGE_DAYS);
+		// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
+		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS);
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("hillScore");

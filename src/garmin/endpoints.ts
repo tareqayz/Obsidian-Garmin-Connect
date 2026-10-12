@@ -800,16 +800,19 @@ export interface CriticalSwimSpeedRange {
 }
 
 /**
- * Hill score over a span: the average per period, keyed by the period's first
- * day (one key, the span's start, with daily aggregation; a month's 1st with
- * monthly), the span's best, and with daily aggregation the days, newest first.
+ * Hill score over a span of up to 401 days: the floored mean of the scored
+ * days per period, keyed by the period's first day (one key, the first row's
+ * day, with daily aggregation; each Monday week's Monday with weekly, even
+ * before the span's start; each month's 1st with monthly), counting only the
+ * span's days; the span's best day; and the days themselves, newest first.
  */
 export interface HillScoreStats {
 	startDate?: string;
 	endDate?: string;
+	/** Null for a period without a score. */
 	periodAvgScore?: Record<string, number | null> | null;
 	maxScore?: number | null;
-	/** Null with weekly and monthly aggregation. */
+	/** The days with daily and weekly aggregation; null with monthly, `[]` before the history. */
 	hillScoreDTOList?: HillScore[] | null;
 	[key: string]: unknown;
 }
@@ -1489,7 +1492,11 @@ export class GarminApi extends GarminClient {
 		return data.healthSnapshotScalar ?? [];
 	}
 
-	/** Daily hill scores across a range. `aggregation` shapes only the averages, not the list. */
+	/**
+	 * Daily hill scores across a range, up to 401 days (402 is HTTP 400): the
+	 * gateway proxies `hillScoreStats`. `aggregation` shapes only the averages,
+	 * not the list.
+	 */
 	async hillScores(start: string, end = start): Promise<HillScore[]> {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
@@ -1760,9 +1767,10 @@ export class GarminApi extends GarminClient {
 	}
 
 	/**
-	 * Hill score by REST, as the Hill Score page's 4w (daily), 12w (weekly) and
-	 * 1y (monthly) views ask for it. `hillScores` is the GraphQL route the sync
-	 * uses for the days alone.
+	 * Hill score by REST, as the web report's 4w (daily), 12w (weekly) and 1y
+	 * (monthly) views ask for it. The plugin's page asks for none of it: it
+	 * works every average out from the hill-score index, which `hillScores`
+	 * (the GraphQL route to the same rows) keeps.
 	 */
 	async hillScoreStats(start: string, end: string, aggregation: "daily" | "weekly" | "monthly"): Promise<HillScoreStats | null> {
 		assertIsoDate(start, "start");

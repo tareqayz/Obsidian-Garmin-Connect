@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/hillscore/stats",
 	"plugin": "GarminApi.hillScoreStats",
 	"firstRecorded": "2026-10-11T19:31:13.197Z",
-	"updatedAt": "2026-10-11T19:31:13.197Z",
-	"samples": 2,
+	"updatedAt": "2026-10-11T20:57:11.610Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"object"
@@ -37,6 +37,7 @@
 						},
 						"enduranceScore": {
 							"type": [
+								"null",
 								"number"
 							]
 						},
@@ -52,6 +53,7 @@
 						},
 						"overallScore": {
 							"type": [
+								"null",
 								"number"
 							]
 						},
@@ -62,6 +64,7 @@
 						},
 						"strengthScore": {
 							"type": [
+								"null",
 								"number"
 							]
 						},
@@ -85,6 +88,7 @@
 			},
 			"maxScore": {
 				"type": [
+					"null",
 					"number"
 				]
 			},
@@ -93,6 +97,18 @@
 					"object"
 				],
 				"fields": {
+					"2025-06-01": {
+						"type": [
+							"null"
+						],
+						"optional": true
+					},
+					"2025-08-02": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
 					"2025-11-01": {
 						"type": [
 							"number"
@@ -147,7 +163,49 @@
 						],
 						"optional": true
 					},
+					"2026-07-20": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-07-27": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
 					"2026-08-01": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-08-03": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-08-10": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-08-17": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-08-24": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-08-31": {
 						"type": [
 							"number"
 						],
@@ -159,13 +217,37 @@
 						],
 						"optional": true
 					},
+					"2026-09-07": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
 					"2026-09-14": {
 						"type": [
 							"number"
 						],
 						"optional": true
 					},
+					"2026-09-21": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-09-28": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
 					"2026-10-01": {
+						"type": [
+							"number"
+						],
+						"optional": true
+					},
+					"2026-10-05": {
 						"type": [
 							"number"
 						],

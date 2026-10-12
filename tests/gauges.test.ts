@@ -87,7 +87,9 @@ describe("gauges, the account on 2026-10-11", () => {
 		assert.deepEqual([g.value, g.label, g.at, g.tone], ["29", "Challenger", 0.29, "orange"]);
 		assert.equal(hillGauge(29).label, "Challenger");
 		assert.deepEqual([hillGauge(95).label, hillGauge(95).tone], ["Elite", "pink"]);
-		assert.deepEqual(HILL_CLASSES, ["Recreational", "Challenger", "Trained", "Well-Trained", "Expert", "Elite"]);
+		// Garmin's help table: "Skilled 70-84", not Endurance's "Well-Trained".
+		assert.deepEqual(HILL_CLASSES, ["Recreational", "Challenger", "Trained", "Skilled", "Expert", "Elite"]);
+		assert.equal(hillGauge(75, 4).label, "Skilled");
 	});
 
 	it("keep Running Economy 224 inside the class Garmin names: Intermediate", () => {
