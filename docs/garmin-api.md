@@ -192,13 +192,15 @@ fill the ones that are not Health Stats:
 | `trainingReadinessRange(start, end)` | `/metrics-service/metrics/trainingreadiness/{start}/{end}`: every reading, newest first | `training-readiness/` | 367 days, Garmin's cap |
 | `functionalThresholdPowerRange(start, end)`, `powerToWeightRange(start, end)` | `/biometric-service/stats/functionalThresholdPower/range/{start}/{end}`, `/biometric-service/stats/powerToWeight/range/{start}/{end}?aggregation=daily`: change points, every sport | `ftp/` | 367 days (Garmin's cap: end − start ≤ 366), two requests a window |
 | `lactateThresholdHeartRateRange(start, end)`, `lactateThresholdSpeedRange(start, end)` | `/biometric-service/stats/lactateThresholdHeartRate/range/{start}/{end}`, `…/lactateThresholdSpeed/range/{start}/{end}`: change points, sport `RUNNING` | `lactate-threshold/` | 367 days (Garmin's cap: end − start ≤ 366), two requests a window |
+| `runningEconomyDaily(start, end)` | `/metrics-service/metrics/runningeconomy/daily?startDate=&endDate=` | `running-economy/` | 366 days (Garmin's cap: one calendar year) |
 | `heatAltitudeAcclimationDaily(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/daily/{start}/{end}` | `heat-acclimation/` | 365 days (no cap found) |
 
 A routine sync takes the daily stats of the days it writes from the summaries it
 fetched anyway. It asks the three stats routes only for days it could not
 write, and for any gap since the index's newest day. The Performance Stats
 indexes take a routine sync's days from what it fetched anyway (the day routes
-and the range calls above), so the last eight routes serve their history walks; running tolerance's weeks
+and the range calls above), so the last nine routes serve their history walks (running economy's, which the
+day sync never asks, costs one request a sync); running tolerance's weeks
 ask for the last two weeks again on each sync, one request.
 
 ## Health Stats pages
