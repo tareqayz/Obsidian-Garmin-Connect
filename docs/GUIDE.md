@@ -92,6 +92,7 @@ The pages need more than a day's summary can hold. These files sit beside
 | `race-predictions/` | Race Predictor | `races` |
 | `training-status/` | Training Status, and Load's Training Load tab | `training` |
 | `endurance-score/` | Endurance Score | `fitness` |
+| `heat-acclimation/` | Heat Acclimation, and Training Status's Heat Acclimation row | `fitness` |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 They are rewritten only when their content changes.
@@ -310,17 +311,20 @@ order, as each is rebuilt; so far:
 
 | Page | Ranges | Group |
 | --- | --- | --- |
-| Training Status | Current, whose rows open VO₂ Max, HRV Status and Load; 4w, 12w, 6m | `training` |
+| Training Status | Current, whose rows open VO₂ Max, HRV Status, Load and Heat Acclimation; 4w, 12w, 6m | `training` |
 | HRV Status | 1d, 7d, 4w, with the Overnight Averages chip | `hrv` |
 | Race Predictor | Current, 4w, 6m, 1y, a chip per distance | `races` |
 | VO₂ Max | Current, 4w, 12w, 6m, for running and cycling | `fitness` |
 | Endurance Score | 1d, 12w, 1y, each with a Top Contributors tab | `fitness` |
 | Hill Score | 1d with its factors, 4w, 12w, 1y, and a month page | `fitness` |
 
-Each has an **Open …** command and opens from its card on Home. **Load** is
-not in the list: it opens from Training Status's Load row and from Home's Load
-Focus and Training Load cards, with a tab each for Load Focus, Exercise Load
-and Training Load over the last four weeks.
+Each has an **Open …** command and opens from its card on Home. Two pages are
+not in the list and open from Training Status's rows instead:
+- **Load**, also from Home's Load Focus and Training Load cards, with a tab
+  each for Load Focus, Exercise Load and Training Load over the last four
+  weeks;
+- **Heat Acclimation**, also from Home's heat card: the day's acclimation and
+  its trend, and 7d and 4w of daily progress.
 
 The histories are cheap: a year of Garmin's data per request, about two or
 three requests each for the whole history. Load keeps none of its own: it
@@ -340,7 +344,7 @@ All are in the command palette under **Garmin Connect:**.
 | Syncs | Commands |
 | --- | --- |
 | Days | **Sync recent days**, **Sync today**, **Sync a date range…** |
-| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history** |
+| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history** |
 
 | Other | What it does |
 | --- | --- |

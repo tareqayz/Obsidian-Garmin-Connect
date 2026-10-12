@@ -33,6 +33,9 @@ GitHub release takes its notes from the matching section here — see
     with its optimal band, the chronic load and the load ratio.
   - **Endurance Score**: today's dial and top contributors, and 12w / 1y of
     weekly and monthly scores with the sports behind each.
+  - **Heat Acclimation**, from Training Status and Home's heat card: the day's
+    acclimation and its trend, and 7d / 4w of daily progress. Training
+    Status's Heat Acclimation row reads the same history.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:

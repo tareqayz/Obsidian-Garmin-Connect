@@ -9,10 +9,10 @@ Known gaps and open questions, by area.
 
 ## Next up
 
-- **Performance Stats, the rest.** Training Status with Load, HRV Status, Race
-  Predictor, VO₂ Max, Endurance Score and Hill Score are built (see
-  "Performance Stats" below). Still to come through `/garmin-page`: Heat
-  Acclimation, Training Readiness, Training Effect, Running Tolerance, FTP,
+- **Performance Stats, the rest.** Training Status with Load and Heat
+  Acclimation, HRV Status, Race Predictor, VO₂ Max, Endurance Score and Hill
+  Score are built (see "Performance Stats" below). Still to come through
+  `/garmin-page`: Training Readiness, Training Effect, Running Tolerance, FTP,
   Running Lactate Threshold, Running Economy, Cycling Power Curve, Critical
   Swim Speed and HRV Stress (plan and status board:
   `ref/performance-stats/STATUS.md`).
@@ -71,6 +71,10 @@ items, to check on the phone:
   the colours of groups and types not seen here (ours: a type of its own is
   pink, Multisport purple); the class ids of Recreational, Intermediate and
   Elite; where the phone's 1d legend wraps.
+- **Heat Acclimation:** only "Trending up" was shot — the other trends' glyph,
+  line and copy are ours ("Trending down from N%.", "Maintaining
+  acclimation.", no copy); 72°F for imperial accounts; a day without a row,
+  and the 0% state; the line bridging the history's Jan 5–9 gap.
 - **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
   one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
   a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an

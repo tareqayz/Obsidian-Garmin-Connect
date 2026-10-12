@@ -187,12 +187,13 @@ fill the ones that are not Health Stats:
 | `hrvDaily(start, end)` | `/hrv-service/hrv/daily/{start}/{end}` | `hrv-status/` | 367 days, Garmin's cap |
 | `trainingStatusWeekly(start, end)` | `/metrics-service/metrics/trainingstatus/weekly/{who}`: a row a day, despite the name | `training-status/` | 365 days (no cap found) |
 | `enduranceStats(start, end, "daily")` | `/metrics-service/metrics/endurancescore/stats?aggregation=daily` | `endurance-score/` | 365 days (Garmin's cap is 401) |
+| `heatAltitudeAcclimationDaily(start, end)` | `/metrics-service/metrics/heataltitudeacclimation/daily/{start}/{end}` | `heat-acclimation/` | 365 days (no cap found) |
 
 A routine sync takes the daily stats of the days it writes from the summaries it
 fetched anyway. It asks the three stats routes only for days it could not
 write, and for any gap since the index's newest day. The Performance Stats
 indexes take a routine sync's days from what it fetched anyway (the day routes
-and the range calls above), so the last three routes serve their history walks.
+and the range calls above), so the last four routes serve their history walks.
 
 ## Health Stats pages
 

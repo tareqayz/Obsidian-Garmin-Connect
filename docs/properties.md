@@ -717,6 +717,7 @@ They are listed here because they are part of what the plugin writes.
 | `race-predictions/` | `races` | Race Predictor | Predicted times in seconds: `time5k`, `time10k`, `half`, `marathon` |
 | `training-status/` | `training` | Training Status, Load's Training Load tab | `code` (Garmin's status: 0 No Status, 1 Detraining … 8 Strained), `phrase` (the copy's key); the `acute` and `chronic` load and their `ratio` (one decimal), with its status `acwr`, gauge place `acwrPct` and copy key `acwrFeedback`; the VO₂ Max `trend` (3 rising, 2 level, 1 falling) and its sport `trendSport`; `paused` |
 | `endurance-score/` | `fitness` | Endurance Score | `score`, `classId` (1 Recreational … 7 Elite; 0 while calibrating), `phraseId`, and `contrib`: the day's contributors as text, a group (`g`) or activity type (`t`) id and its share, largest first ("g0:93.54 t31:2.37 g8:2.03") |
+| `heat-acclimation/` | `fitness` | Heat Acclimation, Training Status's Heat Acclimation row | `pct` (0–100), `prev` (Garmin's previous reading, which the trend line quotes), `trend` (`ACCLIMATIZING`, `ACCLIMATIZED`, `DEACCLIMATIZING`; none at 0%); kept for a later altitude page: `altitude` and `altitudePrev` (m), `altitudeTrend`, `altitudeNow` (the altitude it was worked out at, m) |
 
 A sleep row has the night's `score` and `quality`, the `seconds` asleep and
 in each stage (`deep`, `light`, `rem`, `awake`), the Sleep Coach `need` in
