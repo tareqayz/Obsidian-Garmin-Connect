@@ -170,9 +170,11 @@ export interface DaySeries {
 	sleep?: SleepDetail;
 	bodyBatteryEvents?: BodyBatteryMarker[];
 	/**
-	 * Blocks a Health Stats page had fetched on view, by the key its
-	 * definition registered (`intraday-registry.ts`). A sync's own write of
-	 * the day starts the file afresh, so they are fetched again on the next view.
+	 * Blocks a stat page had fetched on view, by the key its definition
+	 * registered (`intraday-registry.ts`). A sync's own write of the day starts
+	 * the file afresh, so they are fetched again on the next view — except a
+	 * definition's `fromDay` block (HRV Status's night), which the sync writes
+	 * itself from the payload it already fetched and never erases.
 	 */
 	extra?: Record<string, unknown>;
 	/** Keys fetched on view, data or not, so a day Garmin had nothing for is not asked again. */

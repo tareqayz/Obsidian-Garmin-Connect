@@ -453,6 +453,11 @@ and resolves with the day's series.
 - A sync's own write of a day replaces the file, as it always has, extras and
   `checked` included. That is what keeps a recent day's on-view blocks fresh:
   the next view fetches them again.
+- An extra with `fromDay(day, date)` is written by the sync itself, for every
+  synced day whose payload the day sync already fetched (HRV Status's night
+  from `hrv`), merged into the file and carried through the sync's own write.
+  An empty or failed fetch never erases a block an earlier sync kept: Garmin
+  drops old HRV readings (none before 2026-06-01), so the vault keeps them.
 
 A day page reads its series, and when `missingKeys(series, keys)` is not empty
 shows the day's summary from its index while `loadIntraday` runs, as Sleep's

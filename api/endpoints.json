@@ -3201,11 +3201,20 @@
 				"hrvSummary.status"
 			],
 			"schema": "schema/hrv-data.json",
-			"notes": "Returns null on days with no overnight HRV recording.",
+			"notes": "Null (HTTP 204) for a night with no data, including today before it syncs. hrvReadings are 5-minute values, gaps left out; [] with null sleep times on a night without an overnight value and on every night before 2026-06-01 (no readings kept, as for HR/stress intraday). The summary equals the night's hrv-data-range row. lastNight5MinHigh = the top reading. Times: use the ...Local fields. The day sync keeps a night with readings in its series file (extra.hrvDay) and the HRV Status 1d page loads one on view.",
 			"reads": [
 				"hrvSummary.baseline.balancedLow",
 				"hrvSummary.baseline.balancedUpper",
-				"hrvSummary.baseline.lowUpper"
+				"hrvSummary.baseline.lowUpper",
+				"hrvSummary.baseline.markerValue",
+				"hrvSummary.feedbackPhrase",
+				"hrvReadings[].hrvValue",
+				"hrvReadings[].readingTimeLocal",
+				"hrvReadings[].readingTimeGMT",
+				"sleepStartTimestampLocal",
+				"sleepEndTimestampLocal",
+				"sleepStartTimestampGMT",
+				"sleepEndTimestampGMT"
 			]
 		},
 		{
@@ -3238,18 +3247,22 @@
 			"check": true,
 			"critical": [
 				"hrvSummaries",
-				"hrvSummaries[].calendarDate"
+				"hrvSummaries[].calendarDate",
+				"hrvSummaries[].status"
 			],
 			"reads": [
 				"hrvSummaries[].lastNightAvg",
 				"hrvSummaries[].weeklyAvg",
 				"hrvSummaries[].lastNight5MinHigh",
-				"hrvSummaries[].baseline",
-				"hrvSummaries[].status",
-				"hrvSummaries[].feedbackPhrase"
+				"hrvSummaries[].baseline.lowUpper",
+				"hrvSummaries[].baseline.balancedLow",
+				"hrvSummaries[].baseline.balancedUpper",
+				"hrvSummaries[].baseline.markerValue",
+				"hrvSummaries[].feedbackPhrase",
+				"hrvSummaries[].createTimeStamp"
 			],
 			"schema": "schema/hrv-data-range.json",
-			"notes": "{hrvSummaries, userProfilePk}, a night a row in ms; nights without a reading are left out, and a span with none is HTTP 204 (null). The HRV Status 7d/4w views and Health Status's HRV tile read it. 367 days a call at most (368 is HTTP 400), not the 28 of the stats routes."
+			"notes": "{hrvSummaries, userProfilePk}, a night a row in ms, oldest first; nights without data are left out and a span with none is HTTP 204 (null). 367 days a call at most (368 is HTTP 400, re-verified 2026-10-12). History from 2025-08-03. status NONE: ONBOARDING_1 (first 18 nights, baseline null, weeklyAvg from night 4) or ONBOARDING_2 (after gaps: weeklyAvg and markerValue null). lastNightAvg/lastNight5MinHigh can be null with weeklyAvg and status present. markerValue = (weeklyAvg - (balancedLow - D/2)) / (2D), D = balancedUpper - balancedLow, when weeklyAvg >= balancedLow; another mapping below. Rows can appear up to 26 days after their night. The HRV Status page's index (hrv-status) reads it."
 		},
 		{
 			"id": "hrv-stress-daily",
