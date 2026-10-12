@@ -93,6 +93,7 @@ The pages need more than a day's summary can hold. These files sit beside
 | `training-status/` | Training Status, and Load's Training Load tab | `training` |
 | `endurance-score/` | Endurance Score | `fitness` |
 | `heat-acclimation/` | Heat Acclimation, and Training Status's Heat Acclimation row | `fitness` |
+| `training-readiness/` | Training Readiness; a day's every reading goes into that day's series file | `readiness` |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 They are rewritten only when their content changes.
@@ -312,6 +313,7 @@ order, as each is rebuilt; so far:
 | Page | Ranges | Group |
 | --- | --- | --- |
 | Training Status | Current, whose rows open VO₂ Max, HRV Status, Load and Heat Acclimation; 4w, 12w, 6m | `training` |
+| Training Readiness | A day at a time, with a sheet for each of its six factors | `readiness` |
 | HRV Status | 1d, 7d, 4w, with the Overnight Averages chip | `hrv` |
 | Race Predictor | Current, 4w, 6m, 1y, a chip per distance | `races` |
 | VO₂ Max | Current, 4w, 12w, 6m, for running and cycling | `fitness` |
@@ -339,12 +341,12 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
 | A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
-| Performance Stats | **Open performance stats**, **Open training status**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open endurance score**, **Open hill score** |
+| Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open endurance score**, **Open hill score** |
 
 | Syncs | Commands |
 | --- | --- |
 | Days | **Sync recent days**, **Sync today**, **Sync a date range…** |
-| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history** |
+| A history | **Sync activity history**, **Sync step, floor and intensity history**, **Sync sleep history**, **Sync stress history**, **Sync heart rate history**, **Sync body battery history**, **Sync respiration history**, **Sync health status history**, **Sync fitness age history**, **Sync weight history**, **Sync pulse ox history**, **Sync blood pressure history**, **Sync VO₂ max history**, **Sync hill score history**, **Sync HRV status history**, **Sync race predictions history**, **Sync training status history**, **Sync endurance score history**, **Sync heat acclimation history**, **Sync training readiness history** |
 
 | Other | What it does |
 | --- | --- |

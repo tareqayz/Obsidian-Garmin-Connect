@@ -36,6 +36,11 @@ GitHub release takes its notes from the matching section here — see
   - **Heat Acclimation**, from Training Status and Home's heat card: the day's
     acclimation and its trend, and 7d / 4w of daily progress. Training
     Status's Heat Acclimation row reads the same history.
+  - **Training Readiness**, also from Home's In Focus card: the day's reading
+    on Garmin's dial with when and why it was updated, and its six factors,
+    each opening a sheet — the night's sleep, recovery time, HRV, acute load,
+    recent sleep scores and recent stress. The sync keeps every reading of the
+    day, and a day stepper goes back through the history.
 - **Activity details for runs.** A run opens its own page from its sport's
   page, a month, All Activities, Personal Records or Home's Today's Activity,
   as in Garmin's app:
@@ -63,6 +68,7 @@ GitHub release takes its notes from the matching section here — see
   days, and Garmin's class 4 reads "Skilled", as the app's help names it.
 - **Home's VO₂ Max dial** uses Garmin's own scale ends, which moves its marker
   by under 1%.
+- **Home's Training Readiness card** writes "Well-recovered", as Garmin does.
 - **The activity index** keeps each activity's training effect, benefit,
   load and a ride's best powers. It is listed again once, about a request per
   hundred activities.
