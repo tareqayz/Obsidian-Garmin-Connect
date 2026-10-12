@@ -44,6 +44,15 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
   Full/Half 437:140→444:427. Variables `performance/*` (Garmin 431:2–431:24, Obsidian
   431:25–431:47); text styles Dial Value L 43, Dial Unit 20, Sheet Title 22 SB (both prefixes).
   A dial's marker can't move inside an instance: turn Marker off and place a Dial Marker.
+  Added 2026-10-12 (Garmin / twin): Period Arrow 841:179 / 841:692 and Period Nav 841:221 /
+  841:734 (Compact or Wide × Current, Past, Today), Segmented 842:179 / 842:657, More Button
+  828:165 / 828:621, Glyph Disc 842:697 / 842:726, Stats 842:741 / 842:756, Legend Row 843:213 /
+  843:714, Chart Heading 842:188 / 842:666, Stat Dial "7 Bands · Economy" 844:193 / 844:135748,
+  Dial Marker "Ring 3" 844:191 / 844:135746, Legend Item set 837:561 / 837:135701 (Size 12 | 11 ×
+  Marker), Chip Size=32, Table Row Results 52.33 (838:179 / 838:135688). Title Bar has an Action
+  axis (None / Help / More, default None; 61:10 is Action=Edit) and Page Bar an `Action` boolean.
+  Variables 825:2–825:49 (economy, lt, tolerance, power-curve, status, sport). Older pages keep
+  local copies of these; use the shared ones on new pages.
 
 ## Conventions
 

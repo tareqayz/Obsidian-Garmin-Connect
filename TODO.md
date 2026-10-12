@@ -125,12 +125,14 @@ items, to check on the phone:
   (bump each index's `version` when the first real row arrives); statute
   units; the ⋮ menu and Help; "‹" stops at an empty history (ours; the phone
   keeps it on).
-- **Figma housekeeping** (shared Performance band, file 8D338zFIJ1a2zrsuligjva):
-  one Period Arrow / Period Nav set with 20/17 and 24/15 sizes (each stat has
-  a local copy); a 32 pt Chip size; Shape Marker's triangle and diamond have an
-  unbound black stroke; Title Bar 61:10 needs a "Help" action and an "Edit"
-  switch; a Status Row "Dimmed" variant (the whole row at 50%); text styles
-  Semi Bold 20/24, Copy 17/20 and Dial Value M 41/50.
+- **Figma follow-ups** (file 8D338zFIJ1a2zrsuligjva; the shared Performance band
+  was tidied on 2026-10-12 — new shared Period Arrow / Nav, Segmented, More
+  Button, Glyph Disc, Stats, Legend Row, Chart Heading, an Economy dial kind,
+  48 variables and 13 text styles): swap each page's local copies (Period
+  Arrow / Nav above all) for the shared ones; re-link page text to the new
+  styles; move existing Title Bars to the new Action variants (None / Help /
+  More) and re-measure an Edit variant; a wide stepper with a 17 pt Semi Bold
+  label for Training Effect.
 
 ## Home
 
