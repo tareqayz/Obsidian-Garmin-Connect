@@ -102,6 +102,16 @@ describe("gauges, the account on 2026-10-11", () => {
 		assert.equal(economyGauge(224, "NEW_CLASS").at, undefined);
 		assert.equal(economyGauge(224).label, undefined);
 	});
+
+	it("name Running Economy's classes as the help table does: Well-Trained, not titleCase's Well Trained", () => {
+		const g = economyGauge(200, "WELL_TRAINED");
+		assert.deepEqual([g.label, g.tone], ["Well-Trained", "green"]);
+		// Halfway through the class: 205 → 195 inside its band.
+		near(g.at, 0.639);
+		// However the word is spelled; an unknown word as it comes, without a marker.
+		assert.equal(economyGauge(200, "Well-Trained").at, g.at);
+		assert.deepEqual([economyGauge(224, "NEW_CLASS").label, economyGauge(224, "NEW_CLASS").at], ["New Class", undefined]);
+	});
 });
 
 describe("At a Glance's dials", () => {

@@ -8,6 +8,7 @@ import HeatAcclimationPage from "../heat-acclimation/HeatAcclimationPage.svelte"
 import HillScorePage from "../hill-score/HillScorePage.svelte";
 import HrvStatusPage from "../hrv-status/HrvStatusPage.svelte";
 import RacePredictorPage from "../race-predictor/RacePredictorPage.svelte";
+import RunningEconomyPage from "../running-economy/RunningEconomyPage.svelte";
 import RunningLactateThresholdPage from "../running-lactate-threshold/RunningLactateThresholdPage.svelte";
 import RunningTolerancePage from "../running-tolerance/RunningTolerancePage.svelte";
 import TrainingEffectPage from "../training-effect/TrainingEffectPage.svelte";
@@ -45,4 +46,5 @@ export const PERFORMANCE_PAGES: Partial<Record<PerformanceStatPageId, Component<
 	"running-tolerance": RunningTolerancePage,
 	ftp: FtpPage,
 	"running-lactate-threshold": RunningLactateThresholdPage,
+	"running-economy": RunningEconomyPage,
 };

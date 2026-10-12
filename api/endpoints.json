@@ -4540,7 +4540,7 @@
 				"[].classification"
 			],
 			"schema": "schema/running-economy-daily.json",
-			"notes": "[{calendarDate, score, classification}] for every day of the span, score and classification null on days without one (2026-09-14..10-11: 28 rows, 6 scored). Lower is better. The Running Economy 4w view (rolling 28 days); the page also asks running-economy-latest for the span's first day. No cap seen."
+			"notes": "[{calendarDate, score, classification}], oldest first. With a reading in the window: one row per calendar day, score and classification null on days without one (also before the history and today). Without one: []. Cap endDate \u2264 startDate + 1 calendar year: 366 calendar days \u2192 200, 367 \u2192 HTTP 400 (2025-10-10..2026-10-11), 367 across Feb 29 \u2192 200, 368 \u2192 400. Whole-number scores (ml O\u2082/kg/km), lower is better. classification follows the help table (Recreational \u2265 225, Intermediate 215\u2013224, Trained 205\u2013214, Well-Trained 195\u2013204, Expert 190\u2013194, Superior 185\u2013189, Elite \u2264 184; 87 of 87 days agree). History from 2025-08-16. The Running Economy index asks it in 366-day windows."
 		},
 		{
 			"id": "running-economy-latest",
@@ -4567,12 +4567,13 @@
 			],
 			"cadence": "sync",
 			"check": true,
-			"critical": [],
-			"schema": "schema/running-economy-latest.json",
-			"notes": "Latest running economy score and classification.",
-			"reads": [
+			"critical": [
 				"calendarDate",
-				"score",
+				"score"
+			],
+			"schema": "schema/running-economy-latest.json",
+			"notes": "{calendarDate, score, classification}: the newest reading on or before {date} (latest/2026-09-14 \u2192 2026-07-30 221). HTTP 204 (null) before the first reading. The account sync asks it for today (account.runningEconomy); the web also asks it for each range's first day.",
+			"reads": [
 				"classification"
 			]
 		},
@@ -4611,7 +4612,7 @@
 				"[].classification"
 			],
 			"schema": "schema/running-economy-weekly.json",
-			"notes": "[{startDate, endDate, score, classification}] for seven-day weeks counted from startDate, the last running past endDate (2025-10-12..2026-10-11: 53 rows, the last 2026-10-11..10-17), null where there is none. The Running Economy 12w and 1y views. No cap seen up to 365 days."
+			"notes": "[{startDate, endDate, score, classification}]: 7-day blocks counted from startDate (any weekday), endDate = startDate + 6 even past the window; a block counts only readings up to the window's endDate. score = the block's LOWEST daily score, not a mean (2026-03-28..04-03 holds 216/217/218 \u2192 216; 124 of 124 blocks agree; floor(mean) fails that one). null for a block without a reading; [] for a window without one. Same 1-year cap (366 \u2192 200, 367 \u2192 400). The phone's 12w and 1y equal it with the period's first and last day; the plugin computes it from the daily index."
 		},
 		{
 			"id": "running-tolerance",

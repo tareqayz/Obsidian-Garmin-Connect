@@ -25,7 +25,18 @@ const TWIN: Record<Exclude<DialKind, "tolerance">, { angles: number[]; tones: To
 	},
 	hrv: { angles: [-150, -118.4, -75.2, 88.1, 150], tones: ["red", "orange", "green", "orange"], at: 23.4, cap: [56, 170.75], marker: [131.36, 20.91] },
 	recovery: { angles: [-150, 150], tones: ["red"], cap: [56.5, 169.88] },
+	// Running Economy's linear 235 → 180, its edges at 225 / 215 / 205 / 195 / 190 / 185; 224 at −90° (the shot's −90.06°).
+	economy: {
+		angles: [-150, -95.45, -40.91, 13.64, 68.18, 95.45, 122.73, 150],
+		tones: ["red", "orange", "yellow", "green", "blue", "purple", "pink"],
+		at: -90,
+		cap: [54.25, 173.78],
+		marker: [10.5, 98],
+	},
 };
+
+/** The marker's ring round the dot, where it isn't 2 pt. */
+const OUTLINE: Partial<Record<DialKind, number>> = { readiness: 4, hrv: 4, economy: 3 };
 
 const near = (actual: number, expected: number, tolerance = 0.01) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not ${expected}`);
 
@@ -83,7 +94,9 @@ describe("the stat dial, against its twin", () => {
 			if (twin.marker) {
 				near(g.marker!.x, twin.marker[0]);
 				near(g.marker!.y, twin.marker[1]);
-				assert.equal(g.marker!.outline, kind === "readiness" || kind === "hrv" ? 4 : 2, kind);
+				assert.equal(g.marker!.outline, OUTLINE[kind] ?? 2, kind);
+				// The dot is 16 pt across, Running Economy's 15.
+				assert.equal(g.marker!.r, kind === "economy" ? 7.5 : 8, kind);
 			} else {
 				assert.equal(g.marker, undefined, kind);
 			}

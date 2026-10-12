@@ -23,7 +23,7 @@ export const DIAL_END = 150;
 /** The marker's dot, 16 pt across. */
 export const MARKER_RADIUS = 8;
 
-export type DialKind = "vo2" | "readiness" | "ftp" | "hill" | "endurance" | "hrv" | "tolerance" | "recovery";
+export type DialKind = "vo2" | "readiness" | "ftp" | "hill" | "endurance" | "hrv" | "tolerance" | "recovery" | "economy";
 
 /** A line of text in the dial, as the twin sets it: its box's top in the 196 box, and its size. */
 export interface DialText {
@@ -39,8 +39,10 @@ export interface DialSpec {
 	width: number;
 	/** Degrees left empty between two bands. */
 	gap: number;
-	/** The marker's outline round the dot: 2 pt (ring) or 4 pt (halo); none for a dial without one. */
+	/** The marker's outline round the dot: 2 pt (ring), 3 pt (Running Economy's) or 4 pt (halo); none for a dial without one. */
 	outline: number;
+	/** The marker's dot, where it isn't `MARKER_RADIUS`: Running Economy's is 15 pt across. */
+	markerRadius?: number;
 	/** VO₂ Max lays its bands over a ring in the page's colour, which shows in the gaps. */
 	separators?: boolean;
 	/** Running Tolerance: a full ring, a track and the value's share, no bands. */
@@ -70,6 +72,18 @@ export const DIAL_KINDS: Readonly<Record<DialKind, DialSpec>> = {
 	},
 	tolerance: { radius: 84, width: 8, gap: 0, outline: 0, full: true, value: { top: 66.87, size: 35, line: 42 }, label: { top: 109.25, size: 16, line: 21 } },
 	recovery: { radius: 88, width: 10, gap: 0, outline: 0, value: { top: 68.26, size: 35, line: 39.7 }, label: { top: 107.5, size: 15, line: 20 } },
+	// Running Economy's own dial (twin 751:9924, off the 2026-10-11 Current shot): the ring 82.55 → 92.45, 3.26°
+	// gaps, a Ø 15 marker in a 3 pt ring, the number's box at 76.2. No line inside: the class word sits under the
+	// dial, so the page passes none and `label` only keeps the type whole.
+	economy: {
+		radius: 92.45,
+		width: 9.9,
+		gap: 3.26,
+		outline: 3,
+		markerRadius: 7.5,
+		value: { top: 76.2, size: 35, line: 42 },
+		label: { top: 118.2, size: 15, line: 20 },
+	},
 };
 
 /** A fraction of the sweep as an angle: 0 → −150°, 1 → 150°. */
@@ -164,7 +178,7 @@ export function dialGeometry(kind: DialKind, gauge: Pick<Gauge, "segments" | "at
 	if (gauge?.at !== undefined && spec.outline > 0) {
 		const angle = dialAngle(gauge.at);
 		const [x, y] = dialPoint(rc, angle);
-		geometry.marker = { x, y, angle, tone: gauge.tone, r: MARKER_RADIUS, outline: spec.outline };
+		geometry.marker = { x, y, angle, tone: gauge.tone, r: spec.markerRadius ?? MARKER_RADIUS, outline: spec.outline };
 	}
 	return geometry;
 }

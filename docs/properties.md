@@ -459,7 +459,7 @@ Nothing in the day files; about nine requests per sync, written to
 | `device` — `name`, `imageUrl`, `lastUpload` | `deviceservice/mylastused` |
 | `lactateThreshold` — `date`, `heartRate`, `speed` (m/s), `pace` | `biometric/latestLactateThreshold`, user settings as a fallback. Garmin's `speed` is tenths of m/s, kept to 5 dp so the pace rounds as Garmin's does |
 | `ftp.running` / `ftp.cycling` / `ftp.xcSkiing` — `date`, `watts`, `wattsPerKg` (2 dp), `ftpDate`, `weight` (kg, 1 dp), `weightDate`, `stale` | `biometric/powerToWeight/latest/{date}`, one call with no `sport` filter, which returns a row per sport. `date` is the newer of the FTP's day (`ftpCreateTime`) and the weigh-in's (`weightCreateTime`); `stale` is Garmin's `isStale`, an FTP more than a year old |
-| `runningEconomy` — `score`, `classification` | `runningeconomy/latest/{date}` |
+| `runningEconomy` — `date`, `score`, `classification` | `runningeconomy/latest/{date}`: the newest reading on or before today, `date` its day (`calendarDate`). Running Economy's Current shows it when the page's index has no reading or only older ones |
 | `cyclingAbility` | GraphQL `cyclingAbility.latest` |
 | `trainingPlans` | `trainingplan/plans`, completed plans left out |
 | `events` — `name`, `date`, `type`, `distanceMetres`, `goalSeconds` | GraphQL `myDayCardEventsScalar` |

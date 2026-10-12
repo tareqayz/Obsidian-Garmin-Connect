@@ -182,7 +182,8 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"max-metrics-latest": async (api, w) => [await api.maxMetricsLatest(w.days[0]!)],
 	"max-metrics-weekly": async (api, w) => [await api.maxMetricsWeekly(w.rangeStart, w.rangeEnd)],
 	"max-metrics-monthly": async (api, w) => [await api.maxMetricsMonthly(yearBefore(w.rangeEnd), w.rangeEnd)],
-	"running-economy-daily": async (api, w) => [await api.runningEconomyDaily(w.rangeStart, w.rangeEnd)],
+	// A year, as the index asks it: a few weeks are often [] (readings come only from qualifying runs), which checks no shape.
+	"running-economy-daily": async (api, w) => [await api.runningEconomyDaily(yearBefore(w.rangeEnd), w.rangeEnd)],
 	"running-economy-weekly": async (api, w) => [await api.runningEconomyWeekly(yearBefore(w.rangeEnd), w.rangeEnd)],
 	// The power curve's end is exclusive, so the span runs to the day after.
 	"power-curve": async (api, w) => [await api.cyclingPowerCurve(yearBefore(w.rangeEnd), dayAfter(w.rangeEnd))],

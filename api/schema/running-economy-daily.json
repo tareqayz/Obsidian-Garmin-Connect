@@ -3,8 +3,8 @@
 	"path": "/metrics-service/metrics/runningeconomy/daily",
 	"plugin": "GarminApi.runningEconomyDaily",
 	"firstRecorded": "2026-10-11T19:31:12.342Z",
-	"updatedAt": "2026-10-11T19:31:12.342Z",
-	"samples": 2,
+	"updatedAt": "2026-10-12T12:14:50.038Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"array"

@@ -191,6 +191,11 @@ describe("banded dials", () => {
 		assert.equal(economyView({ runningEconomy: { classification: "INTERMEDIATE" } }), null);
 		assert.equal(economyView({ runningEconomy: { score: 224, classification: "NEW_CLASS" } })!.at, undefined);
 	});
+
+	it("names the Running Economy card's class as its page does: Well-Trained", () => {
+		const g = economyView({ runningEconomy: { date: "2026-09-28", score: 200, classification: "WELL_TRAINED" } })!;
+		assert.deepEqual([g.value, g.label, g.tone], ["200", "Well-Trained", "green"]);
+	});
 });
 
 describe("how far back a card looks", () => {

@@ -807,14 +807,16 @@ export interface TrainingLoadBalance {
 /**
  * Running economy, lower is better: a day (`calendarDate`) or a week
  * (`startDate` to `endDate`). The ranges send every day or week of the span,
- * `score` and `classification` null where there is none.
+ * `score` and `classification` null where there is none — only when the span
+ * holds a reading; otherwise `[]`.
  */
 export interface RunningEconomyScore {
 	calendarDate?: string;
 	startDate?: string;
 	endDate?: string;
+	/** A whole number, ml of oxygen per kg per km. */
 	score?: number | null;
-	/** `INTERMEDIATE`, `TRAINED`… */
+	/** `RECREATIONAL`, `INTERMEDIATE`, `TRAINED`, `WELL_TRAINED`, `EXPERT`, `SUPERIOR`, `ELITE`: the help table's class of the score. */
 	classification?: string | null;
 	[key: string]: unknown;
 }
@@ -1846,15 +1848,24 @@ export class GarminApi extends GarminClient {
 		)) ?? [];
 	}
 
-	/** Running economy a day, every day of the span (28 for the 4w view), null where there is none. */
+	/**
+	 * Running economy a day, oldest first. A span holding a reading sends every
+	 * day of it (28 for the 4w view), null where there is none; a span without
+	 * one sends `[]`. The span is at most one calendar year, `end` ≤ `start` +
+	 * 1 year: 366 days → 200, 367 → HTTP 400 (367 across Feb 29 → 200, 368 →
+	 * 400). The Running Economy index asks it in 366-day windows.
+	 */
 	async runningEconomyDaily(start: string, end: string): Promise<RunningEconomyScore[]> {
 		return this.runningEconomyRange("daily", start, end);
 	}
 
 	/**
-	 * Running economy a week: seven-day weeks counted from `start`, the last
-	 * one running past `end`, each with null where there is none. The 12w and
-	 * 1y views (53 rows for 2025-10-12 → 2026-10-11).
+	 * Running economy a week: seven-day blocks counted from `start` (any
+	 * weekday), the last one's `endDate` running past `end`, each with null
+	 * where there is none; `[]` for a span without a reading. Each block's
+	 * score is its lowest reading up to `end`, not a mean. The same one-year
+	 * cap as the days. The 12w and 1y views (53 rows for 2025-10-12 →
+	 * 2026-10-11); the plugin computes them from the daily index instead.
 	 */
 	async runningEconomyWeekly(start: string, end: string): Promise<RunningEconomyScore[]> {
 		return this.runningEconomyRange("weekly", start, end);
@@ -2014,6 +2025,11 @@ export class GarminApi extends GarminClient {
 		)) ?? [];
 	}
 
+	/**
+	 * Running economy as of `date`, `{calendarDate, score, classification}`:
+	 * the newest reading on or before `date` (latest/2026-09-14 is 2026-07-30's
+	 * 221); null (HTTP 204) before the first. The account sync asks it for today.
+	 */
 	async runningEconomy(date: string): Promise<Record<string, unknown> | null> {
 		assertIsoDate(date);
 		return this.request(`/metrics-service/metrics/runningeconomy/latest/${date}`);

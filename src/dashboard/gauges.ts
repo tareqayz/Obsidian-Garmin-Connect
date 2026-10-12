@@ -1,4 +1,5 @@
 import { titleCase } from "./day";
+import { economyClassName, economyWord } from "./running-economy-copy";
 
 /**
  * Garmin's banded dials: each stat's bands, their colours and names, the
@@ -224,13 +225,19 @@ const ECONOMY_RANGES: Array<[number, number]> = [
 	[185, 175],
 ];
 
-/** `classification` is Garmin's own word, "INTERMEDIATE"; one this build does not know leaves the marker off. */
+/**
+ * `classification` is Garmin's own word, "INTERMEDIATE"; one this build does
+ * not know leaves the marker off. The class is named as the help table and
+ * the Running Economy page name it: "Well-Trained", where `titleCase` would
+ * say "Well Trained".
+ */
 export function economyGauge(score: number, classification?: string): Gauge {
 	const segments = bands(ECONOMY_BOUNDS, SEVEN);
-	const index = ECONOMY_CLASSES.indexOf((classification ?? "").toUpperCase());
+	const index = ECONOMY_CLASSES.indexOf(economyWord(classification) ?? "");
 	const shown = String(Math.round(score));
-	if (index < 0) return gauge(shown, segments, undefined, titleCase(classification));
+	const label = economyClassName(classification) ?? titleCase(classification);
+	if (index < 0) return gauge(shown, segments, undefined, label);
 	const [worse, better] = ECONOMY_RANGES[index]!;
 	const at = within(worse - score, 0, worse - better, segments[index]!);
-	return gauge(shown, segments, at, titleCase(classification));
+	return gauge(shown, segments, at, label);
 }
