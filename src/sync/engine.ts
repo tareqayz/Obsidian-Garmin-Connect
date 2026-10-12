@@ -29,6 +29,7 @@ import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
+import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef } from "./intraday-registry";
 import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
 	bucketWorkoutsByDate,
@@ -80,6 +81,12 @@ export type WriteOutcome = "written" | "unchanged" | "missing";
 /** Where a day's intraday series end up — a file per day. */
 export interface SeriesTarget {
 	write(date: string, series: DaySeries): Promise<"written" | "unchanged">;
+	/**
+	 * The day's file as it stands, so the blocks a sync keeps itself (an
+	 * extra's `fromDay`) can be folded in without losing the rest. Without
+	 * it those blocks only ride along with a day the sync writes anyway.
+	 */
+	read?(date: string): Promise<DaySeries | null>;
 }
 
 /** Where a day's properties end up. Obsidian lives behind this. */
@@ -182,6 +189,13 @@ export interface SyncOptions {
 	 * not cover, the stretch since the index's newest day included.
 	 */
 	indexes?: readonly DayIndexRuntime[];
+	/**
+	 * The registered intraday extras (`INTRADAY_EXTRAS`). Those with
+	 * `fromDay` are kept from the day's own payloads into its series file,
+	 * every day of the run whose group is on, at no request of their own;
+	 * the rest load on view only. Needs `series`.
+	 */
+	extras?: readonly IntradayDef[];
 	/**
 	 * How many of the newest days in a run get intraday series. They cost six
 	 * requests a day, and a year's backfill of them would be 2,190 requests for
@@ -486,6 +500,9 @@ export async function syncRange(
 
 	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
 	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
+	// Blocks kept from the day's own payloads go where the series go.
+	const extras = opts.series ? (opts.extras ?? []) : [];
+	const kept = keptKeys(extras);
 	let emptyRun = 0;
 	let done = 0;
 
@@ -535,9 +552,12 @@ export async function syncRange(
 		const result: DayResult = { date, status: "no-data", properties: count };
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
-		if (series && !isEmptySeries(series) && opts.series) {
+		// Every synced day, not only the newest few: what Garmin may drop later is kept now.
+		const fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
+		const writing = series && !isEmptySeries(series) ? series : null;
+		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await opts.series.write(date, series)) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept)) === "written") report.seriesWritten += 1;
 			} catch (err) {
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
@@ -601,6 +621,28 @@ export async function syncRange(
 		if (fatal) return stop(report, fatal, log);
 	}
 	return finish(report, log);
+}
+
+/**
+ * A day's series file after the sync: the series it made for the day, when it
+ * made one, with the blocks the extras keep (`fresh`) folded in over what the
+ * file holds (`keepBlocks`). Only reads the file when there are kept blocks to
+ * carry or fold in. A target that cannot read gets the day's series and its
+ * fresh blocks alone, and no write of kept blocks by themselves, which would
+ * replace a file it cannot see. Null when nothing was written.
+ */
+async function writeSeries(
+	target: SeriesTarget,
+	date: string,
+	writing: DaySeries | null,
+	fresh: Readonly<Record<string, unknown>>,
+	kept: readonly string[],
+): Promise<"written" | "unchanged" | null> {
+	const merging = writing ? kept.length > 0 : Object.keys(fresh).length > 0;
+	if (merging && !target.read && !writing) return null;
+	const stored = merging && target.read ? await target.read(date) : null;
+	const next = keepBlocks(stored, writing, fresh, kept);
+	return next ? target.write(date, next) : null;
 }
 
 /* ------------------------------------------------------------------ */

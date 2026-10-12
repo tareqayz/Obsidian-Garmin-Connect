@@ -1,7 +1,7 @@
 import type { DailyStress, GarminApi, HeartRateData } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
 import { epochOf, mapSeries, type DaySeries } from "./intraday";
-import type { MetricGroup } from "./metrics";
+import type { DayData, MetricGroup } from "./metrics";
 
 /**
  * Intraday blocks a page loads on view: a day's chart for any date, not only
@@ -17,6 +17,11 @@ import type { MetricGroup } from "./metrics";
  * fetched, merged in and written back. The runner queues these and runs them
  * only while nothing else is syncing (`SyncRunner.loadIntraday`).
  *
+ * An extra whose payload the day sync fetches anyway can also be kept at
+ * sync time (`fromDay`): `blocksFromDay` maps it for every synced day and
+ * `keepBlocks` folds it into the day's file, so a day nobody opened keeps
+ * what Garmin may later drop.
+ *
  * Pure: the API and the store are handed in.
  */
 
@@ -29,6 +34,17 @@ export interface IntradayDef<P = unknown, B = unknown> {
 	fetch(api: GarminApi, date: string): Promise<P>;
 	/** What to keep, or null when Garmin had nothing that day. */
 	map(payload: P, date: string): B | null | undefined;
+	/**
+	 * The payload as the day sync already fetched it for the day file, for a
+	 * block worth keeping before Garmin drops it (HRV Status's readings, of
+	 * which Garmin keeps none before 2026-06-01). Every day a sync covers
+	 * with the extra's group on then gets `extra[key] = map(payload)`, at no
+	 * request of its own, not only the days a page opened. Null or undefined
+	 * — the fetch failed, Garmin had nothing, or nothing worth keeping —
+	 * leaves the day's block as it was: a sync never drops what an earlier one
+	 * kept.
+	 */
+	fromDay?(day: DayData, date: string): P | null | undefined;
 }
 
 /** A load as a page gets it back. */
@@ -126,7 +142,63 @@ export function defineIntraday<P, B>(def: IntradayDef<P, B>): IntradayDef<P, B> 
 	if (typeof def.key !== "string" || !KEY.test(def.key)) throw new Error(`defineIntraday: key ${JSON.stringify(def.key)} must be lowercase first, then letters, digits and hyphens`);
 	if (SERIES_KEYS.has(def.key)) throw new Error(`defineIntraday: "${def.key}" is the series file's own key`);
 	if (typeof def.fetch !== "function" || typeof def.map !== "function") throw new Error(`defineIntraday(${def.key}): fetch and map are required`);
+	if (def.fromDay !== undefined && typeof def.fromDay !== "function") throw new Error(`defineIntraday(${def.key}): fromDay must be a function`);
 	return def;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Kept at sync time                                                  */
+/* ------------------------------------------------------------------ */
+
+/** The keys of the extras a sync keeps itself (`fromDay`): the blocks a sync's own write of a day carries over. */
+export function keptKeys(extras: readonly IntradayDef[]): string[] {
+	return extras.filter((def) => def.fromDay).map((def) => def.key);
+}
+
+/**
+ * The blocks a synced day's payloads give the extras that keep them
+ * (`fromDay`), by key: only extras whose group is on, and only blocks with
+ * something in them. A payload the mapper cannot read gives none, so the day
+ * keeps the block it had.
+ */
+export function blocksFromDay(extras: readonly IntradayDef[], day: DayData, date: string, groups: readonly MetricGroup[]): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const def of extras) {
+		if (!def.fromDay || !groups.includes(def.group)) continue;
+		try {
+			const payload = def.fromDay(day, date);
+			if (payload === null || payload === undefined) continue;
+			const block = def.map(payload, date);
+			if (block !== null && block !== undefined) out[def.key] = block;
+		} catch {
+			// What the file holds stays.
+		}
+	}
+	return out;
+}
+
+/**
+ * The day's series file after a sync, with the blocks it keeps itself.
+ *
+ * - `written`, the series the sync writes for the day, replaces the file as
+ *   a sync's write always has, on-view extras and `checked` included — but
+ *   the kept blocks (`kept`) the file held stay unless `fresh` brings them
+ *   again.
+ * - Without one, the file keeps everything and only `fresh` goes in under
+ *   `extra`: the same blocks make the same text, so the store leaves the
+ *   file alone. Null when there is nothing to write.
+ */
+export function keepBlocks(stored: DaySeries | null | undefined, written: DaySeries | null | undefined, fresh: Readonly<Record<string, unknown>>, kept: readonly string[]): DaySeries | null {
+	if (written) {
+		const extra: Record<string, unknown> = {};
+		for (const key of kept) if (stored?.extra?.[key] !== undefined) extra[key] = stored.extra[key];
+		Object.assign(extra, fresh);
+		const out: DaySeries = { ...written };
+		delete out.extra;
+		return Object.keys(extra).length ? { ...out, extra } : out;
+	}
+	if (!Object.keys(fresh).length) return null;
+	return { ...(stored ?? {}), extra: { ...(stored?.extra ?? {}), ...fresh } };
 }
 
 /** An extra as a loader: its one key, under `extra`. */

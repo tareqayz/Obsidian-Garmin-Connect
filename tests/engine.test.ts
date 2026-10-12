@@ -21,7 +21,8 @@ import {
 } from "../src/sync/engine";
 import type { DailyStatsBatch } from "../src/sync/daily-stats";
 import type { SleepBatch } from "../src/sync/sleep-index";
-import type { DaySeries } from "../src/sync/intraday";
+import { parseSeries, serializeSeries, type DaySeries } from "../src/sync/intraday";
+import { defineIntraday } from "../src/sync/intraday-registry";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { Activity } from "../src/garmin/endpoints";
 
@@ -962,6 +963,115 @@ describe("syncRange — intraday", () => {
 		const target = new FakeTarget(new Set(["2026-09-12"]));
 		await syncRange(source, target, options({ from: "2026-09-12", groups: ["intraday"] }));
 		assert.deepEqual(source.calls, []);
+	});
+});
+
+describe("syncRange — extras kept at sync time", () => {
+	/** An extra the sync keeps from the day's own hrv payload (as HRV Status keeps its readings). */
+	const NIGHTLY = defineIntraday({
+		key: "nightly",
+		group: "hrv",
+		fetch: async () => null,
+		map: (payload: { hrvSummary?: { lastNightAvg?: number | null } } | null) => (typeof payload?.hrvSummary?.lastNightAvg === "number" ? { avg: payload.hrvSummary.lastNightAvg } : null),
+		fromDay: (day) => day.hrv,
+	});
+	/** An extra a page loads on view only. */
+	const ON_VIEW = defineIntraday({ key: "onView", group: "hrv", fetch: async () => [1], map: (payload: number[]) => payload });
+
+	/** The series files in memory, through the real serializer. */
+	class MemorySeries implements SeriesTarget {
+		files = new Map<string, string>();
+		reads = 0;
+		async read(date: string): Promise<DaySeries | null> {
+			this.reads += 1;
+			const text = this.files.get(date);
+			return text ? parseSeries(text) : null;
+		}
+		async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
+			const text = serializeSeries(date, series);
+			if (this.files.get(date) === text) return "unchanged";
+			this.files.set(date, text);
+			return "written";
+		}
+		put(date: string, series: DaySeries) {
+			this.files.set(date, serializeSeries(date, series));
+		}
+		get(date: string): DaySeries | null {
+			const text = this.files.get(date);
+			return text ? parseSeries(text) : null;
+		}
+	}
+
+	const DAYS = new Set(["2026-09-10", "2026-09-11", "2026-09-12"]);
+
+	it("keeps a block from every synced day's own payload, at no request of its own", async () => {
+		const source = new FakeSource();
+		const series = new MemorySeries();
+		const report = await syncRange(source, new FakeTarget(DAYS), options({ groups: ["hrv"], series, extras: [NIGHTLY, ON_VIEW] }));
+		// The hrv a day the day files need, and nothing else: every day, not only the newest few.
+		assert.deepEqual(source.calls.sort(), ["hrv:2026-09-10", "hrv:2026-09-11", "hrv:2026-09-12"]);
+		assert.equal(report.requests, 3);
+		assert.equal(report.seriesWritten, 3);
+		assert.deepEqual(series.get("2026-09-10"), { extra: { nightly: { avg: 42 } } });
+	});
+
+	it("folds it into the day's file, keeping what the file holds, and leaves an unchanged day alone", async () => {
+		const series = new MemorySeries();
+		series.put("2026-09-12", { stress: [[1_000, 20]], extra: { onView: [1] }, checked: ["onView"] });
+		const opts = options({ from: "2026-09-12", groups: ["hrv"], series, extras: [NIGHTLY, ON_VIEW] });
+		await syncRange(new FakeSource(), new FakeTarget(DAYS), opts);
+		assert.deepEqual(series.get("2026-09-12"), { stress: [[1_000, 20]], extra: { onView: [1], nightly: { avg: 42 } }, checked: ["onView"] });
+		const again = await syncRange(new FakeSource(), new FakeTarget(DAYS), opts);
+		assert.equal(again.seriesWritten, 0);
+	});
+
+	it("never drops a kept block when the day has nothing for it, or its request failed", async () => {
+		const series = new MemorySeries();
+		series.put("2026-09-12", { extra: { nightly: { avg: 40 } } });
+		const before = series.files.get("2026-09-12");
+		const empty = new FakeSource();
+		empty.hrv = async () => null as never;
+		const opts = options({ from: "2026-09-12", groups: ["hrv"], series, extras: [NIGHTLY] });
+		assert.equal((await syncRange(empty, new FakeTarget(DAYS), opts)).seriesWritten, 0);
+		const failing = new FakeSource();
+		failing.failWith.hrv = new GarminApiError("hrv: HTTP 500", 500, "");
+		assert.equal((await syncRange(failing, new FakeTarget(DAYS), opts)).seriesWritten, 0);
+		assert.equal(series.files.get("2026-09-12"), before);
+	});
+
+	it("carries a kept block through the sync's own write of a day, which still drops what a page loaded", async () => {
+		const series = new MemorySeries();
+		series.put("2026-09-12", { extra: { nightly: { avg: 40 }, onView: [1] }, checked: ["onView"] });
+		const source = new FakeSource();
+		source.failWith.hrv = new GarminApiError("hrv: HTTP 500", 500, "");
+		await syncRange(source, new FakeTarget(DAYS), options({ from: "2026-09-12", groups: ["hrv", "intraday"], series, extras: [NIGHTLY, ON_VIEW] }));
+		const day = series.get("2026-09-12")!;
+		assert.deepEqual(day.stress, [
+			[1_000, 20],
+			[2_000, null],
+		]);
+		assert.deepEqual([day.extra, day.checked], [{ nightly: { avg: 40 } }, undefined]);
+		// A fresh payload replaces it.
+		await syncRange(new FakeSource(), new FakeTarget(DAYS), options({ from: "2026-09-12", groups: ["hrv", "intraday"], series, extras: [NIGHTLY] }));
+		assert.deepEqual(series.get("2026-09-12")!.extra, { nightly: { avg: 42 } });
+	});
+
+	it("keeps nothing while the extra's group is off, or without somewhere to put it", async () => {
+		const series = new MemorySeries();
+		const source = new FakeSource();
+		await syncRange(source, new FakeTarget(DAYS), options({ groups: ["activity"], series, extras: [NIGHTLY] }));
+		assert.equal(source.calls.filter((c) => c.startsWith("hrv")).length, 0);
+		assert.deepEqual([series.files.size, series.reads], [0, 0]);
+		const report = await syncRange(new FakeSource(), new FakeTarget(DAYS), options({ groups: ["hrv"], extras: [NIGHTLY] }));
+		assert.equal(report.seriesWritten, 0);
+	});
+
+	it("rides only with the day's own series when the target cannot read the file", async () => {
+		const blind = new FakeSeries();
+		await syncRange(new FakeSource(), new FakeTarget(DAYS), options({ from: "2026-09-12", groups: ["hrv"], series: blind, extras: [NIGHTLY] }));
+		assert.equal(blind.written.size, 0);
+		await syncRange(new FakeSource(), new FakeTarget(DAYS), options({ from: "2026-09-12", groups: ["hrv", "intraday"], series: blind, extras: [NIGHTLY] }));
+		assert.deepEqual(blind.written.get("2026-09-12")!.extra, { nightly: { avg: 42 } });
 	});
 });
 
