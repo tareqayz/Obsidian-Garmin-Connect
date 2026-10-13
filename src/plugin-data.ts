@@ -97,7 +97,6 @@ export class PluginData implements TokenStore {
 			email: text(source.email, d.email),
 			domain: source.domain === "garmin.cn" ? "garmin.cn" : d.domain,
 
-			syncDays: int(source.syncDays, d.syncDays, 1, 30),
 			groups: groups(source.groups, d.groups),
 			units:
 				source.units === "metric" || source.units === "imperial" || source.units === "auto"

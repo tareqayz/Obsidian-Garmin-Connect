@@ -9,6 +9,8 @@ import {
 	fetchDailyStatsHistory,
 	fetchSleepHistory,
 	lastNDays,
+	MAX_RECENT_DAYS,
+	recentRange,
 	syncRange,
 	type ActivitySink,
 	type DailyStatsSink,
@@ -266,6 +268,37 @@ describe("lastNDays", () => {
 	it("counts today as one of the days", () => {
 		assert.deepEqual(lastNDays(3, "2026-09-12"), { from: "2026-09-10", to: "2026-09-12" });
 		assert.deepEqual(lastNDays(1, "2026-09-12"), { from: "2026-09-12", to: "2026-09-12" });
+	});
+});
+
+describe("recentRange", () => {
+	it("covers the first few days before there is a last sync", () => {
+		assert.deepEqual(recentRange(null, "2026-09-12"), { from: "2026-09-10", to: "2026-09-12", capped: false });
+	});
+
+	it("goes back over the day before the mark, which Garmin is still revising", () => {
+		assert.deepEqual(recentRange("2026-09-08", "2026-09-12"), { from: "2026-09-07", to: "2026-09-12", capped: false });
+	});
+
+	it("covers yesterday and today when the mark is today", () => {
+		assert.deepEqual(recentRange("2026-09-12", "2026-09-12"), { from: "2026-09-11", to: "2026-09-12", capped: false });
+	});
+
+	it("still covers yesterday and today when the mark is in the future", () => {
+		assert.deepEqual(recentRange("2026-09-20", "2026-09-12"), { from: "2026-09-11", to: "2026-09-12", capped: false });
+	});
+
+	it("crosses a year", () => {
+		assert.deepEqual(recentRange("2026-01-01", "2026-01-02"), { from: "2025-12-31", to: "2026-01-02", capped: false });
+	});
+
+	it("caps a long gap and says so", () => {
+		assert.deepEqual(recentRange("2026-07-01", "2026-09-12"), { from: "2026-08-14", to: "2026-09-12", capped: true });
+		assert.equal(MAX_RECENT_DAYS, 30);
+	});
+
+	it("is not capped when the settle day is the oldest it allows", () => {
+		assert.deepEqual(recentRange("2026-08-15", "2026-09-12"), { from: "2026-08-14", to: "2026-09-12", capped: false });
 	});
 });
 

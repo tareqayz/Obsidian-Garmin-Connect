@@ -9,7 +9,8 @@ import {
 	fetchAllActivities,
 	fetchDailyStatsHistory,
 	fetchSleepHistory,
-	lastNDays,
+	MAX_RECENT_DAYS,
+	recentRange,
 	syncRange,
 	walkHistory,
 	type DailyStatsSink,
@@ -28,9 +29,9 @@ import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
+import { deviceUploadOf, markOf } from "./sync-state";
 
 export interface RunnerSettings {
-	syncDays: number;
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
 
@@ -75,6 +76,18 @@ export interface StatsHistoryProgress {
 export interface SleepHistoryProgress {
 	/** The oldest day fetched so far, once the first window is in. */
 	reached?: string;
+}
+
+/** The days a run covers, worked out once the runner is held. */
+interface DaysPlan {
+	from: string;
+	to: string;
+	/** Requests spent working it out. */
+	requests?: number;
+	/** Lines for the done notice. */
+	notes?: string[];
+	/** Called with the report before the done notice. */
+	finish?: (report: SyncReport) => Promise<void>;
 }
 
 /**
@@ -151,9 +164,39 @@ export class SyncRunner {
 		if (!value && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 	}
 
+	/**
+	 * Everything since the last good recent sync, worked out once the runner is
+	 * held (see `recentRange`): another device may have synced meanwhile.
+	 */
 	syncRecent(log?: Log): Promise<SyncReport | null> {
-		const { from, to } = lastNDays(this.settings().syncDays, toIsoDate());
-		return this.run(from, to, log);
+		return this.runPlan(() => this.planRecent(log), log);
+	}
+
+	private async planRecent(log?: Log): Promise<DaysPlan> {
+		const startedAt = new Date().toISOString();
+		const series = new VaultSeriesStore(this.app, this.settings().dataFolder);
+		const { from, to, capped } = recentRange(markOf(await series.readSyncState()), toIsoDate());
+		// Read before the days, so an upload that lands mid-sync is not taken as
+		// seen. A failure costs only the precision: the mark falls back to the
+		// sync's own time, and a 429 here stops the days too.
+		let deviceUpload: string | undefined;
+		try {
+			deviceUpload = deviceUploadOf(await this.api.lastUsedDevice());
+		} catch (err) {
+			log?.warn(`last used device failed: ${explain(err)}`);
+		}
+		return {
+			from,
+			to,
+			requests: 1,
+			notes: capped ? [`Synced the last ${MAX_RECENT_DAYS} days only. Sync a range for the days before ${from}.`] : [],
+			// Only a run that covered the whole range moves the mark: one stopped
+			// early left its oldest days behind.
+			finish: async (report) => {
+				if (report.stoppedEarly) return;
+				await series.writeSyncState(deviceUpload ? { syncedAt: startedAt, deviceUpload } : { syncedAt: startedAt });
+			},
+		};
 	}
 
 	syncToday(log?: Log): Promise<SyncReport | null> {
@@ -205,8 +248,13 @@ export class SyncRunner {
 		return () => this.indexHistoryListeners.delete(listener);
 	}
 
-	async run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
-		const report = await this.runDays(from, to, log);
+	/** A chosen range. It leaves the recent sync's mark alone: it need not cover what changed since. */
+	run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
+		return this.runPlan(async () => ({ from, to }), log);
+	}
+
+	private async runPlan(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
+		const report = await this.runDays(plan, log);
 		if (report?.stoppedEarly) this.downloads = [];
 		// Not awaited: Home's sync button should not spin through the history
 		// requests. Skipped after a 429 or a dead session, as the account is.
@@ -238,7 +286,7 @@ export class SyncRunner {
 		return report;
 	}
 
-	private async runDays(from: string, to: string, log?: Log): Promise<SyncReport | null> {
+	private async runDays(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
 		if (this.downloadInHand) await this.yieldDownload();
 		if (this.running) {
 			new Notice("A Garmin sync is already running.");
@@ -258,6 +306,7 @@ export class SyncRunner {
 			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
 		};
 		try {
+			const { from, to, requests: planned = 0, notes = [], finish } = await plan();
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			const report = await syncRange(this.api, dayTarget(series), {
@@ -303,6 +352,13 @@ export class SyncRunner {
 				}
 			}
 
+			report.requests += planned;
+			report.warnings.push(...notes);
+			try {
+				await finish?.(report);
+			} catch (err) {
+				log?.warn(`sync state failed: ${explain(err)}`);
+			}
 			log?.detail("requests", describeRequests(this.api.stats.summary(startedAt)));
 			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
 			return report;

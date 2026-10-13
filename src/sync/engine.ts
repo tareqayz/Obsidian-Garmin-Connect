@@ -329,6 +329,36 @@ export function lastNDays(days: number, today: string): { from: string; to: stri
 	return { from: isoOf(end - (Math.max(1, days) - 1) * DAY_MS), to: today };
 }
 
+/** What a recent sync covers before there is a last sync to go on. The history walks do the rest. */
+export const FIRST_SYNC_DAYS = 3;
+/**
+ * Days before the mark a recent sync goes back over. Garmin keeps revising a
+ * day after it ends: sleep, HRV and Body Battery land on the wake day, and a
+ * watch that syncs in the morning rewrites the evening before.
+ */
+export const SETTLE_DAYS = 1;
+/** The most a recent sync covers after a long gap. Older days are a range sync's job. */
+export const MAX_RECENT_DAYS = 30;
+
+/**
+ * The days a recent sync covers: from the day before `mark` through today,
+ * never fewer than yesterday and today, never more than `MAX_RECENT_DAYS`.
+ *
+ * `mark` is the local date nothing before which can have changed since the
+ * last good sync — the watch's upload as Garmin reported it then, so a watch
+ * left offline keeps the mark where it was however many syncs run meanwhile.
+ * Null before the first one. `capped` says days between the mark and `from`
+ * went unsynced.
+ */
+export function recentRange(mark: string | null, today: string): { from: string; to: string; capped: boolean } {
+	if (!mark) return { ...lastNDays(FIRST_SYNC_DAYS, today), capped: false };
+	const end = utcOf(today);
+	const wanted = utcOf(mark) - SETTLE_DAYS * DAY_MS;
+	const earliest = end - (MAX_RECENT_DAYS - 1) * DAY_MS;
+	const from = Math.min(Math.max(wanted, earliest), end - SETTLE_DAYS * DAY_MS);
+	return { from: isoOf(from), to: today, capped: wanted < earliest };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Sync                                                               */
 /* ------------------------------------------------------------------ */

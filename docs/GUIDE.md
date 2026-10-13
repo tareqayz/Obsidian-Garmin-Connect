@@ -16,7 +16,7 @@ the sign-in starts over.
 
 | Command | What it does |
 | --- | --- |
-| **Sync recent days** | The last *N* days, 3 by default (**Settings → Sync → Days to sync**). Home's ↻ button runs the same thing. |
+| **Sync recent days** | Everything since the last recent sync, from the day before through today; at least yesterday and today, at most 30 days (see [settings](settings.md#sync)). Home's ↻ button runs the same thing. |
 | **Sync today** | Just today. |
 | **Sync a date range…** | Backfill. Shows the request count and time it will take before you start. |
 

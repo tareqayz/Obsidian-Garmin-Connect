@@ -2,7 +2,7 @@ import { App, Modal } from "obsidian";
 import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
-import { lastNDays } from "../sync/engine";
+import { FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
 import { endpointsFor } from "../sync/metrics";
 import { secondsPerDay, SYNC_SPEEDS } from "../sync/speed";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
@@ -19,7 +19,7 @@ export class SyncRangeModal extends Modal {
 
 	onOpen(): void {
 		const settings = this.plugin.data.settings;
-		const { from, to } = lastNDays(settings.syncDays, toIsoDate());
+		const { from, to } = lastNDays(FIRST_SYNC_DAYS, toIsoDate());
 		// Only the endpoints the enabled groups actually need count towards the
 		// estimate, so turning groups off visibly lowers it.
 		const wanted = endpointsFor(settings.groups);
