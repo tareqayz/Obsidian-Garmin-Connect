@@ -8,8 +8,8 @@
 		perDay: number;
 		/** Today, as the latest date worth asking for. */
 		today: string;
-		/** Pause between days, in ms — the other half of the time estimate. */
-		pauseMs: number;
+		/** Roughly how long one day takes at the chosen sync speed. */
+		secondsPerDay: number;
 		/** Days of nothing before the sync gives up, or 0 if that guard is off. */
 		stopAfterEmptyDays: number;
 		onRun: (from: string, to: string) => void;
@@ -21,7 +21,7 @@
 		initialTo,
 		perDay,
 		today,
-		pauseMs,
+		secondsPerDay,
 		stopAfterEmptyDays,
 		onRun,
 		onCancel,
@@ -38,8 +38,7 @@
 	let days = $derived(dateRange(from, to).length);
 	let valid = $derived(days > 0);
 	let requests = $derived(days * perDay);
-	// Request latency dominates; the pause is the part we control.
-	let minutes = $derived(Math.round((days * (pauseMs + perDay * 400)) / 60000));
+	let minutes = $derived(Math.round((days * secondsPerDay) / 60));
 	let large = $derived(days > 90);
 </script>
 

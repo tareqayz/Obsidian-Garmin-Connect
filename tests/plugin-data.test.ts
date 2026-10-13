@@ -80,11 +80,23 @@ describe("PluginData", () => {
 	});
 
 	it("keeps values a slider can show", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 999, pauseBetweenDays: -5, units: "furlongs", domain: "example.com" } });
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.syncDays, 30);
-		assert.equal(data.settings.pauseBetweenDays, 0);
+		assert.equal(data.settings.syncSpeed, "normal");
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
+	});
+
+	it("reads an older build's pause between days as the nearest sync speed", async () => {
+		const speedFor = async (pauseBetweenDays: unknown) => {
+			const { syncSpeed: _, ...rest } = DEFAULT_SETTINGS;
+			const { data } = await load({ settings: { ...rest, pauseBetweenDays } });
+			return data.settings.syncSpeed;
+		};
+		assert.equal(await speedFor(250), "normal");
+		assert.equal(await speedFor(0), "fast");
+		assert.equal(await speedFor(2000), "gentle");
+		assert.equal(await speedFor(undefined), "normal");
 	});
 
 	it("migrates a version 1 file, switching on the groups added since but not one turned off", async () => {

@@ -202,8 +202,15 @@ export interface SyncOptions {
 	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
 	 */
 	intradayDays?: number;
-	/** Courtesy pause between days, in ms. */
+	/** Courtesy pause between days, in ms. The client's throttle is what paces a sync now; this is for a caller without one. */
 	pauseBetweenDays?: number;
+	/**
+	 * Days fetched at once. A day's requests already go out together and the
+	 * day takes as long as the slowest of them, so fetching the next few days
+	 * meanwhile is most of what makes a long sync faster. Days are still written
+	 * one at a time, newest first. Defaults to 1.
+	 */
+	parallelDays?: number;
 	/**
 	 * Give up after this many consecutive days with nothing in them.
 	 *
@@ -432,9 +439,24 @@ export async function syncRange(
 	/** Range parts that came back whole: what a `fromDay` index may read for every day of the run. */
 	const rangeOk = new Set<keyof DayData>();
 
+	// All asked for at once — they do not depend on each other, and the
+	// client's throttle paces them — then taken in order below. A fatal one
+	// still stops the run there; the others are already on their way.
+	const maxMetricsRange = wanted.maxMetrics ? fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b)) : null;
+	const racesRange = wanted.races ? fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b)) : null;
+	// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
+	const hillRange = wanted.hillScores ? fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS) : null;
+	// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
+	const toleranceRange = wanted.runningTolerance
+		? fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS)
+		: null;
+	const snapshotsRange = wanted.healthSnapshots
+		? fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS)
+		: null;
+
 	let maxMetricsByDate = new Map<string, MaxMetrics>();
-	if (wanted.maxMetrics) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b));
+	if (maxMetricsRange) {
+		const got = await maxMetricsRange;
 		report.requests += got.requests;
 		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
 		if (got.fatal) return stop(report, got.fatal, log);
@@ -447,8 +469,8 @@ export async function syncRange(
 	}
 
 	let racesByDate = new Map<string, RacePrediction>();
-	if (wanted.races) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b));
+	if (racesRange) {
+		const got = await racesRange;
 		report.requests += got.requests;
 		racesByDate = byCalendarDate(got.rows);
 		if (got.fatal) return stop(report, got.fatal, log);
@@ -463,9 +485,8 @@ export async function syncRange(
 	}
 
 	let hillByDate = new Map<string, HillScore>();
-	if (wanted.hillScores) {
-		// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
-		const got = await fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS);
+	if (hillRange) {
+		const got = await hillRange;
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("hillScore");
@@ -478,9 +499,8 @@ export async function syncRange(
 	}
 
 	let toleranceByDate = new Map<string, RunningTolerance>();
-	if (wanted.runningTolerance) {
-		// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
-		const got = await fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS);
+	if (toleranceRange) {
+		const got = await toleranceRange;
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("runningTolerance");
@@ -489,8 +509,8 @@ export async function syncRange(
 	}
 
 	const snapshotsByDate = new Map<string, HealthSnapshot[]>();
-	if (wanted.healthSnapshots) {
-		const got = await fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS);
+	if (snapshotsRange) {
+		const got = await snapshotsRange;
 		report.requests += got.requests;
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (got.error) note(report, log, `health snapshots: ${got.error}`);
@@ -509,17 +529,32 @@ export async function syncRange(
 	let emptyRun = 0;
 	let done = 0;
 
+	const withSeries = Boolean(wanted.intraday && opts.series);
+	const ahead = Math.max(1, Math.floor(opts.parallelDays ?? 1));
+	// The next few days are fetched while this one is written. Only the fetch
+	// runs ahead: everything below still happens a day at a time, in order, so
+	// an early stop leaves the same days behind it as before — and at most
+	// `ahead - 1` days' requests unused.
+	const fetching = new Map<number, Promise<DayFetch>>();
+	const fetchAt = (index: number): Promise<DayFetch> | undefined => {
+		if (index >= due.length) return undefined;
+		let pending = fetching.get(index);
+		if (!pending) {
+			pending = fetchDay(source, due[index]!, { ...wanted, intraday: withSeries && index < intradayDays });
+			fetching.set(index, pending);
+		}
+		return pending;
+	};
+
 	for (const [index, date] of due.entries()) {
 		if (opts.shouldStop?.()) {
 			report.stoppedEarly = "cancelled";
 			break;
 		}
 
-		const withSeries = Boolean(wanted.intraday && opts.series);
-		const fetched = await fetchDay(source, date, {
-			...wanted,
-			intraday: withSeries && index < intradayDays,
-		});
+		for (let next = index; next < index + ahead; next++) fetchAt(next);
+		const fetched = await fetchAt(index)!;
+		fetching.delete(index);
 		report.requests += fetched.requests;
 		if (fetched.fatal) {
 			// What earlier days gave the index costs nothing more to keep.
@@ -608,21 +643,17 @@ export async function syncRange(
 		if (pause > 0 && done < due.length) await wait(pause);
 	}
 
-	if (stats) {
-		// A run cut short must not reach past the days it stopped at.
-		const fatal = await feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly);
-		if (fatal) return stop(report, fatal, log);
-	}
+	// The indexes are fed side by side: each writes its own files, and the
+	// client's throttle paces their requests together.
+	const feeds: Array<Promise<unknown>> = [];
+	// A run cut short must not reach past the days it stopped at.
+	if (stats) feeds.push(feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly));
 	// Cancelled or cut short, the nights cost nothing to skip: the next sync fetches them.
-	if (sleepSink && !report.stoppedEarly) {
-		const fatal = await feedSleep(source, sleepSink, opts.from, opts.to, report, log);
-		if (fatal) return stop(report, fatal, log);
-	}
+	if (sleepSink && !report.stoppedEarly) feeds.push(feedSleep(source, sleepSink, opts.from, opts.to, report, log));
 	// Cut short, an index keeps what the summaries gave it and fetches nothing.
-	for (const run of runs) {
-		const fatal = await feed(run, !report.stoppedEarly);
-		if (fatal) return stop(report, fatal, log);
-	}
+	for (const run of runs) feeds.push(feed(run, !report.stoppedEarly));
+	const fatal = (await Promise.all(feeds)).find(Boolean);
+	if (fatal) return stop(report, fatal, log);
 	return finish(report, log);
 }
 

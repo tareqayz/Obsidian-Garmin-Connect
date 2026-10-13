@@ -157,16 +157,24 @@ yourself stays off, and an empty selection stays empty.
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Pause between days | `pauseBetweenDays` | `250` | Milliseconds to wait between days. Slider 0–2000. |
+| Sync speed | `syncSpeed` | `normal` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
 | Stop after empty days | `stopAfterEmptyDays` | `45` | A backfill gives up after this many days in a row with nothing in them. `0` walks the whole range. Slider 0–120. |
 | Save every diagnostics run to the vault | `autoSaveLog` | on | Writes each **Run diagnostics** log to a note. |
 | Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. |
 
-The sliders stop at 2000 and 120. A value typed into `data.json` by hand may go
-up to 5000 and 365; anything beyond that is clamped on load.
+The slider stops at 120. A value typed into `data.json` by hand may go up to
+365; anything beyond that is clamped on load.
 
-**Raising Pause between days** is the first thing to try if long backfills hit
-429s.
+**Sync speed** paces every request to Garmin — syncs, history walks and pages
+loading on view — and sets how many days a sync fetches at once. Normal is
+about 20 requests a second, three days at a time, and syncs 30 days in about
+17 s; Fast about 32 and five days, 12 s; Gentle 8 and one day, 43 s. Garmin was
+measured allowing at least 47 a second; see
+[Request pace](garmin-api.md#request-pace). If Garmin does answer 429, the sync
+pauses for as long as it asks, carries on at half the pace, and says so in its
+notice. **Gentle** is the first thing to try if long backfills still hit 429s.
+It replaced `pauseBetweenDays`: a saved pause of 0 reads as Fast, 1000 ms or
+more as Gentle, anything else as Normal.
 
 **Why Stop after empty days exists.** A backfill can reach as far back as you
 ask, but a range reaching past the start of your Garmin history would keep

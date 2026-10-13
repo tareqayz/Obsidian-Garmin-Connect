@@ -126,7 +126,7 @@ export interface AccountFetch {
 }
 
 /**
- * Fetches every account-level payload, one at a time. A failure costs that one
+ * Fetches every account-level payload, all at once. A failure costs that one
  * field and a warning; a rate limit or a dead session ends the run.
  */
 export async function fetchAccount(
@@ -153,21 +153,26 @@ export async function fetchAccount(
 		["records", () => source.personalRecords()],
 	];
 
-	for (const [name, run] of steps) {
-		try {
-			if (!(name === "profile" && source.profile)) requests += 1;
-			(payloads as Record<string, unknown>)[name] = await run();
-		} catch (err) {
-			if (err instanceof GarminRateLimitError || err instanceof GarminAuthError) {
-				return { account: mapAccount(payloads, units), requests, warnings, fatal: err };
+	// All at once: none depends on another, and the client's throttle paces them.
+	let fatal: unknown;
+	await Promise.all(
+		steps.map(async ([name, run]) => {
+			try {
+				if (!(name === "profile" && source.profile)) requests += 1;
+				(payloads as Record<string, unknown>)[name] = await run();
+			} catch (err) {
+				if (err instanceof GarminRateLimitError || err instanceof GarminAuthError) {
+					fatal ??= err;
+					return;
+				}
+				const text = `${name}: ${err instanceof Error ? err.message : String(err)}`;
+				warnings.push(text);
+				log.warn(`account ${text}`);
 			}
-			const text = `${name}: ${err instanceof Error ? err.message : String(err)}`;
-			warnings.push(text);
-			log.warn(`account ${text}`);
-		}
-	}
+		}),
+	);
 
-	return { account: mapAccount(payloads, units), requests, warnings };
+	return { account: mapAccount(payloads, units), requests, warnings, ...(fatal ? { fatal } : {}) };
 }
 
 export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "metric"): AccountInfo | null {

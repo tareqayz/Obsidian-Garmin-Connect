@@ -885,6 +885,62 @@ describe("syncRange — request budget", () => {
 	});
 });
 
+describe("syncRange — parallelDays", () => {
+	const range = { from: "2026-08-20", to: "2026-09-12" };
+
+	it("writes the same days, in the same order, as one day at a time", async () => {
+		const run = async (parallelDays: number) => {
+			const written: string[] = [];
+			const target: DayTarget = {
+				exists: () => true,
+				write: async (date, properties) => {
+					written.push(`${date}:${Object.keys(properties).length}`);
+					return "written";
+				},
+			};
+			const report = await syncRange(new FakeSource(), target, options({ ...range, parallelDays }));
+			return { written, requests: report.requests };
+		};
+		const one = await run(1);
+		const four = await run(4);
+		assert.deepEqual(four.written, one.written);
+		assert.equal(four.requests, one.requests);
+	});
+
+	it("has at most parallelDays days in flight", async () => {
+		const source = new FakeSource();
+		let inFlight = 0;
+		let peak = 0;
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) => {
+			inFlight += 1;
+			peak = Math.max(peak, inFlight);
+			await new Promise((r) => setTimeout(r, 1));
+			inFlight -= 1;
+			return original(date);
+		};
+		const always: DayTarget = { exists: () => true, write: async () => "written" };
+		await syncRange(source, always, options({ ...range, groups: ["activity"], parallelDays: 3 }));
+		assert.equal(peak, 3);
+	});
+
+	it("still stops after empty days, fetching at most parallelDays - 1 days past the stop", async () => {
+		const source = new FakeSource();
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) =>
+			date >= "2026-09-08" ? original(date) : { calendarDate: date, totalSteps: null };
+		const always: DayTarget = { exists: () => true, write: async () => "written" };
+		const report = await syncRange(
+			source,
+			always,
+			options({ from: "2026-08-01", to: "2026-09-12", stopAfterEmptyDays: 3, parallelDays: 4 }),
+		);
+		assert.match(report.stoppedEarly ?? "", /back to 2026-09-05/);
+		// 8 days written or skipped, then up to 3 more already asked for.
+		assert.ok(source.calls.filter((c) => c.startsWith("dailySummary")).length <= 11);
+	});
+});
+
 /* ------------------------------------------------------------------ */
 
 describe("syncRange — a target that creates its own files", () => {

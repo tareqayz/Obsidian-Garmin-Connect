@@ -450,7 +450,7 @@ and resolves with the day's series.
 - An extra's block goes under `extra[key]`. `checked` lists the keys fetched on
   view, data or not, so a day Garmin had nothing for is not asked again.
 - Loads run in the runner, never beside a sync: they wait, a second ask for a
-  day already waiting joins it, the usual pause separates days, and the
+  day already waiting joins it, the client's throttle paces them, and the
   automatic history walks let waiting loads in between walks. Signed out, or
   with the block's group off, a load resolves at once and `reason` says why. A
   429 answers every waiting load without asking again.
@@ -484,7 +484,7 @@ the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
   whose activity the index shows renamed or trimmed is fetched afresh, and a file
   of another `version` reads as missing.
 - The loads queue with the intraday ones, in the same runner: never beside a
-  sync, the usual pause between them, and a 429 or a dead session answers every
+  sync, paced by the client's throttle, and a 429 or a dead session answers every
   waiting load without asking again. Gated on the `workouts` group.
 - **Download runs** (`downloadRuns`) loads the rest the same way, after each
   sync and the session's history walks: `runsToDownload` lists the index's runs
@@ -607,7 +607,7 @@ Garmin's edge can refuse a request outright, and burying that under a generic
 | --- | --- | --- |
 | `GarminAuthError` | Bad credentials, or a session past refreshing | Abandon the range |
 | `GarminBlockedError` | The edge refused the client (bot challenge) | Abandon the range |
-| `GarminRateLimitError` | HTTP 429, carries `retryAfter` | Abandon the range |
+| `GarminRateLimitError` | HTTP 429 that outlasted the client's pause-and-retry, carries `retryAfter` | Abandon the range |
 | `GarminApiError` | An ordinary non-2xx from the API tier | Warn, keep the day |
 | `GarminNetworkError` | Never completed: offline, DNS, TLS | Warn, keep the day |
 | `GarminMfaRequiredError` | MFA demanded, and the caller passed no prompt | Sign-in only |

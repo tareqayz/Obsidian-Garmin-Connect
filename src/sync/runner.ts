@@ -24,6 +24,8 @@ import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, runsToDownload, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
+import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
+import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
 
@@ -34,7 +36,7 @@ export interface RunnerSettings {
 
 	dataFolder: string;
 
-	pauseBetweenDays: number;
+	syncSpeed: SyncSpeed;
 	stopAfterEmptyDays: number;
 	/** Download every run's page in the background, not only the ones opened. */
 	downloadRuns: boolean;
@@ -142,6 +144,9 @@ export class SyncRunner {
 	}
 
 	private set running(value: boolean) {
+		// Every piece of work starts here, so a speed changed in settings takes
+		// effect from the next one.
+		if (value) this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
 		this.busy = value;
 		if (!value && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 	}
@@ -248,6 +253,10 @@ export class SyncRunner {
 		const startedAt = Date.now();
 		const notice = new Notice(noticeBody({ done: 0, total: 0, date: null, eta: null }), 0);
 		this.running = true;
+		this.api.onSlowDown = (resumesAt) => {
+			const seconds = Math.max(1, Math.round((resumesAt - Date.now()) / 1000));
+			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
+		};
 		try {
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
@@ -262,7 +271,7 @@ export class SyncRunner {
 				sleep: sleepSink(series),
 				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
 				extras: INTRADAY_EXTRAS,
-				pauseBetweenDays: settings.pauseBetweenDays,
+				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
 				onProgress: (done, total, date) => {
@@ -294,6 +303,7 @@ export class SyncRunner {
 				}
 			}
 
+			log?.detail("requests", describeRequests(this.api.stats.summary(startedAt)));
 			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
 			return report;
 		} catch (err) {
@@ -301,6 +311,7 @@ export class SyncRunner {
 			new Notice(`Garmin sync failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
+			this.api.onSlowDown = null;
 			this.running = false;
 		}
 	}
@@ -350,7 +361,6 @@ export class SyncRunner {
 
 			const got = await fetchAllActivities(this.api, {
 				pageSize: HISTORY_PAGE,
-				pause: settings.pauseBetweenDays,
 				onPage: (fetched) => {
 					this.setHistory({ fetched, total });
 					notice?.setMessage(historyBody({ fetched, total }));
@@ -434,7 +444,6 @@ export class SyncRunner {
 			const got = await fetchDailyStatsHistory(this.api, {
 				until,
 				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				pause: settings.pauseBetweenDays,
 				onWindow: (reached) => {
 					this.setStatsHistory({ reached });
 					notice?.setMessage(statsHistoryBody({ reached }));
@@ -510,7 +519,6 @@ export class SyncRunner {
 			const got = await fetchSleepHistory(this.api, {
 				until,
 				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				pause: settings.pauseBetweenDays,
 				onWindow: (reached) => {
 					this.setSleepHistory({ reached });
 					notice?.setMessage(historyNotice("Garmin sleep history", { reached }));
@@ -590,7 +598,6 @@ export class SyncRunner {
 				until,
 				today,
 				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				pause: settings.pauseBetweenDays,
 				onWindow: (reached) => {
 					this.setIndexHistory(kind, { reached });
 					notice?.setMessage(historyNotice(label, { reached }));
@@ -785,7 +792,7 @@ export class SyncRunner {
 			let rested = true;
 			while (!this.running && this.loadsWaiting) {
 				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
-				const pause = Math.max(this.settings().pauseBetweenDays, pageWaiting ? 0 : DOWNLOAD_PAUSE_MS);
+				const pause = pageWaiting ? 0 : DOWNLOAD_PAUSE_MS;
 				if (!rested && pause > 0) {
 					await pauseFor(pause);
 					rested = true;

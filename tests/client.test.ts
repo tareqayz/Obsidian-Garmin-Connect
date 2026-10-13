@@ -1,7 +1,15 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, fakeJwt, type FixtureRule } from "./support/fixture-http";
-import { GarminClient, MAX_ATTEMPTS, backoffMs, isTransient } from "../src/garmin/client";
+import {
+	GarminClient,
+	MAX_ATTEMPTS,
+	MAX_RATE_LIMIT_WAIT_MS,
+	RATE_LIMIT_BACKOFF_MS,
+	RATE_LIMIT_RETRIES,
+	backoffMs,
+	isTransient,
+} from "../src/garmin/client";
 import {
 	GarminApiError,
 	GarminAuthError,
@@ -17,10 +25,16 @@ import { MemoryTokenStore } from "../src/garmin/tokens";
 function clientWith(rules: FixtureRule[]) {
 	const http = new FixtureHttpClient(rules);
 	const store = new MemoryTokenStore();
-	// Retries never actually sleep in a test; the waits are recorded instead.
+	// Retries never actually sleep in a test; the waits are recorded, and move a
+	// fake clock forward so the throttle sees the time pass.
 	const waits: number[] = [];
-	const wait = async (ms: number) => void waits.push(ms);
-	return { http, store, waits, client: new GarminClient({ http, store, wait }) };
+	let clock = 1_000_000;
+	const now = () => clock;
+	const wait = async (ms: number) => {
+		waits.push(ms);
+		clock += ms;
+	};
+	return { http, store, waits, client: new GarminClient({ http, store, wait, now }) };
 }
 
 // Single-use: a later rule for the same URL is meant to take over, which is how
@@ -444,10 +458,40 @@ describe("retrying a transient failure", () => {
 		assert.equal(http.urls.filter((u) => u.includes("/metrics-service")).length, MAX_ATTEMPTS);
 	});
 
-	it("does not retry a rate limit, which is Garmin asking us to stop", async () => {
-		const { client, http } = clientWith([
+	it("waits out a rate limit as long as Garmin asks, then gives up", async () => {
+		const { client, http, waits } = clientWith([
 			...signedIn,
 			{ url: "/wellness-service", status: 429, headers: { "retry-after": "60" } },
+		]);
+		await client.login("user@example.com", "hunter2");
+
+		await assert.rejects(() => client.request("/wellness-service/x"), GarminRateLimitError);
+		assert.equal(http.urls.filter((u) => u.includes("/wellness-service")).length, 1 + RATE_LIMIT_RETRIES);
+		assert.ok(waits.includes(60_000), `waited ${waits.join(", ")}`);
+	});
+
+	it("resumes after a rate limit at half the pace", async () => {
+		const { client, waits } = clientWith([
+			...signedIn,
+			{ url: "/wellness-service", times: 1, status: 429 },
+			{ url: "/wellness-service", json: { ok: true } },
+		]);
+		await client.login("user@example.com", "hunter2");
+		const before = client.throttle.rate;
+		const paused: number[] = [];
+		client.onSlowDown = (at) => void paused.push(at);
+
+		assert.deepEqual(await client.request("/wellness-service/x"), { ok: true });
+		// No Retry-After: the first backoff.
+		assert.ok(waits.includes(RATE_LIMIT_BACKOFF_MS), `waited ${waits.join(", ")}`);
+		assert.equal(client.throttle.rate, before / 2);
+		assert.equal(paused.length, 1);
+	});
+
+	it("does not sit out a rate limit longer than MAX_RATE_LIMIT_WAIT_MS", async () => {
+		const { client, http } = clientWith([
+			...signedIn,
+			{ url: "/wellness-service", status: 429, headers: { "retry-after": String(MAX_RATE_LIMIT_WAIT_MS / 1000 + 1) } },
 		]);
 		await client.login("user@example.com", "hunter2");
 

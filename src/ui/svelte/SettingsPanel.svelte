@@ -4,6 +4,7 @@
 	import type GarminPlugin from "../../main";
 	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
+	import { isSyncSpeed, SPEED_LABELS } from "../../sync/speed";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
 
@@ -263,15 +264,18 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
-			.setName("Pause between days")
-			.setDesc("Milliseconds. Slows a long backfill enough to stay under Garmin's limits.")
-			.addSlider((sl) =>
-				sl
-					.setLimits(0, 2000, 50)
-					.setValue(s.pauseBetweenDays)
-					.setDynamicTooltip()
+			.setName("Sync speed")
+			.setDesc(
+				"How hard a sync leans on Garmin. Gentle is the old pace; Normal about twice it, well " +
+					"under what Garmin was measured to allow. If Garmin asks to slow down, the sync waits and carries on slower.",
+			)
+			.addDropdown((dd) =>
+				dd
+					.addOptions(SPEED_LABELS)
+					.setValue(s.syncSpeed)
 					.onChange((v) => {
-						s.pauseBetweenDays = v;
+						if (!isSyncSpeed(v)) return;
+						s.syncSpeed = v;
 						save();
 					}),
 			)}

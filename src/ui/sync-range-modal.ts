@@ -4,6 +4,7 @@ import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
 import { lastNDays } from "../sync/engine";
 import { endpointsFor } from "../sync/metrics";
+import { secondsPerDay, SYNC_SPEEDS } from "../sync/speed";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
 
 /** Backfill a chosen range. The recent-days command covers the everyday case. */
@@ -22,9 +23,17 @@ export class SyncRangeModal extends Modal {
 		// Only the endpoints the enabled groups actually need count towards the
 		// estimate, so turning groups off visibly lowers it.
 		const wanted = endpointsFor(settings.groups);
-		const perDay = [wanted.summary, wanted.sleep, wanted.hrv, wanted.readiness].filter(
-			Boolean,
-		).length;
+		const perDay = [
+			wanted.summary,
+			wanted.sleep,
+			wanted.hrv,
+			wanted.readiness,
+			wanted.endurance,
+			wanted.training,
+			wanted.body,
+			wanted.fitnessAge,
+			wanted.health,
+		].filter(Boolean).length;
 
 		this.form = mount(SyncRangeForm, {
 			target: this.contentEl,
@@ -33,7 +42,7 @@ export class SyncRangeModal extends Modal {
 				initialTo: to,
 				perDay,
 				today: toIsoDate(),
-				pauseMs: settings.pauseBetweenDays,
+				secondsPerDay: secondsPerDay(perDay, SYNC_SPEEDS[settings.syncSpeed]),
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				onRun: (start: string, end: string) => {
 					this.close();
