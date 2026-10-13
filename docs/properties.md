@@ -670,7 +670,7 @@ answer in one file per activity:
 How it fills:
 
 - When a run's page opens, with a session and the `workouts` group on. The
-  loads wait for a sync to finish, keep the usual pause between activities, and
+  loads wait for a sync to finish, go at the sync speed's pace, and
   stop at a 429 until the next view.
 - With **Download runs** on, for every run in the activity index that has no
   file yet, newest first, after each sync — the pages' loads first, then one run

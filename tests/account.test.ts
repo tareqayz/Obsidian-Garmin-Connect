@@ -200,13 +200,15 @@ describe("fetchAccount", () => {
 		assert.ok(got.account?.lactateThreshold);
 	});
 
-	it("stops at a rate limit", async () => {
+	it("reports a rate limit as fatal, keeping what the other requests brought", async () => {
+		// Asked all at once, so the rest are already on their way when one 429s;
+		// the client's throttle is what holds them back while Garmin wants a pause.
 		const got = await fetchAccount(
 			source({ userSettings: async () => { throw new GarminRateLimitError("slow down"); } }),
 			"2026-09-25",
 			"metric",
 		);
 		assert.ok(got.fatal instanceof GarminRateLimitError);
-		assert.equal(got.requests, 1);
+		assert.ok(got.account, "the payloads that came back are still mapped");
 	});
 });

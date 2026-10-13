@@ -1,5 +1,7 @@
 import { CookieJar, parseJson, type HttpClient } from "../http";
 import { silentLog, snippet, type Log } from "../log";
+import { endpointOf, RequestStats } from "./request-stats";
+import { Throttle, type ThrottleLimits } from "./throttle";
 import { endpoints, nativeHeaders, type GarminDomain } from "./constants";
 import {
 	exchangeServiceTicket,
@@ -32,6 +34,10 @@ export interface GarminClientOptions {
 	log?: Log;
 	/** Injectable so a test does not actually sleep through a retry. */
 	wait?: (ms: number) => Promise<void>;
+	/** Injectable so a test can drive the clock the timings read. */
+	now?: () => number;
+	/** The pace for every request; see `throttle.ts`. Defaults to `DEFAULT_LIMITS`. */
+	limits?: ThrottleLimits;
 }
 
 /**
@@ -44,6 +50,22 @@ export interface GarminClientOptions {
  * endpoint and rescues the common case.
  */
 export const MAX_ATTEMPTS = 3;
+
+/**
+ * The pace when nobody chose one — the "Normal" sync speed. See
+ * `docs/garmin-api.md` for the ramp that measured where Garmin objects.
+ */
+export const DEFAULT_LIMITS: ThrottleLimits = { rate: 20, burst: 27, concurrency: 27 };
+
+/**
+ * A 429 is retried this many times, each after Garmin's `Retry-After` (or 30s,
+ * then 60s, without one), with the whole client paused meanwhile. Past that, or
+ * past `MAX_RATE_LIMIT_WAIT_MS`, the run stops: a sync hung for an hour helps
+ * nobody, and the next one picks up where it left off.
+ */
+export const RATE_LIMIT_RETRIES = 2;
+export const RATE_LIMIT_BACKOFF_MS = 30_000;
+export const MAX_RATE_LIMIT_WAIT_MS = 5 * 60_000;
 
 /** Doubling, with jitter so a burst of parallel day requests does not resynchronise. */
 export function backoffMs(attempt: number, random = Math.random): number {
@@ -85,6 +107,12 @@ export class GarminClient {
 	protected log: Log;
 	private readonly store: TokenStore;
 	private readonly wait: (ms: number) => Promise<void>;
+	private readonly now: () => number;
+	/** Every attempt's endpoint, status and duration — see `request-stats.ts`. */
+	readonly stats = new RequestStats();
+	readonly throttle: Throttle;
+	/** Told when a 429 pauses the client, with the epoch ms it resumes at. */
+	onSlowDown: ((resumesAt: number) => void) | null = null;
 
 	private auth: PersistedAuth | null = null;
 	private access: AccessToken | null = null;
@@ -96,6 +124,14 @@ export class GarminClient {
 		this.domain = opts.domain ?? "garmin.com";
 		this.log = opts.log ?? silentLog;
 		this.wait = opts.wait ?? ((ms) => new Promise((done) => setTimeout(done, ms)));
+		this.now = opts.now ?? Date.now;
+		// `wait` paces the throttle only alongside an injected clock: an instant
+		// `wait` against the real one would spin until real time caught up.
+		this.throttle = new Throttle({
+			...(opts.limits ?? DEFAULT_LIMITS),
+			now: this.now,
+			wait: opts.now ? this.wait : undefined,
+		});
 	}
 
 /** Swap the narrator — the probe attaches its own, the plugin runs silent. */
@@ -281,23 +317,42 @@ export class GarminClient {
 	/**
 	 * Retries a request that failed in a way that says nothing about the request.
 	 *
-	 * Only transport failures and 5xx: a 400 means the same thing however many
-	 * times it is asked, and a 429 is Garmin telling us to stop, which retrying
-	 * is the precise wrong response to.
+	 * Transport failures and 5xx straight away, with a short backoff: a 400 means
+	 * the same thing however many times it is asked. A 429 is Garmin telling us
+	 * to stop, so it pauses every request this client makes — not just this one —
+	 * for as long as Garmin asked, slows the pace, and only then tries again.
 	 */
 	private async sendWithRetry(path: string, opts: RequestOptions, token: string) {
-		let res = await this.send(path, opts, token);
-		for (let attempt = 1; attempt < MAX_ATTEMPTS && isTransient(res.status); attempt++) {
-			const pause = backoffMs(attempt);
+		let res = await this.send(path, opts, token, 1);
+		let attempt = 1;
+		for (let tries = 1; tries < MAX_ATTEMPTS && isTransient(res.status); tries++) {
+			const pause = backoffMs(tries);
 			this.log.detail(path, `HTTP ${res.status || "no response"} — retrying in ${pause}ms`);
 			await this.wait(pause);
-			res = await this.send(path, opts, token);
+			res = await this.send(path, opts, token, ++attempt);
+		}
+		for (let n = 1; n <= RATE_LIMIT_RETRIES && res.status === 429; n++) {
+			const after = retryAfter(res.headers);
+			const pause = after !== undefined ? after * 1000 : RATE_LIMIT_BACKOFF_MS * 2 ** (n - 1);
+			if (pause > MAX_RATE_LIMIT_WAIT_MS) break;
+			this.throttle.slowDown(pause);
+			this.log.warn(
+				`${path}: rate limited by Garmin — pausing ${Math.round(pause / 1000)}s, ` +
+					`then ${this.throttle.rate} requests/s`,
+			);
+			this.onSlowDown?.(this.throttle.resumesAt);
+			res = await this.send(path, opts, token, ++attempt);
 		}
 		return res;
 	}
 
-	private send(path: string, opts: RequestOptions, token: string) {
-		return this.http.request({
+	private send(path: string, opts: RequestOptions, token: string, attempt: number) {
+		return this.throttle.run(() => this.sendNow(path, opts, token, attempt));
+	}
+
+	private async sendNow(path: string, opts: RequestOptions, token: string, attempt: number) {
+		const started = this.now();
+		const res = await this.http.request({
 			url: `${endpoints(this.domain).connectApi}${path}`,
 			method: opts.method ?? "GET",
 			query: opts.query,
@@ -308,6 +363,15 @@ export class GarminClient {
 			}),
 			body: opts.body,
 		});
+		this.stats.record({
+			endpoint: endpointOf(path),
+			status: res.status,
+			ms: this.now() - started,
+			attempt,
+			at: started,
+		});
+		if (res.status >= 200 && res.status < 300) this.throttle.succeeded();
+		return res;
 	}
 
 	private unwrap<T>(res: { status: number; headers: Record<string, string>; text: string; error?: string }, path: string): T {

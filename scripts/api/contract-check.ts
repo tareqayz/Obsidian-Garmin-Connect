@@ -23,11 +23,7 @@
 
 import { writeFileSync } from "node:fs";
 
-import { FetchHttpClient } from "./fetch-http";
-import { GarminApi } from "../../src/garmin/endpoints";
 import { GarminRateLimitError } from "../../src/garmin/errors";
-import { DI_CLIENT_IDS } from "../../src/garmin/constants";
-import type { PersistedAuth, TokenStore } from "../../src/garmin/tokens";
 import {
 	checkedEndpoints,
 	loadCatalogue,
@@ -44,77 +40,8 @@ import {
 	sleep,
 } from "./probes";
 import { merge } from "./schema";
+import { authFromEnv, connect, EnvTokenStore, saveSession } from "./session";
 import { changed, check, failed, report, type Result } from "./verdict";
-
-/* ------------------------------------------------------------------ */
-/*  Auth                                                               */
-/* ------------------------------------------------------------------ */
-
-/**
- * Keeps the session in the environment rather than on disk, and holds whatever
- * Garmin hands back so a rotated token can be persisted by the caller.
- */
-class EnvTokenStore implements TokenStore {
-	current: PersistedAuth | null;
-	rotated = false;
-
-	constructor(initial: PersistedAuth | null) {
-		this.current = initial;
-	}
-
-	async load(): Promise<PersistedAuth | null> {
-		return this.current;
-	}
-
-	async save(auth: PersistedAuth): Promise<void> {
-		if (this.current && this.current.refreshToken !== auth.refreshToken) this.rotated = true;
-		this.current = auth;
-	}
-
-	async clear(): Promise<void> {
-		this.current = null;
-	}
-}
-
-function authFromEnv(): PersistedAuth | null {
-	const blob = process.env.GARMIN_TOKENS?.trim();
-	if (blob) {
-		const parsed = JSON.parse(blob) as Partial<PersistedAuth>;
-		if (!parsed.refreshToken) throw new Error("GARMIN_TOKENS has no refreshToken");
-		return {
-			refreshToken: parsed.refreshToken,
-			diClientId: parsed.diClientId ?? DI_CLIENT_IDS[0],
-			savedAt: parsed.savedAt ?? Date.now(),
-		};
-	}
-	const refreshToken = process.env.GARMIN_REFRESH_TOKEN?.trim();
-	if (!refreshToken) return null;
-	return {
-		refreshToken,
-		diClientId: process.env.GARMIN_DI_CLIENT_ID?.trim() || DI_CLIENT_IDS[0],
-		savedAt: Date.now(),
-	};
-}
-
-async function connect(store: EnvTokenStore): Promise<GarminApi> {
-	const api = new GarminApi({ http: new FetchHttpClient(), store });
-	if (await api.restore()) {
-		// Fail on a dead session here rather than halfway through the sweep,
-		// where it would look like an endpoint had broken.
-		await api.refreshNow();
-		return api;
-	}
-	const email = process.env.GARMIN_EMAIL?.trim();
-	const password = process.env.GARMIN_PASSWORD;
-	if (!email || !password) {
-		throw new Error(
-			"no Garmin session: set GARMIN_TOKENS (or GARMIN_REFRESH_TOKEN), or " +
-				"GARMIN_EMAIL and GARMIN_PASSWORD. `npm run api:token` mints one. See api/README.md.",
-		);
-	}
-	await api.login(email, password);
-	return api;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Recording                                                          */
@@ -147,16 +74,6 @@ function option(name: string): string | undefined {
 	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-/**
- * Written, never printed: this is the credential that keeps CI signing in, and
- * Garmin may replace it at any point during a run.
- */
-function saveSession(store: EnvTokenStore): void {
-	const out = option("save-token") ?? process.env.GARMIN_TOKEN_OUT;
-	if (!out || !store.current) return;
-	writeFileSync(out, `${JSON.stringify(store.current, null, "\t")}\n`, { mode: 0o600 });
-}
-
 /** `--days 0` or `--days nonsense` would quietly sample nothing. */
 function positive(raw: string | undefined, fallback: number): number {
 	const value = Number(raw);
@@ -175,7 +92,7 @@ async function main(): Promise<number> {
 	// Before the sweep, not only after it. Signing in can rotate the token on
 	// its own, and a rate limit part-way through would otherwise throw away the
 	// only copy of the credential the next run needs.
-	saveSession(store);
+	saveSession(store, option("save-token"));
 
 	const results: Result[] = [];
 	for (const entry of checked) {
@@ -206,7 +123,7 @@ async function main(): Promise<number> {
 	const out = option("report");
 	if (out) writeFileSync(out, `${text}\n`);
 
-	saveSession(store);
+	saveSession(store, option("save-token"));
 
 	return failed(results) || (flag("strict") && changed(results)) ? 1 : 0;
 }

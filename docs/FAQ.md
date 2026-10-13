@@ -30,7 +30,7 @@ groups you turn on:
 - **The newest seven days of each sync:** six more each, for the day's curves.
 - **Each sync:** about fifteen more, for your profile and the range calls.
 - **Once, when it fills its history files:** about 130 per year of history,
-  with a pause between requests.
+  paced by the **Sync speed** setting.
 
 The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
 

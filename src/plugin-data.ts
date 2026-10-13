@@ -5,6 +5,7 @@ import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings-data";
 import type { LegacyNotes } from "./sync/import-notes";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
+import { isSyncSpeed, speedFromPause } from "./sync/speed";
 
 /* Readers that accept only what they recognise, so nothing unexpected survives
    a load — neither a stale secret nor a value that would break a slider. */
@@ -106,7 +107,8 @@ export class PluginData implements TokenStore {
 			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
 			downloadRuns: bool(source.downloadRuns, d.downloadRuns),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
-			pauseBetweenDays: int(source.pauseBetweenDays, d.pauseBetweenDays, 0, 5000),
+			// An older build saved a pause in ms; the speed nearest it stands in.
+			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : speedFromPause(source.pauseBetweenDays),
 			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),

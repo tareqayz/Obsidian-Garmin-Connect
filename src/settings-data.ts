@@ -1,6 +1,7 @@
 import type { GarminDomain } from "./garmin/constants";
 import type { MetricGroup } from "./sync/metrics";
 import { ALL_GROUPS } from "./sync/metrics";
+import type { SyncSpeed } from "./sync/speed";
 
 /**
  * The settings' shape and defaults, kept apart from the settings tab so the
@@ -41,7 +42,8 @@ export interface GarminSettings {
 	 * drawn alone and no tile is ever asked for.
 	 */
 	mapTiles: boolean;
-	pauseBetweenDays: number;
+	/** How hard a sync leans on Garmin; see `sync/speed.ts`. Replaced `pauseBetweenDays`. */
+	syncSpeed: SyncSpeed;
 	stopAfterEmptyDays: number;
 
 	logFolder: string;
@@ -68,7 +70,7 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,
-	pauseBetweenDays: 250,
+	syncSpeed: "normal",
 	// A backfill that reaches past the start of your Garmin history would
 	// otherwise keep asking, four requests a day, until Garmin rate-limits it.
 	stopAfterEmptyDays: 45,

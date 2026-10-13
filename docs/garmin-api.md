@@ -359,13 +359,14 @@ the next session carries on from where it stopped.
 **On view.** A page that needs what a sync didn't fetch asks for it when it
 opens: a day's intraday blocks (one or two requests a day), or an activity's
 page (ten requests, once per activity). These wait for any sync, run one at a
-time with the same pause, and a 429 answers every one still waiting. **Download
+time at the same pace, and a 429 that outlasts the pause answers every one still waiting. **Download
 runs** queues every run behind them (ten requests each, two seconds or more
 apart) and stops at a 429 until the next sync.
 
 The sync runs **newest day first**, so a run cut short by a rate limit has
-already covered the days you care about most. `pauseBetweenDays` (default
-250 ms) throttles between days.
+already covered the days you care about most. Every request goes through one
+throttle on the client (`src/garmin/throttle.ts`), paced by the **Sync speed**
+setting; see [Request pace](#request-pace).
 
 ## Keeping this honest
 
@@ -382,11 +383,14 @@ in [`api/schema/`](../api/schema/).
 
 ## Behaviour worth knowing
 
-- **Transient failures are retried, rate limits are not.** A request that comes
-  back 5xx, or does not come back at all, is tried up to three times in all,
-  with a jittered backoff (`MAX_ATTEMPTS` in `src/garmin/client.ts`). A 429 is
-  not retried: retrying is the precise wrong response to Garmin asking us to
-  stop. A 4xx means the same thing however many times it is asked.
+- **Transient failures are retried at once; rate limits after a pause.** A
+  request that comes back 5xx, or does not come back at all, is tried up to
+  three times in all, with a jittered backoff (`MAX_ATTEMPTS` in
+  `src/garmin/client.ts`). A 429 pauses *every* request the client makes for
+  Garmin's `Retry-After` (30 s, then 60 s, without one), halves the pace, and
+  tries again — twice at most (`RATE_LIMIT_RETRIES`), and never after a
+  `Retry-After` over five minutes. Only then does it end the run. Another 4xx
+  means the same thing however many times it is asked.
 - **`expires_in` is not fixed.** It was 66,341 s on one run and 97,344 s on
   another, so the lifetime is always read from the response.
 - **The login response glues seven cookies into one `Set-Cookie` header**, and
@@ -396,6 +400,42 @@ in [`api/schema/`](../api/schema/).
   measured below. That is a server-side policy, not a guarantee.
 - **Rate limits are per IP** for login attempts, and repeated failures can lock
   an account.
+
+## Request pace
+
+Garmin publishes no rate limit for the API the plugin uses, so one was
+measured: `npm run api:ramp` (or `api:ramp:eval`, inside Obsidian on the
+plugin's own session) asks for the per-day endpoints a backfill does, at a
+rising rate, and stops at the first 429, edge refusal, p95 latency three times
+the first stage's, or 5% server errors.
+
+On 2026-10-12, from a home connection, every stage ran clean:
+
+| Stage (calls/s × in flight) | HTTP requests/s | Requests | p50 | p95 |
+| --- | --- | --- | --- | --- |
+| 1 × 3 | 2.0 | 121 | 256 ms | 533 ms |
+| 4 × 9 | 8.0 | 479 | 257 ms | 616 ms |
+| 8 × 15 | 15.9 | 957 | 257 ms | 484 ms |
+| 12 × 20 | 23.7 | 1,433 | 256 ms | 430 ms |
+| 16 × 24 | 31.7 | 1,910 | 262 ms | 539 ms |
+| 24 × 36 | 47.4 | 2,862 | 254 ms | 405 ms |
+
+About 8,800 requests in half an hour, no 429 and no slowdown. 47 requests a
+second for a minute is a floor on the limit, not the limit. What a minute-long
+test cannot see — a quota over hours, or an account flagged for the pattern —
+is why the speeds stay well under it:
+
+| Sync speed | Pace | Days at once | 30-day sync, measured |
+| --- | --- | --- | --- |
+| Gentle | 8 requests/s | 1 | 43 s |
+| Normal (default) | 20 requests/s | 3 | 17 s |
+| Fast | 32 requests/s | 5 | 12 s |
+
+The old fixed 250 ms pause between days took 34 s for the same 30 days (344
+requests): a day's requests go out together and the day lands with the slowest,
+about 0.85 s, so the pace was set by latency and the pause, not by Garmin.
+The days are now fetched a few at a time, and the calls before and after them
+(the range endpoints, the index feeds, the account) side by side.
 
 ## TLS fingerprints
 

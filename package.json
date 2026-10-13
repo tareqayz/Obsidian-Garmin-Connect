@@ -14,6 +14,8 @@
 		"api:extract:check": "python3 scripts/api/extract-endpoints.py --check",
 		"api:check": "esbuild scripts/api/contract-check.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-check.mjs --log-level=warning && node scripts/.api-check.mjs",
 		"api:record": "npm run api:check -- --update",
+		"api:ramp": "esbuild scripts/api/ramp.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-ramp.mjs --log-level=warning && node scripts/.api-ramp.mjs",
+		"api:ramp:eval": "esbuild scripts/api/ramp-eval.ts --bundle --platform=browser --format=iife --target=es2022 --outfile=scripts/.api-ramp-eval.js --log-level=warning",
 		"api:token": "esbuild scripts/api/mint-token.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-token.mjs --log-level=warning && node scripts/.api-token.mjs",
 		"pretest": "node -e \"require('node:fs').rmSync('tests/.build',{recursive:true,force:true})\"",
 		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test \"tests/.build/*.mjs\"",
