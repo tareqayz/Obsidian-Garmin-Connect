@@ -44,14 +44,28 @@ saved session to restore, not on every sync.
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Days to sync | `syncDays` | `3` | How many days back **Sync recent days** covers. Slider 1–30. |
 | Sync on startup | `syncOnStartup` | off | Runs **Sync recent days** five seconds after Obsidian loads the plugin, when you are signed in. |
 | Download runs | `downloadRuns` | off | Downloads every run's page — charts, laps, route — after each sync, in the background, newest first, so it opens without a connection. About 150 KB and ten requests a run, at least two seconds apart; a run already in `activity-details/` is skipped. Off, a run downloads the first time you open it. |
 | Units | `units` | `auto` | `metric` writes `distance_km`, `imperial` writes `distance_mi`, and `auto` asks Garmin which system your account uses. |
 
-**Why three days and not one.** Garmin keeps revising a day after it ends.
-Sleep is finalised late, and a watch that syncs in the morning rewrites
-yesterday. Re-syncing an unchanged day writes nothing: the day's year file is
+**How Sync recent days picks its days.** There is no setting: it covers
+everything since the last recent sync that finished, from the day before
+through today. Garmin keeps revising a day after it ends — sleep is
+finalised late, and a watch that syncs in the morning rewrites yesterday —
+so it always covers at least yesterday and today.
+
+- The mark is the watch's last upload as Garmin reported it then, not the
+  time of the sync. A watch left offline for four days keeps the mark where
+  it was however often you sync, and the sync after it uploads covers all four.
+- The first sync covers three days; the history walks fill in the rest.
+- After a gap longer than 30 days it covers the last 30 and says so in the
+  notice. **Sync a date range…** covers the days before.
+- A sync cut short by a rate limit or a dead session leaves the mark where it
+  was, so the next one covers its oldest days again.
+- The mark is in `<dataFolder>/sync-state.json`. Delete it to start over.
+  **Sync today** and **Sync a date range…** leave it alone.
+
+Re-syncing an unchanged day writes nothing: the day's year file is
 rewritten only when its text changes, so an identical day leaves it
 untouched. That matters with Obsidian Sync or LiveSync, which treat a bumped
 modification time as a change to send everywhere.

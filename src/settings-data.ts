@@ -23,8 +23,6 @@ export interface GarminSettings {
 	email: string;
 	domain: GarminDomain;
 
-	/** How many days back a "sync recent days" run covers. */
-	syncDays: number;
 	groups: MetricGroup[];
 	units: "metric" | "imperial" | "auto";
 
@@ -55,9 +53,6 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	email: "",
 	domain: "garmin.com",
 
-	// Garmin backfills a day for a while after it ends — sleep is finalised late,
-	// and a watch that synced this morning rewrites yesterday.
-	syncDays: 3,
 	groups: [...ALL_GROUPS],
 	units: "auto",
 

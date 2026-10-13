@@ -66,6 +66,7 @@ src/sync/
   progress.ts            what a sync reports while it runs: the Notice's bar — pure
   intraday.ts            intraday payloads → the day's series file — pure
   account.ts             account.json: profile, watch, latest values, plans, records — pure
+  sync-state.ts          sync-state.json: where the last recent sync got to, its mark — pure
   activity-index.ts      the activity index: rows, merging, year files — pure
   daily-stats.ts         the daily stats index: rows, merging, year files — pure
   sleep-index.ts         the sleep index: a row a night — pure
@@ -76,8 +77,8 @@ src/sync/
   intraday-registry.ts   on-view intraday loads: the series file's own blocks, extras, loadDay — pure
   intraday-extras.ts     INTRADAY_EXTRAS, the registered extras — pure
   activity-detail.ts     an activity's page file: its blocks, building it, loadActivity — pure
-  series-store.ts        the day files, series files, account.json, every index and activity
-                         file on disk
+  series-store.ts        the day files, series files, account.json, sync-state.json, every
+                         index and activity file on disk
   import-notes.ts        the one-time copy of old builds' day notes into the day files
   vault-paths.ts         ensureFolder, trimSlashes
   runner.ts              settings → a run, the history walks in turn, reporting

@@ -34,8 +34,8 @@ describe("PluginData", () => {
 	});
 
 	it("reads a current file without rewriting it", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 7 }, auth: AUTH, home: { preset: "be-healthy", hidden: [] } });
-		assert.equal(data.settings.syncDays, 7);
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH, home: { preset: "be-healthy", hidden: [] } });
+		assert.equal(data.settings.stopAfterEmptyDays, 7);
 		assert.equal(data.hasSession, true);
 		assert.deepEqual(await data.load(), AUTH);
 		assert.equal(saved.length, 0);
@@ -80,8 +80,8 @@ describe("PluginData", () => {
 	});
 
 	it("keeps values a slider can show", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
-		assert.equal(data.settings.syncDays, 30);
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
+		assert.equal(data.settings.stopAfterEmptyDays, 365);
 		assert.equal(data.settings.syncSpeed, "normal");
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
@@ -97,6 +97,11 @@ describe("PluginData", () => {
 		assert.equal(await speedFor(0), "fast");
 		assert.equal(await speedFor(2000), "gentle");
 		assert.equal(await speedFor(undefined), "normal");
+	});
+
+	it("drops the Days to sync setting a build before smart sync saved", async () => {
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 7 } });
+		assert.equal("syncDays" in data.settings, false);
 	});
 
 	it("migrates a version 1 file, switching on the groups added since but not one turned off", async () => {

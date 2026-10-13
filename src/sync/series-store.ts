@@ -47,6 +47,7 @@ import type { DayRow as HomeDayRow } from "../dashboard/series";
 import { dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
 import type { Properties } from "./metrics";
 import type { AccountInfo } from "./account";
+import { parseSyncState, serializeSyncState, type SyncState } from "./sync-state";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
 import { parseActivityDetail, serializeActivityDetail, type ActivityDetail, type ActivityDetailStore } from "./activity-detail";
 
@@ -54,6 +55,8 @@ export const SERIES_FOLDER = "series";
 /** Every day's properties, a file a year (see `days.ts`). */
 export const DAYS_FOLDER = "days";
 export const ACCOUNT_FILE = "account.json";
+/** Where the last recent sync got to (see `sync-state.ts`). */
+export const SYNC_STATE_FILE = "sync-state.json";
 export const ACTIVITIES_FOLDER = "activities";
 export const ACTIVITY_META_FILE = "index.json";
 export const DAILY_STATS_FOLDER = "daily-stats";
@@ -231,6 +234,20 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		} catch {
 			return null;
 		}
+	}
+
+	get syncStatePath(): string {
+		return this.join(SYNC_STATE_FILE);
+	}
+
+	async writeSyncState(state: SyncState): Promise<"written" | "unchanged"> {
+		return this.put(this.syncStatePath, serializeSyncState(state));
+	}
+
+	/** Read fresh, not cached: another device may have synced since. */
+	async readSyncState(): Promise<SyncState | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.syncStatePath);
+		return file instanceof TFile ? parseSyncState(await this.app.vault.read(file)) : null;
 	}
 
 	get activitiesFolder(): string {

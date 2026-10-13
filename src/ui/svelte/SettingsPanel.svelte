@@ -136,26 +136,6 @@
 <div
 	use:obsidianSetting={(setting) =>
 		setting
-			.setName("Days to sync")
-			.setDesc(
-				"How far back a recent-days sync reaches. Garmin keeps revising a day after it " +
-					"ends — sleep is finalised late — so more than one day is worth it.",
-			)
-			.addSlider((sl) =>
-				sl
-					.setLimits(1, 30, 1)
-					.setValue(s.syncDays)
-					.setDynamicTooltip()
-					.onChange((v) => {
-						s.syncDays = v;
-						save();
-					}),
-			)}
-></div>
-
-<div
-	use:obsidianSetting={(setting) =>
-		setting
 			.setName("Sync on startup")
 			.setDesc("Runs a recent-days sync shortly after Obsidian loads.")
 			.addToggle((t) =>
