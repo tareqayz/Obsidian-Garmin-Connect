@@ -63,6 +63,7 @@ import {
 	type Span,
 } from "./coverage";
 import { parseScan, serializeScan, type AccountScan } from "./scan";
+import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
 
 export const SERIES_FOLDER = "series";
 /** Every day's properties, a file a year (see `days.ts`). */
@@ -90,6 +91,8 @@ export const DAY_COVERAGE_FILE = "index.json";
 export const RUN_COVERAGE_FILE = "index.json";
 /** Where the account's history starts and ends, as the last scan found it (see `scan.ts`). */
 export const SCAN_FILE = "scan.json";
+/** Whether the backfill is paused and which device runs it (see `backfill.ts`). */
+export const BACKFILL_FILE = "backfill.json";
 
 export interface SleepIndex {
 	/** Oldest first. */
@@ -287,6 +290,34 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
 		return this.put(this.scanPath, serializeScan(scan));
+	}
+
+	get backfillPath(): string {
+		return this.join(BACKFILL_FILE);
+	}
+
+	/** Read fresh, not from the cache: another device may have written it a moment ago. */
+	async readBackfill(): Promise<BackfillState> {
+		const file = this.app.vault.getAbstractFileByPath(this.backfillPath);
+		return file instanceof TFile ? parseBackfill(await this.app.vault.read(file)) : {};
+	}
+
+	async writeBackfill(state: BackfillState): Promise<"written" | "unchanged"> {
+		return this.put(this.backfillPath, serializeBackfill(state));
+	}
+
+	/** The chart indexes' metas by store (`activities`, `daily-stats`, `sleep`, `index:<kind>`): what the backfill plans walks from. */
+	async readChartMetas(): Promise<Map<string, ChartMeta | null>> {
+		const out = new Map<string, ChartMeta | null>();
+		const [activities, daily, sleep] = await Promise.all([this.readActivities(), this.readDailyStatsMeta(), this.readSleepMeta()]);
+		out.set("activities", activities.meta ? { complete: activities.meta.complete === true } : null);
+		out.set("daily-stats", daily ? { complete: daily.complete === true, ...(daily.from ? { from: daily.from } : {}) } : null);
+		out.set("sleep", sleep ? { complete: sleep.complete === true, ...(sleep.from ? { from: sleep.from } : {}) } : null);
+		for (const def of DAY_INDEXES) {
+			const meta = await this.readDayIndexMeta(def);
+			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...(meta.from ? { from: meta.from } : {}) } : null);
+		}
+		return out;
 	}
 
 	get dayCoveragePath(): string {

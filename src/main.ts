@@ -1,4 +1,4 @@
-import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, Plugin, type WorkspaceLeaf } from "obsidian";
 import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -13,7 +13,7 @@ import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { DAY_INDEXES } from "./sync/day-indexes";
 import { importDayNotes } from "./sync/import-notes";
-import { SyncRunner } from "./sync/runner";
+import { SyncRunner, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
@@ -26,6 +26,10 @@ import { SyncRangeModal } from "./ui/sync-range-modal";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
+/** The backfill carries on after the startup sync has had its turn. */
+const STARTUP_BACKFILL_DELAY_MS = 8000;
+/** Where this device keeps its id, for the backfill's lease. Per vault and device, never synced. */
+const DEVICE_KEY = "garmin-connect-device";
 
 export default class GarminPlugin extends Plugin {
 	data!: PluginData;
@@ -156,6 +160,14 @@ export default class GarminPlugin extends Plugin {
 				window.setTimeout(() => void this.sync.syncRecent(), STARTUP_SYNC_DELAY_MS),
 			);
 		}
+		// A backfill agreed to carries on where the files say it stopped, whether or not the startup sync runs.
+		this.app.workspace.onLayoutReady(() =>
+			this.registerInterval(window.setTimeout(() => this.sync.kickBackfill(), STARTUP_BACKFILL_DELAY_MS)),
+		);
+	}
+
+	onunload(): void {
+		this.sync.stop();
 	}
 
 	/** Another device changed data.json: take its setup and data choices. */
@@ -205,7 +217,18 @@ export default class GarminPlugin extends Plugin {
 			store: this.data,
 			domain: this.data.settings.domain,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => categoryOf(row) === "running");
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => categoryOf(row) === "running", this.device());
+	}
+
+	/** This device for the backfill's lease: an id kept in this vault's local storage, and a name a person knows it by. */
+	private device(): DeviceIdentity {
+		let id = this.app.loadLocalStorage(DEVICE_KEY) as string | null;
+		if (typeof id !== "string" || !id) {
+			id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+			this.app.saveLocalStorage(DEVICE_KEY, id);
+		}
+		const label = Platform.isIosApp ? (Platform.isTablet ? "iPad" : "iPhone") : Platform.isAndroidApp ? "Android" : Platform.isMacOS ? "Mac" : Platform.isWin ? "Windows PC" : "computer";
+		return { id, label };
 	}
 
 	async rebuildClient(): Promise<void> {

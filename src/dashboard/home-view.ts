@@ -35,6 +35,9 @@ const ACCOUNT = "#account";
 /** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
 const REMEMBERED_ACTIVITIES = 8;
 
+/** While a backfill writes, Home rebuilds at most this often. */
+const BACKFILL_REFRESH_MS = 30_000;
+
 /**
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
  * the pages that open from it.
@@ -59,6 +62,9 @@ export class GarminHomeView extends ItemView {
 	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
+	/** When each version last moved, and when Home last rebuilt: while a backfill writes, both wait their turn. */
+	private bumpedAt = new Map<string, number>();
+	private refreshedAt = 0;
 	/** What a page read, by the same keys, for as long as its version holds. */
 	private cache = new Map<string, { version: number; data: Promise<unknown> }>();
 	private activities = new Map<number, ActivityDetail>();
@@ -304,26 +310,46 @@ export class GarminHomeView extends ItemView {
 		return def ? store.readDayIndex(def) : { rows: [], meta: null };
 	}
 
-	/** Moves one version, once a burst of file events settles: a sync writes a year file and the meta together. */
+	/** The backfill is writing: Home redraws at most every `BACKFILL_REFRESH_MS`. */
+	private get backfilling(): boolean {
+		return this.plugin.sync.backfillProgress?.status === "running";
+	}
+
+	/**
+	 * Moves one version, once a burst of file events settles: a sync writes a
+	 * year file and the meta together. While a backfill writes, at most every
+	 * `BACKFILL_REFRESH_MS`, a burst never putting it off.
+	 */
 	private bump(key: string): void {
 		this.cache.delete(key);
+		const fire = () => {
+			this.bumps.delete(key);
+			this.cache.delete(key);
+			this.bumpedAt.set(key, Date.now());
+			const version = (this.versions.get(key) ?? 0) + 1;
+			this.versions.set(key, version);
+			if (key === SERIES) this.component?.setSeriesVersion(version);
+			else this.component?.setIndexVersion(key, version);
+		};
+		if (this.backfilling) {
+			if (this.bumps.has(key)) return;
+			this.bumps.set(key, window.setTimeout(fire, Math.max(150, (this.bumpedAt.get(key) ?? 0) + BACKFILL_REFRESH_MS - Date.now())));
+			return;
+		}
 		window.clearTimeout(this.bumps.get(key));
-		this.bumps.set(
-			key,
-			window.setTimeout(() => {
-				this.bumps.delete(key);
-				this.cache.delete(key);
-				const version = (this.versions.get(key) ?? 0) + 1;
-				this.versions.set(key, version);
-				if (key === SERIES) this.component?.setSeriesVersion(version);
-				else this.component?.setIndexVersion(key, version);
-			}, 150),
-		);
+		this.bumps.set(key, window.setTimeout(fire, 150));
 	}
 
 	private scheduleRefresh(): void {
+		let wait = 150;
+		if (this.backfilling) {
+			if (this.pending) return;
+			wait = Math.max(150, this.refreshedAt + BACKFILL_REFRESH_MS - Date.now());
+		}
 		window.clearTimeout(this.pending);
 		this.pending = window.setTimeout(() => {
+			this.pending = 0;
+			this.refreshedAt = Date.now();
 			const today = toIsoDate();
 			void this.rows().then(async (rows) => {
 				const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
@@ -333,6 +359,6 @@ export class GarminHomeView extends ItemView {
 				this.component?.setStats(stats);
 				this.component?.setSleep(sleep);
 			});
-		}, 150);
+		}, wait);
 	}
 }

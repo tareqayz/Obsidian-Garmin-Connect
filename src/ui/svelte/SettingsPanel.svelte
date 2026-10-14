@@ -5,6 +5,7 @@
 	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
 	import { INTRADAY_DAYS } from "../../sync/engine";
 	import { isSyncSpeed, SPEED_LABELS } from "../../sync/speed";
+	import { RUN_DETAILS_KEY } from "../../sync/datasets";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
 
@@ -158,8 +159,10 @@
 			.addToggle((t) =>
 				t.setValue(s.data.runDetails !== "opened").onChange((v) => {
 					s.data.runDetails = v ? "all" : "opened";
+					// Switching it on is agreeing to the runs' download.
+					if (v && !s.data.accepted.includes(RUN_DETAILS_KEY)) s.data.accepted = [...s.data.accepted, RUN_DETAILS_KEY];
 					save();
-					if (v) plugin.sync.startDownloads();
+					if (v) plugin.sync.kickBackfill();
 				}),
 			)}
 ></div>
