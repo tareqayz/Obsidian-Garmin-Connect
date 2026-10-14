@@ -1023,6 +1023,14 @@ export class SyncRunner {
 		this.kickBackfill();
 	}
 
+	/** Signed in again: a backfill paused for the sign-in carries on; one the user paused stays paused. */
+	async signedIn(): Promise<void> {
+		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
+		const state = await store.readBackfill();
+		if (state.paused?.reason === "sign-in") await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
+		this.kickBackfill();
+	}
+
 	/** Obsidian is closing, or the plugin unloading: the unit in hand stops at its next day or window. */
 	stop(): void {
 		this.backfillStopped = true;

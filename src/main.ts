@@ -23,6 +23,8 @@ import { LoginModal } from "./ui/login-modal";
 import { removeLeafletStyles } from "./ui/map/leaflet";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
+import { SetupModal } from "./ui/setup-modal";
+import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
@@ -144,6 +146,11 @@ export default class GarminPlugin extends Plugin {
 			callback: () => this.openLogin(),
 		});
 		this.addCommand({
+			id: "set-up",
+			name: "Set up Garmin Connect…",
+			callback: () => this.openSetup(),
+		});
+		this.addCommand({
 			id: "run-probe",
 			name: "Run diagnostics",
 			callback: () => new ProbeModal(this.app, this).open(),
@@ -170,9 +177,50 @@ export default class GarminPlugin extends Plugin {
 		this.sync.stop();
 	}
 
+	/**
+	 * The user enabled the plugin, just installed or turned back on: until the
+	 * setup has run, Home opens behind the setup wizard. A vault already set up
+	 * — another device's settings, or a re-enable — opens nothing.
+	 */
+	onUserEnable(): void {
+		this.app.workspace.onLayoutReady(() => {
+			if (this.data.settings.setup) return;
+			void this.openView(GARMIN_HOME_VIEW).then(() => this.openSetup());
+		});
+	}
+
+	openSetup(): void {
+		new SetupModal(this.app, this).open();
+	}
+
+	/** The rows that are runs, the ones whose page opens: what Run details downloads. */
+	isRun(row: ActivityRow): boolean {
+		return categoryOf(row) === "running";
+	}
+
+	/** Signed in or out: open views redraw what depends on it, and a backfill waiting for the sign-in carries on. */
+	authChanged(): void {
+		if (this.garmin.isAuthenticated) void this.sync.signedIn();
+		this.refreshViews();
+	}
+
+	/** The setup ran, or the data choices changed: open views redraw their setup card. */
+	setupChanged(): void {
+		this.refreshViews();
+	}
+
+	private refreshViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW)) {
+			const view = leaf.view;
+			if (view instanceof GarminHomeView) void view.refreshState();
+		}
+	}
+
 	/** Another device changed data.json: take its setup and data choices. */
 	async onExternalSettingsChange(): Promise<void> {
 		await this.data.reloadChoices();
+		this.setupChanged();
+		this.sync.kickBackfill();
 	}
 
 	/**
@@ -217,7 +265,7 @@ export default class GarminPlugin extends Plugin {
 			store: this.data,
 			domain: this.data.settings.domain,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => categoryOf(row) === "running", this.device());
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());
 	}
 
 	/** This device for the backfill's lease: an id kept in this vault's local storage, and a name a person knows it by. */
@@ -232,8 +280,15 @@ export default class GarminPlugin extends Plugin {
 	}
 
 	async rebuildClient(): Promise<void> {
+		this.sync.stop();
 		this.buildClient();
 		await this.garmin.restore();
+		// Open views listen to the runner: hand them the new one.
+		for (const leaf of this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW)) {
+			const view = leaf.view;
+			if (view instanceof GarminHomeView) view.rebindRunner();
+		}
+		this.authChanged();
 	}
 
 	openLogin(onDone?: () => void): void {
@@ -243,5 +298,6 @@ export default class GarminPlugin extends Plugin {
 	async signOut(): Promise<void> {
 		await this.garmin.logout();
 		this.sync.reset();
+		this.authChanged();
 	}
 }

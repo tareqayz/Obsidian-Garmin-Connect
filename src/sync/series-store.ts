@@ -94,6 +94,16 @@ export const SCAN_FILE = "scan.json";
 /** Whether the backfill is paused and which device runs it (see `backfill.ts`). */
 export const BACKFILL_FILE = "backfill.json";
 
+/** Bytes on disk by data set (see `diskUsage`). */
+export interface DiskUsage {
+	charts: number;
+	days: number;
+	runs: number;
+	other: number;
+	total: number;
+	files: number;
+}
+
 export interface SleepIndex {
 	/** Oldest first. */
 	rows: SleepRow[];
@@ -290,6 +300,49 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
 		return this.put(this.scanPath, serializeScan(scan));
+	}
+
+	/**
+	 * Bytes on disk under the data folder, by data set, from the vault's own
+	 * file sizes: Day details are the day files and series, Run details the
+	 * runs' pages, Charts & trends the indexes, and the rest is the small
+	 * bookkeeping files.
+	 */
+	diskUsage(): DiskUsage {
+		const usage: DiskUsage = { charts: 0, days: 0, runs: 0, other: 0, total: 0, files: 0 };
+		const root = this.app.vault.getAbstractFileByPath(this.join(""));
+		if (!(root instanceof TFolder)) return usage;
+		const charts = new Set([ACTIVITIES_FOLDER, DAILY_STATS_FOLDER, SLEEP_FOLDER, ...DAY_INDEXES.map((def) => def.folder)]);
+		const walk = (folder: TFolder, set: keyof Omit<DiskUsage, "total" | "files">) => {
+			for (const child of folder.children) {
+				if (child instanceof TFolder) walk(child, set);
+				else if (child instanceof TFile) {
+					usage[set] += child.stat.size;
+					usage.total += child.stat.size;
+					usage.files += 1;
+				}
+			}
+		};
+		for (const child of root.children) {
+			if (child instanceof TFolder) {
+				const set = child.name === DAYS_FOLDER || child.name === SERIES_FOLDER ? "days" : child.name === ACTIVITY_DETAILS_FOLDER ? "runs" : charts.has(child.name) ? "charts" : "other";
+				walk(child, set);
+			} else if (child instanceof TFile) {
+				usage.other += child.stat.size;
+				usage.total += child.stat.size;
+				usage.files += 1;
+			}
+		}
+		return usage;
+	}
+
+	/** Whether any day or activity has reached this device's data folder. */
+	hasData(): boolean {
+		for (const name of [DAYS_FOLDER, ACTIVITIES_FOLDER]) {
+			const folder = this.app.vault.getAbstractFileByPath(this.join(name));
+			if (folder instanceof TFolder && folder.children.some((child) => child instanceof TFile && /^\d{4}\.json$/.test(child.name))) return true;
+		}
+		return false;
 	}
 
 	get backfillPath(): string {

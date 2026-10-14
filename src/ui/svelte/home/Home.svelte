@@ -30,7 +30,10 @@
 	import type { OpenSheet } from "../../sheet-modal";
 	import ActivityMapPage from "../activity/ActivityMapPage.svelte";
 	import ActivityPage from "../activity/ActivityPage.svelte";
-	import type { HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../../../sync/runner";
+	import type { BackfillProgress, HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../../../sync/runner";
+	import type { SetupCardKind } from "../../setup-flow";
+	import BackfillPill from "./BackfillPill.svelte";
+	import SetupCard from "./SetupCard.svelte";
 	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
 	import CategoryPage from "../activities/CategoryPage.svelte";
@@ -90,7 +93,15 @@
 		initialGlance?: GlanceId[];
 		/** The real today; the model may show an earlier day when today is not synced yet. */
 		today: string;
-		canSync: boolean;
+		/** Signed in at mount; `setCanSync` follows. */
+		initialCanSync: boolean;
+		/** The setup card at mount, if any; `setSetupCard` follows. */
+		initialSetupCard: SetupCardKind | null;
+		initialBackfill: BackfillProgress | null;
+		onSetUp: () => void;
+		onSignIn: () => void;
+		onPauseBackfill: () => void;
+		onResumeBackfill: () => void;
 		onSync: () => Promise<string | null>;
 		onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) => void;
 		/** Add a Stat, from See All's edit mode. */
@@ -138,7 +149,13 @@
 		initialHidden,
 		initialGlance,
 		today: initialToday,
-		canSync,
+		initialCanSync,
+		initialSetupCard,
+		initialBackfill,
+		onSetUp,
+		onSignIn,
+		onPauseBackfill,
+		onResumeBackfill,
 		onSync,
 		onChange,
 		onPick,
@@ -162,6 +179,12 @@
 	// Seeded once; refreshes come through the exported setters.
 	// svelte-ignore state_referenced_locally
 	let model = $state(initialModel);
+	// svelte-ignore state_referenced_locally
+	let canSync = $state(initialCanSync);
+	// svelte-ignore state_referenced_locally
+	let setupCard = $state<SetupCardKind | null>(initialSetupCard);
+	// svelte-ignore state_referenced_locally
+	let backfill = $state<BackfillProgress | null>(initialBackfill);
 	// svelte-ignore state_referenced_locally
 	let presetId = $state(initialPreset);
 	// svelte-ignore state_referenced_locally
@@ -187,6 +210,19 @@
 	/** By index kind, plus `#days` and `#account`: a stat page re-reads what it shows when its number moves. */
 	let indexVersions = $state<Record<string, number>>({});
 	let seriesVersion = $state(0);
+
+	/** Signed in or out since the view opened. */
+	export function setCanSync(next: boolean) {
+		canSync = next;
+	}
+
+	export function setSetupCard(next: SetupCardKind | null) {
+		setupCard = next;
+	}
+
+	export function setBackfill(next: BackfillProgress | null) {
+		backfill = next;
+	}
 
 	/** A view left open past midnight moves on to the new day with its next refresh. */
 	export function setModel(next: HomeModel, nextToday?: string) {
@@ -557,6 +593,10 @@
 			</div>
 		{:else}
 			<div class="content">
+				<div class="backfill"><BackfillPill progress={backfill} onPause={onPauseBackfill} onResume={onResumeBackfill} {onSignIn} /></div>
+				{#if setupCard}
+					<SetupCard kind={setupCard} {onSetUp} {onSignIn} />
+				{/if}
 				{#if model.date !== today}
 					<div class="stale">Today isn’t synced yet. Showing {dateLabel}.</div>
 				{/if}
@@ -765,6 +805,10 @@
 		max-width: 1126px;
 		margin: 0 auto;
 		box-sizing: content-box;
+	}
+	/* The history download's pill, first on Home. Nothing to show, it takes no room. */
+	.backfill:empty {
+		display: none;
 	}
 	/* Not ".notice": Obsidian styles that class as its toast. */
 	.stale {

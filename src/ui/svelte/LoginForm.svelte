@@ -23,9 +23,11 @@
 		) => Promise<string | null>;
 		onEmailChange: (email: string) => void;
 		onCancel: () => void;
+		/** Inside the setup wizard, which titles the step itself: no heading, and the buttons at the end. */
+		embedded?: boolean;
 	}
 
-	let { initialEmail, onSubmit, onEmailChange, onCancel }: Props = $props();
+	let { initialEmail, onSubmit, onEmailChange, onCancel, embedded = false }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let email = $state(initialEmail);
@@ -97,7 +99,7 @@
 	}
 </script>
 
-<h2>Sign in to Garmin Connect</h2>
+{#if !embedded}<h2>Sign in to Garmin Connect</h2>{/if}
 
 {#if challenge}
 	<div class="field">
@@ -126,7 +128,7 @@
 
 	<div class="status" role="status">{status}</div>
 
-	<div class="actions">
+	<div class="actions" class:embedded>
 		<button
 			class="mod-cta"
 			disabled={verifying || !code.trim()}
@@ -163,7 +165,7 @@
 
 	<div class="status" role="status">{status}</div>
 
-	<div class="actions">
+	<div class="actions" class:embedded>
 		<button class="mod-cta" disabled={!ready || busy} onclick={submit}>
 			{busy ? "Signing in…" : "Sign in"}
 		</button>
@@ -206,5 +208,10 @@
 		display: flex;
 		gap: 8px;
 		flex-wrap: wrap;
+	}
+	/* In the wizard, as its other steps: Cancel then the action, at the end. */
+	.actions.embedded {
+		flex-direction: row-reverse;
+		justify-content: flex-start;
 	}
 </style>

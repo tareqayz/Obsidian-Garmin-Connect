@@ -23,8 +23,10 @@ import type { DayRow } from "./series";
 import type { HistoryView, SleepData } from "./sleep-pages";
 import type { StatsData } from "./stats-pages";
 import type { DaySeries } from "../sync/intraday";
+import type { SetupCardKind } from "../ui/setup-flow";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
+
 
 /** The series files' entry among the versions: not a name an index can have. */
 const SERIES = "#series";
@@ -62,6 +64,8 @@ export class GarminHomeView extends ItemView {
 	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
+	/** Unsubscribes from the runner's progress. */
+	private unbind: Array<() => void> = [];
 	/** When each version last moved, and when Home last rebuilt: while a backfill writes, both wait their turn. */
 	private bumpedAt = new Map<string, number>();
 	private refreshedAt = 0;
@@ -124,7 +128,13 @@ export class GarminHomeView extends ItemView {
 				initialHidden: [...this.plugin.data.home.hidden],
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
 				today,
-				canSync: this.plugin.garmin.isAuthenticated,
+				initialCanSync: this.plugin.garmin.isAuthenticated,
+				initialSetupCard: this.setupCard(),
+				initialBackfill: this.plugin.sync.backfillProgress,
+				onSetUp: () => this.plugin.openSetup(),
+				onSignIn: () => this.plugin.openLogin(),
+				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
+				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
 					const report = await this.plugin.sync.syncRecent();
 					return report ? describe(report).replace(/^Garmin sync: /, "") : null;
@@ -154,10 +164,7 @@ export class GarminHomeView extends ItemView {
 			},
 		});
 
-		this.register(this.plugin.sync.onHistory((progress) => this.component?.setHistory(progress)));
-		this.register(this.plugin.sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)));
-		this.register(this.plugin.sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)));
-		this.register(this.plugin.sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)));
+		this.bindRunner();
 
 		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {
@@ -183,7 +190,44 @@ export class GarminHomeView extends ItemView {
 		this.registerEvent(this.app.vault.on("delete", onFile));
 	}
 
+	/** The runner's progress, to the pages. Bound again when signing in elsewhere replaces the runner. */
+	private bindRunner(): void {
+		const sync = this.plugin.sync;
+		this.unbind.push(
+			sync.onHistory((progress) => this.component?.setHistory(progress)),
+			sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)),
+			sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)),
+			sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)),
+			sync.onBackfill((progress) => this.component?.setBackfill(progress)),
+		);
+	}
+
+	rebindRunner(): void {
+		for (const off of this.unbind.splice(0)) off();
+		this.bindRunner();
+		this.component?.setBackfill(this.plugin.sync.backfillProgress);
+	}
+
+	/** Signed in or out, set up or not: the Sync button and the setup card follow. */
+	async refreshState(): Promise<void> {
+		this.component?.setCanSync(this.plugin.garmin.isAuthenticated);
+		this.component?.setSetupCard(this.setupCard());
+	}
+
+	/**
+	 * The card Home shows above everything else, if any: the setup to finish,
+	 * a sign-in, or — set up, signed in, and still nothing here — data that
+	 * another device has but this one never received.
+	 */
+	private setupCard(): SetupCardKind | null {
+		if (!this.plugin.data.settings.setup) return "finish";
+		if (!this.plugin.garmin.isAuthenticated) return "signed-out";
+		if (!this.store().hasData()) return "no-data";
+		return null;
+	}
+
 	async onClose(): Promise<void> {
+		for (const off of this.unbind.splice(0)) off();
 		window.clearTimeout(this.pending);
 		for (const timer of this.bumps.values()) window.clearTimeout(timer);
 		this.bumps.clear();
