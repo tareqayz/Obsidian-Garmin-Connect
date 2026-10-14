@@ -33,6 +33,7 @@ import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION, type RunDetailsRange } from "./datasets";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
+import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
 export interface RunnerSettings {
 	groups: MetricGroup[];
@@ -103,7 +104,8 @@ export class SyncRunner {
 	private api: GarminApi;
 	private settings: () => RunnerSettings;
 	private unitsCache: "metric" | "imperial" | null = null;
-	private busy = false;
+	/** One thing talks to Garmin at a time, by priority (see `runner-lock.ts`). */
+	private lock = new RunnerLock();
 	/** The automatic history walks are under way, one after the other. */
 	private chainActive = false;
 	/** On-view intraday loads waiting for the runner to be free, one job a day. */
@@ -114,10 +116,6 @@ export class SyncRunner {
 	private downloads: number[] = [];
 	/** Runs whose download failed this session, not asked for again until a reload. */
 	private downloadFailed = new Set<number>();
-	/** The background download under way, which a sync or history walk waits for rather than being turned away. */
-	private downloadInHand: Promise<void> | null = null;
-	/** Syncs and walks waiting for that download: no other starts meanwhile. */
-	private waitingForRunner = 0;
 	private draining = false;
 	/** The history sync starts itself once a session, after the first sync, until it has finished once. */
 	private historyTried = false;
@@ -149,22 +147,33 @@ export class SyncRunner {
 		return this.running;
 	}
 
-	/**
-	 * One thing talks to Garmin at a time. Whatever waited for the runner —
-	 * an on-view intraday or activity load — gets its turn once the current work is done,
-	 * on a later task, so a sync that hands over to the history walks keeps
-	 * the runner until they are done.
-	 */
+	/** Whether anything holds the runner. */
 	private get running(): boolean {
-		return this.busy;
+		return this.lock.busy;
 	}
 
-	private set running(value: boolean) {
-		// Every piece of work starts here, so a speed changed in settings takes
-		// effect from the next one.
-		if (value) this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
-		this.busy = value;
-		if (!value && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
+	/**
+	 * The runner, for `priority` (see `RunnerLock`), with the sync speed applied
+	 * — so a speed changed in settings takes effect from the next piece of
+	 * work. The release hands it on and then starts any loads still waiting.
+	 * Null when another sync holds it or waits for it.
+	 */
+	private async claim(priority: Priority): Promise<Release | null> {
+		return this.applied(await this.lock.acquire(priority));
+	}
+
+	/** `claim`, but only if the runner is free now with nothing waiting ahead. */
+	private claimNow(priority: Priority): Release | null {
+		return this.applied(this.lock.tryAcquire(priority));
+	}
+
+	private applied(release: Release | null): Release | null {
+		if (!release) return null;
+		this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
+		return () => {
+			release();
+			if (!this.lock.busy && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
+		};
 	}
 
 	/**
@@ -290,20 +299,19 @@ export class SyncRunner {
 	}
 
 	private async runDays(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const startedAt = Date.now();
 		const notice = new Notice(noticeBody({ done: 0, total: 0, date: null, eta: null }), 0);
-		this.running = true;
 		this.api.onSlowDown = (resumesAt) => {
 			const seconds = Math.max(1, Math.round((resumesAt - Date.now()) / 1000));
 			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
@@ -374,7 +382,7 @@ export class SyncRunner {
 			return null;
 		} finally {
 			this.api.onSlowDown = null;
-			this.running = false;
+			release();
 		}
 	}
 
@@ -388,19 +396,18 @@ export class SyncRunner {
 	 */
 	async syncActivityHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			if (!auto) new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		this.running = true;
 		const notice = auto ? null : new Notice(historyBody({ fetched: 0 }), 0);
 		try {
 			if (auto && (await store.readActivities()).meta?.complete) return null;
@@ -455,7 +462,7 @@ export class SyncRunner {
 			new Notice(`Garmin activity history failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
-			this.running = false;
+			release();
 			this.setHistory(null);
 		}
 	}
@@ -477,19 +484,18 @@ export class SyncRunner {
 	 */
 	async syncDailyStatsHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			if (!auto) new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		this.running = true;
 		const notice = auto ? null : new Notice(statsHistoryBody({}), 0);
 		try {
 			if ((await store.readDailyStatsMeta())?.complete) {
@@ -525,7 +531,7 @@ export class SyncRunner {
 			new Notice(`Garmin step, floor and intensity history failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
-			this.running = false;
+			release();
 			this.setStatsHistory(null);
 		}
 	}
@@ -544,19 +550,18 @@ export class SyncRunner {
 	 */
 	async syncSleepHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
 		const { auto = false, log } = opts;
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			if (!auto) new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		this.running = true;
 		const notice = auto ? null : new Notice(historyNotice("Garmin sleep history", {}), 0);
 		try {
 			if ((await store.readSleepMeta())?.complete) {
@@ -590,7 +595,7 @@ export class SyncRunner {
 			new Notice(`Garmin sleep history failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
-			this.running = false;
+			release();
 			this.setSleepHistory(null);
 		}
 	}
@@ -614,19 +619,18 @@ export class SyncRunner {
 		const def = dayIndex(kind);
 		if (!def) return null;
 		const label = `Garmin ${def.title} history`;
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			if (!auto) new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			if (!auto) new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			if (!auto) new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		this.running = true;
 		const notice = auto ? null : new Notice(historyNotice(label, {}), 0);
 		try {
 			if ((await store.readDayIndexMeta(def))?.complete) {
@@ -657,7 +661,7 @@ export class SyncRunner {
 			new Notice(`${label} failed: ${explain(err)}`, 10000);
 			return null;
 		} finally {
-			this.running = false;
+			release();
 			this.setIndexHistory(kind, null);
 		}
 	}
@@ -694,17 +698,16 @@ export class SyncRunner {
 	 * keeps it in `scan.json`, even cut short: a scan that stopped says so.
 	 */
 	async scan(opts: { onStep?: (step: ScanStep) => void; log?: Log } = {}): Promise<ScanResult | null> {
-		if (this.downloadInHand) await this.yieldDownload();
-		if (this.running) {
-			new Notice("A Garmin sync is already running.");
-			return null;
-		}
 		if (!this.api.isAuthenticated) {
 			new Notice("Sign in to Garmin Connect first.");
 			return null;
 		}
+		const release = await this.claim("foreground");
+		if (!release) {
+			new Notice("A Garmin sync is already running.");
+			return null;
+		}
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		this.running = true;
 		try {
 			const got = await scanAccount(this.api, { today: toIsoDate(), ...(opts.onStep ? { onStep: opts.onStep } : {}) });
 			for (const error of got.errors) opts.log?.warn(`scan: ${error}`);
@@ -716,7 +719,7 @@ export class SyncRunner {
 			}
 			return got;
 		} finally {
-			this.running = false;
+			release();
 		}
 	}
 
@@ -867,7 +870,7 @@ export class SyncRunner {
 
 	/** Runs to download now: none during the history walks, or while a sync waits for the runner. */
 	private get downloadsReady(): boolean {
-		if (!this.downloads.length || this.chainActive || this.waitingForRunner > 0) return false;
+		if (!this.downloads.length || this.chainActive || this.lock.waiting() > 0) return false;
 		const settings = this.settings();
 		return settings.data.runDetails !== "opened" && settings.groups.includes("workouts") && this.api.isAuthenticated;
 	}
@@ -875,23 +878,6 @@ export class SyncRunner {
 	private kickIntraday(): void {
 		if (this.running || this.chainActive || this.draining || !this.loadsWaiting) return;
 		void this.drainIntraday();
-	}
-
-	/**
-	 * A run downloading in the background gives way: whoever wants the runner
-	 * waits for that one run rather than being turned away, and no other
-	 * download starts meanwhile. Awaited only then, so a busy check and the
-	 * claim after it stay in one turn.
-	 */
-	private async yieldDownload(): Promise<void> {
-		const inHand = this.downloadInHand;
-		if (!this.running || !inHand) return;
-		this.waitingForRunner += 1;
-		try {
-			await inHand;
-		} finally {
-			this.waitingForRunner -= 1;
-		}
 	}
 
 	/**
@@ -935,7 +921,7 @@ export class SyncRunner {
 		this.draining = true;
 		try {
 			let rested = true;
-			while (!this.running && this.loadsWaiting) {
+			while (this.loadsWaiting) {
 				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
 				const pause = pageWaiting ? 0 : DOWNLOAD_PAUSE_MS;
 				if (!rested && pause > 0) {
@@ -945,11 +931,16 @@ export class SyncRunner {
 					continue;
 				}
 				rested = false;
+				// A page's load goes after any sync waiting; a download only when nothing waits at all.
+				const release = this.claimNow(pageWaiting ? "page" : "background");
+				if (!release) break;
 				const day = this.intradayJobs.take();
 				const activity = day ? undefined : this.activityJobs.take();
 				const download = day || activity || !this.downloadsReady ? undefined : this.downloads.shift();
-				if (!day && !activity && download === undefined) break;
-				this.running = true;
+				if (!day && !activity && download === undefined) {
+					release();
+					break;
+				}
 				let fatal: unknown;
 				try {
 					if (day) {
@@ -962,12 +953,7 @@ export class SyncRunner {
 						const page = withoutActivityFatal(load);
 						activity.resolve(fatal === undefined ? page : { ...page, error: explain(fatal) });
 					} else if (download !== undefined) {
-						const pending = this.loadActivityFor(download, true);
-						this.downloadInHand = pending.then(
-							() => undefined,
-							() => undefined,
-						);
-						const load = await pending;
+						const load = await this.loadActivityFor(download, true);
 						fatal = load.fatal;
 						if (load.reason === "off") this.downloads = [];
 						else if (load.reason) this.downloadFailed.add(download);
@@ -977,8 +963,7 @@ export class SyncRunner {
 					activity?.resolve({ detail: null, reason: "failed", error: explain(err) });
 					if (download !== undefined) this.downloadFailed.add(download);
 				} finally {
-					this.downloadInHand = null;
-					this.running = false;
+					release();
 				}
 				if (fatal === undefined) continue;
 				this.downloads = [];
