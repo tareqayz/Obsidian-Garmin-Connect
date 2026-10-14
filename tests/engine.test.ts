@@ -1195,6 +1195,18 @@ describe("syncRange — a backfill's chunk", () => {
 		assert.deepEqual(source.calls.filter((c) => c.startsWith("activit")), ["activitiesByDate:2026-09-11:2026-09-11:0:100", "activitiesByDate:2026-09-11:2026-09-11:100:100"]);
 	});
 
+	it("keeps the error it stopped on, so the backfill can tell a 429 from a dead session", async () => {
+		const slow = new GarminRateLimitError("slow down", 30);
+		const source = new FakeSource();
+		source.failWith.dailySummary = slow;
+		const report = await syncRange(source, new FakeTarget(new Set(["2026-09-12"])), options({ from: "2026-09-12" }));
+		assert.equal(report.fatal, slow);
+		const dead = new GarminAuthError("session expired");
+		const gone = new FakeSource();
+		gone.failWith.dailySummary = dead;
+		assert.equal((await syncRange(gone, new FakeTarget(new Set(["2026-09-12"])), options({ from: "2026-09-12" }))).fatal, dead);
+	});
+
 	it("marks a day full only when everything its groups ask for came back, intraday included", async () => {
 		const source = new FakeSource();
 		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));

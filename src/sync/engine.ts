@@ -268,6 +268,8 @@ export interface SyncReport {
 	failed: number;
 	/** Set when the sync gave up before finishing the range. */
 	stoppedEarly?: string;
+	/** The 429 or dead session it gave up on, when that was why. */
+	fatal?: unknown;
 	requests: number;
 	/** Days whose series file was created or changed. */
 	seriesWritten: number;
@@ -1624,6 +1626,7 @@ function message(err: unknown): string {
 }
 
 function stop(report: SyncReport, err: unknown, log: Log): SyncReport {
+	if (isFatal(err)) report.fatal = err;
 	report.stoppedEarly =
 		err instanceof GarminRateLimitError
 			? `rate limited by Garmin — ${message(err)}`

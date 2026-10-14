@@ -1247,7 +1247,7 @@ export class SyncRunner {
 		}
 		const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
 		const report = await this.chunkSync(store, chunk);
-		const fatal = report.stoppedEarly && report.stoppedEarly !== "cancelled" ? fatalOf(report) : undefined;
+		const fatal = report.fatal ?? (report.stoppedEarly && report.stoppedEarly !== "cancelled" ? new Error(report.stoppedEarly) : undefined);
 		if (fatal) return { requests: report.requests, fatal };
 		// What came back incomplete is left for the next session.
 		for (const day of report.days) if (!day.full) this.backfillSkip.days.add(day.date);
@@ -1503,14 +1503,6 @@ function sleepSink(store: VaultSeriesStore): SleepSink {
 /** Days from `from` to `to`, inclusive. */
 function spanDays(from: string, to: string): number {
 	return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
-}
-
-/** The error a report stopped on, as the backfill tells them apart. */
-function fatalOf(report: SyncReport): unknown {
-	const reason = report.stoppedEarly ?? "";
-	if (/rate limit|429|slow down/i.test(reason)) return new GarminRateLimitError(reason);
-	if (/session|sign in|auth/i.test(reason)) return new GarminAuthError(reason);
-	return new Error(reason);
 }
 
 /**
