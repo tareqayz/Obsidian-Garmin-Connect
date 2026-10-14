@@ -163,6 +163,8 @@ export class GarminHomeView extends ItemView {
 				return;
 			}
 			if (!store.owns(file.path)) return;
+			// Coverage is the backfill's bookkeeping: no page reads it.
+			if (file.path === store.dayCoveragePath || file.path === store.runCoveragePath) return;
 			if (store.isSeriesPath(file.path)) this.bump(SERIES);
 			else if (file.path.startsWith(`${store.sleepFolder}/`)) this.bump("sleep");
 			else if (file.path.startsWith(`${store.dailyStatsFolder}/`)) this.bump("daily-stats");

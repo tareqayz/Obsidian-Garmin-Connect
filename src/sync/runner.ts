@@ -31,6 +31,7 @@ import { VaultSeriesStore } from "./series-store";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
+import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION } from "./datasets";
 
 export interface RunnerSettings {
 	groups: MetricGroup[];
@@ -338,6 +339,7 @@ export class SyncRunner {
 				},
 			}));
 			notice.hide();
+			await this.recordDays(series, report, log);
 
 			// Once per sync, not per day: who you are, the watch, and the numbers
 			// Garmin only serves as "latest". Skipped after a 429 or a dead
@@ -665,6 +667,16 @@ export class SyncRunner {
 		for (const listener of this.indexHistoryListeners) listener(kind, progress);
 	}
 
+	/** Books the days a run fetched whole in the day coverage. A failure costs a day fetched again later. */
+	private async recordDays(store: VaultSeriesStore, report: SyncReport, log?: Log): Promise<void> {
+		const full = report.days.filter((day) => day.full).map((day) => day.date);
+		try {
+			await store.recordDays(full, DAY_DETAILS_VERSION, this.settings().groups.includes("intraday"));
+		} catch (err) {
+			log?.warn(`day coverage failed: ${explain(err)}`);
+		}
+	}
+
 	/**
 	 * Where a walk may stop once its windows come back empty: past the oldest
 	 * activity, since a watch that recorded one recorded the rest.
@@ -859,7 +871,9 @@ export class SyncRunner {
 		} else {
 			try {
 				const store = new VaultSeriesStore(this.app, settings.dataFolder);
-				const [index, saved] = await Promise.all([store.readActivities(), store.activityDetailIds()]);
+				const [index, runs] = await Promise.all([store.readActivities(), store.readRunCoverage()]);
+				// A file of an older version is downloaded again, as opening its page would.
+				const saved = new Set([...runs].filter(([, version]) => version === RUN_DETAILS_VERSION).map(([id]) => id));
 				this.downloads = runsToDownload(index.rows, this.isRun, saved, this.downloadFailed);
 			} catch {
 				this.downloads = [];
