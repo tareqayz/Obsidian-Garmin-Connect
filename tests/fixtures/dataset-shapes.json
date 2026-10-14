@@ -1,0 +1,425 @@
+{
+	"days": {
+		"version": 1,
+		"shape": {
+			"endpoints": [
+				"body",
+				"endurance",
+				"fitnessAge",
+				"health",
+				"healthSnapshots",
+				"hillScores",
+				"hrv",
+				"intraday",
+				"maxMetrics",
+				"races",
+				"readiness",
+				"runningTolerance",
+				"sleep",
+				"summary",
+				"training",
+				"workouts"
+			],
+			"seriesKeys": [
+				"bodyBattery",
+				"bodyBatteryEvents",
+				"checked",
+				"date",
+				"dayStart",
+				"extra",
+				"floors",
+				"heartRate",
+				"intensity",
+				"sleep",
+				"sleepLevels",
+				"steps",
+				"stress",
+				"version"
+			],
+			"kept": [
+				"hrvDay",
+				"readinessDay"
+			],
+			"daysFile": 1,
+			"seriesFile": 1
+		}
+	},
+	"runs": {
+		"version": 5,
+		"shape": {
+			"blocks": [
+				"summary",
+				"samples",
+				"laps",
+				"segments",
+				"hrZones",
+				"powerZones",
+				"weather",
+				"gear",
+				"device",
+				"weight"
+			]
+		}
+	},
+	"activities": {
+		"version": 2,
+		"shape": null
+	},
+	"daily-stats": {
+		"version": 1,
+		"shape": null
+	},
+	"sleep": {
+		"version": 1,
+		"shape": null
+	},
+	"index:stress": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"level",
+				"rest",
+				"low",
+				"medium",
+				"high",
+				"qualifier"
+			]
+		}
+	},
+	"index:heart-rate": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"resting",
+				"high",
+				"low",
+				"avg7"
+			]
+		}
+	},
+	"index:body-battery": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"high",
+				"low",
+				"charged",
+				"drained",
+				"latest",
+				"atWake",
+				"feedback"
+			]
+		}
+	},
+	"index:respiration": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"awake",
+				"sleep"
+			]
+		}
+	},
+	"index:health-status": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"hr",
+				"hrLo",
+				"hrHi",
+				"hrPct",
+				"hrSt",
+				"hrv",
+				"hrvLo",
+				"hrvHi",
+				"hrvPct",
+				"hrvSt",
+				"resp",
+				"respLo",
+				"respHi",
+				"respPct",
+				"respSt",
+				"skin",
+				"skinLo",
+				"skinHi",
+				"skinPct",
+				"skinSt",
+				"spo2",
+				"spo2Lo",
+				"spo2Hi",
+				"spo2Pct",
+				"spo2St",
+				"out"
+			]
+		}
+	},
+	"index:fitness-age": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"age",
+				"achievable",
+				"rhr",
+				"vigDays",
+				"bmi"
+			]
+		}
+	},
+	"index:weight": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"w",
+				"lo",
+				"hi",
+				"n",
+				"avg",
+				"d",
+				"ins",
+				"h"
+			]
+		}
+	},
+	"index:pulse-ox": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"avg",
+				"low",
+				"latest",
+				"elev"
+			]
+		}
+	},
+	"index:blood-pressure": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"sys",
+				"dia",
+				"sysLo",
+				"diaLo",
+				"pulse",
+				"n",
+				"cat"
+			]
+		}
+	},
+	"index:vo2-max": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"vo2",
+				"vo2Value",
+				"cycling",
+				"cyclingValue"
+			]
+		}
+	},
+	"index:hill-score": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"score",
+				"strength",
+				"endurance",
+				"classId",
+				"phraseId"
+			]
+		}
+	},
+	"index:hrv-status": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"weekly",
+				"night",
+				"high",
+				"lowUpper",
+				"balLow",
+				"balHigh",
+				"marker",
+				"status",
+				"feedback"
+			]
+		}
+	},
+	"index:race-predictions": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"time5k",
+				"time10k",
+				"half",
+				"marathon"
+			]
+		}
+	},
+	"index:training-status": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"code",
+				"phrase",
+				"acute",
+				"chronic",
+				"ratio",
+				"acwr",
+				"acwrPct",
+				"acwrFeedback",
+				"trend",
+				"trendSport",
+				"paused"
+			]
+		}
+	},
+	"index:endurance-score": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"score",
+				"classId",
+				"phraseId",
+				"contrib"
+			]
+		}
+	},
+	"index:heat-acclimation": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"pct",
+				"prev",
+				"trend",
+				"altitude",
+				"altitudePrev",
+				"altitudeTrend",
+				"altitudeNow"
+			]
+		}
+	},
+	"index:training-readiness": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"time",
+				"ctx",
+				"score",
+				"level",
+				"short",
+				"long",
+				"sleep",
+				"sleepPct",
+				"sleepFb",
+				"recovery",
+				"recoveryPct",
+				"recoveryFb",
+				"acute",
+				"acwrPct",
+				"acwrFb",
+				"hrv",
+				"hrvPct",
+				"hrvFb",
+				"sleepHistPct",
+				"sleepHistFb",
+				"stressHistPct",
+				"stressHistFb"
+			]
+		}
+	},
+	"index:running-tolerance": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"load",
+				"distance",
+				"tolerance",
+				"phrase"
+			]
+		}
+	},
+	"index:running-tolerance-weeks": {
+		"version": 1,
+		"shape": {
+			"listKey": "weeks",
+			"columns": [
+				"from",
+				"to",
+				"load",
+				"distance",
+				"tolerance"
+			]
+		}
+	},
+	"index:ftp": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"cycling",
+				"cyclingWkg",
+				"xc",
+				"xcWkg",
+				"running",
+				"runningWkg"
+			]
+		}
+	},
+	"index:lactate-threshold": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"hr",
+				"speed"
+			]
+		}
+	},
+	"index:running-economy": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"score",
+				"classification"
+			]
+		}
+	},
+	"index:critical-swim-speed": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"speed"
+			]
+		}
+	},
+	"index:hrv-stress": {
+		"version": 1,
+		"shape": {
+			"listKey": "days",
+			"columns": [
+				"score",
+				"n"
+			]
+		}
+	}
+}
