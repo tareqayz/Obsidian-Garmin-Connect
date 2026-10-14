@@ -4,7 +4,7 @@ Every Garmin endpoint this plugin calls, which metric group triggers it, and
 what the request budget works out to. Source: `src/garmin/endpoints.ts` and
 `src/garmin/constants.ts`.
 
-For the full surface — all 167 catalogued endpoints, their request shapes,
+For the full surface — all 192 catalogued endpoints, their request shapes,
 and the response fields observed at each one — see
 [`api/endpoints.json`](../api/endpoints.json) and
 [`api/README.md`](../api/README.md). This page is the narrow, prose version:
@@ -135,7 +135,7 @@ About nine requests, written to `account.json`:
 
 See [properties → profile](properties.md#profile--accountjson).
 
-### Intraday (newest seven days of a sync only)
+### Intraday (the days inside Day details)
 
 Six requests a day, for the `intraday` group:
 
@@ -149,10 +149,12 @@ Six requests a day, for the `intraday` group:
 | `bodyBatteryEvents(date)` | `/wellness-service/wellness/bodyBattery/events/{date}` | Body Battery events |
 
 These go to `<dataFolder>/series/<date>.json`, not the day files. See
-[properties → intraday](properties.md#intraday). `INTRADAY_DAYS` in
-`src/sync/engine.ts` sets the window. A Health Stats page opening an older day
-asks for that day's blocks when it opens, one day at a time, and only while
-nothing else is syncing.
+[properties → intraday](properties.md#intraday). Once the setup has run, a sync
+asks them for each of its days inside the Day details range, and the history
+download for each day it fetches; before the setup, a sync asks them for its
+newest seven days (`INTRADAY_DAYS` in `src/sync/engine.ts`). A Health Stats
+page opening an older day asks for that day's blocks when it opens, one day at
+a time, and only while nothing else is syncing.
 
 ## Range endpoints
 
@@ -163,13 +165,17 @@ These are called once for the whole run, in windows of up to a year.
 | `maxMetrics(start, end)` | `/metrics-service/metrics/maxmet/daily/{start}/{end}` | `fitness` |
 | `racePredictions(start, end)` | `/metrics-service/metrics/racepredictions/daily/{who}?fromCalendarDate=&toCalendarDate=` | `races` |
 | `activities(start, limit)` | `/activitylist-service/activities/search/activities?start=&limit=` | `workouts` |
+| `activitiesByDate(from, to, start, limit)` | `/activitylist-service/activities/search/activities?startDate=&endDate=&start=&limit=` | `workouts` |
 
 `racePredictions` **rejects ranges longer than a year**, so a long backfill is
 cut into years (`RANGE_CHUNK_DAYS`).
 
 `activities` is paged rather than dated. A sync pages back through it, 50 at a
-time, to the run's oldest day, and files each activity under the local calendar
-day it started on.
+time and five pages at most, to the run's oldest day, and files each activity
+under the local calendar day it started on. A history download chunk far from
+today would never page down to its days, so it lists them with
+`activitiesByDate` instead: the same rows, by local start day, a request per
+hundred. That list feeds the day files only, not the activity index.
 
 ## History index endpoints
 
@@ -238,7 +244,7 @@ which are flat.
 
 | Method | Path | For |
 | --- | --- | --- |
-| `stress(date)`, `heartRate(date)` | as in [intraday](#intraday-newest-seven-days-of-a-sync-only) | a past day's Stress and Heart Rate 1d |
+| `stress(date)`, `heartRate(date)` | as in [intraday](#intraday-the-days-inside-day-details) | a past day's Stress and Heart Rate 1d |
 | `respiration(date)` | `/wellness-service/wellness/daily/respiration/{date}` | Respiration 1d, every two minutes |
 | `spo2Acclimation(date)` | `/wellness-service/wellness/daily/spo2acclimation/{date}` | Pulse Ox 1d, with elevation |
 | `fitnessAge(date)` | as in [per-day](#per-day-endpoints) | Fitness Age's Current page |
@@ -251,9 +257,9 @@ which are flat.
 An activity's page loads when it opens, never in a sync (see
 [architecture](architecture.md#activity-details-on-view)). Ten requests the
 first time — eight together, then the two that need the summary — and none
-after: the answer is kept in the vault. With **Download runs** on, every run
-without a file is loaded the same way between syncs, at least two seconds
-apart.
+after: the answer is kept in the vault. With a **Run details** range, the
+history download loads every run in it without a file of today's version the
+same way, one at a time, at least two seconds apart.
 
 | Method | Path | Gives the page |
 | --- | --- | --- |
@@ -270,6 +276,27 @@ apart.
 
 A treadmill run has no GPS columns, no elevation or grade-adjusted pace, and
 null weather. Ids are positive integers, so they can only add digits to a path.
+
+## Account scan
+
+The setup's scan (`src/sync/scan.ts`) finds where the account's history starts
+and ends in about a request a year of history, plus four, and keeps the answer
+in `<dataFolder>/scan.json`:
+
+| Method | Path | For |
+| --- | --- | --- |
+| `lastUsedDevice()` | `/device-service/deviceservice/mylastused` | the watch's last upload |
+| `activityCount()` | `/activitylist-service/activities/count` | how many activities, multisport legs left out |
+| `activities(count − 1, 1)` | as above | the oldest activity: the list's last row |
+| `weeklySteps(end, 52)` | `/usersummary-service/stats/steps/weekly/{end}/{weeks}` | the weeks with wellness data (`wellnessDataDaysCount`), 52 a request back from today, until a year with none that is older than the oldest activity |
+| `dailyStepStats(start, end)` | as in [history index endpoints](#history-index-endpoints) | the first day, inside the oldest week, unless that week is full |
+
+`weeklySteps` takes 52 weeks at most: 53 is HTTP 400 (measured 2026-10-14). Each
+row is dated by the week's first day, the weeks end on the day asked for, and a
+week without wellness data is left out, so a year before the account began
+comes back `[]`. Checked live: 7 requests found the first day, 432 days with
+data and 341 activities. A 429 or a dead session stops the scan with what it
+had, and the setup offers to try again.
 
 ## Available but unused
 
@@ -320,7 +347,7 @@ A sync costs roughly:
 
 ```
 (per-day requests) × (days in the range)
-  + 6 × (the newest seven of those days, for intraday)
+  + 6 × (those days inside Day details, for intraday)
   + a few per sync
 ```
 
@@ -341,8 +368,11 @@ Five of the sixteen groups are free in request terms: `activity`, `heart`,
 `stress`, `respiration` and `spo2` share the daily summary. The settings screen
 marks each group's cost.
 
-**History walks.** Once per account, each index fetches the whole history,
-starting after the first sync of a session:
+**History walks.** Each index fetches its whole history once: in the history
+download (the backfill), only once the setup's Charts & trends or an update
+dialog agreed to it, or by hand with its **Sync … history** command. A walk goes
+a year of windows at a time and merges each year as soon as it is in, so a walk
+cut short keeps every year it finished:
 
 | Index | Cost |
 | --- | --- |
@@ -353,15 +383,32 @@ starting after the first sync of a session:
 | Body Battery | two per window, about 26 a year |
 | Health Status, Weight, Pulse Ox, Blood Pressure | one per ten years (Weight two: the height comes from `userSettings`) |
 
-The walks run one after another, never beside a sync. A 429 stops a walk, and
-the next session carries on from where it stopped.
+All of Charts & trends comes to about 150 requests a year of history. The
+walks stop past the earlier of the scan's first day and the oldest activity.
+
+**The history download.** It runs a unit of about ten seconds at a time, and
+starts one only when no sync or page load waits:
+- the activity list, first, a request per hundred activities;
+- a year of a few chart walks side by side (as many as the sync speed's days at
+  once);
+- a chunk of Day details: per day, its per-day requests and the six intraday
+  ones, 15 with everything on, plus the range calls once a chunk. A chunk is
+  sized to about ten seconds: 5 days at Gentle, 13 at Normal, 21 at Fast, with
+  everything on;
+- one run of Run details, ten requests, two seconds or more after the last.
+
+It stays under an hourly budget of 5,000 requests at Gentle, 10,000 at Normal
+and 15,000 at Fast, well under the 8,800 in half an hour measured clean (see
+[Request pace](#request-pace)): a quota Garmin counts over hours would not show
+in a test that short. A 429 that outlasts the client's own pauses stops it for
+5 minutes, then 10, 20 and so on up to an hour; a dead session stops it until a
+sign-in.
 
 **On view.** A page that needs what a sync didn't fetch asks for it when it
 opens: a day's intraday blocks (one or two requests a day), or an activity's
 page (ten requests, once per activity). These wait for any sync, run one at a
-time at the same pace, and a 429 that outlasts the pause answers every one still waiting. **Download
-runs** queues every run behind them (ten requests each, two seconds or more
-apart) and stops at a 429 until the next sync.
+time at the same pace, and a 429 that outlasts the pause answers every one still
+waiting. They go ahead of the history download.
 
 The sync runs **newest day first**, so a run cut short by a rate limit has
 already covered the days you care about most. Every request goes through one
@@ -372,7 +419,7 @@ setting; see [Request pace](#request-pace).
 
 Garmin ships changes to these payloads without notice and without a version, so
 none of the above is guaranteed to still be true tomorrow.
-`.github/workflows/api-contract.yml` runs every morning. It fetches the 69
+`.github/workflows/api-contract.yml` runs every morning. It fetches the 104
 checked endpoints, the unused ones included, through this plugin's own
 `GarminApi`, and compares what comes back with the shapes recorded
 in [`api/schema/`](../api/schema/).

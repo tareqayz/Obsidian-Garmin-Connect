@@ -61,4 +61,5 @@ clone straight into `.obsidian/plugins/garmin-connect/`.
 
 ## Next
 
-Sign in and run your first sync: see the [Guide](GUIDE.md).
+Enabling the plugin opens its setup: sign in, scan your Garmin history and
+choose what to keep. See the [Guide](GUIDE.md).

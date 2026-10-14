@@ -5,7 +5,6 @@ Known gaps and open questions, by area.
 - **Check on the phone** means comparing against the Garmin Connect app.
 - Specs named as `ref/…` live only on the maintainer's machine (`ref/` is
   gitignored, because it holds personal screenshots).
-- onboarding mode : does an audit to see when garmin history officially starts. Asks the users if they want a backfill, and if so, how much data are they willing to store locally and the memory cost - i.e. what level of detail do they want - running activity details, etc. 
 
 ## Next up
 
@@ -22,9 +21,6 @@ Known gaps and open questions, by area.
   nothing. Each needs its own phone shots: cycling, swimming, strength and
   multisport differ the most.
 - **Edit Home**: choosing the cards for Essentials and In Focus.
-- **An in-app way to backfill.** The classic dashboard's "Backfill…" button was
-  the only one; "Sync a date range…" is now reachable from the command palette
-  alone. Design it in Figma first.
 - **Remove `LegacyDashboardView`** (`src/dashboard/legacy-view.ts`) in the
   release after 0.2. It only turns tabs saved with the classic dashboard into
   Home.
@@ -265,12 +261,7 @@ These are inferred:
 - Intensity weeks run Monday to Sunday although this account's `firstDayOfWeek`
   is Sunday; check with an account set to start on Monday whether anything moves.
 
-Two more:
-- **Old series files.** Files written before 2026-10-04 have no floors, minutes
-  or `dayStart`. Their day charts sit on this computer's clock, and Intensity's
-  week falls back to a step at each day's start. They fill in only when a sync
-  covers those days among its newest seven, so sync a range over them.
-- Steps' Help, the ⋮ menu and Edit Goal are not built.
+Not built: Steps' Help, the ⋮ menu and Edit Goal.
 
 ## Sleep
 
@@ -296,12 +287,8 @@ series file. These are inferred and need checking on the phone:
   never do on this watch, and `breathingDisruptionSeverity` is a documented field
   name not yet observed.
 
-Not inferred, but still to do:
-- **Nights synced before 2026-10-07** have no `sleep` block in their series
-  file. Their 1d page shows the index's summary (score, verdict, stages ring,
-  metrics) without factors, timeline or coach. Re-sync a range to fill them.
-- The factor pages leave out Garmin's articles and links; Add Notes, Help and the
-  ⋮ menu are not built.
+Not inferred, but still to do: the factor pages leave out Garmin's articles and
+links; Add Notes, Help and the ⋮ menu are not built.
 
 ## Health Stats
 
@@ -357,6 +344,25 @@ provisional:
   readings.
 - **Lifestyle Logging** is Garmin's empty state only.
 
+## Onboarding and backfill
+
+The setup, the history download and the update dialog were checked live in the
+development vault, and a disable and re-enable show no removal prompt. Still
+open:
+- **A first install and an uninstall in a throwaway vault**, signed in to a real
+  account: the setup opening on enable, the whole download, then Uninstall and
+  the "Garmin Connect was removed" prompt. Never uninstall from the development
+  vault: its plugin folder is this repository.
+- **The same on the iPhone**: the setup as a bottom sheet, the download pausing
+  in the background and resuming, the update dialog, and two devices sharing one
+  download.
+- **Figma**: the page "Obsidian / Setup & Data" (`858:2`) holds the setup,
+  Home's card and pill, Settings → Data, the three dialogs and the status bar.
+  Keep it in step with the code.
+- **Settings rows in Figma** use classic hairline rows, while Obsidian 1.14
+  draws settings as grouped cards (the file has no `setting-items-*`
+  variables). Redraw them, or note the difference on the page.
+
 ## Sync and the Garmin API
 
 - **Schema re-records and catalogue notes** listed in each stat's spec are not
@@ -403,8 +409,9 @@ provisional:
     wrong for a dead SSO session; the attempt cap bounds the difference. If a
     live run shows a distinct type for "your code was wrong", classify on it
     and make the rest fatal.
-- Check behaviour under sync load: many `connectapi` calls in sequence, now
-  that the history syncs walk years of data in a session.
+- Check behaviour under sync load: hours of `connectapi` calls, now that the
+  history download can fetch years of Day details under its hourly budget
+  (5,000 to 15,000 requests by sync speed).
 - **One session for every device.**
   - The refresh token lives in `data.json`, which travels with the vault when
     its sync copies plugin settings, so every device shares one session.
@@ -416,7 +423,6 @@ provisional:
 - Test on Android: a different native HTTP stack, so a third TLS fingerprint
   after desktop and iOS ([measured ones](docs/garmin-api.md#tls-fingerprints)).
 - **Before a community directory submission:**
-  - use `setHeading()` for the settings headings rather than raw `<h3>`;
   - a sentence-case pass over UI text;
   - replace `setDynamicTooltip()`, deprecated in Obsidian 1.13's typings;
   - bump to 1.0.0.

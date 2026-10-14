@@ -55,6 +55,14 @@ The working tree is `.obsidian/plugins/garmin-connect` in a real vault.
 last step is what backs `isDesktopOnly: false`; if a change pulls in a node or electron
 import, fix the import rather than the check.
 
+## Data versions
+
+Storing new data for days a vault already holds means bumping that set's version in
+`src/sync/datasets.ts` (or the index's own `version`) and adding a `changes` line, so the
+update dialog offers those days again. `tests/dataset-shapes.test.ts` fails until you do;
+then `UPDATE_SHAPES=1 npm test` records the shape in `tests/fixtures/dataset-shapes.json`.
+Details: `docs/CONTRIBUTING.md`, "Data versions".
+
 ## Skill routing
 
 When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.

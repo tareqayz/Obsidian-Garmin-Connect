@@ -93,21 +93,51 @@ file between devices, they share one session.
 
 Wait 15–30 minutes. Then:
 
-- **Slow a long backfill down.** Raise **Settings → Advanced → Pause between
-  days** (250 ms by default) before retrying it.
+- **Slow a long date range down.** Set **Settings → Advanced → Sync speed** to
+  **Gentle** before retrying it.
 - **Turn off metric groups you do not need.** That genuinely removes requests,
   with one exception: `activity`, `heart`, `stress`, `respiration` and `spo2`
   share one daily summary request, so switching off some of the five saves
   nothing.
-- **Mind the first session.** After its first sync, a new vault also fills its
-  history files, about 130 requests per year of history. If those hit the
-  limit, they keep what they fetched and carry on next session, or when you
-  press **Sync history** on a page.
+- **Mind the history download.** What you chose in the setup downloads in the
+  background, under an hourly budget (5,000 to 15,000 requests by sync speed).
+  A 429 pauses it for five minutes, doubling up to an hour, and it carries on
+  by itself with what it already fetched kept. See
+  [The history download is paused](#the-history-download-is-paused).
 - **Nothing recent was lost.** The sync runs **newest day first**, so a run cut
   short by a rate limit already covered the days you care about most.
 
-A 429 or a dead session abandons the whole run immediately, because every later
+A 429 or a dead session abandons the whole sync immediately, because every later
 request would fail the same way.
+
+## The history download is paused
+
+The download shows on Home under the title, in **Settings → Data**, and on a
+computer in the status bar. What it says, and what to do:
+
+| On Home | Why | What to do |
+| --- | --- | --- |
+| Sign in to keep downloading | The Garmin session ended | Sign in, from the pill, **Settings → Data** or **Sign in to Garmin Connect**. It carries on by itself |
+| Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin |
+| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed and it tries again in ten minutes | Nothing |
+| Download paused | You paused it, on this device or another sharing the vault | **Resume** |
+| Downloading history on iPhone | Another device with this vault is downloading | Nothing. If that device stops, this one takes over once it has been quiet for ten minutes |
+
+Settings → Data says the same in longer words, and the status bar in shorter
+ones ("Garmin · sign in to continue").
+
+If nothing downloads at all, there may be nothing to fetch: **Settings → Data**
+shows what is missing from your Day details and Run details ranges, and **Keep
+new days only** in the setup fetches no history. The download also waits for
+the setup to have run and for a session.
+
+## Home says "No Garmin data on this device"
+
+The plugin is set up and signed in here, but the data folder holds no days and
+no activities: usually the settings came from another device and the data did
+not. With Obsidian Sync, turn on **Sync all other types** (off by default): the
+data is JSON, which Obsidian Sync counts as another type. Or press **Set up**
+and download the history on this device.
 
 ## Home still shows yesterday after midnight
 
@@ -136,13 +166,17 @@ build. Press **Back**, or update the plugin.
 A day's chart comes from its series file, which the **intraday** group fills.
 Two limits apply.
 
-**Only the newest seven days of each sync get curves.** Older days work like
-this:
+**Only the days inside Day details get curves** from a routine sync or the
+history download (before the setup, only the newest seven days of each sync).
+**Sync a date range…** fetches the curves of every day it covers. Older days
+work like this:
 - **Heart rate, stress, Body Battery and the Health Stats curves** are fetched
   the first time you open the day. That needs you signed in and the right group
   on: `intraday` for Home's charts, the page's own group for a Health Stats page.
-- **Steps, floors and intensity minutes** only show what a sync wrote. Run
-  **Sync a date range…** over that week, seven days or fewer at a time.
+- **Steps, floors and intensity minutes** only show what a sync wrote. Widen
+  **Day details** in **Settings → Data** to reach the day, and the download
+  fetches it. Before the setup, run **Sync a date range…** over that week, seven
+  days or fewer at a time.
 
 **Garmin does not keep every day's detail.** If a day still has no curve after
 that, Garmin has none for it. Older days often have only the totals.
@@ -151,8 +185,12 @@ that, Garmin has none for it. Older days often have only the totals.
 
 The night's sleep page reads its timeline, factors and Sleep Coach from that
 day's series file. Nights synced before the Sleep pages existed (2026-10-07) have
-none. Run **Sync a date range…** over those nights with the **intraday** group
-on. Every night in the range gets them, however long it is.
+none. Inside your Day details range the history download fetches them again. A
+vault that was syncing before the setup existed is asked first, in the update
+dialog ("days saved by an older version"), or in **Settings → Data** after
+**Later**. For older nights, widen Day details, or run **Sync a date range…**
+over them with the **intraday** group on: every night in the range gets them,
+however long it is.
 
 ## A metric is always empty
 
@@ -186,12 +224,12 @@ Once the pages show your history, the old day notes, their `garmin_`
 properties and `Garmin Health.base` can be deleted. The plugin no longer reads
 or writes them.
 
-## A backfill stopped early and said it "found nothing"
+## A date range stopped early and said it "found nothing"
 
 Working as intended. After 45 consecutive empty days (**Stop after empty days**,
-`0` disables) the sync gives up and reports where, on the assumption it has run
-off the start of your Garmin history. Since it walks newest to oldest, that
-empty region is always the tail.
+`0` disables) **Sync a date range…** gives up and reports where, on the
+assumption it has run off the start of your Garmin history. Since it walks
+newest to oldest, that empty region is always the tail.
 
 Nothing bogus is written for those days: a day with no usable numbers is
 skipped, not stored as zeroes.
@@ -199,13 +237,14 @@ skipped, not stored as zeroes.
 ## Re-syncing keeps touching files / sync churn
 
 It should not. A day's year file is rewritten only when its text changes, so
-an identical day leaves it untouched. That matters because Obsidian
-Sync and LiveSync both treat a bumped modification time as a change to
-propagate. The history and series files are only rewritten when their content
-changes, too.
+an identical day leaves it untouched, and a sync writes it once, after its days
+are in. That matters because Obsidian Sync and LiveSync both treat a bumped
+modification time as a change to propagate. The history and series files are
+only rewritten when their content changes, too.
 
 If files *are* being rewritten every run, a value is changing. Garmin revising a
-recent day is the usual reason, and is why the default window is three days.
+recent day is the usual reason, and is why a recent sync always covers
+yesterday too.
 
 ## It works on desktop but breaks on mobile
 

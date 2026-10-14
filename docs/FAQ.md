@@ -18,6 +18,11 @@ It depends on your vault sync. The session is the refresh token in
   session and is signed in already.
 - **It doesn't:** sign in on that device too.
 
+The data is separate: ordinary files in the vault, which travel with it.
+Obsidian Sync carries them only with **Sync all other types** on, and it is off
+by default. Without it, Home on the second device says "No Garmin data on this
+device".
+
 ## Is this official? Will Garmin ban me?
 
 It's not official, and not affiliated with Garmin. It signs in the way the
@@ -27,18 +32,23 @@ after repeated failures, so sign in deliberately and don't retry in a loop.
 After that it makes ordinary API reads, and how many depends on the metric
 groups you turn on:
 - **Every day it syncs:** nine requests with everything on.
-- **The newest seven days of each sync:** six more each, for the day's curves.
+- **Each of those days inside Day details** (every day, for **Sync a date
+  range…**): six more, for the day's curves.
 - **Each sync:** about fifteen more, for your profile and the range calls.
-- **Once, when it fills its history files:** about 130 per year of history,
-  paced by the **Sync speed** setting.
+- **Once, for the history you choose in the setup:** about 150 a year of
+  history for Charts & trends, 15 a day for Day details and 10 a run for Run
+  details. It downloads in the background, paced by the **Sync speed** setting
+  and kept under an hourly budget: 10,000 requests at Normal.
 
 The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
 
-## Why does it sync three days instead of one?
+## Why does a sync cover more than one day?
 
 Garmin keeps revising a day after it ends: sleep is finalised late, and a watch
-that syncs in the morning rewrites yesterday. Three is the default; change it in
-**Settings → Sync → Days to sync**.
+that syncs in the morning rewrites yesterday. So **Sync recent days** covers
+everything since the watch's last upload as the previous sync saw it, from the
+day before through today: at least yesterday and today, at most 30 days. There
+is no setting; see [Settings → Sync](settings.md#sync).
 
 ## Will it overwrite my daily notes?
 
@@ -71,7 +81,11 @@ All of them JSON under `Garmin/data/` (the default):
   - `series/<date>.json` for a day's curves;
   - `account.json` for your profile;
   - `activities/`, `daily-stats/` and `sleep/`;
-  - one folder per Health Stats history.
+  - `activity-details/<id>.json`, a run's page;
+  - one folder per Health Stats and Performance Stats history.
+- **Bookkeeping:** `sync-state.json`, `scan.json`, `backfill.json`,
+  `days/index.json` and `activity-details/index.json`, which say how far the
+  syncs and the history download have got.
 - **Diagnostics logs**, notes under `Garmin/diagnostics`, only if you run the
   diagnostics with saving on.
 
@@ -80,10 +94,15 @@ that fills it.
 
 ## Can I backfill years of data?
 
-Yes. **Sync a date range…** goes back as far as 2010 and shows the request count
-and time before you start. It walks newest to oldest and stops after 45
-consecutive empty days, so asking for 2010 won't hammer the API past the start
-of your history.
+Yes. Choose **All history** for Day details and **All runs** for Run details,
+in the setup or **Settings → Data**, and the history download fetches them in
+the background; the setup says how long that takes. Charts & trends always
+cover your whole history.
+
+**Sync a date range…** fetches a stretch by hand, back as far as 2010, and shows
+the request count and time before you start. It walks newest to oldest and stops
+after 45 consecutive empty days, so asking for 2010 won't hammer the API past
+the start of your history.
 
 ## What is the "history isn't synced" banner?
 
@@ -91,8 +110,38 @@ The pages read history files — your activities, steps, sleep, stress and so on
 that a routine sync only keeps topped up. Until a history is complete, its pages
 say so, with a rough request count and a **Sync history** button.
 
-The plugin also fills them by itself after the first sync of each session. A run
-cut short keeps what it fetched and carries on next time.
+The history download fills them in the background once you have agreed to
+Charts & trends, in the setup or the update dialog. A download cut short keeps
+what it fetched and carries on next time.
+
+## Will an update download things without asking?
+
+No. A release that adds data for your history — a page with a history of its
+own, or more detail for days you already keep — asks once, the first time a
+Garmin page opens after it: **New data for your history** lists each item with
+its size and time. **Download now** fetches the ticked ones in the background;
+**Later** leaves them in **Settings → Data**, and nothing asks again.
+
+What you already agreed to carries on without a question: new days, and gaps in
+your Day details and Run details ranges, keep filling. Only what an older
+version saved is asked about again.
+
+## How do I uninstall it and remove the data?
+
+Obsidian's **Uninstall** deletes the plugin's folder, with `data.json` in it:
+your settings and the Garmin session. The data folder (`Garmin/data`) is part of
+your vault, so it stays.
+
+On the device you uninstall from, the plugin notices its folder has gone and
+asks: **Keep data**, or **Move to trash**, which sends the plugin's own files in
+the data folder to the trash and leaves anything else there. It also clears the
+map tiles that device cached. It can't ask when the folder goes another way,
+deleted by hand or uninstalled on another device; delete the data folder
+yourself then.
+
+To remove the data and keep the plugin, use **Settings → Danger zone → Delete
+synced data…**, which can take the diagnostics notes too. Neither touches your
+Garmin account. See [Security](SECURITY.md#removing-the-plugin-and-its-data).
 
 ## Why does a page differ from the phone app?
 
@@ -117,8 +166,7 @@ It was retired in 0.2, replaced by the Garmin Connect pages:
 - the data is all still there, in the day files, and Home's At a Glance cards
   show the latest values.
 
-Performance Stats and an activity detail screen are next to be rebuilt. A tab of
-the old dashboard left open reopens as Home.
+A tab of the old dashboard left open reopens as Home.
 
 ## A metric is always empty. Why?
 

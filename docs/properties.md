@@ -140,9 +140,10 @@ How it fills:
   day and the sync, so a vault left closed for a fortnight has no hole.
 - **The whole history** comes once, walking back 28 days at a time until four
   windows in a row have no steps, past the oldest activity: about 40 requests a
-  year. It starts by itself after the first sync of a session while `complete`
-  is false, or with the **Sync step, floor and intensity history** command, and
-  a run cut short by a 429 carries on from where it stopped next time.
+  year. The history download walks it once Charts & trends is agreed to (the
+  setup, or an update's dialog), or the **Sync step, floor and intensity
+  history** command does; it goes a year at a time, so a walk cut short by a
+  429 or a quit carries on from where it stopped next time.
 - A year file is rewritten only when its text changes.
 
 ## heart
@@ -470,8 +471,9 @@ Nothing in the day files; about nine requests per sync, written to
 Heart rate, stress, Body Battery, steps, floors, intensity minutes and sleep
 stages across the day. Six requests a day — `dailyStress` (stress *and* Body
 Battery), `dailyHeartRate`, `dailySummaryChart` (steps), `floorsChartData`,
-`daily/im` and `bodyBattery/events` — spent only on the **newest seven days** of
-any sync. The sleep hypnogram costs nothing: it is in the sleep payload, so every
+`daily/im` and `bodyBattery/events` — spent only on the days inside **Day
+details** (every day of **Sync a date range…**; the newest seven before the
+setup). The sleep hypnogram costs nothing: it is in the sleep payload, so every
 day with sleep gets it.
 
 One property reaches the day file:
@@ -482,9 +484,10 @@ One property reaches the day file:
 
 Everything else goes to a **series file** per day, because a day of heart rate
 is hundreds of points and a one-line day is the wrong place for it.
-Every day a sync writes gets one while `intraday` is on; only the newest seven
-spend the six requests, and the rest carry what the day's other payloads hold,
-such as the night's sleep.
+Every day a sync writes gets one while `intraday` is on; only the days inside
+Day details spend the six requests, and the rest carry what the day's other
+payloads hold, such as the night's sleep — keeping any timelines an earlier
+sync wrote.
 
 ```
 <dataFolder>/series/2026-09-20.json
@@ -633,9 +636,9 @@ How it fills:
   day files: new activities are added, edited ones updated, and one Garmin no longer
   lists is dropped, but only more than a day inside the stretch that page covers.
 - **The whole history** comes once, about one request per hundred activities:
-  automatically after the first sync of a session while `complete` is false, or
-  with the **Sync activity history** command. It stops on a 429 and leaves
-  `complete` false, so the next session finishes it.
+  first in the history download once Charts & trends is agreed to (the setup
+  lists it to count your runs), or with the **Sync activity history** command.
+  It stops on a 429 and leaves `complete` false, so the next try finishes it.
 - A year file is rewritten only when its text changes, so a routine sync touches
   at most the current year, and only when an activity was added or edited.
 
@@ -672,9 +675,9 @@ How it fills:
 - When a run's page opens, with a session and the `workouts` group on. The
   loads wait for a sync to finish, go at the sync speed's pace, and
   stop at a 429 until the next view.
-- With **Download runs** on, for every run in the activity index that has no
-  file yet, newest first, after each sync — the pages' loads first, then one run
-  every two seconds or more, until a 429 or the next sync.
+- With **Run details** set to a range, for every run in it without a file of
+  today's version, newest first, by the history download — the pages' loads
+  first, then one run every two seconds or more, pausing after a 429.
 - Opened again, the page reads the file and asks nothing. A block missing from
   `checked` (its request failed) is asked for again; when the index shows the
   activity renamed or trimmed (its name, distance or duration changed), the
@@ -750,8 +753,9 @@ How they fill:
   has no hole. Some indexes ask their last few days again on every sync,
   because Garmin revises them late: 28 days for Health Status, 7 for Fitness
   Age, Weight and Blood Pressure, 2 for Respiration.
-- **The whole history** comes once. After the first sync of a session, each
-  index whose group is on walks back from the oldest day it holds, one window
+- **The whole history** comes once. Once its key is agreed to (the setup, or
+  the dialog after the update that brings it), the history download walks each
+  index whose group is on back from the oldest day it holds, a year of windows
   at a time, until a run of empty windows says the account's history has
   started. A window is 28 days for most indexes, 29 for Fitness Age and 31 for
   Respiration; Health Status, Weight, Pulse Ox and Blood Pressure take up to
