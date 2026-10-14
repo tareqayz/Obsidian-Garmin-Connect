@@ -5981,7 +5981,22 @@
 					"weeks"
 				],
 				"line": 1080
-			}
+			},
+			"plugin": "GarminApi.weeklySteps",
+			"groups": [
+				"activity"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].calendarDate",
+				"[].values.wellnessDataDaysCount"
+			],
+			"schema": "schema/weekly-steps.json",
+			"notes": "52 weeks a request at most (53 is HTTP 400, measured 2026-10-14). calendarDate is each week's first day and the weeks end on {endDate}; a week without wellness data is left out, so a year before the account's history is []. The account scan walks it back a year a request to find where the history starts and how many days hold data.",
+			"reads": [
+				"[].values.totalSteps"
+			]
 		},
 		{
 			"id": "weekly-stress",

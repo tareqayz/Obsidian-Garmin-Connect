@@ -128,6 +128,7 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 	"floors": async (api, w) => [await api.floorsChart(w.days[0]!)],
 	"intensity-minutes-data": async (api, w) => [await api.intensityMinutesChart(w.days[0]!)],
 	"daily-steps": async (api, w) => [await api.dailyStepStats(w.rangeStart, w.rangeEnd)],
+	"weekly-steps": async (api, w) => [await api.weeklySteps(w.rangeEnd, 52)],
 	"daily-floors-stats": async (api, w) => [await api.dailyFloorStats(w.rangeStart, w.rangeEnd)],
 	"daily-intensity-minutes-stats": async (api, w) => [await api.dailyIntensityStats(w.rangeStart, w.rangeEnd)],
 	"body-battery-events": async (api, w) => [await api.bodyBatteryEvents(w.days[0]!)],

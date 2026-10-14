@@ -32,6 +32,7 @@ import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION } from "./datasets";
+import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 
 export interface RunnerSettings {
 	groups: MetricGroup[];
@@ -678,11 +679,45 @@ export class SyncRunner {
 	}
 
 	/**
-	 * Where a walk may stop once its windows come back empty: past the oldest
+	 * Where a walk may stop once its windows come back empty: past where the
+	 * account's history starts, as the scan found it, or past the oldest
 	 * activity, since a watch that recorded one recorded the rest.
 	 */
 	private async notBefore(store: VaultSeriesStore): Promise<string | undefined> {
-		return (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
+		const [scan, index] = await Promise.all([store.readScan(), store.readActivities()]);
+		const days = [historyStart(scan), index.rows.at(-1)?.start.slice(0, 10)].filter((d): d is string => !!d).sort();
+		return days[0];
+	}
+
+	/**
+	 * Finds where the account's history starts and ends (see `scan.ts`) and
+	 * keeps it in `scan.json`, even cut short: a scan that stopped says so.
+	 */
+	async scan(opts: { onStep?: (step: ScanStep) => void; log?: Log } = {}): Promise<ScanResult | null> {
+		if (this.downloadInHand) await this.yieldDownload();
+		if (this.running) {
+			new Notice("A Garmin sync is already running.");
+			return null;
+		}
+		if (!this.api.isAuthenticated) {
+			new Notice("Sign in to Garmin Connect first.");
+			return null;
+		}
+		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
+		this.running = true;
+		try {
+			const got = await scanAccount(this.api, { today: toIsoDate(), ...(opts.onStep ? { onStep: opts.onStep } : {}) });
+			for (const error of got.errors) opts.log?.warn(`scan: ${error}`);
+			opts.log?.detail("scan", `${got.scan.days} days, ${got.scan.activities} activities, ${got.requests} requests`);
+			try {
+				await store.writeScan(got.scan);
+			} catch (err) {
+				opts.log?.warn(`scan file failed: ${explain(err)}`);
+			}
+			return got;
+		} finally {
+			this.running = false;
+		}
 	}
 
 	/**

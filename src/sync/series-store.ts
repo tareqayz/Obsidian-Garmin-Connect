@@ -62,6 +62,7 @@ import {
 	type RunCoverage,
 	type Span,
 } from "./coverage";
+import { parseScan, serializeScan, type AccountScan } from "./scan";
 
 export const SERIES_FOLDER = "series";
 /** Every day's properties, a file a year (see `days.ts`). */
@@ -87,6 +88,8 @@ export const ACTIVITY_DETAILS_FOLDER = "activity-details";
 export const DAY_COVERAGE_FILE = "index.json";
 /** Each downloaded run's file version, beside the run files. */
 export const RUN_COVERAGE_FILE = "index.json";
+/** Where the account's history starts and ends, as the last scan found it (see `scan.ts`). */
+export const SCAN_FILE = "scan.json";
 
 export interface SleepIndex {
 	/** Oldest first. */
@@ -271,6 +274,19 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		}
 		await this.put(this.runCoveragePath, serializeRunCoverage(runs));
 		return runs;
+	}
+
+	get scanPath(): string {
+		return this.join(SCAN_FILE);
+	}
+
+	async readScan(): Promise<AccountScan | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.scanPath);
+		return file instanceof TFile ? parseScan(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
+		return this.put(this.scanPath, serializeScan(scan));
 	}
 
 	get dayCoveragePath(): string {

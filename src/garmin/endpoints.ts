@@ -950,6 +950,23 @@ export interface WeeklyStatRow {
 	value: number | null;
 }
 
+/**
+ * A week of `/usersummary-service/stats/steps/weekly`: `calendarDate` is the
+ * week's first day, and the weeks end on the day asked for. A week without
+ * any wellness data is left out.
+ */
+export interface WeeklyStepsRow {
+	calendarDate: string;
+	values?: {
+		totalSteps?: number | null;
+		averageSteps?: number | null;
+		/** Days of the week with any wellness data: what the account scan counts. */
+		wellnessDataDaysCount?: number | null;
+		totalDistance?: number | null;
+		averageDistance?: number | null;
+	} | null;
+}
+
 /** One day of `/usersummary-service/stats/respiration/daily`: breaths a minute, flat rather than under `values`. */
 export interface RespirationStatRow {
 	calendarDate: string;
@@ -1420,6 +1437,13 @@ export class GarminApi extends GarminClient {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		return (await this.request<DailyStepStat[] | null>(`/usersummary-service/stats/steps/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Steps a week for the `weeks` weeks ending on `end`: 52 at most (53 is HTTP 400). */
+	async weeklySteps(end: string, weeks = 52): Promise<WeeklyStepsRow[]> {
+		assertIsoDate(end, "end");
+		assertCount(weeks, "weeks");
+		return (await this.request<WeeklyStepsRow[] | null>(`/usersummary-service/stats/steps/weekly/${end}/${weeks}`)) ?? [];
 	}
 
 	async dailyFloorStats(start: string, end: string): Promise<DailyFloorStat[]> {
