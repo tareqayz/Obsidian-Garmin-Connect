@@ -44,7 +44,7 @@ import {
 } from "./sleep-index";
 import { ensureFolder, trimSlashes } from "./vault-paths";
 import type { DayRow as HomeDayRow } from "../dashboard/series";
-import { dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
+import { DayBuffer, dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
 import type { Properties } from "./metrics";
 import type { AccountInfo } from "./account";
 import { parseSyncState, serializeSyncState, type SyncState } from "./sync-state";
@@ -161,18 +161,23 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	/** Several days at once, a write a year: the import from the old day notes. */
 	async writeDays(incoming: DayProperties): Promise<number> {
-		let written = 0;
-		const years = new Set([...incoming.keys()].map((d) => d.slice(0, 4)));
-		for (const year of years) {
-			const path = this.join(`${DAYS_FOLDER}/${year}.json`);
-			const file = this.app.vault.getAbstractFileByPath(path);
-			let days: DayProperties = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
-			for (const [date, properties] of incoming) {
-				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
-			}
-			if ((await this.put(path, serializeDays(year, days))) === "written") written += 1;
-		}
-		return written;
+		const buffer = this.dayBuffer();
+		for (const [date, properties] of incoming) await buffer.write(date, properties);
+		return buffer.flush();
+	}
+
+	/**
+	 * The day files as a sync's target: days held, then written a year file
+	 * at a time by `flush` (see `DayBuffer`).
+	 */
+	dayBuffer(): DayBuffer {
+		return new DayBuffer({
+			readYear: async (year) => {
+				const file = this.app.vault.getAbstractFileByPath(this.join(`${DAYS_FOLDER}/${year}.json`));
+				return file instanceof TFile ? this.app.vault.read(file) : null;
+			},
+			writeYear: (year, body) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body),
+		});
 	}
 
 	/** Every synced day, oldest first. */

@@ -74,6 +74,8 @@ export interface SyncSource {
 	/** A night a day for the sleep index. 28 days a call at most. */
 	sleepStats(start: string, end: string): Promise<SleepStatsDay[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
+	/** The activities that started between two local days, newest first. Needed by `SyncOptions.activityRange`. */
+	activitiesByDate?(from: string, to: string, start?: number, limit?: number): Promise<Activity[]>;
 }
 
 export type WriteOutcome = "written" | "unchanged" | "missing";
@@ -197,6 +199,13 @@ export interface SyncOptions {
 	 */
 	extras?: readonly IntradayDef[];
 	/**
+	 * List the run's activities by date (`activitiesByDate`, a request per
+	 * hundred) rather than paging back from the newest, which reaches only the
+	 * newest 250: what a backfill far from today needs. The list then feeds
+	 * the day files alone, not `activities`, which wants the newest pages.
+	 */
+	activityRange?: boolean;
+	/**
 	 * How many of the newest days in a run get intraday series. They cost six
 	 * requests a day, and a year's backfill of them would be 2,190 requests for
 	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
@@ -238,6 +247,12 @@ export interface DayResult {
 	/** Endpoints that failed for this day without stopping the sync. */
 	warnings?: string[];
 	error?: string;
+	/**
+	 * Every request the run's groups ask of a day went out and came back,
+	 * data or not, intraday included, and the day was written: nothing about
+	 * it is left to fetch at this version.
+	 */
+	full?: true;
 }
 
 export interface SyncReport {
@@ -428,11 +443,13 @@ export async function syncRange(
 	let workoutsByDate = new Map<string, Activity[]>();
 	if (wanted.workouts) {
 		try {
-			const { activities, requests, reachedEnd } = await fetchActivitiesFor(source, opts.from);
+			const { activities, requests, reachedEnd } = opts.activityRange
+				? await fetchActivitiesBetween(source, opts.from, opts.to)
+				: await fetchActivitiesFor(source, opts.from);
 			report.requests += requests;
 			workoutsByDate = bucketWorkoutsByDate(activities);
 			log.detail("workouts found", activities.length);
-			if (opts.activities) {
+			if (opts.activities && !opts.activityRange) {
 				try {
 					report.activityFilesWritten += await opts.activities.merge(activities, reachedEnd);
 				} catch (err) {
@@ -653,6 +670,7 @@ export async function syncRange(
 			}
 		}
 
+		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched)) result.full = true;
 		report.days.push(result);
 
 		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
@@ -1449,6 +1467,30 @@ function byDate<T>(rows: readonly T[], dateOf: (row: T) => string | undefined): 
 
 const ACTIVITY_PAGE = 50;
 const MAX_ACTIVITY_PAGES = 5;
+/** Activities a page when listing by date. The list honours 100. */
+const DATED_PAGE = 100;
+
+/**
+ * The run's activities by date: a request per hundred, however far the run
+ * is from today. `reachedEnd` is false: a window says nothing about what is
+ * older.
+ */
+async function fetchActivitiesBetween(
+	source: SyncSource,
+	from: string,
+	to: string,
+): Promise<{ activities: Activity[]; requests: number; reachedEnd: boolean }> {
+	if (!source.activitiesByDate) throw new Error("activityRange needs activitiesByDate");
+	const activities: Activity[] = [];
+	let requests = 0;
+	for (let start = 0; ; start += DATED_PAGE) {
+		const batch = await source.activitiesByDate(from, to, start, DATED_PAGE);
+		requests += 1;
+		activities.push(...batch);
+		if (batch.length < DATED_PAGE) break;
+	}
+	return { activities, requests, reachedEnd: false };
+}
 
 /**
  * Walks the activity list back to `from` rather than asking per day — one paged

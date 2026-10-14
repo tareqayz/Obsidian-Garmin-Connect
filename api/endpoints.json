@@ -53,7 +53,56 @@
 					"sortorder"
 				],
 				"line": 2671
-			}
+			},
+			"plugin": "GarminApi.activitiesByDate",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "range",
+			"check": true,
+			"critical": [
+				"[].activityId",
+				"[].activityName",
+				"[].startTimeLocal",
+				"[].distance",
+				"[].duration",
+				"[].calories",
+				"[].averageHR",
+				"[].activityType.typeKey"
+			],
+			"schema": "schema/activities-by-date.json",
+			"notes": "The list by local start day (startDate/endDate, inclusive), paged with start/limit like get-activities and the same rows. A backfill chunk far from today lists its own window: get-activities only reaches back as far as it pages.",
+			"reads": [
+				"[].maxHR",
+				"[].steps",
+				"[].elevationGain",
+				"[].movingDuration",
+				"[].aerobicTrainingEffect",
+				"[].anaerobicTrainingEffect",
+				"[].trainingEffectLabel",
+				"[].aerobicTrainingEffectMessage",
+				"[].anaerobicTrainingEffectMessage",
+				"[].activityTrainingLoad",
+				"[].beginTimestamp",
+				"[].activityType.typeId",
+				"[].activityType.parentTypeId",
+				"[].isParent",
+				"[].maxAvgPower_1",
+				"[].maxAvgPower_2",
+				"[].maxAvgPower_5",
+				"[].maxAvgPower_10",
+				"[].maxAvgPower_20",
+				"[].maxAvgPower_30",
+				"[].maxAvgPower_60",
+				"[].maxAvgPower_120",
+				"[].maxAvgPower_300",
+				"[].maxAvgPower_600",
+				"[].maxAvgPower_1200",
+				"[].maxAvgPower_1800",
+				"[].maxAvgPower_3600",
+				"[].maxAvgPower_7200",
+				"[].excludeFromPowerCurveReports"
+			]
 		},
 		{
 			"id": "activities-for-day",

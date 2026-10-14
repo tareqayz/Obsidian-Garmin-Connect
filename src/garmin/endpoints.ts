@@ -2118,6 +2118,24 @@ export class GarminApi extends GarminClient {
 		return list ?? [];
 	}
 
+	/**
+	 * The activities that started between two local days, inclusive, newest
+	 * first, paged like the list. The same rows as `activities`: a backfill
+	 * far from today asks for its own window rather than paging down to it.
+	 */
+	async activitiesByDate(from: string, to: string, start = 0, limit = 100): Promise<Activity[]> {
+		if (!Number.isInteger(start) || start < 0) {
+			throw new TypeError(`start must be a non-negative integer, got ${start}`);
+		}
+		if (!Number.isInteger(limit) || limit < 1) {
+			throw new TypeError(`limit must be a positive integer, got ${limit}`);
+		}
+		const list = await this.request<Activity[] | null>("/activitylist-service/activities/search/activities", {
+			query: { startDate: assertIsoDate(from, "from"), endDate: assertIsoDate(to, "to"), start: String(start), limit: String(limit) },
+		});
+		return list ?? [];
+	}
+
 	/* One activity's page: its summary, samples, laps, zones, weather and gear,
 	   each by the id the activity list gives. The page loads them when it opens. */
 

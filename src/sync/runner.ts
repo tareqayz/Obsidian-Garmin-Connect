@@ -15,7 +15,6 @@ import {
 	walkHistory,
 	type DailyStatsSink,
 	type DayIndexRuntime,
-	type DayTarget,
 	type SleepSink,
 	type SyncReport,
 } from "./engine";
@@ -29,6 +28,7 @@ import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
+import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 
 export interface RunnerSettings {
@@ -309,7 +309,9 @@ export class SyncRunner {
 			const { from, to, requests: planned = 0, notes = [], finish } = await plan();
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
-			const report = await syncRange(this.api, dayTarget(series), {
+			// The day files are written a year at a time once the days are in.
+			const days = series.dayBuffer();
+			const report = await syncDays(days, () => syncRange(this.api, days, {
 				from,
 				to,
 				groups: settings.groups,
@@ -333,7 +335,7 @@ export class SyncRunner {
 						}),
 					);
 				},
-			});
+			}));
 			notice.hide();
 
 			// Once per sync, not per day: who you are, the watch, and the numbers
@@ -1100,8 +1102,34 @@ function sleepSink(store: VaultSeriesStore): SleepSink {
 
 /** The engine's view of the daily stats index on disk. */
 /** Every day of the range is writable: the store makes the year file it needs. */
-function dayTarget(store: VaultSeriesStore): DayTarget {
-	return { exists: () => true, write: (date, properties) => store.writeDay(date, properties) };
+/**
+ * A run into a day buffer, then the buffer written. Days whose year file could
+ * not be written count as failed, so nothing takes them for synced; a run that
+ * throws still writes the days it got.
+ */
+async function syncDays(days: DayBuffer, run: () => Promise<SyncReport>): Promise<SyncReport> {
+	let report: SyncReport;
+	try {
+		report = await run();
+	} catch (err) {
+		await days.flush().catch(() => undefined);
+		throw err;
+	}
+	try {
+		await days.flush();
+	} catch (err) {
+		const error = explain(err);
+		for (const day of report.days) {
+			if (day.status !== "written") continue;
+			day.status = "failed";
+			day.error = `day file: ${error}`;
+			delete day.full;
+			report.written -= 1;
+			report.failed += 1;
+		}
+		report.warnings.push(`day files failed: ${error}`);
+	}
+	return report;
 }
 
 function dailyStatsSink(store: VaultSeriesStore): DailyStatsSink {

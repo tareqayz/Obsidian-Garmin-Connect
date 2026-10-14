@@ -60,6 +60,74 @@ export function parseDays(text: string): DayProperties {
 	return out;
 }
 
+/** Where a `DayBuffer` reads and writes year files. `VaultSeriesStore` in the plugin. */
+export interface DayYearStore {
+	/** The year file's text as it stands now, or null when there is none. */
+	readYear(year: string): Promise<string | null>;
+	/** Skips the write when the text would not change. */
+	writeYear(year: string, body: string): Promise<"written" | "unchanged">;
+}
+
+/**
+ * Days a sync writes, held and then written a year file at a time. A year
+ * file holds the whole year, and a sync service uploads every rewrite of it,
+ * so a run of a few hundred days must not rewrite it once a day.
+ *
+ * `write` answers as a write to the file would, from the year as it stood
+ * when first read. `flush` reads each year again and merges the held days
+ * over it, so a day another device wrote meanwhile is kept.
+ */
+export class DayBuffer {
+	/** What the run wrote, by date: merged over the file at flush. */
+	private incoming: DayProperties = new Map();
+	/** Each year as first read, with the run's days merged in: what `write` compares against. */
+	private seen = new Map<string, DayProperties>();
+
+	constructor(private readonly store: DayYearStore) {}
+
+	/** Every day has somewhere to go: its year file. */
+	exists(): boolean {
+		return true;
+	}
+
+	async write(date: string, properties: Properties): Promise<"written" | "unchanged"> {
+		const year = date.slice(0, 4);
+		let days = this.seen.get(year);
+		if (!days) {
+			const text = await this.store.readYear(year);
+			days = text ? parseDays(text) : new Map();
+		}
+		const before = days.get(date);
+		const next = mergeDay(days, date, properties);
+		this.seen.set(year, next);
+		if (JSON.stringify(before) === JSON.stringify(next.get(date))) return "unchanged";
+		this.incoming = mergeDay(this.incoming, date, properties);
+		return "written";
+	}
+
+	/** Days held and not yet written. */
+	get pending(): number {
+		return this.incoming.size;
+	}
+
+	/** Writes each year the run changed, once. Resolves with the files written. */
+	async flush(): Promise<number> {
+		const held = this.incoming;
+		this.incoming = new Map();
+		let written = 0;
+		const years = [...new Set([...held.keys()].map((date) => date.slice(0, 4)))].sort();
+		for (const year of years) {
+			const text = await this.store.readYear(year);
+			let days: DayProperties = text ? parseDays(text) : new Map();
+			for (const [date, properties] of held) {
+				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
+			}
+			if ((await this.store.writeYear(year, serializeDays(year, days))) === "written") written += 1;
+		}
+		return written;
+	}
+}
+
 /** `2026.json`, not `index.json` or anything else a folder may hold. */
 export function isDaysFile(name: string): boolean {
 	return /^\d{4}\.json$/.test(name);

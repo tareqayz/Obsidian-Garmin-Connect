@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { Properties } from "../src/sync/metrics";
-import { dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "../src/sync/days";
+import { DayBuffer, dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties, type DayYearStore } from "../src/sync/days";
 
 describe("day files", () => {
 	it("round-trips a year's days", () => {
@@ -52,5 +52,57 @@ describe("day files", () => {
 			text: { hrv_status: "BALANCED" },
 			workouts: [{ type: "running" }],
 		});
+	});
+});
+
+/** Year files in memory, counting writes. */
+class MemoryYears implements DayYearStore {
+	files = new Map<string, string>();
+	writes: string[] = [];
+	async readYear(year: string): Promise<string | null> {
+		return this.files.get(year) ?? null;
+	}
+	async writeYear(year: string, body: string): Promise<"written" | "unchanged"> {
+		if (this.files.get(year) === body) return "unchanged";
+		this.files.set(year, body);
+		this.writes.push(year);
+		return "written";
+	}
+}
+
+describe("day buffer", () => {
+	it("writes each year file once, however many of its days a run wrote", async () => {
+		const years = new MemoryYears();
+		const buffer = new DayBuffer(years);
+		const dates = ["2026-01-02", "2026-01-01", "2025-12-31", "2025-12-30"];
+		for (const date of dates) assert.equal(await buffer.write(date, { steps: 1000 }), "written");
+		assert.deepEqual(years.writes, []);
+		assert.equal(buffer.pending, 4);
+		assert.equal(await buffer.flush(), 2);
+		assert.deepEqual(years.writes, ["2025", "2026"]);
+		assert.deepEqual([...parseDays(years.files.get("2026")!).keys()], ["2026-01-01", "2026-01-02"]);
+		assert.equal(buffer.pending, 0);
+	});
+
+	it("answers unchanged for a day that already holds the values, and then writes nothing", async () => {
+		const years = new MemoryYears();
+		years.files.set("2026", serializeDays("2026", new Map([["2026-10-01", { steps: 8000, vo2max: 50 }]])));
+		const buffer = new DayBuffer(years);
+		assert.equal(await buffer.write("2026-10-01", { steps: 8000 }), "unchanged");
+		assert.equal(await buffer.flush(), 0);
+		assert.deepEqual(years.writes, []);
+		// A day written twice in a run answers from the first write.
+		assert.equal(await buffer.write("2026-10-02", { steps: 1 }), "written");
+		assert.equal(await buffer.write("2026-10-02", { steps: 1 }), "unchanged");
+	});
+
+	it("merges over the file as it is at flush, keeping a day another device wrote meanwhile", async () => {
+		const years = new MemoryYears();
+		years.files.set("2026", serializeDays("2026", new Map([["2026-10-01", { steps: 8000 }]])));
+		const buffer = new DayBuffer(years);
+		await buffer.write("2026-10-02", { steps: 9000 });
+		years.files.set("2026", serializeDays("2026", new Map([["2026-10-01", { steps: 8000 }], ["2026-10-03", { steps: 7000 }]])));
+		await buffer.flush();
+		assert.deepEqual(parseDays(years.files.get("2026")!), new Map([["2026-10-01", { steps: 8000 }], ["2026-10-02", { steps: 9000 }], ["2026-10-03", { steps: 7000 }]]));
 	});
 });

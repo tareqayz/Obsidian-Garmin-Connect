@@ -1164,6 +1164,60 @@ describe("syncRange — extras kept at sync time", () => {
 	});
 });
 
+describe("syncRange — a backfill's chunk", () => {
+	const run = (date: string, id: number): Activity => ({ activityId: id, activityName: "Run", startTimeLocal: `${date} 07:00:00`, distance: 5000, duration: 1800, activityType: { typeKey: "running" } }) as Activity;
+
+	/** A source that lists activities by date as well. */
+	class DatedSource extends FakeSource {
+		dated: Activity[] = [];
+		async activitiesByDate(from: string, to: string, start = 0, limit = 100) {
+			this.calls.push(`activitiesByDate:${from}:${to}:${start}:${limit}`);
+			return this.dated.slice(start, start + limit);
+		}
+	}
+
+	it("lists its own window by date instead of paging back from the newest, and leaves the activity index alone", async () => {
+		const source = new DatedSource();
+		source.dated = [run("2026-09-11", 2), run("2026-09-10", 1)];
+		const merged: number[] = [];
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+		await syncRange(source, target, options({ groups: ["activity", "workouts"], activityRange: true, activities: { merge: async (listing) => (merged.push(listing.length), 1) } }));
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("activit")), ["activitiesByDate:2026-09-10:2026-09-12:0:100"]);
+		assert.equal(source.activityPages, 0);
+		assert.deepEqual(merged, []);
+		assert.equal((target.written.get("2026-09-11")!.workouts as unknown[]).length, 1);
+	});
+
+	it("pages the window while full pages come back", async () => {
+		const source = new DatedSource();
+		source.dated = Array.from({ length: 150 }, (_, i) => run("2026-09-11", i + 1));
+		await syncRange(source, new FakeTarget(new Set(["2026-09-11"])), options({ from: "2026-09-11", to: "2026-09-11", groups: ["workouts"], activityRange: true }));
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("activit")), ["activitiesByDate:2026-09-11:2026-09-11:0:100", "activitiesByDate:2026-09-11:2026-09-11:100:100"]);
+	});
+
+	it("marks a day full only when everything its groups ask for came back, intraday included", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+		const report = await syncRange(source, target, options({ groups: ["activity", "intraday"], series: new FakeSeries(), intradayDays: 2 }));
+		assert.deepEqual(
+			report.days.map((d) => [d.date, d.full ?? false]),
+			[
+				["2026-09-10", false],
+				["2026-09-11", true],
+				["2026-09-12", true],
+			],
+		);
+		// Without intraday asked for, a day is full once its requests are in.
+		const plain = await syncRange(new FakeSource(), target, options({ groups: ["activity"] }));
+		assert.ok(plain.days.every((d) => d.full));
+		// A request that failed leaves the day to fetch again.
+		const failing = new FakeSource();
+		failing.failWith.heartRate = new GarminApiError("heartRate: HTTP 500", 500, "");
+		const partial = await syncRange(failing, target, options({ from: "2026-09-12", groups: ["activity", "intraday"], series: new FakeSeries() }));
+		assert.equal(partial.days.find((d) => d.date === "2026-09-12")!.full, undefined);
+	});
+});
+
 describe("syncRange — a day's series keeps what the sync did not fetch", () => {
 	/** A day as an earlier sync left it, with every intraday block. */
 	const FULL: DaySeries = {
