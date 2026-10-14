@@ -30,6 +30,7 @@ import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
+import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 
 export interface RunnerSettings {
 	groups: MetricGroup[];
@@ -488,32 +489,24 @@ export class SyncRunner {
 		this.running = true;
 		const notice = auto ? null : new Notice(statsHistoryBody({}), 0);
 		try {
-			const meta = await store.readDailyStatsMeta();
-			if (meta?.complete) {
+			if ((await store.readDailyStatsMeta())?.complete) {
 				notice?.hide();
 				if (!auto) new Notice("Garmin step, floor and intensity history is already complete.");
 				return null;
 			}
 			this.setStatsHistory({});
 
-			// Carry on below what the index already holds; routine syncs keep its top current.
-			const until = meta?.from ? shiftDay(meta.from, -1) : toIsoDate();
-			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
-			const got = await fetchDailyStatsHistory(this.api, {
-				until,
-				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				onWindow: (reached) => {
+			const notBefore = await this.notBefore(store);
+			const got = await walkInSegments((emptyStreak) =>
+				this.dailyStatsSegment(store, { notBefore, emptyStreak }, (reached) => {
 					this.setStatsHistory({ reached });
 					notice?.setMessage(statsHistoryBody({ reached }));
-				},
-			});
-
-			// Even cut short, what came back runs unbroken from where it started.
-			if (got.batch.dates.length) await store.mergeDailyStats(got.batch, { covered: got.covered, complete: got.complete });
+				}),
+			);
 			notice?.hide();
 
 			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
-			const days = got.batch.rows.length;
+			const days = got.rows;
 			log?.detail("daily stats history", `${days} days, ${got.requests} requests`);
 			if (!auto || stoppedEarly) {
 				new Notice(
@@ -563,31 +556,24 @@ export class SyncRunner {
 		this.running = true;
 		const notice = auto ? null : new Notice(historyNotice("Garmin sleep history", {}), 0);
 		try {
-			const meta = await store.readSleepMeta();
-			if (meta?.complete) {
+			if ((await store.readSleepMeta())?.complete) {
 				notice?.hide();
 				if (!auto) new Notice("Garmin sleep history is already complete.");
 				return null;
 			}
 			this.setSleepHistory({});
 
-			// Carry on below what the index already holds; routine syncs keep its top current.
-			const until = meta?.from ? shiftDay(meta.from, -1) : toIsoDate();
-			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
-			const got = await fetchSleepHistory(this.api, {
-				until,
-				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				onWindow: (reached) => {
+			const notBefore = await this.notBefore(store);
+			const got = await walkInSegments((emptyStreak) =>
+				this.sleepSegment(store, { notBefore, emptyStreak }, (reached) => {
 					this.setSleepHistory({ reached });
 					notice?.setMessage(historyNotice("Garmin sleep history", { reached }));
-				},
-			});
-
-			if (got.batch.dates.length) await store.mergeSleep(got.batch, { covered: got.covered, complete: got.complete });
+				}),
+			);
 			notice?.hide();
 
 			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
-			const nights = got.batch.rows.length;
+			const nights = got.rows;
 			log?.detail("sleep history", `${nights} nights, ${got.requests} requests`);
 			if (!auto || stoppedEarly) {
 				new Notice(
@@ -640,36 +626,24 @@ export class SyncRunner {
 		this.running = true;
 		const notice = auto ? null : new Notice(historyNotice(label, {}), 0);
 		try {
-			const meta = await store.readDayIndexMeta(def);
-			if (meta?.complete) {
+			if ((await store.readDayIndexMeta(def))?.complete) {
 				notice?.hide();
 				if (!auto) new Notice(`${label} is already complete.`);
 				return null;
 			}
 			this.setIndexHistory(kind, {});
 
-			// Carry on below what the index already holds; routine syncs keep its top current.
-			const today = toIsoDate();
-			const until = meta?.from ? shiftDay(meta.from, -1) : today;
-			const oldestActivity = (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
-			const got = await walkHistory(def, (start, end) => def.fetchWindow(this.api, start, end), {
-				until,
-				today,
-				...(oldestActivity ? { notBefore: oldestActivity } : {}),
-				onWindow: (reached) => {
+			const notBefore = await this.notBefore(store);
+			const got = await walkInSegments((emptyStreak) =>
+				this.indexSegment(def, store, { notBefore, emptyStreak }, (reached) => {
 					this.setIndexHistory(kind, { reached });
 					notice?.setMessage(historyNotice(label, { reached }));
-				},
-			});
-
-			// Even cut short, what came back runs unbroken from where it started.
-			if (got.batch.dates.length || got.complete) {
-				await store.mergeDayIndex(def, got.batch, { covered: got.covered, complete: got.complete });
-			}
+				}),
+			);
 			notice?.hide();
 
 			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
-			const days = got.batch.rows.length;
+			const days = got.rows;
 			log?.detail(`${def.kind} history`, `${days} days, ${got.requests} requests`);
 			if (!auto || stoppedEarly) {
 				new Notice(stoppedEarly ? `${label}: ${days} days fetched — stopped: ${stoppedEarly}` : `${label}: ${days} days`, stoppedEarly ? 10000 : 5000);
@@ -689,6 +663,70 @@ export class SyncRunner {
 		if (progress) this.indexHistoryState.set(kind, progress);
 		else this.indexHistoryState.delete(kind);
 		for (const listener of this.indexHistoryListeners) listener(kind, progress);
+	}
+
+	/**
+	 * Where a walk may stop once its windows come back empty: past the oldest
+	 * activity, since a watch that recorded one recorded the rest.
+	 */
+	private async notBefore(store: VaultSeriesStore): Promise<string | undefined> {
+		return (await store.readActivities()).rows.at(-1)?.start.slice(0, 10);
+	}
+
+	/**
+	 * One segment of the daily stats walk: at most a year of windows below
+	 * what the index holds, merged at once. Routine syncs keep its top current.
+	 */
+	private async dailyStatsSegment(store: VaultSeriesStore, walk: SegmentOptions, onWindow?: (reached: string) => void): Promise<Segment> {
+		const meta = await store.readDailyStatsMeta();
+		if (meta?.complete) return { requests: 0, rows: 0, complete: true, emptyStreak: walk.emptyStreak };
+		const got = await fetchDailyStatsHistory(this.api, {
+			until: meta?.from ? shiftDay(meta.from, -1) : toIsoDate(),
+			...(walk.notBefore ? { notBefore: walk.notBefore } : {}),
+			emptyStreak: walk.emptyStreak,
+			maxWindows: segmentWindows(STATS_WINDOW_DAYS),
+			...(walk.shouldStop ? { shouldStop: walk.shouldStop } : {}),
+			...(onWindow ? { onWindow } : {}),
+		});
+		// Even cut short, what came back runs unbroken from where it started.
+		if (got.batch.dates.length) await store.mergeDailyStats(got.batch, { covered: got.covered, complete: got.complete });
+		return segmentOf(got, got.batch.rows.length);
+	}
+
+	/** One segment of the sleep walk, as `dailyStatsSegment`. */
+	private async sleepSegment(store: VaultSeriesStore, walk: SegmentOptions, onWindow?: (reached: string) => void): Promise<Segment> {
+		const meta = await store.readSleepMeta();
+		if (meta?.complete) return { requests: 0, rows: 0, complete: true, emptyStreak: walk.emptyStreak };
+		const got = await fetchSleepHistory(this.api, {
+			until: meta?.from ? shiftDay(meta.from, -1) : toIsoDate(),
+			...(walk.notBefore ? { notBefore: walk.notBefore } : {}),
+			emptyStreak: walk.emptyStreak,
+			maxWindows: segmentWindows(STATS_WINDOW_DAYS),
+			...(walk.shouldStop ? { shouldStop: walk.shouldStop } : {}),
+			...(onWindow ? { onWindow } : {}),
+		});
+		if (got.batch.dates.length) await store.mergeSleep(got.batch, { covered: got.covered, complete: got.complete });
+		return segmentOf(got, got.batch.rows.length);
+	}
+
+	/** One segment of a registered index's walk, as `dailyStatsSegment`, `windowDays` a window. */
+	private async indexSegment(def: DayIndexDef, store: VaultSeriesStore, walk: SegmentOptions, onWindow?: (reached: string) => void): Promise<Segment> {
+		const meta = await store.readDayIndexMeta(def);
+		if (meta?.complete) return { requests: 0, rows: 0, complete: true, emptyStreak: walk.emptyStreak };
+		const today = toIsoDate();
+		const got = await walkHistory(def, (start, end) => def.fetchWindow(this.api, start, end), {
+			until: meta?.from ? shiftDay(meta.from, -1) : today,
+			today,
+			...(walk.notBefore ? { notBefore: walk.notBefore } : {}),
+			emptyStreak: walk.emptyStreak,
+			maxWindows: segmentWindows(def.windowDays),
+			...(walk.shouldStop ? { shouldStop: walk.shouldStop } : {}),
+			...(onWindow ? { onWindow } : {}),
+		});
+		if (got.batch.dates.length || got.complete) {
+			await store.mergeDayIndex(def, got.batch, { covered: got.covered, complete: got.complete });
+		}
+		return segmentOf(got, got.batch.rows.length);
 	}
 
 	/** A registered index as the engine feeds it: the store's files, and the window fetch bound to this account. */

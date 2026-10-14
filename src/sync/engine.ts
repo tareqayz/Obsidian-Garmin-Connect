@@ -778,6 +778,11 @@ export interface SleepHistoryOptions {
 	notBefore?: string;
 	/** Windows in a row without a night that end the walk. */
 	emptyWindows?: number;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back with nights forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -796,6 +801,8 @@ export interface SleepHistoryFetch {
 	requests: number;
 	/** The walk ran past the start of the account's sleep history. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -810,9 +817,9 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 	const wait = opts.wait ?? defaultWait;
 	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
 	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
-	const out: SleepHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: SleepHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -833,6 +840,7 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 		opts.onWindow?.(start);
 
 		empty = rows.length ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;
@@ -976,6 +984,11 @@ export interface WalkOptions {
 	today?: string;
 	/** Keep walking through empty windows until past this day: the oldest activity, say. */
 	notBefore?: string;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back with rows forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -994,6 +1007,8 @@ export interface WalkResult<R extends DayRow = DayRow> {
 	requests: number;
 	/** The walk found where the history starts, or reached `maxHistoryDays`: nothing older is left. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -1017,13 +1032,13 @@ export async function walkHistory<R extends DayRow>(
 	// About twelve years, whatever the window: what 160 windows of 28 days reach.
 	const maxWindows = Math.max(1, opts.maxWindows ?? Math.ceil(4480 / size));
 	const floor = def.maxHistoryDays ? shiftDate(opts.today ?? opts.until, -(def.maxHistoryDays - 1)) : undefined;
-	const out: WalkResult<R> = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: WalkResult<R> = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	if (floor && opts.until < floor) {
 		out.complete = true;
 		return out;
 	}
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -1052,6 +1067,7 @@ export async function walkHistory<R extends DayRow>(
 			break;
 		}
 		empty = rows.length ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;
@@ -1183,6 +1199,11 @@ export interface DailyHistoryOptions {
 	notBefore?: string;
 	/** Windows in a row with no steps at all that end the walk. */
 	emptyWindows?: number;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back non-empty forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -1201,6 +1222,8 @@ export interface DailyHistoryFetch {
 	requests: number;
 	/** The walk ran past the start of the account's history. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -1216,9 +1239,9 @@ export async function fetchDailyStatsHistory(source: StatsSource, opts: DailyHis
 	const wait = opts.wait ?? defaultWait;
 	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
 	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
-	const out: DailyHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: DailyHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -1251,6 +1274,7 @@ export async function fetchDailyStatsHistory(source: StatsSource, opts: DailyHis
 		opts.onWindow?.(start);
 
 		empty = got.steps ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;

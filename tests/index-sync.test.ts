@@ -84,6 +84,36 @@ describe("walkHistory", () => {
 		assert.equal(got.complete, true);
 	});
 
+	it("walked in segments, asks, keeps and finishes as one walk, the empty streak carried across", async () => {
+		const one = windows("2026-09-20", "2026-10-04");
+		const whole = await walkHistory(def, one.fetch, { until: "2026-10-04" });
+
+		const segmented = windows("2026-09-20", "2026-10-04");
+		const rows: unknown[] = [];
+		let until = "2026-10-04";
+		let emptyStreak = 0;
+		let complete = false;
+		let from: string | undefined;
+		for (let n = 0; n < 10 && !complete; n++) {
+			const got = await walkHistory(def, segmented.fetch, { until, emptyStreak, maxWindows: 2 });
+			rows.push(...got.batch.rows);
+			({ complete, emptyStreak } = got);
+			from = got.covered!.from;
+			until = day(from, -1);
+		}
+		// The boundary falls between the two empty windows that end the walk: without the streak a third would be asked.
+		assert.deepEqual(segmented.calls, one.calls);
+		assert.deepEqual(rows, whole.batch.rows);
+		assert.equal(from, whole.covered!.from);
+		assert.equal(complete, whole.complete);
+	});
+
+	it("says how many empty windows it ended on", async () => {
+		const source = windows("2026-09-28", "2026-10-04");
+		assert.equal((await walkHistory(def, source.fetch, { until: "2026-10-04", maxWindows: 2 })).emptyStreak, 1);
+		assert.equal((await walkHistory(def, source.fetch, { until: "2026-10-04", maxWindows: 1 })).emptyStreak, 0);
+	});
+
 	it("keeps walking through empty windows newer than the oldest activity", async () => {
 		const source = windows("2026-09-28", "2026-10-04");
 		const got = await walkHistory(def, source.fetch, { until: "2026-10-04", notBefore: "2026-09-01" });
