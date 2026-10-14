@@ -165,6 +165,8 @@ export class GarminHomeView extends ItemView {
 		});
 
 		this.bindRunner();
+		// The first Garmin view after an update asks about what it offers, once.
+		void this.plugin.askForUpdates();
 
 		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {

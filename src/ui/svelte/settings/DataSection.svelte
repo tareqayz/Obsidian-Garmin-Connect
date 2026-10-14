@@ -10,6 +10,7 @@
 	import { VaultSeriesStore } from "../../../sync/series-store";
 	import { SYNC_SPEEDS } from "../../../sync/speed";
 	import { obsidianSetting } from "../obsidian-setting";
+	import type { UpdateLine } from "../../setup-flow";
 
 	/**
 	 * Settings → Data: where the data lives, what it takes on disk, how much
@@ -28,6 +29,7 @@
 	let start = $state<string | undefined>(undefined);
 	// svelte-ignore state_referenced_locally
 	let progress = $state<BackfillProgress | null>(plugin.sync.backfillProgress);
+	let updates = $state<UpdateLine[]>([]);
 	let daySetting: Setting | undefined;
 	let runSetting: Setting | undefined;
 
@@ -40,6 +42,7 @@
 	async function refresh(): Promise<void> {
 		const store = new VaultSeriesStore(plugin.app, s.dataFolder);
 		usage = store.diskUsage();
+		updates = await plugin.updateLines("all");
 		const scan = await store.readScan();
 		if (!scan) {
 			est = null;
@@ -216,6 +219,20 @@
 	</div>
 {/if}
 
+{#if updates.length}
+	<div class="updates" role="region" aria-label="New data for your history">
+		<strong>New data for your history</strong>
+		<ul>
+			{#each updates as line (line.key)}
+				<li>{line.title} <span class="muted">— {line.detail} · ≈ {line.bytes >= 1_000_000 ? formatBytes(line.bytes) : `${count.format(line.requests)} requests`}</span></li>
+			{/each}
+		</ul>
+		<div class="row end">
+			<button class="mod-cta" onclick={() => void plugin.agreeTo(updates.map((line) => line.key), []).then(refresh)}>Download</button>
+		</div>
+	</div>
+{/if}
+
 <div
 	use:obsidianSetting={(setting) =>
 		setting
@@ -256,6 +273,26 @@
 	.line {
 		color: var(--text-muted);
 		font-size: var(--font-ui-small);
+	}
+	.updates {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 4px 0 12px;
+		padding: 12px 16px;
+		border-radius: var(--radius-m);
+		background: var(--background-secondary);
+	}
+	.updates ul {
+		margin: 0;
+		padding-left: 18px;
+		font-size: var(--font-ui-small);
+	}
+	.updates .muted {
+		color: var(--text-muted);
+	}
+	.row.end {
+		justify-content: flex-end;
 	}
 	button {
 		flex: none;

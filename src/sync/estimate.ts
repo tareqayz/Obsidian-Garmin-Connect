@@ -150,6 +150,33 @@ export function estimate(input: EstimateInput): Estimate {
 	};
 }
 
+/** What one store's fetch costs: a chart index's walk over `units` days, Day details' `units` days, or Run details' `units` runs. */
+export function costOf(item: { set: DataSetId; store: string; units: number }, groups: readonly MetricGroup[], speed: SyncSpeed): { requests: number; bytes: number; seconds: number } {
+	const preset = SYNC_SPEEDS[speed];
+	let requests = 0;
+	let bytes = 0;
+	let raw = 0;
+	if (item.set === "run-details") {
+		requests = item.units * RUN_REQUESTS;
+		bytes = item.units * RUN_BYTES;
+		raw = item.units * RUN_SECONDS;
+	} else if (item.set === "day-details") {
+		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups, speed)) : 0;
+		requests = item.units * requestsPerDay(groups) + chunks * requestsPerChunk(groups);
+		bytes = item.units * (DAY_FILE_BYTES + (groups.includes("intraday") ? TIMELINE_BYTES : 0));
+		raw = item.units * secondsPerDay(requestsPerDay(groups), preset) + (chunks * requestsPerChunk(groups)) / preset.limits.rate;
+	} else {
+		const kind = item.store.replace(/^index:/, "");
+		const def = DAY_INDEXES.find((d) => d.kind === kind);
+		const windowDays = def?.windowDays ?? 28;
+		const windows = Math.ceil(item.units / windowDays) + (def?.emptyWindowsToStop ?? 4);
+		requests = item.store === "activities" ? 10 : windows * (def?.requestsPerWindow ?? (item.store === "daily-stats" ? 3 : 1));
+		bytes = item.units * (ROW_BYTES[kind] ?? (def ? SPARSE_ROW_BYTES : ROW_BYTES[item.store] ?? SPARSE_ROW_BYTES));
+		raw = requests * WINDOW_SECONDS;
+	}
+	return { requests, bytes, seconds: withBudget(requests, raw, speed) };
+}
+
 /** A set's estimate, and its time before the hourly budget. */
 interface Part {
 	set: SetEstimate;

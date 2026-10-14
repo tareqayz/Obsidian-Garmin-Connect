@@ -96,3 +96,13 @@ export function agreement(groups: readonly MetricGroup[]): { accepted: ConsentKe
 export function newDaysOnly(groups: readonly MetricGroup[]): { choices: Choices; accepted: ConsentKey[]; deferred: ConsentKey[] } {
 	return { choices: { dayDetails: "new", runDetails: "opened" }, accepted: [DAY_DETAILS_KEY, RUN_DETAILS_KEY], deferred: chartKeys(groups) };
 }
+
+/** A line of the update dialog: a store this version can fill in, and what it costs. */
+export interface UpdateLine {
+	key: string;
+	title: string;
+	detail: string;
+	requests: number;
+	bytes: number;
+	seconds: number;
+}
