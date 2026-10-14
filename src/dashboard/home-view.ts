@@ -129,7 +129,7 @@ export class GarminHomeView extends ItemView {
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
 				today,
 				initialCanSync: this.plugin.garmin.isAuthenticated,
-				initialSetupCard: this.setupCard(),
+				initialSetupCard: await this.setupCard(),
 				initialBackfill: this.plugin.sync.backfillProgress,
 				onSetUp: () => this.plugin.openSetup(),
 				onSignIn: () => this.plugin.openLogin(),
@@ -213,7 +213,7 @@ export class GarminHomeView extends ItemView {
 	/** Signed in or out, set up or not: the Sync button and the setup card follow. */
 	async refreshState(): Promise<void> {
 		this.component?.setCanSync(this.plugin.garmin.isAuthenticated);
-		this.component?.setSetupCard(this.setupCard());
+		this.component?.setSetupCard(await this.setupCard());
 	}
 
 	/**
@@ -221,10 +221,15 @@ export class GarminHomeView extends ItemView {
 	 * a sign-in, or — set up, signed in, and still nothing here — data that
 	 * another device has but this one never received.
 	 */
-	private setupCard(): SetupCardKind | null {
+	private async setupCard(): Promise<SetupCardKind | null> {
 		if (!this.plugin.data.settings.setup) return "finish";
 		if (!this.plugin.garmin.isAuthenticated) return "signed-out";
-		if (!this.store().hasData()) return "no-data";
+		const store = this.store();
+		if (!store.hasData()) {
+			// An account with nothing on Garmin yet is not missing anything here.
+			const scan = await store.readScan();
+			if (!scan || scan.days || scan.activities) return "no-data";
+		}
 		return null;
 	}
 
