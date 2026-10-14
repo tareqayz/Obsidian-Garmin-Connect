@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, type WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, Plugin, type App, type WorkspaceLeaf } from "obsidian";
 import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -24,7 +24,10 @@ import { removeLeafletStyles } from "./ui/map/leaflet";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 import { SetupModal } from "./ui/setup-modal";
-import { deleteSyncedFiles } from "./ui/delete-data";
+import { deletePlan, deleteSyncedFiles } from "./ui/delete-data";
+import { RemovedDataModal } from "./ui/removed-data-modal";
+import { watchForUninstall } from "./uninstall-watch";
+import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
 import { debtItems, pendingItems, type DebtItem } from "./sync/debt";
 import { costOf } from "./sync/estimate";
@@ -34,6 +37,16 @@ import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
+/** What an uninstalled plugin leaves on this device besides the vault: the map tiles and the device's id. */
+function forgetThisDevice(app: App): void {
+	try {
+		window.indexedDB.deleteDatabase(TILE_DB);
+	} catch {
+		// Nothing to clear.
+	}
+	app.saveLocalStorage(DEVICE_KEY, null);
+}
+
 /** The backfill carries on after the startup sync has had its turn. */
 const STARTUP_BACKFILL_DELAY_MS = 8000;
 /** Where this device keeps its id, for the backfill's lease. Per vault and device, never synced. */
@@ -182,6 +195,18 @@ export default class GarminPlugin extends Plugin {
 
 	onunload(): void {
 		this.sync.stop();
+		// Uninstalled rather than disabled or updated: offer to remove the synced data (see uninstall-watch.ts).
+		const app = this.app;
+		const dir = this.manifest.dir;
+		const dataFolder = this.data.settings.dataFolder;
+		if (!dir) return;
+		watchForUninstall({
+			exists: () => app.vault.adapter.exists(dir),
+			onGone: () => {
+				forgetThisDevice(app);
+				if (deletePlan(app, dataFolder).files) new RemovedDataModal(app, dataFolder).open();
+			},
+		});
 	}
 
 	/**
