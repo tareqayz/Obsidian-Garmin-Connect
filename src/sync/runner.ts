@@ -31,7 +31,7 @@ import { VaultSeriesStore } from "./series-store";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
-import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION } from "./datasets";
+import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION, type RunDetailsRange } from "./datasets";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 
 export interface RunnerSettings {
@@ -42,8 +42,8 @@ export interface RunnerSettings {
 
 	syncSpeed: SyncSpeed;
 	stopAfterEmptyDays: number;
-	/** Download every run's page in the background, not only the ones opened. */
-	downloadRuns: boolean;
+	/** What to keep: runs other than those opened download in the background. */
+	data: { runDetails: RunDetailsRange };
 }
 
 /** Activities per request when paging the whole history. The list honours 100. */
@@ -869,7 +869,7 @@ export class SyncRunner {
 	private get downloadsReady(): boolean {
 		if (!this.downloads.length || this.chainActive || this.waitingForRunner > 0) return false;
 		const settings = this.settings();
-		return settings.downloadRuns && settings.groups.includes("workouts") && this.api.isAuthenticated;
+		return settings.data.runDetails !== "opened" && settings.groups.includes("workouts") && this.api.isAuthenticated;
 	}
 
 	private kickIntraday(): void {
@@ -901,7 +901,7 @@ export class SyncRunner {
 	 */
 	private async queueDownloads(): Promise<void> {
 		const settings = this.settings();
-		if (!settings.downloadRuns || !settings.groups.includes("workouts")) {
+		if (settings.data.runDetails === "opened" || !settings.groups.includes("workouts")) {
 			this.downloads = [];
 		} else {
 			try {

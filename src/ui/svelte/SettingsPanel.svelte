@@ -156,8 +156,8 @@
 					"Off, a run downloads when you first open it.",
 			)
 			.addToggle((t) =>
-				t.setValue(s.downloadRuns).onChange((v) => {
-					s.downloadRuns = v;
+				t.setValue(s.data.runDetails !== "opened").onChange((v) => {
+					s.data.runDetails = v ? "all" : "opened";
 					save();
 					if (v) plugin.sync.startDownloads();
 				}),

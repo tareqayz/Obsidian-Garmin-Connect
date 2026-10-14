@@ -158,6 +158,11 @@ export default class GarminPlugin extends Plugin {
 		}
 	}
 
+	/** Another device changed data.json: take its setup and data choices. */
+	async onExternalSettingsChange(): Promise<void> {
+		await this.data.reloadChoices();
+	}
+
 	/**
 	 * Reuses an open view rather than stacking duplicates. `state` opens it on
 	 * a particular page, in a view that is already up as much as a new one.

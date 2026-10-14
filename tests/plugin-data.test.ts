@@ -70,13 +70,66 @@ describe("PluginData", () => {
 		assert.equal((saved[0]!.settings as { mapTiles: boolean }).mapTiles, false);
 	});
 
-	it("keeps runs downloading on view only unless switched on, and only for a real boolean", async () => {
-		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS } })).data.settings.downloadRuns, false);
-		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: true } })).data.settings.downloadRuns, true);
-		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: "yes" } })).data.settings.downloadRuns, false);
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, downloadRuns: true } });
-		await data.saveSettings();
-		assert.equal((saved[0]!.settings as { downloadRuns: boolean }).downloadRuns, true);
+	it("turns an older build's Download runs into the Run details range", async () => {
+		const v4 = (over: Record<string, unknown>) => ({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4, ...over } });
+		assert.equal((await load(v4({ downloadRuns: true }))).data.settings.data.runDetails, "all");
+		assert.equal((await load(v4({ downloadRuns: false }))).data.settings.data.runDetails, "opened");
+		assert.equal((await load(v4({ downloadRuns: "yes" }))).data.settings.data.runDetails, "opened");
+		const { saved } = await load(v4({ downloadRuns: true }));
+		assert.equal("downloadRuns" in (saved[0]!.settings as object), false);
+	});
+
+	it("starts a fresh install without a setup, so the wizard runs", async () => {
+		const { data } = await load(null);
+		assert.equal(data.settings.setup, null);
+		assert.deepEqual(data.settings.data, { dayDetails: "90d", runDetails: "opened", accepted: [], deferred: [] });
+		// Each instance has its own ledger.
+		data.settings.data.accepted.push("days@1");
+		assert.deepEqual((await load(null)).data.settings.data.accepted, []);
+	});
+
+	it("takes a vault that was already syncing as set up, its charts accepted and its day details left to ask", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4, downloadRuns: true, groups: ["activity", "sleep", "workouts"] }, auth: AUTH });
+		assert.equal(data.settings.setup?.migrated, true);
+		assert.ok(!Number.isNaN(Date.parse(data.settings.setup!.completedAt)));
+		assert.deepEqual(data.settings.data, {
+			dayDetails: "30d",
+			runDetails: "all",
+			accepted: ["activities@2", "daily-stats@1", "sleep@1", "index:critical-swim-speed@1", "runs@5"],
+			deferred: [],
+		});
+		assert.equal(saved.length, 1);
+		// Without a session there was nothing to set up.
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4 } })).data.settings.setup, null);
+		// A version 1 file gets the groups switched on first, and their charts accepted.
+		const old = await load({ settings: { settingsVersion: 1, groups: ["activity"] }, auth: AUTH });
+		assert.ok(old.data.settings.data.accepted.includes("index:respiration@1"));
+	});
+
+	it("reads the setup and the ledger by allowlist", async () => {
+		const { data } = await load({
+			settings: {
+				...DEFAULT_SETTINGS,
+				setup: { completedAt: "2026-10-14T06:00:00.000Z", migrated: "yes", extra: 1 },
+				data: { dayDetails: "forever", runDetails: "1y", accepted: ["days@1", "nope", 3, "days@1"], deferred: "index:stress@1" },
+			},
+		});
+		assert.deepEqual(data.settings.setup, { completedAt: "2026-10-14T06:00:00.000Z" });
+		assert.deepEqual(data.settings.data, { dayDetails: "90d", runDetails: "1y", accepted: ["days@1"], deferred: [] });
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, setup: { completedAt: "soon" } } })).data.settings.setup, null);
+	});
+
+	it("takes another device's choices, and nothing else, when data.json changes underneath", async () => {
+		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH };
+		const plugin = { loadData: async () => raw, saveData: async () => undefined } as unknown as Plugin;
+		const data = new PluginData(plugin);
+		await data.init();
+		raw = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 30, setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
+		await data.reloadChoices();
+		assert.equal(data.settings.setup?.completedAt, "2026-10-14T06:00:00.000Z");
+		assert.deepEqual(data.settings.data.accepted, ["days@1"]);
+		assert.equal(data.settings.stopAfterEmptyDays, 7);
+		assert.equal(data.hasSession, true);
 	});
 
 	it("keeps values a slider can show", async () => {
