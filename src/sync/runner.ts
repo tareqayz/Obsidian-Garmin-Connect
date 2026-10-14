@@ -125,6 +125,8 @@ interface DaysPlan {
 	notes?: string[];
 	/** Called with the report before the done notice. */
 	finish?: (report: SyncReport) => Promise<void>;
+	/** Every day's timelines, not only those inside Day details: a range asked for by hand. */
+	allTimelines?: boolean;
 }
 
 /**
@@ -174,7 +176,7 @@ export class SyncRunner {
 
 	/**
 	 * `isRun` picks the index rows that are runs, the ones whose page opens:
-	 * what "Download runs" downloads.
+	 * what Run details downloads.
 	 */
 	constructor(
 		app: App,
@@ -306,9 +308,13 @@ export class SyncRunner {
 		return () => this.indexHistoryListeners.delete(listener);
 	}
 
-	/** A chosen range. It leaves the recent sync's mark alone: it need not cover what changed since. */
+	/**
+	 * A chosen range, whole: every day's timelines too, since it was asked for
+	 * by hand. It leaves the recent sync's mark alone: it need not cover what
+	 * changed since.
+	 */
 	run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
-		return this.runPlan(async () => ({ from, to }), log);
+		return this.runPlan(async () => ({ from, to, allTimelines: true }), log);
 	}
 
 	private async runPlan(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
@@ -337,7 +343,7 @@ export class SyncRunner {
 			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
 		};
 		try {
-			const { from, to, requests: planned = 0, notes = [], finish } = await plan();
+			const { from, to, requests: planned = 0, notes = [], finish, allTimelines } = await plan();
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			// The day files are written a year at a time once the days are in.
@@ -353,7 +359,7 @@ export class SyncRunner {
 				sleep: sleepSink(series),
 				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
 				extras: INTRADAY_EXTRAS,
-				...this.intradayFor(from, to),
+				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
 				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				log,
@@ -412,7 +418,7 @@ export class SyncRunner {
 	 * hundred activities, paged with the usual pause. Routine syncs keep it
 	 * current from then on with the one page they already fetch.
 	 *
-	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * `auto` is a run nobody watches (the setup's): silent when the index is
 	 * already complete or another sync is running.
 	 */
 	async syncActivityHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
@@ -511,7 +517,7 @@ export class SyncRunner {
 	 * summaries they already fetch. A run cut short keeps what it fetched and
 	 * carries on from there next time.
 	 *
-	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * `auto` is a run nobody watches (the setup's): silent when the index is
 	 * already complete or another sync is running.
 	 */
 	async syncDailyStatsHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
@@ -577,7 +583,7 @@ export class SyncRunner {
 	 * Fills the sleep index with the whole history: about 14 requests a year,
 	 * 28 nights each, with the usual pause. Routine syncs keep its top current.
 	 *
-	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * `auto` is a run nobody watches (the setup's): silent when the index is
 	 * already complete or another sync is running.
 	 */
 	async syncSleepHistory(opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {
@@ -643,7 +649,7 @@ export class SyncRunner {
 	 * as Garmin keeps it. Routine syncs keep its top current. A walk cut short
 	 * keeps what it fetched and carries on from there next time.
 	 *
-	 * `auto` is the run a sync starts by itself: silent when the index is
+	 * `auto` is a run nobody watches (the setup's): silent when the index is
 	 * already complete or another sync is running.
 	 */
 	async syncIndexHistory(kind: string, opts: { auto?: boolean; log?: Log } = {}): Promise<HistoryReport | null> {

@@ -206,9 +206,9 @@ export interface SyncOptions {
 	 */
 	activityRange?: boolean;
 	/**
-	 * How many of the newest days in a run get intraday series. They cost six
-	 * requests a day, and a year's backfill of them would be 2,190 requests for
-	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
+	 * How many of the newest days in a run get intraday series: six requests a
+	 * day. The runner passes the run's days inside Day details, or all of them
+	 * for a range asked for by hand; `INTRADAY_DAYS` before the setup.
 	 */
 	intradayDays?: number;
 	/** Courtesy pause between days, in ms. The client's throttle is what paces a sync now; this is for a caller without one. */
