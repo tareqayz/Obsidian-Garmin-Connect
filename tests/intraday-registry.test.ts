@@ -89,6 +89,10 @@ class MemoryStore {
 const OPTS = { signedIn: true, groups: ["intraday", "respiration"] as const, extras: [RESPIRATION as IntradayDef], today: "2026-10-08" };
 const api = (fake: FakeApi) => fake as unknown as GarminApi;
 
+
+const INTRADAY = { intraday: true };
+const NIGHT_ONLY = { intraday: false };
+
 describe("hasBlock and missingKeys", () => {
 	it("finds the file's own blocks, extras, and days checked without data", () => {
 		const series: DaySeries = { stress: [[1, 20]], extra: { respiration: [[1, 14]] }, checked: ["heartRate"] };
@@ -323,24 +327,69 @@ describe("extras kept at sync time", () => {
 
 	it("folds fresh blocks into the file, keeping everything else and its order", () => {
 		const stored: DaySeries = { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 40 } }, checked: ["respiration"] };
-		const next = keepBlocks(stored, null, { nightly: { avg: 42 } }, ["nightly"])!;
+		const next = keepBlocks(stored, null, { nightly: { avg: 42 } }, ["nightly"], INTRADAY)!;
 		assert.deepEqual(next, { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 42 } }, checked: ["respiration"] });
 		assert.deepEqual(Object.keys(next.extra!), ["respiration", "nightly"]);
 		// The same block makes the same text: the store leaves the file alone.
-		assert.equal(serializeSeries("2026-10-11", keepBlocks(stored, null, { nightly: { avg: 40 } }, ["nightly"])!), serializeSeries("2026-10-11", stored));
+		assert.equal(serializeSeries("2026-10-11", keepBlocks(stored, null, { nightly: { avg: 40 } }, ["nightly"], INTRADAY)!), serializeSeries("2026-10-11", stored));
 		// A day without a file gets one with the block alone.
-		assert.deepEqual(keepBlocks(null, null, { nightly: { avg: 42 } }, ["nightly"]), { extra: { nightly: { avg: 42 } } });
+		assert.deepEqual(keepBlocks(null, null, { nightly: { avg: 42 } }, ["nightly"], INTRADAY), { extra: { nightly: { avg: 42 } } });
 		// Nothing fresh, nothing to write.
-		assert.equal(keepBlocks(stored, null, {}, ["nightly"]), null);
+		assert.equal(keepBlocks(stored, null, {}, ["nightly"], INTRADAY), null);
 	});
 
-	it("lets a sync's own write of the day replace the file but carry the kept blocks it does not bring again", () => {
+	it("lets a sync's own write of a day it fetched refresh the file but carry the kept blocks it does not bring again", () => {
 		const stored: DaySeries = { stress: [[1, 20]], extra: { respiration: [[1, 14]], nightly: { avg: 40 } }, checked: ["respiration"] };
 		const written: DaySeries = { stress: [[1, 25]], heartRate: [[1, 51]] };
-		assert.deepEqual(keepBlocks(stored, written, {}, ["nightly"]), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 40 } } });
-		assert.deepEqual(keepBlocks(stored, written, { nightly: { avg: 42 } }, ["nightly"]), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 42 } } });
+		assert.deepEqual(keepBlocks(stored, written, {}, ["nightly"], INTRADAY), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 40 } } });
+		assert.deepEqual(keepBlocks(stored, written, { nightly: { avg: 42 } }, ["nightly"], INTRADAY), { stress: [[1, 25]], heartRate: [[1, 51]], extra: { nightly: { avg: 42 } } });
 		// Without kept blocks it is the sync's write, as it always was.
-		assert.deepEqual(keepBlocks(stored, written, {}, []), written);
-		assert.deepEqual(keepBlocks(null, written, {}, ["nightly"]), written);
+		assert.deepEqual(keepBlocks(stored, written, {}, [], INTRADAY), written);
+		assert.deepEqual(keepBlocks(null, written, {}, ["nightly"], INTRADAY), written);
+	});
+
+	/** A day with every block a sync writes, plus what a page loaded on view. */
+	const FULL: DaySeries = {
+		stress: [[1, 20]],
+		bodyBattery: [[1, 60]],
+		heartRate: [[1, 55]],
+		steps: [{ start: 1, end: 2, steps: 100 }],
+		floors: [{ start: 1, end: 2, up: 2, down: 0 }],
+		intensity: [[2, 10]],
+		dayStart: 1,
+		sleepLevels: [{ start: 0, end: 1, level: 1 }],
+		bodyBatteryEvents: [{ type: "SLEEP" }],
+		extra: { respiration: [[1, 14]], nightly: { avg: 40 } },
+		checked: ["respiration"],
+	};
+
+	it("keeps a block Garmin no longer sends when a write that fetched the day brings none", () => {
+		const written: DaySeries = { stress: [[1, 25]], heartRate: [[1, 51]] };
+		assert.deepEqual(keepBlocks(FULL, written, {}, ["nightly"], INTRADAY), {
+			stress: [[1, 25]],
+			bodyBattery: [[1, 60]],
+			heartRate: [[1, 51]],
+			steps: [{ start: 1, end: 2, steps: 100 }],
+			floors: [{ start: 1, end: 2, up: 2, down: 0 }],
+			intensity: [[2, 10]],
+			dayStart: 1,
+			sleepLevels: [{ start: 0, end: 1, level: 1 }],
+			bodyBatteryEvents: [{ type: "SLEEP" }],
+			extra: { nightly: { avg: 40 } },
+		});
+	});
+
+	it("lets a write that fetched only the night change the night's blocks and nothing else", () => {
+		const night: DaySeries = { sleepLevels: [{ start: 0, end: 2, level: 2 }] };
+		assert.deepEqual(keepBlocks(FULL, night, { nightly: { avg: 41 } }, ["nightly"], NIGHT_ONLY), {
+			...FULL,
+			sleepLevels: [{ start: 0, end: 2, level: 2 }],
+			extra: { respiration: [[1, 14]], nightly: { avg: 41 } },
+		});
+		// The same night makes the same text, so the store leaves the file alone.
+		const same = keepBlocks(FULL, { sleepLevels: FULL.sleepLevels }, {}, ["nightly"], NIGHT_ONLY)!;
+		assert.equal(serializeSeries("2026-09-03", same), serializeSeries("2026-09-03", FULL));
+		// A day without a file gets the night alone.
+		assert.deepEqual(keepBlocks(null, night, {}, [], NIGHT_ONLY), night);
 	});
 });

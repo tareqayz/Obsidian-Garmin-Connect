@@ -1055,6 +1055,30 @@ describe("syncRange — intraday", () => {
 	});
 });
 
+/** The series files in memory, through the real serializer. */
+class MemorySeries implements SeriesTarget {
+	files = new Map<string, string>();
+	reads = 0;
+	async read(date: string): Promise<DaySeries | null> {
+		this.reads += 1;
+		const text = this.files.get(date);
+		return text ? parseSeries(text) : null;
+	}
+	async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
+		const text = serializeSeries(date, series);
+		if (this.files.get(date) === text) return "unchanged";
+		this.files.set(date, text);
+		return "written";
+	}
+	put(date: string, series: DaySeries) {
+		this.files.set(date, serializeSeries(date, series));
+	}
+	get(date: string): DaySeries | null {
+		const text = this.files.get(date);
+		return text ? parseSeries(text) : null;
+	}
+}
+
 describe("syncRange — extras kept at sync time", () => {
 	/** An extra the sync keeps from the day's own hrv payload (as HRV Status keeps its readings). */
 	const NIGHTLY = defineIntraday({
@@ -1066,30 +1090,6 @@ describe("syncRange — extras kept at sync time", () => {
 	});
 	/** An extra a page loads on view only. */
 	const ON_VIEW = defineIntraday({ key: "onView", group: "hrv", fetch: async () => [1], map: (payload: number[]) => payload });
-
-	/** The series files in memory, through the real serializer. */
-	class MemorySeries implements SeriesTarget {
-		files = new Map<string, string>();
-		reads = 0;
-		async read(date: string): Promise<DaySeries | null> {
-			this.reads += 1;
-			const text = this.files.get(date);
-			return text ? parseSeries(text) : null;
-		}
-		async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
-			const text = serializeSeries(date, series);
-			if (this.files.get(date) === text) return "unchanged";
-			this.files.set(date, text);
-			return "written";
-		}
-		put(date: string, series: DaySeries) {
-			this.files.set(date, serializeSeries(date, series));
-		}
-		get(date: string): DaySeries | null {
-			const text = this.files.get(date);
-			return text ? parseSeries(text) : null;
-		}
-	}
 
 	const DAYS = new Set(["2026-09-10", "2026-09-11", "2026-09-12"]);
 
@@ -1161,6 +1161,62 @@ describe("syncRange — extras kept at sync time", () => {
 		assert.equal(blind.written.size, 0);
 		await syncRange(new FakeSource(), new FakeTarget(DAYS), options({ from: "2026-09-12", groups: ["hrv", "intraday"], series: blind, extras: [NIGHTLY] }));
 		assert.deepEqual(blind.written.get("2026-09-12")!.extra, { nightly: { avg: 42 } });
+	});
+});
+
+describe("syncRange — a day's series keeps what the sync did not fetch", () => {
+	/** A day as an earlier sync left it, with every intraday block. */
+	const FULL: DaySeries = {
+		stress: [[1_000, 20]],
+		bodyBattery: [[1_000, 60]],
+		heartRate: [[1_000, 55]],
+		steps: [{ start: 1_000, end: 2_000, steps: 100 }],
+		floors: [{ start: 1_000, end: 2_000, up: 2, down: 0 }],
+		intensity: [[2_000, 10]],
+		dayStart: 1_000,
+		bodyBatteryEvents: [{ type: "SLEEP" }],
+	};
+	const WEEK_AND_A_DAY = new Set(dateRange("2026-09-03", "2026-09-10"));
+	/** The night's hypnogram, which every synced day fetches with its sleep. */
+	const withNight = (source: FakeSource) => {
+		source.sleep = async (date: string) => {
+			source.calls.push(`sleep:${date}`);
+			return { dailySleepDTO: { sleepTimeSeconds: 27000 }, sleepLevels: [{ startGMT: `${date}T00:00:00.0`, endGMT: `${date}T06:00:00.0`, activityLevel: 1 }] } as never;
+		};
+		return source;
+	};
+
+	it("keeps the timelines of a run's oldest day, which fetched only its night", async () => {
+		const series = new MemorySeries();
+		series.put("2026-09-03", FULL);
+		const source = withNight(new FakeSource());
+		await syncRange(source, new FakeTarget(WEEK_AND_A_DAY), options({ from: "2026-09-03", to: "2026-09-10", groups: ["sleep", "intraday"], series }));
+		// Seven days fetched their intraday requests; the eighth only its night.
+		assert.deepEqual(
+			source.calls.filter((c) => c.startsWith("stress:")),
+			dateRange("2026-09-04", "2026-09-10").map((d) => `stress:${d}`),
+		);
+		const day = series.get("2026-09-03")!;
+		assert.deepEqual({ ...day, sleepLevels: undefined }, { ...FULL, sleepLevels: undefined });
+		assert.deepEqual(day.sleepLevels, [{ start: Date.parse("2026-09-03T00:00:00Z"), end: Date.parse("2026-09-03T06:00:00Z"), level: 1 }]);
+	});
+
+	it("keeps a block Garmin no longer sends for a day it fetched again", async () => {
+		const series = new MemorySeries();
+		series.put("2026-09-12", FULL);
+		const source = new FakeSource();
+		source.stepsChart = async (date: string) => {
+			source.calls.push(`stepsChart:${date}`);
+			return [];
+		};
+		await syncRange(source, new FakeTarget(new Set(["2026-09-12"])), options({ from: "2026-09-12", groups: ["intraday"], series }));
+		const day = series.get("2026-09-12")!;
+		assert.deepEqual(day.steps, FULL.steps);
+		// What came back replaces the file's copy.
+		assert.deepEqual(day.stress, [
+			[1_000, 20],
+			[2_000, null],
+		]);
 	});
 });
 

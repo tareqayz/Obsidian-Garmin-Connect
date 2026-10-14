@@ -29,7 +29,7 @@ import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
-import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef } from "./intraday-registry";
+import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef, type KeepOptions } from "./intraday-registry";
 import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
 	bucketWorkoutsByDate,
@@ -625,7 +625,7 @@ export async function syncRange(
 		const writing = series && !isEmptySeries(series) ? series : null;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await writeSeries(opts.series, date, writing, fresh, kept)) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
 			} catch (err) {
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
@@ -688,12 +688,12 @@ export async function syncRange(
 }
 
 /**
- * A day's series file after the sync: the series it made for the day, when it
- * made one, with the blocks the extras keep (`fresh`) folded in over what the
- * file holds (`keepBlocks`). Only reads the file when there are kept blocks to
- * carry or fold in. A target that cannot read gets the day's series and its
- * fresh blocks alone, and no write of kept blocks by themselves, which would
- * replace a file it cannot see. Null when nothing was written.
+ * A day's series file after the sync: the blocks the series it made for the
+ * day brings, over what the file holds, with the blocks the extras keep
+ * (`fresh`) folded in (`keepBlocks`). A target that cannot read gets the
+ * day's series and its fresh blocks alone, and no write of kept blocks by
+ * themselves, which would replace a file it cannot see. Null when nothing was
+ * written.
  */
 async function writeSeries(
 	target: SeriesTarget,
@@ -701,11 +701,11 @@ async function writeSeries(
 	writing: DaySeries | null,
 	fresh: Readonly<Record<string, unknown>>,
 	kept: readonly string[],
+	keep: KeepOptions,
 ): Promise<"written" | "unchanged" | null> {
-	const merging = writing ? kept.length > 0 : Object.keys(fresh).length > 0;
-	if (merging && !target.read && !writing) return null;
-	const stored = merging && target.read ? await target.read(date) : null;
-	const next = keepBlocks(stored, writing, fresh, kept);
+	if (!target.read && !writing) return null;
+	const stored = target.read ? await target.read(date) : null;
+	const next = keepBlocks(stored, writing, fresh, kept, keep);
 	return next ? target.write(date, next) : null;
 }
 
@@ -1272,6 +1272,8 @@ interface DayFetch {
 	summaryFetched: boolean;
 	/** The day's parts that came back, empty or not: what a `fromDay` index may read. */
 	ok: Set<keyof DayData>;
+	/** Whether the day's intraday requests went out, so its series write may refresh more than the night. */
+	intradayFetched: boolean;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1302,7 +1304,15 @@ async function fetchDay(
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false, ok: new Set() };
+	const out: DayFetch = {
+		data: {},
+		intraday: {},
+		warnings: [],
+		requests: jobs.length,
+		summaryFetched: false,
+		ok: new Set(),
+		intradayFetched: Boolean(wanted.intraday),
+	};
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
