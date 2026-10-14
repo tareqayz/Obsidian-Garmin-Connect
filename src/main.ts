@@ -24,6 +24,8 @@ import { removeLeafletStyles } from "./ui/map/leaflet";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 import { SetupModal } from "./ui/setup-modal";
+import { deleteSyncedFiles } from "./ui/delete-data";
+import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
@@ -193,6 +195,22 @@ export default class GarminPlugin extends Plugin {
 		new SetupModal(this.app, this).open();
 	}
 
+	/**
+	 * "Delete synced data": the plugin's files go to the trash (see
+	 * `owned-paths.ts`), and the plugin starts over — no setup, nothing agreed
+	 * to — so no backfill fetches them straight back.
+	 */
+	async deleteSyncedData(opts: { diagnostics: boolean }): Promise<{ files: number; bytes: number }> {
+		const settings = this.data.settings;
+		this.sync.reset();
+		const done = await deleteSyncedFiles(this.app, { dataFolder: settings.dataFolder, ...(opts.diagnostics ? { logFolder: settings.logFolder } : {}) });
+		settings.setup = null;
+		settings.data = defaultData();
+		await this.data.saveSettings();
+		this.setupChanged();
+		return done;
+	}
+
 	/** The rows that are runs, the ones whose page opens: what Run details downloads. */
 	isRun(row: ActivityRow): boolean {
 		return categoryOf(row) === "running";
@@ -207,6 +225,15 @@ export default class GarminPlugin extends Plugin {
 	/** The setup ran, or the data choices changed: open views redraw their setup card. */
 	setupChanged(): void {
 		this.refreshViews();
+		for (const listener of this.dataListeners) listener();
+	}
+
+	private dataListeners = new Set<() => void>();
+
+	/** Called when the data folder's contents or the data choices change wholesale: a delete, a setup. Returns the unsubscribe. */
+	onDataChanged(listener: () => void): () => void {
+		this.dataListeners.add(listener);
+		return () => this.dataListeners.delete(listener);
 	}
 
 	private refreshViews(): void {

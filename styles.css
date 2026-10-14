@@ -49,6 +49,10 @@
 	width: 100%;
 	max-height: calc(100% - var(--safe-area-inset-top) - 48px);
 }
+/* A destructive action short of the final confirmation: red, but not the filled button. */
+button.gch-danger:not(.clickable-icon) { color: var(--text-error); background-color: rgba(var(--color-red-rgb), 0.1); box-shadow: none; }
+button.gch-danger:not(.clickable-icon):hover { background-color: rgba(var(--color-red-rgb), 0.18); }
+
 /* The setup wizard: a dialog in a pane, and on a phone a sheet on the bottom
    edge like the pages' sheets, its header the handle it drags down by. */
 .gch-setup { width: 560px; max-width: 100%; }
