@@ -44,8 +44,7 @@ import {
 } from "./sleep-index";
 import { ensureFolder, trimSlashes } from "./vault-paths";
 import type { DayRow as HomeDayRow } from "../dashboard/series";
-import { DayBuffer, dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
-import type { Properties } from "./metrics";
+import { DayBuffer, dayRowOf, isDaysFile, parseDays, type DayProperties } from "./days";
 import type { AccountInfo } from "./account";
 import { parseSyncState, serializeSyncState, type SyncState } from "./sync-state";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
@@ -180,15 +179,6 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	get daysFolder(): string {
 		return this.join(DAYS_FOLDER);
-	}
-
-	/** Folds a day's properties into its year file, over whatever the day already held. */
-	async writeDay(date: string, properties: Properties): Promise<"written" | "unchanged"> {
-		const year = date.slice(0, 4);
-		const path = this.join(`${DAYS_FOLDER}/${year}.json`);
-		const file = this.app.vault.getAbstractFileByPath(path);
-		const days = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
-		return this.put(path, serializeDays(year, mergeDay(days, date, properties)));
 	}
 
 	/** Several days at once, a write a year: the import from the old day notes. */

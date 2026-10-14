@@ -5,7 +5,7 @@ import type { DayData, MetricGroup } from "./metrics";
 
 /**
  * Intraday blocks a page loads on view: a day's chart for any date, not only
- * the newest days a sync spends intraday requests on (`INTRADAY_DAYS`).
+ * the days a sync spends intraday requests on (those inside Day details).
  *
  * A key names a block of the day's series file. The file's own blocks keep
  * their keys (`stress`, `bodyBattery`, `heartRate`, `bodyBatteryEvents`), so

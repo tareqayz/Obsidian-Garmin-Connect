@@ -69,8 +69,8 @@ export const FREE_GROUPS: MetricGroup[] = ["activity", "heart", "stress", "respi
 
 /**
  * Per-day requests a group adds on its own, for the budget note in settings.
- * `intraday` is the expensive one, which is why the engine only spends it on
- * the newest few days of a run (`INTRADAY_DAYS`).
+ * `intraday` is the expensive one, which is why a sync spends it only on the
+ * days inside Day details (`SyncOptions.intradayDays`).
  */
 export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
 	sleep: 1,
