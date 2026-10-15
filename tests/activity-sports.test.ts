@@ -81,7 +81,8 @@ describe("profileFor", () => {
 			SPORT_IDS.map((id) => [RUNNING, CYCLING, POOL_SWIM, OPEN_WATER_SWIM, BASIC].find((p) => p.id === id)?.id),
 			["running", "cycling", "pool-swim", "open-water-swim", "basic"],
 		);
-		assert.equal(CYCLING.charts, BASIC.charts);
+		// The ride's profile has landed (tests/cycling-*.test.ts hold it); the swims' are still the basic page's.
+		assert.notEqual(CYCLING.charts, BASIC.charts);
 	});
 });
 

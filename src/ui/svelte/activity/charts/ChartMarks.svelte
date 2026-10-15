@@ -70,7 +70,7 @@
 		{/each}
 	{/if}
 	{#if marks.average}
-		<line class="average" class:dashed={marks.average.dashed} x1={plot.left} x2={plot.right} y1={marks.average.y} y2={marks.average.y} />
+		<line class="average" class:dashed={marks.average.dashed} class:strong={marks.average.strong} x1={plot.left} x2={plot.right} y1={marks.average.y} y2={marks.average.y} />
 	{/if}
 	{#if marks.reference}
 		<line class="reference" class:heavy={fill === "impact"} x1={plot.left} x2={plot.right} y1={marks.reference.y} y2={marks.reference.y} />
@@ -110,6 +110,11 @@
 	.average.dashed {
 		stroke-dasharray: 4.67 4.67;
 		opacity: 0.8;
+	}
+	/* A ride's platform centre offsets: 0.67 pt at full text-normal (953:180931). */
+	.average.strong {
+		stroke-width: 0.67;
+		opacity: 1;
 	}
 	/* Performance Condition's zero line; Impact Load Factor's 1.0 line is heavier (1.33 pt at 95%). */
 	.reference {

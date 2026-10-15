@@ -3,17 +3,21 @@
 
 	/**
 	 * The pill that says what the route's colours mean: "Slower" over Garmin's
-	 * ten-slot ramp to "Faster" for pace, or a swatch per colour for Run/Walk.
+	 * ten-slot ramp to "Faster" for pace ("Less Power" over a ride's seven power
+	 * zones to "More Power"), or a swatch per colour for Run/Walk.
 	 * One style on every map, from the Obsidian theme (the twin's Pace Legend);
 	 * only the ramp keeps Garmin's colours, which are the data.
 	 */
 	let { legend }: { legend: MapLegend } = $props();
+
+	/** Each colour of the ramp is 8 pt wide: the run's ten make 80, a ride's seven power zones 56. */
+	const SLOT = 8;
 </script>
 
 <div class="gc-legend">
 	{#if legend.kind === "ramp"}
 		<span>{legend.low}</span>
-		<span class="ramp">
+		<span class="ramp" style:width="{legend.colors.length * SLOT}px">
 			{#each legend.colors as color, i (i)}<span style:background={color}></span>{/each}
 		</span>
 		<span>{legend.high}</span>
@@ -43,7 +47,6 @@
 	}
 	.ramp {
 		display: flex;
-		width: 80px;
 		height: 8px;
 	}
 	.ramp > span {

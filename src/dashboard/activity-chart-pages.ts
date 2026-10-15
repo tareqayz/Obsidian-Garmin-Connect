@@ -348,8 +348,8 @@ export interface SeriesChart extends CardBase {
 	blocks?: Array<{ from: number; to: number; value: number }>;
 	/** Stamina's Potential: a white line over the area. */
 	line?: ChartPoints;
-	/** The summary's average, solid or dashed (the dot charts'). */
-	average?: { value: number; dashed: boolean };
+	/** The summary's average, solid or dashed (the dot charts'); strong draws it at full weight. */
+	average?: { value: number; dashed: boolean; strong?: boolean };
 	/** A fixed white line: Performance Condition's 0, Impact Load Factor's 1.0. */
 	reference?: number;
 	/** Where an area closes: Performance Condition's steps close on 0; the rest on the plot's bottom. */
@@ -363,8 +363,12 @@ export interface SeriesChart extends CardBase {
 	lanes?: LaneSet;
 }
 
-/** The card frames `activity-charts.ts` keeps: the usual one, Pace's, the forced labels', Power's and Stamina's. */
-export type ChartFrameName = "chart" | "pace" | "forced" | "power" | "stamina";
+/**
+ * The card frames `activity-charts.ts` keeps: the usual one, Pace's, the
+ * forced labels', Power's and Stamina's; a ride's L/R Balance, Power Phase
+ * (and its peak, each with its End's wider labels) and platform offset ones.
+ */
+export type ChartFrameName = "chart" | "pace" | "forced" | "power" | "stamina" | "balance" | "phase" | "phase-wide" | "peak" | "peak-wide" | "offset";
 
 export interface TrainingEffectChart extends CardBase {
 	kind: "training-effect";
@@ -415,6 +419,8 @@ export interface CustomChart extends CardBase {
 	kind: "custom";
 	plot: string;
 	data: unknown;
+	/** Its title set as the zone tables' are, lower under the band: a ride's Time in Position. */
+	head?: "zones";
 }
 
 export type ChartCard = SeriesChart | TrainingEffectChart | RunWalkChart | ZonesChart | CustomChart;
@@ -464,8 +470,13 @@ export interface MetricDef {
 	overlayLabels?: (value: number) => string;
 	/** A pace: as an overlay it shows its top label only, as the run's paces do. */
 	pace?: boolean;
-	/** The summary's average as a line, in the chart's unit: solid for an area, dashed for dots. */
-	average?: { value: (detail: ActivityDetail, units: Units) => number | undefined; dashed?: boolean };
+	/**
+	 * The summary's average as a line, in the chart's unit: solid for an area,
+	 * dashed for dots. Strong: 0.67 pt at full text-normal over the dots
+	 * rather than the run's 0.5 at 80 % (a ride's platform centre offsets,
+	 * 953:180931).
+	 */
+	average?: { value: (detail: ActivityDetail, units: Units) => number | undefined; dashed?: boolean; strong?: boolean };
 	/** The figures under the card's title. */
 	figures: (detail: ActivityDetail, units: Units) => ChartFigure[];
 	/** Dot colours by band, cut in Garmin's own unit; `raw` turns a value in the chart's unit back into it. */
@@ -899,7 +910,10 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 	const fill = fillOf(metric, ctx.spec);
 	if (fill) chart.fill = fill;
 	const average = averageOf(ctx.detail, metric, ctx.units, ctx.spec);
-	if (average !== undefined) chart.average = { value: average, dashed: averageStyle(metric, ctx.spec) === "dashed" };
+	if (average !== undefined) {
+		chart.average = { value: average, dashed: averageStyle(metric, ctx.spec) === "dashed" };
+		if (specMetric(ctx.spec, metric)?.average?.strong) chart.average.strong = true;
+	}
 	const bands = bandsOf(metric, ctx.spec);
 	if (bands) chart.colours = points.y.map((v) => (v === null ? null : bandOf(bands, rawOf(metric, v, ctx.units, ctx.spec))));
 	// Each series' dots in its own colour, in the order drawn.

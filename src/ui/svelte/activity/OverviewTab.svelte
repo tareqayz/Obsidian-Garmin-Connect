@@ -218,9 +218,10 @@
 	.ov.has-badges {
 		grid-template-areas: "map" "summary" "eval" "badges" "nav" "device";
 	}
+	/* Badges 23 under the Evaluation cards (the ride's twin, 886:5). */
 	.ov-badges {
 		grid-area: badges;
-		padding-top: 32.2px;
+		padding-top: 23px;
 	}
 	.ov-nav {
 		grid-area: nav;
@@ -394,9 +395,9 @@
 	.device-text .sub {
 		margin-top: 1.2px;
 	}
-	/* A sensor under the watch, with a generic figure: the plugin loads no product images (Inferred spacing). */
+	/* A sensor under the watch, with a generic figure: the plugin loads no product images. Its name 75.3 under the watch's (the twin's Sensor Row). */
 	.device.sensor {
-		margin-top: 20px;
+		margin-top: 36.1px;
 	}
 
 	/* 640pt and up: the map across the top, rounded, and the sections in two columns under it. */
@@ -470,7 +471,7 @@
 			grid-template-areas: "map summary" "map eval" "map badges" "map nav" "map device";
 		}
 		.ov.has-map .ov-badges {
-			padding-top: 32.2px;
+			padding-top: 23px;
 		}
 		/* No map: three columns from the top. */
 		.ov:not(.has-map) {

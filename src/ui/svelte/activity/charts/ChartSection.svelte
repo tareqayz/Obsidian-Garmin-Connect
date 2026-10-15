@@ -26,7 +26,7 @@
 	let { card, layout, onPick }: Props = $props();
 </script>
 
-<section class="chart-section" class:zones={card.kind === "zones"}>
+<section class="chart-section" class:zones={card.kind === "zones" || (card.kind === "custom" && card.head === "zones")} class:foot={card.kind === "zones" || card.kind === "training-effect"}>
 	<div class="head">
 		{#if card.picker}
 			<button class="title picker" onclick={onPick}>
@@ -121,6 +121,10 @@
 		}
 		.zones .head {
 			margin-top: 28.16px;
+		}
+		/* The zone tables and Training Effect end 3 pt lower in a card (phone section − 4, 415:3254). */
+		.foot {
+			padding-bottom: 3px;
 		}
 	}
 </style>
