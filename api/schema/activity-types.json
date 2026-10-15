@@ -1,0 +1,51 @@
+{
+	"endpoint": "activity-types",
+	"path": "/activity-service/activity/activityTypes",
+	"plugin": "GarminApi.activityTypes",
+	"firstRecorded": "2026-10-15T08:17:05.402Z",
+	"updatedAt": "2026-10-15T08:17:05.402Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"isHidden": {
+					"type": [
+						"boolean"
+					]
+				},
+				"parentTypeId": {
+					"type": [
+						"null",
+						"number"
+					]
+				},
+				"restricted": {
+					"type": [
+						"boolean"
+					]
+				},
+				"trimmable": {
+					"type": [
+						"boolean"
+					]
+				},
+				"typeId": {
+					"type": [
+						"number"
+					]
+				},
+				"typeKey": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}

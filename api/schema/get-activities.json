@@ -3,8 +3,8 @@
 	"path": "/activitylist-service/activities/search/activities",
 	"plugin": "GarminApi.activities",
 	"firstRecorded": "2026-09-26T07:59:19.346Z",
-	"updatedAt": "2026-10-12T12:49:44.828Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:07.411Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"array"
@@ -15,6 +15,12 @@
 			],
 			"fields": {
 				"activeLengths": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"activeSets": {
 					"type": [
 						"number"
 					],
@@ -128,7 +134,8 @@
 				"averageSpeed": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"averageSwimCadenceInStrokesPerMinute": {
 					"type": [
@@ -184,6 +191,18 @@
 					],
 					"optional": true
 				},
+				"avgSeatedPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStandingPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"avgStepSpeedLoss": {
 					"type": [
 						"number"
@@ -191,6 +210,12 @@
 					"optional": true
 				},
 				"avgStepSpeedLossPercent": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"avgStress": {
 					"type": [
 						"number"
 					],
@@ -229,17 +254,20 @@
 				"beginTimestamp": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"bmrCalories": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"calories": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"caloriesConsumed": {
 					"type": [
@@ -250,6 +278,12 @@
 				"cloudPositioningStatus": {
 					"type": [
 						"string"
+					],
+					"optional": true
+				},
+				"courseId": {
+					"type": [
+						"number"
 					],
 					"optional": true
 				},
@@ -269,10 +303,17 @@
 					],
 					"optional": true
 				},
+				"differenceStress": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"distance": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"duration": {
 					"type": [
@@ -308,6 +349,12 @@
 					"optional": true
 				},
 				"endLongitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"endStress": {
 					"type": [
 						"number"
 					],
@@ -365,6 +412,18 @@
 					"optional": true
 				},
 				"fastestSplit_1609": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_21098": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"fastestSplit_400": {
 					"type": [
 						"number"
 					],
@@ -652,10 +711,35 @@
 					],
 					"optional": true
 				},
+				"maxSeatedPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"maxSpeed": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
+				},
+				"maxStandingPower": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxStress": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"maxSwimCadenceInStrokesPerMinute": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"maxTemperature": {
 					"type": [
@@ -672,7 +756,8 @@
 				"minActivityLapDuration": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"minElevation": {
 					"type": [
@@ -701,7 +786,8 @@
 				"movingDuration": {
 					"type": [
 						"number"
-					]
+					],
+					"optional": true
 				},
 				"normPower": {
 					"type": [
@@ -823,6 +909,12 @@
 					"type": [
 						"boolean"
 					]
+				},
+				"seatedTime": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"splitSummaries": {
 					"type": [
@@ -958,6 +1050,12 @@
 						"number"
 					]
 				},
+				"standingTime": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
 				"startLatitude": {
 					"type": [
 						"number"
@@ -965,6 +1063,12 @@
 					"optional": true
 				},
 				"startLongitude": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"startStress": {
 					"type": [
 						"number"
 					],
@@ -1004,10 +1108,71 @@
 						}
 					}
 				},
+				"summarizedExerciseSets": {
+					"type": [
+						"array"
+					],
+					"optional": true,
+					"items": {
+						"type": [
+							"object"
+						],
+						"fields": {
+							"category": {
+								"type": [
+									"string"
+								]
+							},
+							"duration": {
+								"type": [
+									"number"
+								]
+							},
+							"maxWeight": {
+								"type": [
+									"number"
+								]
+							},
+							"reps": {
+								"type": [
+									"number"
+								]
+							},
+							"sets": {
+								"type": [
+									"number"
+								]
+							},
+							"subCategory": {
+								"type": [
+									"string"
+								],
+								"optional": true
+							},
+							"volume": {
+								"type": [
+									"number"
+								]
+							}
+						}
+					}
+				},
 				"timeZoneId": {
 					"type": [
 						"number"
 					]
+				},
+				"totalReps": {
+					"type": [
+						"number"
+					],
+					"optional": true
+				},
+				"totalSets": {
+					"type": [
+						"number"
+					],
+					"optional": true
 				},
 				"trainingEffectLabel": {
 					"type": [
@@ -1024,6 +1189,7 @@
 					"type": [
 						"object"
 					],
+					"optional": true,
 					"fields": {
 						"factor": {
 							"type": [
@@ -1040,8 +1206,7 @@
 								"string"
 							]
 						}
-					},
-					"optional": true
+					}
 				},
 				"userPro": {
 					"type": [

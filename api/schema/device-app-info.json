@@ -3,8 +3,8 @@
 	"path": "/device-service/deviceservice/app-info/{deviceVersionPk}",
 	"plugin": "GarminApi.deviceAppInfo",
 	"firstRecorded": "2026-10-10T17:47:19.656Z",
-	"updatedAt": "2026-10-10T17:47:19.656Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:07.064Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"object"

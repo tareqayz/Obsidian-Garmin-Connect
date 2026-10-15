@@ -3,8 +3,8 @@
 	"path": "/activity-service/activity/{activityId}/details",
 	"plugin": "GarminApi.activityDetails",
 	"firstRecorded": "2026-10-10T16:41:42.008Z",
-	"updatedAt": "2026-10-10T16:41:42.008Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:06.318Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"object"

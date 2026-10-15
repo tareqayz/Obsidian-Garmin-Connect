@@ -20,7 +20,7 @@
 		"tier": "Which host the path hangs off.",
 		"plugin": "The method in src/garmin/endpoints.ts that calls it, or absent if the plugin does not.",
 		"groups": "Metric groups (src/sync/metrics.ts) whose sync needs this endpoint.",
-		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through, view = when a page opens, then cached in the vault.",
+		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through, view = when a page opens, then cached in the vault, check = never at runtime: the plugin bundles the answer (a lookup table) and the daily check watches it for drift.",
 		"check": "Covered by the daily contract check (.github/workflows/api-contract.yml).",
 		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
 		"schema": "Recorded response shape, relative to api/.",
@@ -101,7 +101,13 @@
 				"[].maxAvgPower_1800",
 				"[].maxAvgPower_3600",
 				"[].maxAvgPower_7200",
-				"[].excludeFromPowerCurveReports"
+				"[].excludeFromPowerCurveReports",
+				"[].eventType.typeKey",
+				"[].favorite",
+				"[].isFavorite",
+				"[].pr",
+				"[].isPR",
+				"[].unitOfPoolLength.unitKey"
 			]
 		},
 		{
@@ -537,7 +543,56 @@
 				"summary": "",
 				"args": [],
 				"line": 2760
-			}
+			},
+			"plugin": "GarminApi.activityTypes",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "check",
+			"check": true,
+			"critical": [
+				"[].typeId",
+				"[].typeKey",
+				"[].parentTypeId"
+			],
+			"reads": [
+				"[].isHidden"
+			],
+			"schema": "schema/activity-types.json",
+			"notes": "Garmin's activity type tree: 154 types under the root all (17); the 16 top-level groups (running 1, cycling 2, hiking 3, other 4, walking 9, swimming 26, fitness_equipment 29, multi_sport 89, steps 108, diving 144, safety 157, winter_sports 165, para_sports 199, team_sports 206, racket_sports 219, water_sports 228) hang off it. No names: the app's words live in src/dashboard/activity-types.ts, and the check flags a tree that has moved from it."
+		},
+		{
+			"id": "event-types",
+			"method": "GET",
+			"path": "/activity-service/activity/eventTypes",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-10 (ref/activity-details/outdoor-run/web/endpoints.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.eventTypes",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "check",
+			"check": true,
+			"critical": [
+				"[].typeId",
+				"[].typeKey"
+			],
+			"reads": [
+				"[].sortOrder"
+			],
+			"schema": "schema/event-types.json",
+			"notes": "The nine event types an activity can carry (race, training, \u2026, uncategorized), for All Activities' Event Type filter. Same for every account; the plugin bundles them."
 		},
 		{
 			"id": "activity-weather",
@@ -1786,6 +1841,42 @@
 			"notes": "Activity details page: the recording device's name and the firmware it ran (Devices & Apps, \"Forerunner 970 18.32\"), by the summary's metadataDTO.deviceMetaDataDTO.deviceVersionPk. The device list's currentFirmwareVersion is today's, so an older activity would show the wrong version."
 		},
 		{
+			"id": "activity-badges",
+			"method": "GET",
+			"path": "/badge-service/badge/{displayName}/earned/activity/{activityId}",
+			"service": "badge-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName",
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-10 (ref/activity-details/outdoor-run/web/endpoints.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.activityBadges",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"[].badgeName"
+			],
+			"reads": [
+				"[].badgeKey",
+				"[].badgeId"
+			],
+			"schema": "schema/activity-badges.json",
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. The badges the activity earned (\"Climber 1\"), shown under Evaluation; [] for most activities. No description in the row."
+		},
+		{
 			"id": "device-last-used",
 			"method": "GET",
 			"path": "/device-service/deviceservice/mylastused",
@@ -2424,7 +2515,13 @@
 				"[].maxAvgPower_1800",
 				"[].maxAvgPower_3600",
 				"[].maxAvgPower_7200",
-				"[].excludeFromPowerCurveReports"
+				"[].excludeFromPowerCurveReports",
+				"[].eventType.typeKey",
+				"[].favorite",
+				"[].isFavorite",
+				"[].pr",
+				"[].isPR",
+				"[].unitOfPoolLength.unitKey"
 			],
 			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load). Rides' maxAvgPower_* (integer W) and excludeFromPowerCurveReports feed the Cycling Power Curve page through the index."
 		},

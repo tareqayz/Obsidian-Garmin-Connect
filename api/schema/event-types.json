@@ -1,0 +1,35 @@
+{
+	"endpoint": "event-types",
+	"path": "/activity-service/activity/eventTypes",
+	"plugin": "GarminApi.eventTypes",
+	"firstRecorded": "2026-10-15T08:17:05.551Z",
+	"updatedAt": "2026-10-15T08:17:05.551Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"sortOrder": {
+					"type": [
+						"number"
+					]
+				},
+				"typeId": {
+					"type": [
+						"number"
+					]
+				},
+				"typeKey": {
+					"type": [
+						"string"
+					]
+				}
+			}
+		}
+	}
+}
