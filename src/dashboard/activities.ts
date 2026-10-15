@@ -510,8 +510,6 @@ export interface AllItem {
 	time?: string;
 	/** "8.01 km". Activities without one show only the time. */
 	distance?: string;
-	/** A run, which opens its activity page. Other sports have none yet. */
-	opens?: boolean;
 }
 
 /** All Activities: everything, newest first. */
@@ -520,23 +518,22 @@ export function allActivities(rows: readonly ActivityRow[], units: Units): AllIt
 		const item: AllItem = { id: r.id, name: r.name ?? typeLabel(r.type), when: dateTimeLabel(r.start), glyph: glyphOf(r) };
 		if (r.duration !== undefined) item.time = duration(r.duration);
 		if (r.distance !== undefined) item.distance = formatDistance(r.distance, units, 2, true);
-		if (categoryOf(r) === "running") item.opens = true;
 		return item;
 	});
 }
 
 /**
- * The run a day note's workout is, for Home's Today's Activity cards, which
- * carry no id: matched on the start to the minute (the note keeps minutes, the
- * index seconds) and the name. Only a run has a page to open, so only a run is
- * matched; a name that differs is trusted only when one run started that minute.
+ * The activity a day note's workout is, for Home's Today's Activity cards,
+ * which carry no id: matched on the start to the minute (the note keeps
+ * minutes, the index seconds) and the name. A name that differs is trusted
+ * only when one activity started that minute.
  */
-export function runIdFor(rows: readonly ActivityRow[], start: string | undefined, name: string | undefined): number | null {
+export function activityIdFor(rows: readonly ActivityRow[], start: string | undefined, name: string | undefined): number | null {
 	if (!start || start.length < 16) return null;
 	const minute = start.slice(0, 16);
-	const runs = rows.filter((r) => r.start.slice(0, 16) === minute && categoryOf(r) === "running");
-	const named = runs.find((r) => name !== undefined && (r.name ?? typeLabel(r.type)) === name);
-	return (named ?? (runs.length === 1 ? runs[0] : undefined))?.id ?? null;
+	const started = rows.filter((r) => r.start.slice(0, 16) === minute);
+	const named = started.find((r) => name !== undefined && (r.name ?? typeLabel(r.type)) === name);
+	return (named ?? (started.length === 1 ? started[0] : undefined))?.id ?? null;
 }
 
 /** The figure an activity is drawn with. */

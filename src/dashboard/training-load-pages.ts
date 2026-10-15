@@ -276,8 +276,8 @@ export interface ExerciseRow {
 	subtitle: string;
 	/** Its three parts, which the row sets apart with spaced bullets: "12.5 km run", "Load: 204", "Benefit: Threshold". */
 	parts: string[];
-	/** A run's page, opened on top, as the Activities lists open it; other sports have none yet (Inferred). */
-	route?: ActivityRoute;
+	/** The activity's page, opened on top, as the Activities lists open it. */
+	route: ActivityRoute;
 }
 
 export interface ExerciseTabView extends TabView {
@@ -407,13 +407,11 @@ export function exerciseTicks(max: number): number[] {
 	return [3 * step, 2 * step, step, 0];
 }
 
-/** The period's activities, newest first by start (`sortRows`), each with its date, subtitle and, for a run, its page. */
+/** The period's activities, newest first by start (`sortRows`), each with its date, subtitle and page. */
 export function exerciseRows(rows: readonly ActivityRow[], span: Span, units: Units): ExerciseRow[] {
 	return sortRows(rows.filter((r) => startsIn(r, span))).map((r) => {
 		const parts = subtitleParts(r, units);
-		const item: ExerciseRow = { id: r.id, date: listDate(r.start), subtitle: parts.join(" • "), parts };
-		if (categoryOf(r) === "running") item.route = activityRoute(r.id);
-		return item;
+		return { id: r.id, date: listDate(r.start), subtitle: parts.join(" • "), parts, route: activityRoute(r.id) };
 	});
 }
 

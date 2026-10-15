@@ -70,11 +70,7 @@
 
 <div class="rows">
 	{#each shown as item (item.id)}
-		{#if item.opens}
-			<button class="row" onclick={() => go(activityRoute(item.id))}>{@render row(item)}</button>
-		{:else}
-			<div class="row">{@render row(item)}</div>
-		{/if}
+		<button class="row" onclick={() => go(activityRoute(item.id))}>{@render row(item)}</button>
 	{:else}
 		<p class="empty">No activities synced yet.</p>
 	{/each}

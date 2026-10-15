@@ -314,8 +314,8 @@ export interface TeRelated {
 	/** The disc's figure (`sportIcon`) and the sport it stands for. */
 	glyph: SportGlyph;
 	category: CategoryId;
-	/** A run's activity page; other sports have none yet, so their row opens nothing. */
-	route?: ActivityRoute;
+	/** The activity's page. */
+	route: ActivityRoute;
 }
 
 export interface TrainingEffectDetailView {
@@ -357,8 +357,8 @@ function detailView(row: ActivityRow, today: string): TrainingEffectDetailView {
 		subtitle: teSubtitle(row),
 		glyph: glyphOf(row),
 		category: categoryOf(row),
+		route: activityRoute(row.id),
 	};
-	if (related.category === "running") related.route = activityRoute(row.id);
 	return {
 		kind: "detail",
 		id: row.id,

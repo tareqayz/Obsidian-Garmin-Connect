@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from "svelte";
-	import { runIdFor, type ActivitiesData } from "../../../dashboard/activities";
+	import { activityIdFor, type ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
@@ -620,7 +620,7 @@
 											.join(" • ")}
 									/>
 								{:else}
-									{@const run = runIdFor(activities.rows, item.start, item.name)}
+									{@const opens = activityIdFor(activities.rows, item.start, item.name)}
 									{#snippet card()}
 										<RowCard
 											kicker={item.name}
@@ -630,8 +630,8 @@
 											detail={item.calories !== undefined ? `${item.calories} kcal` : undefined}
 										/>
 									{/snippet}
-									{#if run !== null}
-										{@const open = opener(activityRoute(run))}
+									{#if opens !== null}
+										{@const open = opener(activityRoute(opens))}
 										<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>{@render card()}</div>
 									{:else}
 										{@render card()}
