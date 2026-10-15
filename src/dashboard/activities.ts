@@ -1,7 +1,8 @@
 import type { AccountInfo } from "../sync/account";
+import { typeName } from "./activity-types";
 import { PR_TYPES } from "../sync/account";
 import type { ActivityRow } from "../sync/activity-index";
-import { shortDate, titleCase } from "./day";
+import { shortDate } from "./day";
 import { lastDayOfMonth, MONTHS, shiftMonth } from "./periods";
 import { duration, shiftDate } from "./series";
 
@@ -108,15 +109,9 @@ export function categoryOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTyp
 }
 
 /** Garmin's own names where its key says something else. */
-const TYPE_LABEL: Record<string, string> = {
-	lap_swimming: "Pool Swimming",
-	road_biking: "Road Cycling",
-	hiit: "HIIT",
-	multi_sport: "Multisport",
-};
-
+/** A type's name as the app gives it (`activity-types.ts`): "Pool Swimming", "Stair Stepper". */
 export function typeLabel(type: string): string {
-	return TYPE_LABEL[type] ?? titleCase(type) ?? type;
+	return typeName({ type });
 }
 
 export interface SubTypeOption {

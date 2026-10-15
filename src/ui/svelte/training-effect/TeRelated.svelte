@@ -16,7 +16,7 @@
 
 	const D = TE_DETAIL;
 
-	let disc = $derived(discColour(related.category));
+	let disc = $derived(discColour(related.disc));
 </script>
 
 {#snippet content()}

@@ -296,6 +296,7 @@ describe("the Training Effect page — the Oct 11 run", () => {
 			when: "Oct 11 @ 8:21 AM",
 			subtitle: "Threshold (High Aerobic) • 4.5 • 0.2",
 			glyph: "run",
+			disc: "orange",
 			category: "running",
 			route: activityRoute(id),
 		});

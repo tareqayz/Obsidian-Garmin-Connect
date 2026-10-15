@@ -1,4 +1,4 @@
-import type { CategoryId } from "./activities";
+import type { DiscColour } from "./activity-types";
 import { trainingEffectScales, type TrainingEffectScale } from "./activity-charts";
 import { pillPath } from "./endurance-score-charts";
 import { r2 } from "./stat-charts";
@@ -184,16 +184,15 @@ export function teScaleRow(scale: Pick<TeScale, "label" | "value" | "colour" | "
 	return { ...drawn!, value: { x: drawn!.knob.x, text: scale.text } };
 }
 
-/** The related activity's disc, by sport (683:319): a run's --color-orange, a swim's --color-blue; other sports are unseen, so a neutral disc (Inferred). */
-export function discColour(category: CategoryId): { fill: string; glyph: string } {
-	switch (category) {
-		case "running":
-			return { fill: "var(--color-orange)", glyph: "var(--text-on-accent)" };
-		case "swimming":
-			return { fill: "var(--color-blue)", glyph: "var(--text-on-accent)" };
-		default:
-			return { fill: "var(--background-modifier-border)", glyph: "var(--text-muted)" };
-	}
+/**
+ * An activity's disc in the twin's colours (683:319), from its type's disc
+ * (`discOf`): a run's --color-orange, a swim's --color-blue, a ride's
+ * --color-green; a sport the phone hasn't shown is a neutral disc (Inferred).
+ */
+export function discColour(disc: DiscColour): { fill: string; glyph: string } {
+	return disc === "neutral"
+		? { fill: "var(--background-modifier-border)", glyph: "var(--text-muted)" }
+		: { fill: `var(--color-${disc})`, glyph: "var(--text-on-accent)" };
 }
 
 /** The bars' colour in both charts (the twin's --color-green; Garmin's #16A544). */

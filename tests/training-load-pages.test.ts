@@ -435,7 +435,7 @@ describe("Exercise Load — the period before, Aug 17 – Sep 13 (Inferred)", ()
 			["3.8 km run • Load: 120 • Benefit: Tempo", "1.7 km run • Load: 49 • Benefit: Tempo", "5.5 km run • Load: 89 • Benefit: Base"],
 		);
 		const stairs = v.list.find((r) => r.date === "Aug 28, 2026")!;
-		assert.deepEqual([stairs.subtitle, stairs.route], ["stair climbing • Load: 62 • Benefit: Base", activityRoute(stairs.id)]);
+		assert.deepEqual([stairs.subtitle, stairs.route], ["stair stepper • Load: 62 • Benefit: Base", activityRoute(stairs.id)]);
 	});
 });
 
@@ -463,7 +463,7 @@ describe("Exercise Load — edges", () => {
 				{ type: "stair_climbing", typeId: 31, parentTypeId: 29 },
 				{ type: "strength_training", typeId: 13, parentTypeId: 29 },
 			].map(sportWord),
-			["run", "swim", "ride", "stair climbing", "strength training"],
+			["run", "swim", "ride", "stair stepper", "strength training"],
 		);
 		const yoga = row({ id: 2, type: "yoga", typeId: 43, parentTypeId: 29 });
 		assert.equal(exerciseSubtitle(yoga, "metric"), "yoga • Load: 0 • Benefit: Unknown");

@@ -422,8 +422,9 @@ describe("the detail page (684:118813, 684:118933, 684:119704; pane 686:119854)"
 	});
 
 	it("colours the disc by sport: a run's orange, a swim's blue, the rest neutral (Inferred)", () => {
-		assert.deepEqual(discColour("running"), { fill: "var(--color-orange)", glyph: "var(--text-on-accent)" });
-		assert.deepEqual(discColour("swimming"), { fill: "var(--color-blue)", glyph: "var(--text-on-accent)" });
-		assert.deepEqual(discColour("cycling"), { fill: "var(--background-modifier-border)", glyph: "var(--text-muted)" });
+		assert.deepEqual(discColour("orange"), { fill: "var(--color-orange)", glyph: "var(--text-on-accent)" });
+		assert.deepEqual(discColour("blue"), { fill: "var(--color-blue)", glyph: "var(--text-on-accent)" });
+		assert.deepEqual(discColour("green"), { fill: "var(--color-green)", glyph: "var(--text-on-accent)" });
+		assert.deepEqual(discColour("neutral"), { fill: "var(--background-modifier-border)", glyph: "var(--text-muted)" });
 	});
 });

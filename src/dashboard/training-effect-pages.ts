@@ -1,4 +1,5 @@
 import { sortRows, type ActivityRow } from "../sync/activity-index";
+import { discOf, type DiscColour } from "./activity-types";
 import { categoryOf, glyphOf, typeLabel, type CategoryId, type SportGlyph } from "./activities";
 import { TE_MAX, teColour, type ChartColour } from "./activity-chart-pages";
 import { benefitMessage } from "./activity-copy";
@@ -311,8 +312,9 @@ export interface TeRelated {
 	when: string;
 	/** The card's subtitle. */
 	subtitle: string;
-	/** The disc's figure (`sportIcon`) and the sport it stands for. */
+	/** The disc's figure (`sportIcon`), its colour, and the sport it stands for. */
 	glyph: SportGlyph;
+	disc: DiscColour;
 	category: CategoryId;
 	/** The activity's page. */
 	route: ActivityRoute;
@@ -356,6 +358,7 @@ function detailView(row: ActivityRow, today: string): TrainingEffectDetailView {
 		when: activityWhen(row.start, today),
 		subtitle: teSubtitle(row),
 		glyph: glyphOf(row),
+		disc: discOf(row),
 		category: categoryOf(row),
 		route: activityRoute(row.id),
 	};
