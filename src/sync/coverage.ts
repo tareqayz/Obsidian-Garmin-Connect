@@ -119,36 +119,38 @@ export function seriesVersion(series: DaySeries | null | undefined): number | un
 }
 
 /* ------------------------------------------------------------------ */
-/*  Run details: activity-details/index.json                           */
+/*  Activity details: activity-details/index.json                      */
 /* ------------------------------------------------------------------ */
 
-/** Each downloaded run's file version, by activity id. */
-export type RunCoverage = Map<number, number>;
+/** Each downloaded activity's file version, by activity id. */
+export type DetailCoverage = Map<number, number>;
 
-export function serializeRunCoverage(runs: RunCoverage): string {
-	const ids = [...runs.keys()].sort((a, b) => a - b);
-	const lines = ids.map((id) => `\t\t"${id}": ${runs.get(id)}`);
+export function serializeDetailCoverage(files: DetailCoverage): string {
+	const ids = [...files.keys()].sort((a, b) => a - b);
+	const lines = ids.map((id) => `\t\t"${id}": ${files.get(id)}`);
 	const body = lines.length ? `{\n${lines.join(",\n")}\n\t}` : "{}";
-	return `{\n\t"version": ${COVERAGE_FILE_VERSION},\n\t"runs": ${body}\n}\n`;
+	return `{\n\t"version": ${COVERAGE_FILE_VERSION},\n\t"activities": ${body}\n}\n`;
 }
 
-export function parseRunCoverage(text: string): RunCoverage | null {
+/** The coverage, under `activities`, or `runs` as it was called when only runs had a page. */
+export function parseDetailCoverage(text: string): DetailCoverage | null {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(text);
 	} catch {
 		return null;
 	}
-	const raw = parsed as { version?: unknown; runs?: unknown } | null;
-	if (!raw || raw.version !== COVERAGE_FILE_VERSION || !raw.runs || typeof raw.runs !== "object" || Array.isArray(raw.runs)) return null;
-	const out: RunCoverage = new Map();
-	for (const [id, v] of Object.entries(raw.runs)) {
+	const raw = parsed as { version?: unknown; activities?: unknown; runs?: unknown } | null;
+	const files = raw?.activities ?? raw?.runs;
+	if (!raw || raw.version !== COVERAGE_FILE_VERSION || !files || typeof files !== "object" || Array.isArray(files)) return null;
+	const out: DetailCoverage = new Map();
+	for (const [id, v] of Object.entries(files)) {
 		if (/^\d+$/.test(id) && Number.isInteger(v)) out.set(Number(id), v as number);
 	}
 	return out;
 }
 
-/** A run file's version from the start of its text, without parsing the rest (`{"version":5,…`). */
+/** An activity file's version from the start of its text, without parsing the rest (`{"version":5,…`). */
 export function detailVersionOf(text: string): number | undefined {
 	const match = /^\s*\{\s*"version"\s*:\s*(\d+)/.exec(text.slice(0, 64));
 	return match ? Number(match[1]) : undefined;

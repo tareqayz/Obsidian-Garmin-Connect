@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ChartMeta } from "../src/sync/backfill";
-import { chartKeys } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION, chartKeys, consentKey, dataSet, LEGACY_RUNS_STORE } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
 import { chartTitle, debtItems, pendingItems, type DebtInput } from "../src/sync/debt";
 import type { AccountScan } from "../src/sync/scan";
@@ -16,12 +16,12 @@ const input = (over: Partial<DebtInput> = {}): DebtInput => ({
 	accepted: [],
 	deferred: [],
 	dayDetails: "30d",
-	runDetails: "opened",
+	activityDetails: "opened",
 	scan,
 	daySpans: [[shiftDate(TODAY, -29), TODAY, 1]],
 	charts: new Map(),
-	runs: [],
-	runFiles: new Map(),
+	activities: [],
+	detailFiles: new Map(),
 	...over,
 });
 
@@ -57,17 +57,26 @@ describe("what an update offers", () => {
 		assert.match(older[0]!.detail, /^10 days saved by an older version/);
 	});
 
-	it("offers runs only when they download, missing or older ones as the agreement allows", () => {
-		const runs = [
-			{ id: 2, date: "2026-10-01" },
-			{ id: 1, date: "2026-09-01" },
+	it("offers activity details only when they download, missing or older ones as the agreement allows", () => {
+		const activities = [
+			{ id: 3, date: "2026-10-02", run: false },
+			{ id: 2, date: "2026-10-01", run: true },
+			{ id: 1, date: "2026-09-01", run: true },
 		];
-		const runFiles = new Map([[1, 1]]);
-		const base = { accepted: chartKeys(["sleep", "fitness"]), charts: complete(ALL_CHARTS), runs, runFiles };
-		assert.deepEqual(debtItems(input({ ...base })).filter((i) => i.set === "run-details"), []);
-		assert.deepEqual(debtItems(input({ ...base, runDetails: "all" })).map((i) => [i.key, i.units]), [["runs@5", 2]]);
-		assert.deepEqual(debtItems(input({ ...base, runDetails: "all", accepted: [...base.accepted, "runs@4"] })).map((i) => [i.units, i.detail]), [[1, "1 run saved by an older version"]]);
-		assert.deepEqual(debtItems(input({ ...base, runDetails: "all", accepted: [...base.accepted, "runs@5"] })), []);
+		const detailFiles = new Map([[1, 1]]);
+		const base = { accepted: chartKeys(["sleep", "fitness"]), charts: complete(ALL_CHARTS), activities, detailFiles };
+		const line = (accepted: string[] = []) =>
+			debtItems(input({ ...base, activityDetails: "all", accepted: [...base.accepted, ...accepted] })).map((i) => [i.key, i.units, i.detail]);
+		const change = dataSet("activity-details").changes[ACTIVITY_DETAILS_VERSION]?.summary;
+		assert.deepEqual(debtItems(input({ ...base })).filter((i) => i.set === "activity-details"), []);
+		// Never agreed to: every activity without a file of today's version.
+		assert.deepEqual(line(), [[ACTIVITY_DETAILS_KEY, 3, "2 activities · 1 saved by an older version"]]);
+		// An older agreement fills the gaps already: only what it saved is asked about.
+		const older = `1 activity saved by an older version${change ? `: ${change.charAt(0).toLowerCase()}${change.slice(1).replace(/\.$/, "")}` : ""}`;
+		assert.deepEqual(line([consentKey(ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION - 1)]), [[ACTIVITY_DETAILS_KEY, 1, older]]);
+		// Run details fills the runs' gaps: the other sports, and what an older version saved, are asked about.
+		assert.deepEqual(line([consentKey(LEGACY_RUNS_STORE, ACTIVITY_DETAILS_VERSION - 1)]), [[ACTIVITY_DETAILS_KEY, 2, "1 activity · 1 saved by an older version"]]);
+		assert.deepEqual(line([ACTIVITY_DETAILS_KEY]), []);
 	});
 
 	it("asks about what was put off with Later no more, though Settings still lists it", () => {

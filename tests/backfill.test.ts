@@ -14,7 +14,7 @@ import {
 	type PlanInput,
 } from "../src/sync/backfill";
 import type { Span } from "../src/sync/coverage";
-import { chartKeys } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION, chartKeys, consentKey, LEGACY_RUNS_STORE } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
 import type { AccountScan } from "../src/sync/scan";
 
@@ -38,34 +38,39 @@ const input = (over: Partial<PlanInput> = {}): PlanInput => ({
 	groups: [...GROUPS],
 	accepted: [],
 	dayDetails: "30d",
-	runDetails: "opened",
+	activityDetails: "opened",
 	scan: scan("2025-08-02"),
 	daySpans: [],
 	charts: new Map(),
-	runs: [],
-	runFiles: new Map(),
+	activities: [],
+	detailFiles: new Map(),
 	...over,
 });
+
+/** Run details agreed to at today's version, and at the one before: from when only runs had a page. */
+const RUNS_NOW = consentKey(LEGACY_RUNS_STORE, ACTIVITY_DETAILS_VERSION);
+const RUNS_BEFORE = consentKey(LEGACY_RUNS_STORE, ACTIVITY_DETAILS_VERSION - 1);
+const DETAILS_BEFORE = consentKey(ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION - 1);
 
 describe("backfill plan", () => {
 	it("plans nothing that was not agreed to", () => {
 		assert.deepEqual(planBackfill(input()), []);
 	});
 
-	it("lists the activities first, then the chart walks, then days newest first, then runs", () => {
-		const accepted = [...chartKeys(GROUPS), "days@1", "runs@5"];
-		const runs = [
-			{ id: 3, date: "2026-10-12" },
-			{ id: 2, date: "2026-09-01" },
-			{ id: 1, date: "2025-09-01" },
+	it("lists the activities first, then the chart walks, then days newest first, then activity details", () => {
+		const accepted = [...chartKeys(GROUPS), "days@1", ACTIVITY_DETAILS_KEY];
+		const activities = [
+			{ id: 3, date: "2026-10-12", run: true },
+			{ id: 2, date: "2026-09-01", run: false },
+			{ id: 1, date: "2025-09-01", run: true },
 		];
-		const tasks = planBackfill(input({ accepted, runDetails: "1y", runs, daySpans: [[shiftDate(TODAY, -9), TODAY, 1]] }));
+		const tasks = planBackfill(input({ accepted, activityDetails: "1y", activities, daySpans: [[shiftDate(TODAY, -9), TODAY, 1]] }));
 		assert.deepEqual(
 			tasks.map((t) => t.kind),
-			["activities", "walk", "walk", "walk", "days", "runs"],
+			["activities", "walk", "walk", "walk", "days", "details"],
 		);
 		assert.deepEqual(tasks[4], { kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -10) });
-		assert.deepEqual(tasks[5], { kind: "runs", ids: [3, 2] });
+		assert.deepEqual(tasks[5], { kind: "details", ids: [3, 2] });
 	});
 
 	it("skips a chart index whose history is complete, and walks one that a version bump reset", () => {
@@ -118,20 +123,42 @@ describe("backfill plan", () => {
 		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], dayDetails: "new" })), []);
 	});
 
-	it("fetches missing runs under an older agreement, and runs of an older file only under today's", () => {
-		const runs = [
-			{ id: 2, date: "2026-10-01" },
-			{ id: 1, date: "2026-09-01" },
+	it("fetches missing activities under an older agreement, and those of an older file only under today's", () => {
+		const activities = [
+			{ id: 3, date: "2026-10-02", run: false },
+			{ id: 2, date: "2026-10-01", run: true },
+			{ id: 1, date: "2026-09-01", run: false },
 		];
-		const runFiles = new Map([[1, 1]]);
-		assert.deepEqual(planBackfill(input({ accepted: ["runs@4"], runDetails: "all", runs, runFiles })), [{ kind: "runs", ids: [2] }]);
-		assert.deepEqual(planBackfill(input({ accepted: ["runs@5"], runDetails: "all", runs, runFiles })), [{ kind: "runs", ids: [2, 1] }]);
-		assert.deepEqual(planBackfill(input({ accepted: ["runs@5"], runDetails: "opened", runs, runFiles })), []);
+		const detailFiles = new Map([[1, 1]]);
+		assert.deepEqual(planBackfill(input({ accepted: [DETAILS_BEFORE], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3, 2] }]);
+		assert.deepEqual(planBackfill(input({ accepted: [ACTIVITY_DETAILS_KEY], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3, 2, 1] }]);
+		assert.deepEqual(planBackfill(input({ accepted: [ACTIVITY_DETAILS_KEY], activityDetails: "opened", activities, detailFiles })), []);
+	});
+
+	it("keeps fetching runs, and only runs, under Run details until Activity details is agreed to", () => {
+		const activities = [
+			{ id: 4, date: "2026-10-03", run: false },
+			{ id: 3, date: "2026-10-02", run: true },
+			{ id: 2, date: "2026-10-01", run: false },
+			{ id: 1, date: "2026-09-01", run: true },
+		];
+		const detailFiles = new Map([[1, 1]]);
+		// Gaps only under an older Run details, and old files too at today's version.
+		assert.deepEqual(planBackfill(input({ accepted: [RUNS_BEFORE], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3] }]);
+		assert.deepEqual(planBackfill(input({ accepted: [RUNS_NOW], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3, 1] }]);
+		// Activity details agreed to: every sport, whatever Run details said.
+		assert.deepEqual(
+			planBackfill(input({ accepted: [RUNS_BEFORE, ACTIVITY_DETAILS_KEY], activityDetails: "all", activities, detailFiles })),
+			[{ kind: "details", ids: [4, 3, 2, 1] }],
+		);
+		assert.deepEqual(planBackfill(input({ accepted: [RUNS_NOW], activityDetails: "opened", activities, detailFiles })), []);
 	});
 
 	it("leaves out what failed this session", () => {
-		const runs = [{ id: 2, date: "2026-10-01" }];
-		const plan = planBackfill(input({ accepted: ["days@1", "runs@5"], runDetails: "all", runs, dayDetails: "30d", skip: { days: new Set([TODAY]), runs: new Set([2]) } }));
+		const activities = [{ id: 2, date: "2026-10-01", run: true }];
+		const plan = planBackfill(
+			input({ accepted: ["days@1", ACTIVITY_DETAILS_KEY], activityDetails: "all", activities, dayDetails: "30d", skip: { days: new Set([TODAY]), details: new Set([2]) } }),
+		);
 		assert.deepEqual(plan, [{ kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -1) }]);
 	});
 

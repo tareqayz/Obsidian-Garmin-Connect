@@ -24,8 +24,8 @@ const input = (over: Partial<EstimateInput> = {}): EstimateInput => ({
 	speed: "normal",
 	scan: account(4000),
 	dayDetails: "new",
-	runDetails: "opened",
-	runs: [],
+	activityDetails: "opened",
+	activities: [],
 	...over,
 });
 
@@ -87,23 +87,23 @@ describe("estimates — Day details", () => {
 	});
 });
 
-describe("estimates — Run details and Charts", () => {
-	const runs = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, date: shiftDate(TODAY, -i * 3) }));
+describe("estimates — Activity details and Charts", () => {
+	const activities = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, date: shiftDate(TODAY, -i * 3), run: i % 2 === 0 }));
 
-	it("120 runs: 1,200 requests, 18.5 MB, about six minutes", () => {
-		const run = set(estimate(input({ runs: runs.slice(0, 120), runDetails: "all" })), "run-details");
+	it("120 activities: 1,200 requests, 18.5 MB, about six minutes", () => {
+		const run = set(estimate(input({ activities: activities.slice(0, 120), activityDetails: "all" })), "activity-details");
 		assert.deepEqual([run.units, run.requests, run.bytes], [120, 1_200, 18_480_000]);
 		assert.ok(Math.abs(run.seconds - 342) < 0.01);
 	});
 
-	it("takes the range's runs without a file of today's version, and nothing for runs opened", () => {
-		const held = { runs: new Map([[1, 5], [2, 1]]) };
-		// The last 90 days hold runs 1..30; run 1 is current, run 2's file is old.
-		assert.equal(set(estimate(input({ runs, runDetails: "90d", held })), "run-details").units, 29);
-		const opened = set(estimate(input({ runs, runDetails: "opened" })), "run-details");
+	it("takes the range's activities without a file of today's version, and nothing for those opened", () => {
+		const held = { details: new Map([[1, 5], [2, 1]]) };
+		// The last 90 days hold activities 1..30; 1 is current, 2's file is old.
+		assert.equal(set(estimate(input({ activities, activityDetails: "90d", held })), "activity-details").units, 29);
+		const opened = set(estimate(input({ activities, activityDetails: "opened" })), "activity-details");
 		assert.deepEqual([opened.units, opened.bytesPerYear], [0, 0]);
-		// Downloading new runs grows the vault by the runs of a year.
-		assert.equal(set(estimate(input({ runs, runDetails: "all" })), "run-details").bytesPerYear, 122 * 154_000);
+		// Downloading new activities grows the vault by the activities of a year, every sport.
+		assert.equal(set(estimate(input({ activities, activityDetails: "all" })), "activity-details").bytesPerYear, 122 * 154_000);
 	});
 
 	it("walks every chart index over the history it lacks, and nothing over one already complete", () => {
@@ -117,7 +117,7 @@ describe("estimates — Run details and Charts", () => {
 	});
 
 	it("adds the sets up, the budget over the whole backfill", () => {
-		const got = estimate(input({ scan: account(3_650, 2_000), runs, dayDetails: "all", runDetails: "all" }));
+		const got = estimate(input({ scan: account(3_650, 2_000), activities, dayDetails: "all", activityDetails: "all" }));
 		assert.equal(got.requests, got.sets.reduce((n, s) => n + s.requests, 0));
 		assert.ok(got.seconds >= Math.max(...got.sets.map((s) => s.seconds)));
 		assert.equal(got.largestFile, 365 * 3_700);

@@ -1,4 +1,4 @@
-import { chartKeys, DAY_DETAILS_KEY, RUN_DETAILS_KEY, type ConsentKey, type DayDetailsRange, type RunDetailsRange } from "../sync/datasets";
+import { ACTIVITY_DETAILS_KEY, chartKeys, DAY_DETAILS_KEY, type ActivityDetailsRange, type ConsentKey, type DayDetailsRange } from "../sync/datasets";
 import type { Estimate } from "../sync/estimate";
 import type { MetricGroup } from "../sync/metrics";
 import type { ScanResult } from "../sync/scan";
@@ -72,20 +72,19 @@ export function stepState(flow: SetupFlow, step: SetupStep): "done" | "current" 
 
 export interface Choices {
 	dayDetails: DayDetailsRange;
-	runDetails: RunDetailsRange;
+	activityDetails: ActivityDetailsRange;
 }
 
 /** What the vault holds already, and the estimates over it, once a scan is in. */
 export interface Prepared {
-	held: { days: number; runs: number; bytes: number };
-	/** Runs on the activity list, for "234 of them runs". */
-	runs: number;
+	/** Days of details, and activities with their page, already in the vault. */
+	held: { days: number; activities: number; bytes: number };
 	estimate: (choices: Choices, speed: SyncSpeed) => Estimate;
 }
 
-/** What starting the download agrees to: every chart index, and the Day details and Run details as chosen. */
+/** What starting the download agrees to: every chart index, and the Day details and Activity details as chosen. */
 export function agreement(groups: readonly MetricGroup[]): { accepted: ConsentKey[]; deferred: ConsentKey[] } {
-	return { accepted: [...chartKeys(groups), DAY_DETAILS_KEY, RUN_DETAILS_KEY], deferred: [] };
+	return { accepted: [...chartKeys(groups), DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY], deferred: [] };
 }
 
 /**
@@ -94,7 +93,7 @@ export function agreement(groups: readonly MetricGroup[]): { accepted: ConsentKe
  * them; Settings → Data offers them.
  */
 export function newDaysOnly(groups: readonly MetricGroup[]): { choices: Choices; accepted: ConsentKey[]; deferred: ConsentKey[] } {
-	return { choices: { dayDetails: "new", runDetails: "opened" }, accepted: [DAY_DETAILS_KEY, RUN_DETAILS_KEY], deferred: chartKeys(groups) };
+	return { choices: { dayDetails: "new", activityDetails: "opened" }, accepted: [DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY], deferred: chartKeys(groups) };
 }
 
 /** A line of the update dialog: a store this version can fill in, and what it costs. */

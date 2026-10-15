@@ -31,9 +31,9 @@ import { VaultSeriesStore } from "./series-store";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
-import { DAY_DETAILS_VERSION, rangeStart, type DayDetailsRange, type RunDetailsRange } from "./datasets";
+import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type PauseReason, type Task } from "./backfill";
-import { chunkDays, HOURLY_BUDGET, requestsPerChunk, requestsPerDay, RUN_REQUESTS } from "./estimate";
+import { chunkDays, DETAIL_REQUESTS, HOURLY_BUDGET, requestsPerChunk, requestsPerDay } from "./estimate";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -48,7 +48,7 @@ export interface RunnerSettings {
 	/** Null until the setup ran: nothing walks history in the background before it. */
 	setup: { completedAt: string } | null;
 	/** What to keep, and what was agreed to (see `datasets.ts`). */
-	data: { dayDetails: DayDetailsRange; runDetails: RunDetailsRange; accepted: string[] };
+	data: { dayDetails: DayDetailsRange; activityDetails: ActivityDetailsRange; accepted: string[] };
 }
 
 /** This device, for the backfill's lease. */
@@ -84,8 +84,8 @@ export interface BackfillProgress {
 const HISTORY_PAGE = 100;
 
 /**
- * The least time between two runs downloaded in the background: about the
- * pace of someone opening their runs one after another, ten requests each.
+ * The least time between two activities downloaded in the background: about
+ * the pace of someone opening them one after another, ten requests each.
  */
 const DOWNLOAD_PAUSE_MS = 2000;
 
@@ -150,8 +150,8 @@ export class SyncRunner {
 	private backfillTasks: Task[] | null = null;
 	/** Whether the plan may have work: the drain asks for a unit only then. */
 	private backfillPending = false;
-	/** Days and runs that failed this session, and walks that kept failing: left for the next. */
-	private backfillSkip = { days: new Set<string>(), runs: new Set<number>(), walks: new Set<string>() };
+	/** Days and activities that failed this session, and walks that kept failing: left for the next. */
+	private backfillSkip = { days: new Set<string>(), details: new Set<number>(), walks: new Set<string>() };
 	/** Empty windows each walk ended its last segment on (see `WalkOptions.emptyStreak`). */
 	private walkStreaks = new Map<string, number>();
 	private backfillTimer: number | null = null;
@@ -175,8 +175,8 @@ export class SyncRunner {
 	private indexHistoryListeners = new Set<(kind: string, progress: IndexHistoryProgress | null) => void>();
 
 	/**
-	 * `isRun` picks the index rows that are runs, the ones whose page opens:
-	 * what Run details downloads.
+	 * `isRun` picks the index rows that are runs: all an older Run details
+	 * agreement downloads, before Activity details is agreed to.
 	 */
 	constructor(
 		app: App,
@@ -319,7 +319,7 @@ export class SyncRunner {
 
 	private async runPlan(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
 		const report = await this.runDays(plan, log);
-		// New days and runs may have joined, or gaps opened: the backfill looks again.
+		// New days and activities may have joined, or gaps opened: the backfill looks again.
 		if (report && !report.stoppedEarly) this.kickBackfill();
 		return report;
 	}
@@ -930,7 +930,7 @@ export class SyncRunner {
 			let rested = true;
 			while (this.loadsWaiting) {
 				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
-				const pause = pageWaiting ? 0 : this.backfillTasks?.[0]?.kind === "runs" ? DOWNLOAD_PAUSE_MS : 0;
+				const pause = pageWaiting ? 0 : this.backfillTasks?.[0]?.kind === "details" ? DOWNLOAD_PAUSE_MS : 0;
 				if (!rested && pause > 0) {
 					await pauseFor(pause);
 					rested = true;
@@ -1061,24 +1061,24 @@ export class SyncRunner {
 	private async planBackfillFor(store: VaultSeriesStore): Promise<Task[]> {
 		const settings = this.settings();
 		const today = toIsoDate();
-		const [scan, coverage, charts, index, runFiles] = await Promise.all([
+		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
 			store.readChartMetas(),
 			store.readActivities(),
-			store.readRunCoverage(),
+			store.readDetailCoverage(),
 		]);
 		const tasks = planBackfill({
 			today,
 			groups: settings.groups,
 			accepted: settings.data.accepted,
 			dayDetails: settings.data.dayDetails,
-			runDetails: settings.data.runDetails,
+			activityDetails: settings.data.activityDetails,
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			runs: index.rows.filter(this.isRun).map((row) => ({ id: row.id, date: row.start.slice(0, 10) })),
-			runFiles,
+			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			detailFiles,
 			...(settings.setup ? { since: settings.setup.completedAt.slice(0, 10) } : {}),
 			skip: this.backfillSkip,
 		});
@@ -1092,7 +1092,7 @@ export class SyncRunner {
 		for (const task of tasks) {
 			if (task.kind === "activities") n += 10;
 			else if (task.kind === "walk") n += 20;
-			else if (task.kind === "runs") n += task.ids.length * RUN_REQUESTS;
+			else if (task.kind === "details") n += task.ids.length * DETAIL_REQUESTS;
 			else n += spanDays(task.from, task.to) * requestsPerDay(groups);
 		}
 		return n;
@@ -1207,7 +1207,7 @@ export class SyncRunner {
 		const groups = this.settings().groups;
 		if (task.kind === "activities") return 10;
 		if (task.kind === "walk") return 20 * SYNC_SPEEDS[this.settings().syncSpeed].parallelDays;
-		if (task.kind === "runs") return RUN_REQUESTS;
+		if (task.kind === "details") return DETAIL_REQUESTS;
 		const chunk = nextChunk(task, chunkDays(groups, this.settings().syncSpeed));
 		return spanDays(chunk.from, chunk.to) * requestsPerDay(groups) + requestsPerChunk(groups);
 	}
@@ -1218,7 +1218,7 @@ export class SyncRunner {
 		const settings = this.settings();
 		if (task.kind === "activities") {
 			const got = await this.activityWalk(store);
-			// Done, or failed for a reason that is not the whole account's: the runs and walks read it next either way.
+			// Done, or failed for a reason that is not the whole account's: the details and walks read it next either way.
 			if (!got.fatal) tasks.shift();
 			return { requests: got.requests, ...(got.fatal ? { fatal: got.fatal } : {}) };
 		}
@@ -1242,14 +1242,14 @@ export class SyncRunner {
 			}
 			return { requests, ...(fatal ? { fatal } : {}) };
 		}
-		if (task.kind === "runs") {
+		if (task.kind === "details") {
 			const id = task.ids[0]!;
 			const load = await this.loadActivityFor(id, true);
-			if (load.fatal) return { requests: RUN_REQUESTS, fatal: load.fatal };
+			if (load.fatal) return { requests: DETAIL_REQUESTS, fatal: load.fatal };
 			task.ids.shift();
-			if (load.reason) this.backfillSkip.runs.add(id);
+			if (load.reason) this.backfillSkip.details.add(id);
 			if (!task.ids.length) tasks.shift();
-			return { requests: RUN_REQUESTS };
+			return { requests: DETAIL_REQUESTS };
 		}
 		const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
 		const report = await this.chunkSync(store, chunk);
@@ -1335,7 +1335,7 @@ export class SyncRunner {
 		this.unitsCache = null;
 		this.backfillTasks = null;
 		this.backfillPending = false;
-		this.backfillSkip = { days: new Set(), runs: new Set(), walks: new Set() };
+		this.backfillSkip = { days: new Set(), details: new Set(), walks: new Set() };
 		this.walkStreaks.clear();
 		this.clearBackfillTimer();
 		this.setBackfill(null);

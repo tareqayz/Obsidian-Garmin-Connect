@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { ACTIVITY_BLOCKS } from "../src/sync/activity-detail";
 import { INDEX_VERSION as ACTIVITY_INDEX_VERSION } from "../src/sync/activity-index";
 import { DAILY_STATS_VERSION } from "../src/sync/daily-stats";
-import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_VERSION, DAY_DETAILS_VERSION } from "../src/sync/datasets";
 import { DAY_INDEXES } from "../src/sync/day-indexes";
 import { DAYS_VERSION } from "../src/sync/days";
 import { SERIES_VERSION } from "../src/sync/intraday";
@@ -40,7 +40,7 @@ function current(): Record<string, Entry> {
 			version: DAY_DETAILS_VERSION,
 			shape: { endpoints, seriesKeys: [...SERIES_KEYS].sort(), kept: keptKeys(INTRADAY_EXTRAS).sort(), daysFile: DAYS_VERSION, seriesFile: SERIES_VERSION },
 		},
-		runs: { version: RUN_DETAILS_VERSION, shape: { blocks: [...ACTIVITY_BLOCKS] } },
+		"activity-details": { version: ACTIVITY_DETAILS_VERSION, shape: { blocks: [...ACTIVITY_BLOCKS] } },
 		activities: { version: ACTIVITY_INDEX_VERSION, shape: null },
 		"daily-stats": { version: DAILY_STATS_VERSION, shape: null },
 		sleep: { version: SLEEP_INDEX_VERSION, shape: null },

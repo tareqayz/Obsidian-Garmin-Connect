@@ -2,7 +2,7 @@ import { App, Modal, Notice } from "obsidian";
 import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
-import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION, type ConsentKey } from "../sync/datasets";
+import { ACTIVITY_DETAILS_VERSION, DAY_DETAILS_VERSION, type ConsentKey } from "../sync/datasets";
 import { estimate } from "../sync/estimate";
 import type { MfaPrompt } from "../garmin/auth";
 import type { AccountScan, ScanStep } from "../sync/scan";
@@ -53,7 +53,7 @@ export class SetupModal extends Modal {
 				onScan: async (onStep: (step: ScanStep) => void) => {
 					const got = await this.plugin.sync.scan({ onStep });
 					if (got && !got.fatal) {
-						// The activity list, for the runs' count: the first of the charts' walks anyway.
+						// The activity list, for Activity details' count: the first of the charts' walks anyway.
 						await this.plugin.sync.syncActivityHistory({ auto: true });
 						// Today and the days since the last sync while the user chooses, so Home has them.
 						void this.plugin.sync.syncRecent();
@@ -61,7 +61,7 @@ export class SetupModal extends Modal {
 					return got;
 				},
 				prepare: (scan: AccountScan) => this.prepare(scan),
-				initialChoices: { dayDetails: settings.data.dayDetails, runDetails: settings.data.runDetails },
+				initialChoices: { dayDetails: settings.data.dayDetails, activityDetails: settings.data.activityDetails },
 				initialSpeed: settings.syncSpeed,
 				today: toIsoDate(),
 				onStart: (choices: Choices, speed: SyncSpeed) => void this.finish(choices, speed, agreement(settings.groups)),
@@ -86,24 +86,23 @@ export class SetupModal extends Modal {
 	private async prepare(scan: AccountScan): Promise<Prepared> {
 		const settings = this.plugin.data.settings;
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		const [index, coverage, runFiles, charts] = await Promise.all([
+		const [index, coverage, detailFiles, charts] = await Promise.all([
 			store.readActivities(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
-			store.readRunCoverage(),
+			store.readDetailCoverage(),
 			store.readChartMetas(),
 		]);
-		const runs = index.rows.filter((row) => this.plugin.isRun(row)).map((row) => ({ id: row.id, date: row.start.slice(0, 10) }));
+		const activities = index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.plugin.isRun(row) }));
 		let days = 0;
 		for (const [from, to, version] of coverage.spans) {
 			if (version !== DAY_DETAILS_VERSION) continue;
 			days += Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 		}
-		const held = { days, runs: [...runFiles.values()].filter((v) => v === RUN_DETAILS_VERSION).length, bytes: store.diskUsage().total };
+		const held = { days, activities: [...detailFiles.values()].filter((v) => v === ACTIVITY_DETAILS_VERSION).length, bytes: store.diskUsage().total };
 		const today = toIsoDate();
 		const heldCharts = new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null));
 		return {
 			held,
-			runs: runs.length,
 			estimate: (choices: Choices, speed: SyncSpeed) =>
 				estimate({
 					today,
@@ -111,8 +110,8 @@ export class SetupModal extends Modal {
 					speed,
 					scan,
 					...choices,
-					runs,
-					held: { daySpans: coverage.spans, runs: runFiles, charts: heldCharts },
+					activities,
+					held: { daySpans: coverage.spans, details: detailFiles, charts: heldCharts },
 				}),
 		};
 	}

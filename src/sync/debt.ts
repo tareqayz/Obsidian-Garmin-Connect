@@ -1,27 +1,30 @@
 import { gaps, stale, type Span } from "./coverage";
 import {
+	ACTIVITY_DETAILS_KEY,
+	ACTIVITY_DETAILS_STORE,
+	ACTIVITY_DETAILS_VERSION,
 	chartKeys,
 	consentKey,
 	dataSet,
 	DAY_DETAILS_VERSION,
+	LEGACY_RUNS_STORE,
 	parseConsentKey,
 	rangeStart,
-	RUN_DETAILS_VERSION,
+	type ActivityDetailsRange,
 	type ConsentKey,
 	type DataSetId,
 	type DayDetailsRange,
-	type RunDetailsRange,
 } from "./datasets";
 import { dayIndex } from "./day-indexes";
-import type { ChartMeta } from "./backfill";
+import type { ChartMeta, DetailCandidate } from "./backfill";
 import type { MetricGroup } from "./metrics";
 import { daysSince, historyStart, type AccountScan } from "./scan";
 
 /**
  * What an update offers: the stores at today's version that the user has
  * not said yes or "later" to, and that have something to fetch — a chart
- * index never walked, Day details saved by an older version, runs whose
- * page is missing or older.
+ * index never walked, Day details saved by an older version, activities
+ * whose page is missing or older.
  *
  * A store agreed to at an older version still fills its gaps without
  * asking (see `planBackfill`); only what it held at that version is asked
@@ -36,15 +39,15 @@ export interface DebtInput {
 	accepted: readonly ConsentKey[];
 	deferred: readonly ConsentKey[];
 	dayDetails: DayDetailsRange;
-	runDetails: RunDetailsRange;
+	activityDetails: ActivityDetailsRange;
 	/** The day the setup finished: where "New days only" starts. */
 	since?: string;
 	scan: AccountScan | null;
 	daySpans: readonly Span[];
 	charts: ReadonlyMap<string, ChartMeta | null>;
-	/** The runs on the activity index. */
-	runs: ReadonlyArray<{ id: number; date: string }>;
-	runFiles: ReadonlyMap<number, number>;
+	/** Every activity on the index. */
+	activities: readonly DetailCandidate[];
+	detailFiles: ReadonlyMap<number, number>;
 }
 
 /** One line of the update dialog. */
@@ -54,7 +57,7 @@ export interface DebtItem {
 	title: string;
 	/** "new", or what this version adds. */
 	detail: string;
-	/** For Charts & trends, the store walked; for Day details the days to fetch; for Run details the runs. */
+	/** For Charts & trends, the store walked; for Day details the days to fetch; for Activity details the activities. */
 	store: string;
 	units: number;
 }
@@ -105,24 +108,35 @@ export function debtItems(input: DebtInput): DebtItem[] {
 		}
 	}
 
-	const runsKey = consentKey("runs", RUN_DETAILS_VERSION);
-	if (!accepted.has(runsKey)) {
-		const from = rangeStart(input.runDetails, input.today, start);
+	if (!accepted.has(ACTIVITY_DETAILS_KEY)) {
+		const from = rangeStart(input.activityDetails, input.today, start);
 		if (from) {
-			const older = agreedBefore(input.accepted, "runs");
-			const due = input.runs.filter((run) => {
-				if (run.date < from) return false;
-				const held = input.runFiles.get(run.id);
-				return older ? held !== undefined && held !== RUN_DETAILS_VERSION : held !== RUN_DETAILS_VERSION;
-			});
-			if (due.length) {
+			// Gaps fill under an older agreement already: an older Activity details one for
+			// every sport, Run details' for runs. Only what an older version saved is asked about.
+			const older = agreedBefore(input.accepted, ACTIVITY_DETAILS_STORE);
+			const runs = agreedBefore(input.accepted, LEGACY_RUNS_STORE);
+			let missing = 0;
+			let old = 0;
+			for (const activity of input.activities) {
+				if (activity.date < from) continue;
+				const held = input.detailFiles.get(activity.id);
+				if (held === ACTIVITY_DETAILS_VERSION) continue;
+				if (held !== undefined) old += 1;
+				else if (!older && !(runs && activity.run)) missing += 1;
+			}
+			if (missing + old) {
+				const change = dataSet("activity-details").changes[ACTIVITY_DETAILS_VERSION]?.summary;
+				const oldText = `${missing ? `${old.toLocaleString("en-US")}` : plural(old, "activity", "activities")} saved by an older version`;
 				out.push({
-					key: runsKey,
-					set: "run-details",
-					title: "Run details",
-					detail: older ? `${plural(due.length, "run")} saved by an older version` : plural(due.length, "run"),
-					store: "runs",
-					units: due.length,
+					key: ACTIVITY_DETAILS_KEY,
+					set: "activity-details",
+					title: "Activity details",
+					detail: [
+						...(missing ? [plural(missing, "activity", "activities")] : []),
+						...(old ? [missing || !change ? oldText : `${oldText}: ${lower(change)}`] : []),
+					].join(" · "),
+					store: ACTIVITY_DETAILS_STORE,
+					units: missing + old,
 				});
 			}
 		}
@@ -154,8 +168,8 @@ function count(ranges: ReadonlyArray<{ from: string; to: string }>): number {
 	return ranges.reduce((n, r) => n + Math.round((Date.parse(`${r.to}T00:00:00Z`) - Date.parse(`${r.from}T00:00:00Z`)) / 86_400_000) + 1, 0);
 }
 
-function plural(n: number, word: string): string {
-	return `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
+function plural(n: number, word: string, many = `${word}s`): string {
+	return `${n.toLocaleString("en-US")} ${n === 1 ? word : many}`;
 }
 
 function lower(text: string): string {

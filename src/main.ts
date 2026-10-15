@@ -295,12 +295,12 @@ export default class GarminPlugin extends Plugin {
 		if (!settings.setup) return [];
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		if (!store.hasData()) return [];
-		const [scan, coverage, charts, index, runFiles] = await Promise.all([
+		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
 			store.readChartMetas(),
 			store.readActivities(),
-			store.readRunCoverage(),
+			store.readDetailCoverage(),
 		]);
 		const input = {
 			today: toIsoDate(),
@@ -308,13 +308,13 @@ export default class GarminPlugin extends Plugin {
 			accepted: settings.data.accepted,
 			deferred: settings.data.deferred,
 			dayDetails: settings.data.dayDetails,
-			runDetails: settings.data.runDetails,
+			activityDetails: settings.data.activityDetails,
 			since: settings.setup.completedAt.slice(0, 10),
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			runs: index.rows.filter((row) => this.isRun(row)).map((row) => ({ id: row.id, date: row.start.slice(0, 10) })),
-			runFiles,
+			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			detailFiles,
 		};
 		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
 		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...costOf(item, settings.groups, settings.syncSpeed) }));
@@ -340,7 +340,7 @@ export default class GarminPlugin extends Plugin {
 		if (keys.length) this.sync.kickBackfill();
 	}
 
-	/** The rows that are runs, the ones whose page opens: what Run details downloads. */
+	/** The rows that are runs: all an older Run details agreement downloads, before Activity details is agreed to. */
 	isRun(row: ActivityRow): boolean {
 		return categoryOf(row) === "running";
 	}

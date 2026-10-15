@@ -115,7 +115,7 @@ already holds has to fetch those days again, and ask first. Such a change:
 
 1. Bumps the data set's version: `DAY_DETAILS_VERSION` in `src/sync/datasets.ts` for the
    day files and timelines, `ACTIVITY_DETAIL_VERSION` in `src/sync/activity-detail.ts`
-   (which `RUN_DETAILS_VERSION` follows) for a run's page, or the index's own `version`
+   (which `ACTIVITY_DETAILS_VERSION` follows) for an activity's page, or the index's own `version`
    for a chart history.
 2. Adds a line to the set's `changes` in `src/sync/datasets.ts`, keyed by the new
    version. For Day details its summary is what the update dialog says about the days

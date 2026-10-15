@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import type { MfaPrompt } from "../../../garmin/auth";
-	import { DAY_DETAILS_RANGES, RUN_DETAILS_RANGES, type DayDetailsRange, type RunDetailsRange } from "../../../sync/datasets";
+	import { ACTIVITY_DETAILS_RANGES, DAY_DETAILS_RANGES, type ActivityDetailsRange, type DayDetailsRange } from "../../../sync/datasets";
 	import { formatBytes, formatDuration } from "../../../sync/estimate";
 	import type { AccountScan, ScanResult, ScanStep } from "../../../sync/scan";
 	import { SPEED_LABELS, type SyncSpeed } from "../../../sync/speed";
@@ -36,7 +36,7 @@
 	// svelte-ignore state_referenced_locally
 	let dayDetails = $state<DayDetailsRange>(initialChoices.dayDetails);
 	// svelte-ignore state_referenced_locally
-	let runDetails = $state<RunDetailsRange>(initialChoices.runDetails);
+	let activityDetails = $state<ActivityDetailsRange>(initialChoices.activityDetails);
 	// svelte-ignore state_referenced_locally
 	let speed = $state<SyncSpeed>(initialSpeed);
 
@@ -47,10 +47,10 @@
 	let prepared = $state<Prepared | null>(null);
 	let scanError = $state("");
 
-	let estimate = $derived(prepared ? prepared.estimate({ dayDetails, runDetails }, speed) : null);
+	let estimate = $derived(prepared ? prepared.estimate({ dayDetails, activityDetails }, speed) : null);
 	let charts = $derived(estimate?.sets.find((s) => s.id === "charts"));
 	let days = $derived(estimate?.sets.find((s) => s.id === "day-details"));
-	let runs = $derived(estimate?.sets.find((s) => s.id === "run-details"));
+	let details = $derived(estimate?.sets.find((s) => s.id === "activity-details"));
 
 	const SPEEDS: SyncSpeed[] = ["gentle", "normal", "fast"];
 	const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -138,11 +138,11 @@
 		return `≈ ${formatBytes(days.bytes)} · ${formatDuration(days.seconds)} · ${grows}`;
 	}
 
-	function runsMeta(): string {
-		if (!runs) return "";
-		if (runDetails === "opened") return "Downloaded when you open a run · ≈ 150 KB each";
-		if (!runs.units) return "Every run is in this vault already";
-		return `${count.format(runs.units)} ${runs.units === 1 ? "run" : "runs"} · ≈ ${formatBytes(runs.bytes)} · ${formatDuration(runs.seconds)}`;
+	function detailsMeta(): string {
+		if (!details) return "";
+		if (activityDetails === "opened") return "Downloaded when you open an activity · ≈ 150 KB each";
+		if (!details.units) return "Every activity is in this vault already";
+		return `${count.format(details.units)} ${details.units === 1 ? "activity" : "activities"} · ≈ ${formatBytes(details.bytes)} · ${formatDuration(details.seconds)}`;
 	}
 
 	function daysSummary(): string {
@@ -151,10 +151,10 @@
 		return `${rangeLabel(DAY_DETAILS_RANGES, dayDetails)} (${units ? `${count.format(units)} ${units === 1 ? "day" : "days"}` : "all in this vault already"})`;
 	}
 
-	function runsSummary(): string {
-		if (runDetails === "opened") return "when you open a run";
-		const units = runs?.units ?? 0;
-		return `${rangeLabel(RUN_DETAILS_RANGES, runDetails)} (${units ? `${count.format(units)} ${units === 1 ? "run" : "runs"}` : "all in this vault already"})`;
+	function detailsSummary(): string {
+		if (activityDetails === "opened") return "when you open an activity";
+		const units = details?.units ?? 0;
+		return `${rangeLabel(ACTIVITY_DETAILS_RANGES, activityDetails)} (${units ? `${count.format(units)} ${units === 1 ? "activity" : "activities"}` : "all in this vault already"})`;
 	}
 
 	/** "≈ 5.1 MB now · about 2 minutes", or that there is nothing to fetch. */
@@ -222,13 +222,13 @@
 				<div class="headline">{scanRange(scan)}</div>
 				<div class="sub">
 					{count.format(scan.days)} days with health data · {count.format(scan.activities)}
-					{scan.activities === 1 ? "activity" : "activities"}{prepared?.runs ? `, ${count.format(prepared.runs)} of them runs` : ""}
+					{scan.activities === 1 ? "activity" : "activities"}
 				</div>
 			</div>
-			{#if prepared && (prepared.held.days || prepared.held.runs)}
+			{#if prepared && (prepared.held.days || prepared.held.activities)}
 				{@render tip(
 					"info",
-					`Already in this vault: ${count.format(prepared.held.days)} days of details and ${count.format(prepared.held.runs)} runs (${formatBytes(prepared.held.bytes)}). Only what’s missing will be downloaded.`,
+					`Already in this vault: ${count.format(prepared.held.days)} days of details and ${count.format(prepared.held.activities)} ${prepared.held.activities === 1 ? "activity" : "activities"} (${formatBytes(prepared.held.bytes)}). Only what’s missing will be downloaded.`,
 				)}
 			{/if}
 			<div class="footer">
@@ -239,7 +239,7 @@
 			<h3>There’s no data on Garmin yet.</h3>
 			<div class="body">Wear your watch and sync it with the Garmin Connect app. New days appear here automatically.</div>
 			<div class="footer">
-				<button class="mod-cta" onclick={() => onStart({ dayDetails, runDetails }, speed)}>Done</button>
+				<button class="mod-cta" onclick={() => onStart({ dayDetails, activityDetails }, speed)}>Done</button>
 			</div>
 		{:else}
 			{@render tip("circle-alert", scanError || "The scan stopped before it finished.", "error")}
@@ -273,12 +273,12 @@
 			</div>
 			<div class="set">
 				<div class="set-text">
-					<div class="set-title">Run details</div>
-					<div class="set-blurb">Map, pace and heart-rate charts, splits and laps for each run.</div>
-					<div class="set-meta">{runsMeta()}</div>
+					<div class="set-title">Activity details</div>
+					<div class="set-blurb">Map, charts, laps and stats for each activity: runs, rides, swims and every other sport.</div>
+					<div class="set-meta">{detailsMeta()}</div>
 				</div>
-				<select class="dropdown" bind:value={runDetails} aria-label="Which runs to download">
-					{#each RUN_DETAILS_RANGES as range}<option value={range.id}>{range.label}</option>{/each}
+				<select class="dropdown" bind:value={activityDetails} aria-label="Which activities to download">
+					{#each ACTIVITY_DETAILS_RANGES as range}<option value={range.id}>{range.label}</option>{/each}
 				</select>
 			</div>
 		</div>
@@ -310,7 +310,7 @@
 		<ul class="plan">
 			<li><span class="plan-icon" use:lucide={"chart-line"}></span><span>Charts &amp; trends <span class="muted">— all history</span></span></li>
 			<li><span class="plan-icon" use:lucide={"calendar"}></span><span>Day details <span class="muted">— {daysSummary()}</span></span></li>
-			<li><span class="plan-icon" use:lucide={"route"}></span><span>Run details <span class="muted">— {runsSummary()}</span></span></li>
+			<li><span class="plan-icon" use:lucide={"route"}></span><span>Activity details <span class="muted">— {detailsSummary()}</span></span></li>
 		</ul>
 		{#if estimate}
 			<div class="totals single">
@@ -322,7 +322,7 @@
 			<button onclick={() => onNewDaysOnly(speed)}>Keep new days only</button>
 			<div class="footer-end">
 				<button onclick={() => (flow = back(flow, signed))}>Back</button>
-				<button class="mod-cta" onclick={() => onStart({ dayDetails, runDetails }, speed)}>Start download</button>
+				<button class="mod-cta" onclick={() => onStart({ dayDetails, activityDetails }, speed)}>Start download</button>
 			</div>
 		</div>
 	{/if}

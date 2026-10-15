@@ -15,8 +15,9 @@ import { SLEEP_INDEX_VERSION } from "./sleep-index";
  *   about 0.9 MB and 150 requests a year.
  * - **Day details**: each day's file and its full timelines, back as far as
  *   the chosen range. Every new day is kept whatever the range.
- * - **Run details**: a run's page — map, charts, splits, laps — for the
- *   chosen range, or only the runs opened.
+ * - **Activity details**: an activity's page — map, charts, laps, stats —
+ *   for the chosen range, or only the activities opened. Every sport has a
+ *   page; until 2026-10 only runs did, and the set was "Run details".
  *
  * **When a release stores more for days the vault already holds**, bump the
  * version here (or the index's own `version`) and add a line to `changes`.
@@ -30,10 +31,10 @@ import { SLEEP_INDEX_VERSION } from "./sleep-index";
 /** The day files plus each day's full timelines. */
 export const DAY_DETAILS_VERSION = 1;
 
-/** A downloaded run's file: `ACTIVITY_DETAIL_VERSION`, which `activity-detail.ts` owns. */
-export const RUN_DETAILS_VERSION = ACTIVITY_DETAIL_VERSION;
+/** A downloaded activity's file: `ACTIVITY_DETAIL_VERSION`, which `activity-detail.ts` owns. */
+export const ACTIVITY_DETAILS_VERSION = ACTIVITY_DETAIL_VERSION;
 
-export type DataSetId = "charts" | "day-details" | "run-details";
+export type DataSetId = "charts" | "day-details" | "activity-details";
 
 /** What a version of a set added, for the update dialog. */
 export interface DataChange {
@@ -67,9 +68,9 @@ export const DATA_SETS: readonly DataSet[] = [
 		changes: { 1: { summary: "Day files with full timelines, floors, intensity minutes and the night's detail.", refetch: true } },
 	},
 	{
-		id: "run-details",
-		label: "Run details",
-		blurb: "Map, pace and heart-rate charts, splits and laps for each run.",
+		id: "activity-details",
+		label: "Activity details",
+		blurb: "Map, charts, laps and stats for each activity: runs, rides, swims and every other sport.",
 		changes: { 5: { summary: "Run pages: samples, laps, splits, zones, weather, gear and device.", refetch: true } },
 	},
 ];
@@ -85,8 +86,8 @@ export function dataSet(id: DataSetId): DataSet {
 /** How far back Day details go. Every new day is kept whatever the choice. */
 export type DayDetailsRange = "new" | "30d" | "90d" | "1y" | "all";
 
-/** Which runs get their page downloaded: from the range on, or only the runs opened. */
-export type RunDetailsRange = "opened" | "90d" | "1y" | "all";
+/** Which activities get their page downloaded: from the range on, or only the ones opened. */
+export type ActivityDetailsRange = "opened" | "90d" | "1y" | "all";
 
 export const DAY_DETAILS_RANGES: ReadonlyArray<{ id: DayDetailsRange; label: string }> = [
 	{ id: "new", label: "New days only" },
@@ -96,32 +97,32 @@ export const DAY_DETAILS_RANGES: ReadonlyArray<{ id: DayDetailsRange; label: str
 	{ id: "all", label: "All history" },
 ];
 
-export const RUN_DETAILS_RANGES: ReadonlyArray<{ id: RunDetailsRange; label: string }> = [
-	{ id: "opened", label: "Only runs I open" },
+export const ACTIVITY_DETAILS_RANGES: ReadonlyArray<{ id: ActivityDetailsRange; label: string }> = [
+	{ id: "opened", label: "Only activities I open" },
 	{ id: "90d", label: "Last 90 days" },
 	{ id: "1y", label: "Last year" },
-	{ id: "all", label: "All runs" },
+	{ id: "all", label: "All activities" },
 ];
 
 export const DEFAULT_DAY_DETAILS: DayDetailsRange = "90d";
-export const DEFAULT_RUN_DETAILS: RunDetailsRange = "opened";
+export const DEFAULT_ACTIVITY_DETAILS: ActivityDetailsRange = "opened";
 
 export function isDayDetailsRange(value: unknown): value is DayDetailsRange {
 	return DAY_DETAILS_RANGES.some((r) => r.id === value);
 }
 
-export function isRunDetailsRange(value: unknown): value is RunDetailsRange {
-	return RUN_DETAILS_RANGES.some((r) => r.id === value);
+export function isActivityDetailsRange(value: unknown): value is ActivityDetailsRange {
+	return ACTIVITY_DETAILS_RANGES.some((r) => r.id === value);
 }
 
 const SPAN_DAYS: Record<"30d" | "90d" | "1y", number> = { "30d": 30, "90d": 90, "1y": 365 };
 
 /**
  * The oldest day a range backfills, or null when it backfills nothing:
- * "new days only", "only runs I open", or "all" before anything says where
- * the history starts.
+ * "new days only", "only activities I open", or "all" before anything says
+ * where the history starts.
  */
-export function rangeStart(range: DayDetailsRange | RunDetailsRange, today: string, historyStart?: string): string | null {
+export function rangeStart(range: DayDetailsRange | ActivityDetailsRange, today: string, historyStart?: string): string | null {
 	if (range === "new" || range === "opened") return null;
 	if (range === "all") return historyStart ?? null;
 	const from = shiftDate(today, -(SPAN_DAYS[range] - 1));
@@ -160,4 +161,17 @@ export function chartKeys(groups: readonly MetricGroup[]): ConsentKey[] {
 }
 
 export const DAY_DETAILS_KEY: ConsentKey = consentKey("days", DAY_DETAILS_VERSION);
-export const RUN_DETAILS_KEY: ConsentKey = consentKey("runs", RUN_DETAILS_VERSION);
+
+/** Activity details' store in the ledger. */
+export const ACTIVITY_DETAILS_STORE = "activity-details";
+export const ACTIVITY_DETAILS_KEY: ConsentKey = consentKey(ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION);
+
+/**
+ * Run details' store, from when only runs had a page. Agreed to at any
+ * version, it still downloads the runs of the range — gaps only, and runs
+ * only — until Activity details is agreed to, which then asks once about
+ * the other sports and the runs an older version saved.
+ */
+export const LEGACY_RUNS_STORE = "runs";
+/** What a vault with "Download runs" on agreed to, as the settings migration records it. */
+export const LEGACY_RUNS_KEY: ConsentKey = consentKey(LEGACY_RUNS_STORE, 5);
