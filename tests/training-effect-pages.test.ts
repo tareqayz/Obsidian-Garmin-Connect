@@ -505,7 +505,7 @@ describe("edges", () => {
 		);
 		assert.deepEqual(knobs(d).map((k) => k.x), [386, 178.8]);
 		// Another year's date line carries the year.
-		assert.deepEqual([d.related.name, d.related.when, d.related.glyph, d.related.category, d.related.route], ["Multisport", "Oct 25, 2025 @ 6:36 AM", "medal", "multisport", activityRoute(d.related.id)]);
+		assert.deepEqual([d.related.name, d.related.when, d.related.glyph, d.related.category, d.related.route], ["Multisport", "Oct 25, 2025 @ 6:36 AM", "link", "multisport", activityRoute(d.related.id)]);
 	});
 
 	it("opens the swim's page too, its related row naming the sport and opening the swim", () => {

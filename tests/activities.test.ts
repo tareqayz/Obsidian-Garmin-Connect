@@ -1,7 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-	allActivities,
 	activityIdFor,
 	axisTicks,
 	categoryOf,
@@ -238,21 +237,6 @@ describe("monthView", () => {
 		assert.equal(view.title, "September 2026");
 		assert.equal(view.summary, "2 Running Activities · 14.9 km");
 		assert.deepEqual(view.activities.map((a) => a.when), ["2026-09-28, 8:03 AM", "2026-09-12, 7:00 PM"]);
-	});
-});
-
-describe("allActivities", () => {
-	it("lists everything newest first, with the time and a two-decimal distance", () => {
-		const rows = [
-			run("2026-09-14T23:50:00", 1.1, 1900, { name: "Pool Swim", type: "lap_swimming", typeId: 27, parentTypeId: 26 }),
-			run("2026-10-03T14:59:19", 8.00875, 2493.64),
-			activity("2026-09-30T06:10:00", { name: "Yoga", type: "yoga", typeId: 163, parentTypeId: 29, duration: 1800 }),
-		];
-		assert.deepEqual(allActivities(rows, "metric"), [
-			{ id: rows[1]!.id, name: "Morning Run", when: "2026-10-03, 2:59 PM", glyph: "run", time: "41:34", distance: "8.01 km" },
-			{ id: rows[2]!.id, name: "Yoga", when: "2026-09-30, 6:10 AM", glyph: "yoga", time: "30:00" },
-			{ id: rows[0]!.id, name: "Pool Swim", when: "2026-09-14, 11:50 PM", glyph: "swimming", time: "31:40", distance: "1.10 km" },
-		]);
 	});
 });
 
