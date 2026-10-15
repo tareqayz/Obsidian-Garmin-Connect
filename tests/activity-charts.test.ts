@@ -103,9 +103,11 @@ function run(): ActivityDetail {
 }
 
 const RUN = run();
-const cards = (route: Partial<ChartsRoute> = {}) => chartsTabView(RUN, { axis: "time", ...route }, "metric").cards;
+/** The tab's route as these tests write it: the axis and the run's three picker choices, which the route keeps in `picks`. */
+type TabRoute = { axis?: ChartsRoute["axis"]; pace?: string; heart?: string; power?: string };
+const cards = ({ axis = "time", ...picks }: TabRoute = {}) => chartsTabView(RUN, { axis, picks: picks as Record<string, string> }, "metric").cards;
 const find = <T extends ChartCard>(list: ChartCard[], id: string) => list.find((c) => c.id === id) as T;
-const chart = (id: string, route: Partial<ChartsRoute> = {}) => find<SeriesChart>(cards(route), id);
+const chart = (id: string, route: TabRoute = {}) => find<SeriesChart>(cards(route), id);
 const label = (plot: { yLabels: Array<{ y: number; text: string }> }, text: string) => plot.yLabels.find((l) => l.text === text)!.y;
 
 describe("seriesPlot: the twin's phone section (406:1830, box from the figures' bottom at 120.47)", () => {
@@ -215,7 +217,7 @@ describe("seriesPlot: the twin's phone section (406:1830, box from the figures' 
 
 describe("seriesPlot: labels where the phone draws them", () => {
 	it("draws a label up to 6 pt past the plot: VO's 12 at 5.3 above, Pace's 5:00 at 2.0, GAP's 4:10 at 1.0, Stride's 1.5 at 0.3", () => {
-		const above = (id: string, text: string, route: Partial<ChartsRoute> = {}) => {
+		const above = (id: string, text: string, route: TabRoute = {}) => {
 			const p = seriesPlot(chart(id, route), PHONE);
 			return p.plot.top - label(p, text);
 		};

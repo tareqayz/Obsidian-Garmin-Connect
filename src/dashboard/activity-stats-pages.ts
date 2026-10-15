@@ -39,6 +39,10 @@ import { duration } from "./series";
  * plugin's helpers; stride in feet, vertical oscillation in inches, step speed
  * loss in in/s and sweat loss in oz are Inferred (no imperial shots).
  *
+ * What the run shows is the default. Another sport passes its `StatsSpec` and
+ * `LapsSpec` (its profile's `stats` and `laps`), built from the row builders
+ * and helpers exported below.
+ *
  * Pure: no Obsidian import.
  */
 
@@ -46,44 +50,23 @@ import { duration } from "./series";
 /*  Stats                                                              */
 /* ------------------------------------------------------------------ */
 
-export type StatsSectionId =
-	| "pace"
-	| "speed"
-	| "timing"
-	| "run-walk"
-	| "heart-rate"
-	| "stamina"
-	| "training-effect"
-	| "power"
-	| "running-dynamics"
-	| "impact-load"
-	| "elevation"
-	| "workout-intervals"
-	| "nutrition"
-	| "respiration"
-	| "intensity-minutes"
-	| "body-battery";
+/**
+ * A section: the run's are `pace`, `speed`, `timing`, `run-walk`,
+ * `heart-rate`, `stamina`, `training-effect`, `power`, `running-dynamics`,
+ * `impact-load`, `elevation`, `workout-intervals`, `nutrition`,
+ * `respiration`, `intensity-minutes` and `body-battery`; a sport adds its own.
+ */
+export type StatsSectionId = string;
 
 /**
  * The chart a row's blue waveform badge opens, as the expanded chart's id on
  * the route (`sub: "chart:<id>"`). The Overview's badges use the same ids
- * ("heart-rate", "pace").
+ * ("heart-rate", "pace"). The run's are `pace`, `gap`, `run-walk`,
+ * `heart-rate`, `stamina`, `training-effect`, `power`, `cadence`,
+ * `stride-length`, `vertical-ratio`, `vertical-oscillation`,
+ * `ground-contact-time`, `impact-load` and `elevation`.
  */
-export type StatsChartId =
-	| "pace"
-	| "gap"
-	| "run-walk"
-	| "heart-rate"
-	| "stamina"
-	| "training-effect"
-	| "power"
-	| "cadence"
-	| "stride-length"
-	| "vertical-ratio"
-	| "vertical-oscillation"
-	| "ground-contact-time"
-	| "impact-load"
-	| "elevation";
+export type StatsChartId = string;
 
 /** A label on the left, its value on the right: "Avg Pace" · "5:36 /km". */
 export interface StatsRow {
@@ -124,14 +107,37 @@ const HELP: ReadonlySet<StatsSectionId> = new Set<StatsSectionId>([
 	"nutrition",
 ]);
 
+/** A section as a sport lists it: its id, its title, and its rows (none: the section is left out). */
+export type StatsTableRow = readonly [id: StatsSectionId, title: string, rows: StatsRow[]];
+
+/** The Stats tab of a sport: its profile's `stats`. The run's is `RUN_STATS`, the default. */
+export interface StatsSpec {
+	/** Every section the sport can show, in its order. */
+	table: (detail: ActivityDetail, units: Units) => readonly StatsTableRow[];
+	/** The sections whose heading has a HELP link. */
+	help: readonly StatsSectionId[];
+}
+
+/**
+ * The Stats tab: its sections in the sport's order (the run's by default, the
+ * phone's), each only with data.
+ */
+export function statsView(detail: ActivityDetail, units: Units, spec: StatsSpec = RUN_STATS): StatsSection[] {
+	const help = spec === RUN_STATS ? HELP : new Set(spec.help);
+	return spec.table(detail, units)
+		.filter(([, , rows]) => rows.length > 0)
+		.map(([id, title, rows]) => ({ id, title, help: help.has(id), rows }));
+}
+
 /**
  * Sports Garmin paces: running, walking, hiking. Others (a ride opened from
- * All Activities) get speeds only (Inferred: only runs are specified).
+ * All Activities) get speeds only (Inferred: only runs are specified). Only
+ * the run's table asks; another sport's spec decides for itself.
  */
 const PACED = /run|walk|hik|ruck/;
 
-/** The Stats tab: its sections in the phone's order, each only with data. */
-export function statsView(detail: ActivityDetail, units: Units): StatsSection[] {
+/** The run's sections in the phone's order. */
+function runTable(detail: ActivityDetail, units: Units): StatsTableRow[] {
 	const v: Get = (key) => numberOf(detail.summary[key]);
 	const paced = !detail.type || PACED.test(detail.type);
 	const sections: Array<[StatsSectionId, string, StatsRow[]]> = [
@@ -154,12 +160,21 @@ export function statsView(detail: ActivityDetail, units: Units): StatsSection[] 
 		["intensity-minutes", "Intensity Minutes", intensityRows(v)],
 		["body-battery", "Body Battery", bodyBatteryRows(v)],
 	];
-	return sections.filter(([, , rows]) => rows.length > 0).map(([id, title, rows]) => ({ id, title, help: HELP.has(id), rows }));
+	return sections;
 }
 
-type Get = (key: string) => number | undefined;
+/** The run's Stats tab: its sixteen sections and the nine HELP links. */
+export const RUN_STATS: StatsSpec = { table: runTable, help: [...HELP] };
 
-function paceRows(v: Get, units: Units): StatsRow[] {
+/** A summary value by Garmin's key: a finite number, or undefined. */
+export type Get = (key: string) => number | undefined;
+
+/** The summary's numbers, as the row builders read them. */
+export function summaryOf(detail: ActivityDetail): Get {
+	return (key) => numberOf(detail.summary[key]);
+}
+
+export function paceRows(v: Get, units: Units): StatsRow[] {
 	const unit = paceUnit(units);
 	return rows(
 		stat("Avg Pace", paceOf(v("averageSpeed"), units), unit, { chart: "pace" }),
@@ -169,7 +184,7 @@ function paceRows(v: Get, units: Units): StatsRow[] {
 	);
 }
 
-function speedRows(v: Get, units: Units): StatsRow[] {
+export function speedRows(v: Get, units: Units): StatsRow[] {
 	const unit = units === "imperial" ? "mph" : "km/h";
 	return rows(
 		stat("Avg Speed", speedOf(v("averageSpeed"), units), unit),
@@ -179,7 +194,7 @@ function speedRows(v: Get, units: Units): StatsRow[] {
 	);
 }
 
-function timingRows(v: Get): StatsRow[] {
+export function timingRows(v: Get): StatsRow[] {
 	return rows(
 		stat("Total Time", timeOf(v("duration"))),
 		stat("Moving Time", timeOf(v("movingDuration"))),
@@ -193,7 +208,7 @@ function timingRows(v: Get): StatsRow[] {
  * without any idle split; a run with no idle split at all (the treadmill's)
  * shows it the same way (Inferred: the web drops the row on both runs).
  */
-function runWalkRows(segments: readonly ActivitySegment[]): StatsRow[] {
+export function runWalkRows(segments: readonly ActivitySegment[]): StatsRow[] {
 	const detected = segments.filter((s) => s.type.startsWith("RWD_"));
 	if (!detected.length) return [];
 	const total = (type: string) => detected.filter((s) => s.type === type).reduce((sum, s) => sum + s.duration, 0);
@@ -204,14 +219,14 @@ function runWalkRows(segments: readonly ActivitySegment[]): StatsRow[] {
 	);
 }
 
-function heartRateRows(v: Get): StatsRow[] {
+export function heartRateRows(v: Get): StatsRow[] {
 	return rows(
 		stat("Avg Heart Rate", whole(v("averageHR")), "bpm", { chart: "heart-rate" }),
 		stat("Max Heart Rate", whole(v("maxHR")), "bpm"),
 	);
 }
 
-function staminaRows(v: Get): StatsRow[] {
+export function staminaRows(v: Get): StatsRow[] {
 	return rows(
 		stat("Beginning Potential", whole(v("beginPotentialStamina")), "%", { chart: "stamina" }),
 		stat("Ending Potential", whole(v("endPotentialStamina")), "%"),
@@ -220,7 +235,7 @@ function staminaRows(v: Get): StatsRow[] {
 }
 
 /** Primary Benefit on two lines, "Threshold" over "(High Aerobic)"; both scores open the Training Effect chart. */
-function trainingEffectRows(detail: ActivityDetail, v: Get): StatsRow[] {
+export function trainingEffectRows(detail: ActivityDetail, v: Get): StatsRow[] {
 	const benefit = primaryBenefit(detail.summary.trainingEffectLabel);
 	return rows(
 		benefit ? { label: "Primary Benefit", value: benefit.name, text: benefit.label, ...(benefit.group ? { sub: `(${benefit.group})` } : {}) } : null,
@@ -231,7 +246,7 @@ function trainingEffectRows(detail: ActivityDetail, v: Get): StatsRow[] {
 }
 
 /** Wind Data only beside a power figure: without power there is no section to put it in. */
-function powerRows(detail: ActivityDetail, v: Get): StatsRow[] {
+export function powerRows(detail: ActivityDetail, v: Get): StatsRow[] {
 	const power = rows(stat("Avg Power", whole(v("averagePower")), "W", { chart: "power" }), stat("Max Power", whole(v("maxPower")), "W"));
 	if (power.length && typeof detail.windData === "boolean") power.push(stat("Wind Data", detail.windData ? "Enabled" : "Disabled")!);
 	return power;
@@ -243,7 +258,7 @@ function powerRows(detail: ActivityDetail, v: Get): StatsRow[] {
  * 50.9% R", "26.0 cm/s", "7.38%". The extras carry no badge (Inferred: their
  * charts are not specified).
  */
-function dynamicsRows(v: Get, units: Units): StatsRow[] {
+export function dynamicsRows(v: Get, units: Units): StatsRow[] {
 	const imperial = units === "imperial";
 	const stride = v("strideLength");
 	const vo = v("verticalOscillation");
@@ -270,19 +285,19 @@ function dynamicsRows(v: Get, units: Units): StatsRow[] {
 }
 
 /** Left foot's share and the right's as the rest of 100: "49.1% L / 50.9% R". */
-function balance(left: number): string {
+export function balance(left: number): string {
 	const l = Number(left.toFixed(1));
 	return `${fixed(l, 1)}% L / ${fixed(100 - l, 1)}% R`;
 }
 
 /** Impact Load beside the distance it is weighed against; none without the load (a treadmill run). */
-function impactLoadRows(v: Get, units: Units): StatsRow[] {
+export function impactLoadRows(v: Get, units: Units): StatsRow[] {
 	const load = v("impactLoad");
 	if (load === undefined) return [];
 	return rows(distanceStat("Impact Load", load, units, { chart: "impact-load" }), distanceStat("Actual Distance", v("distance"), units));
 }
 
-function elevationRows(v: Get, units: Units): StatsRow[] {
+export function elevationRows(v: Get, units: Units): StatsRow[] {
 	const unit = units === "imperial" ? "ft" : "m";
 	return rows(
 		stat("Total Ascent", elevationOf(v("elevationGain"), units), unit, { chart: "elevation" }),
@@ -297,7 +312,7 @@ function elevationRows(v: Get, units: Units): StatsRow[] {
  * its distance and the pace of its `averageSpeed`. Several active intervals (a
  * structured workout) add up, paced over their sum (Inferred: not shot).
  */
-function intervalRows(segments: readonly ActivitySegment[], units: Units, paced: boolean): StatsRow[] {
+export function intervalRows(segments: readonly ActivitySegment[], units: Units, paced: boolean): StatsRow[] {
 	const active = segments.filter((s) => s.type === "INTERVAL_ACTIVE");
 	if (!active.length) return [];
 	const seconds = active.reduce((sum, s) => sum + s.duration, 0);
@@ -311,7 +326,7 @@ function intervalRows(segments: readonly ActivitySegment[], units: Units, paced:
 }
 
 /** Active calories are the total less the resting ones: 694 − 77 = 617. */
-function nutritionRows(v: Get, units: Units): StatsRow[] {
+export function nutritionRows(v: Get, units: Units): StatsRow[] {
 	const total = v("calories");
 	const resting = v("bmrCalories");
 	const sweat = v("waterEstimated");
@@ -325,7 +340,7 @@ function nutritionRows(v: Get, units: Units): StatsRow[] {
 }
 
 /** The treadmill run's breathing rates, whole (35.66 → 36), as the web shows them. */
-function respirationRows(v: Get): StatsRow[] {
+export function respirationRows(v: Get): StatsRow[] {
 	return rows(
 		stat("Avg Respiration Rate", whole(v("avgRespirationRate")), "brpm"),
 		stat("Min Respiration Rate", whole(v("minRespirationRate")), "brpm"),
@@ -334,7 +349,7 @@ function respirationRows(v: Get): StatsRow[] {
 }
 
 /** Vigorous minutes count double towards the total, which the "x2" disc says. */
-function intensityRows(v: Get): StatsRow[] {
+export function intensityRows(v: Get): StatsRow[] {
 	const moderate = v("moderateIntensityMinutes");
 	const vigorous = v("vigorousIntensityMinutes");
 	if (moderate === undefined && vigorous === undefined) return [];
@@ -346,7 +361,7 @@ function intensityRows(v: Get): StatsRow[] {
 }
 
 /** Signed: "-19". A gain reads "+3" (Inferred), as the Body Battery page writes one. */
-function bodyBatteryRows(v: Get): StatsRow[] {
+export function bodyBatteryRows(v: Get): StatsRow[] {
 	const impact = v("differenceBodyBattery");
 	if (impact === undefined) return [];
 	const text = whole(impact)!;
@@ -407,39 +422,50 @@ export interface LapsColumn {
 	label: string;
 	/** The grey unit under the label: "km", "min/km". */
 	unit?: string;
+	/** Its share of the row, in percent; each cell's text sits at its column's right edge. */
+	width: number;
 }
 
-export interface LapRow {
-	n: number;
-	/** To the tenth: "5:43.5". */
-	time: string;
-	/** "1.00": the unit is the column's. */
-	distance: string;
-	/** "5:44"; "--" when the lap has no pace. */
-	pace: string;
+export interface LapsRow {
+	/** Unique in the table: the lap's number, "total". */
+	key: string;
+	/** One per column, as shown: "2", "5:43.5", "1.00", "5:44". */
+	cells: string[];
+	/** A pool swim's rest between intervals, dimmed; the totals row, bold. A lap has none. */
+	kind?: "rest" | "total";
 }
 
 export interface LapsView {
-	/** Lap · Time · Distance (km) · Avg Pace (min/km). */
+	/** The run's: Lap · Time · Distance (km) · Avg Pace (min/km). */
 	columns: LapsColumn[];
-	/** Every lap, the short last one too; no totals row. */
-	rows: LapRow[];
+	/** The run's: every lap, the short last one too, and no totals row. */
+	rows: LapsRow[];
 }
 
-export function lapsView(detail: ActivityDetail, units: Units): LapsView {
+/** The Laps tab of a sport: its profile's `laps`. The run's is the default. */
+export interface LapsSpec {
+	table: (detail: ActivityDetail, units: Units) => LapsView;
+}
+
+/**
+ * The run's columns' shares of the row (the twin's Lap Row, Figma 403:61):
+ * their right edges sit at 12.25%, 38.37%, 66.98% and 96.01%.
+ */
+export const LAP_WIDTHS: readonly [lap: number, time: number, distance: number, last: number] = [12.25, 26.12, 28.61, 29.03];
+
+export function lapsView(detail: ActivityDetail, units: Units, spec?: LapsSpec): LapsView {
+	if (spec) return spec.table(detail, units);
 	const imperial = units === "imperial";
 	return {
 		columns: [
-			{ label: "Lap" },
-			{ label: "Time" },
-			{ label: "Distance", unit: imperial ? "mi" : "km" },
-			{ label: "Avg Pace", unit: imperial ? "min/mi" : "min/km" },
+			{ label: "Lap", width: LAP_WIDTHS[0] },
+			{ label: "Time", width: LAP_WIDTHS[1] },
+			{ label: "Distance", unit: imperial ? "mi" : "km", width: LAP_WIDTHS[2] },
+			{ label: "Avg Pace", unit: imperial ? "min/mi" : "min/km", width: LAP_WIDTHS[3] },
 		],
 		rows: detail.laps.map((lap) => ({
-			n: lap.n,
-			time: lapTime(lap.duration),
-			distance: distanceParts(lap.distance, units)[0],
-			pace: lapPace(lap, units) ?? "--",
+			key: String(lap.n),
+			cells: [String(lap.n), lapTime(lap.duration), distanceParts(lap.distance, units)[0], lapPace(lap, units) ?? "--"],
 		})),
 	};
 }
@@ -454,7 +480,7 @@ export function lapTime(seconds: number): string {
 }
 
 /** The lap's `averageSpeed` as a pace; time over distance only when Garmin sent no speed (Inferred). */
-function lapPace(lap: ActivityLap, units: Units): string | undefined {
+export function lapPace(lap: ActivityLap, units: Units): string | undefined {
 	if (lap.speed !== undefined && lap.speed > 0) return paceOf(lap.speed, units);
 	return pace(lap.distance, lap.duration, units);
 }
@@ -483,17 +509,17 @@ export function gearView(detail: ActivityDetail): GearView {
 /*  Formatting                                                         */
 /* ------------------------------------------------------------------ */
 
-const FEET_PER_METRE = 3.28084;
-const CM_PER_INCH = 2.54;
-const ML_PER_OUNCE = 29.5735;
-const MPH_PER_MS = 3600 / 1609.344;
+export const FEET_PER_METRE = 3.28084;
+export const CM_PER_INCH = 2.54;
+export const ML_PER_OUNCE = 29.5735;
+export const MPH_PER_MS = 3600 / 1609.344;
 
-function rows(...items: Array<StatsRow | null>): StatsRow[] {
+export function rows(...items: Array<StatsRow | null>): StatsRow[] {
 	return items.filter((row): row is StatsRow => row !== null);
 }
 
 /** A row, or null without a value. */
-function stat(label: string, value: string | undefined, unit?: string, extra: Pick<StatsRow, "chart" | "badge"> = {}): StatsRow | null {
+export function stat(label: string, value: string | undefined, unit?: string, extra: Pick<StatsRow, "chart" | "badge"> = {}): StatsRow | null {
 	if (value === undefined) return null;
 	const row: StatsRow = { label, value, text: unit ? `${value}${unit === "%" ? "" : " "}${unit}` : value, ...extra };
 	if (unit) row.unit = unit;
@@ -501,46 +527,46 @@ function stat(label: string, value: string | undefined, unit?: string, extra: Pi
 }
 
 /** A distance row: "10.01" "km" through the plugin's `formatDistance`. */
-function distanceStat(label: string, metres: number | undefined, units: Units, extra: Pick<StatsRow, "chart"> = {}): StatsRow | null {
+export function distanceStat(label: string, metres: number | undefined, units: Units, extra: Pick<StatsRow, "chart"> = {}): StatsRow | null {
 	if (metres === undefined) return null;
 	const [value, unit] = distanceParts(metres, units);
 	return stat(label, value, unit, extra);
 }
 
 /** "10.01 km" as ["10.01", "km"]. */
-function distanceParts(metres: number, units: Units): [string, string] {
+export function distanceParts(metres: number, units: Units): [string, string] {
 	const text = formatDistance(metres, units, 2, true);
 	const at = text.lastIndexOf(" ");
 	return [text.slice(0, at), text.slice(at + 1)];
 }
 
-function paceUnit(units: Units): string {
+export function paceUnit(units: Units): string {
 	return units === "imperial" ? "/mi" : "/km";
 }
 
 /** m/s as "5:36": the plugin's `pace` over one second's distance. */
-function paceOf(speed: number | undefined, units: Units): string | undefined {
+export function paceOf(speed: number | undefined, units: Units): string | undefined {
 	return speed !== undefined && speed > 0 ? pace(speed, 1, units) : undefined;
 }
 
-function speedOf(speed: number | undefined, units: Units): string | undefined {
+export function speedOf(speed: number | undefined, units: Units): string | undefined {
 	return speed !== undefined && speed > 0 ? fixed(speed * (units === "imperial" ? MPH_PER_MS : 3.6), 1) : undefined;
 }
 
-function timeOf(seconds: number | undefined): string | undefined {
+export function timeOf(seconds: number | undefined): string | undefined {
 	return seconds !== undefined && seconds >= 0 ? duration(seconds) : undefined;
 }
 
 /** Whole metres or feet, halves away from zero: -21.8 → "-22". */
-function elevationOf(metres: number | undefined, units: Units): string | undefined {
+export function elevationOf(metres: number | undefined, units: Units): string | undefined {
 	return metres === undefined ? undefined : fixed(units === "imperial" ? metres * FEET_PER_METRE : metres, 0);
 }
 
-function whole(value: number | undefined): string | undefined {
+export function whole(value: number | undefined): string | undefined {
 	return decimals(value, 0);
 }
 
-function decimals(value: number | undefined, places: number): string | undefined {
+export function decimals(value: number | undefined, places: number): string | undefined {
 	return value === undefined ? undefined : fixed(value, places);
 }
 
@@ -549,7 +575,7 @@ function decimals(value: number | undefined, places: number): string | undefined
  * from zero (`toFixed`, as Garmin's web), grouped in thousands: "1,234.5".
  * Never "-0".
  */
-function fixed(value: number, places: number): string {
+export function fixed(value: number, places: number): string {
 	let text = value.toFixed(places);
 	if (/^-0(\.0+)?$/.test(text)) text = text.slice(1);
 	const dot = text.indexOf(".");
@@ -557,6 +583,6 @@ function fixed(value: number, places: number): string {
 	return integer.replace(/\B(?=(\d{3})+$)/g, ",") + (dot < 0 ? "" : text.slice(dot));
 }
 
-function numberOf(value: unknown): number | undefined {
+export function numberOf(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

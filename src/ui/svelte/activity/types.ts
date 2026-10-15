@@ -1,6 +1,8 @@
 import type { Units } from "../../../dashboard/activities";
+import type { SportProfile } from "../../../dashboard/activity-sports";
 import type { ActivityRoute, Route } from "../../../dashboard/routes";
 import type { ActivityDetail } from "../../../sync/activity-detail";
+import type { ActivityRow } from "../../../sync/activity-index";
 import type { TileSource } from "../../map/tile-source";
 import type { OpenSheet } from "../../sheet-modal";
 
@@ -12,6 +14,10 @@ export interface ActivityTabProps {
 	detail: ActivityDetail;
 	route: ActivityRoute;
 	units: Units;
+	/** The activity's sport (`profileFor`): the spec each tab hands its view model. */
+	profile: SportProfile;
+	/** The activity index: what a chart compares the activity with (a ride's power curve record). */
+	rows: readonly ActivityRow[];
 	/** The map's tiles, or null when the setting is off. */
 	tiles: () => TileSource | null;
 	go: (route: Route) => void;

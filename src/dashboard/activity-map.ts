@@ -6,8 +6,40 @@ import { MAP_OVERLAYS, type MapOverlay } from "./routes";
  * that share an overlay colour, the lap markers and the start and end. The
  * map component (`RouteMap.svelte`) only places these.
  *
+ * What the run's map offers is the default. Another sport passes its
+ * `MapSpec` (its profile's `map`): its Data Overlay list, the overlay its
+ * Overview shows, each overlay's words and colours, and the route's colour
+ * without one.
+ *
  * Pure: no Obsidian, no Leaflet.
  */
+
+/** One Data Overlay of a sport's map. */
+export interface MapOverlayDef {
+	/** Map Settings' row: "Power". */
+	label: string;
+	/** The route's colours, low (or slow) first: ten slots for a value, one per kind for keys. */
+	ramp: readonly string[];
+	/** The legend: the ramp between two words ("Less Power" … "More Power"), a swatch per key, or none. */
+	legend: { low: string; high: string } | { keys: readonly string[] } | null;
+	/**
+	 * An overlay the run doesn't have: the sample column it colours by and the
+	 * summary's average and best for it, binned as the run's value overlays
+	 * are; `positive` counts only values above 0 as data.
+	 */
+	values?: { column: string; average: string; best: string; positive?: boolean };
+}
+
+/** A sport's map. */
+export interface MapSpec {
+	/** Map Settings' Data Overlay rows, in the sheet's order; each offered only with data. */
+	overlays: readonly string[];
+	/** The overlay the Overview's map and the full map it opens show. */
+	overview: string;
+	defs: Readonly<Record<string, MapOverlayDef>>;
+	/** The route's colour without an overlay. */
+	base: string;
+}
 
 export type LatLon = [number, number];
 
@@ -69,6 +101,19 @@ const VALUE_OVERLAY: Record<"heart-rate" | "power" | "elevation", { column: stri
 	elevation: { column: "elevation", average: "avgElevation", best: "maxElevation" },
 };
 
+/** A sport's overlay by its id: its own entry, never one an object inherits (`constructor`, from a hand-edited route). */
+function defOf(overlay: string, spec: MapSpec | undefined): MapOverlayDef | undefined {
+	return spec && Object.prototype.hasOwnProperty.call(spec.defs, overlay) ? spec.defs[overlay] : undefined;
+}
+
+function isRunOverlay(overlay: string): overlay is MapOverlay {
+	return (MAP_OVERLAYS as readonly string[]).includes(overlay);
+}
+
+function isValueOverlay(overlay: string): overlay is keyof typeof VALUE_OVERLAY {
+	return overlay === "heart-rate" || overlay === "power" || overlay === "elevation";
+}
+
 /**
  * The route cut into runs of one colour.
  *
@@ -77,14 +122,15 @@ const VALUE_OVERLAY: Record<"heart-rate" | "power" | "elevation", { column: stri
  * the best is above it, so the average falls between the two greens. Paces
  * beyond either end take the end colour. The spec proved this on the phone's
  * map (84% of samples exactly, 95% within a slot); the other value overlays use
- * the same rule over their own column (Inferred). `none` is one run, and
- * `run-walk` is coloured by segment (0 run, 1 walk, 2 idle).
+ * the same rule over their own column (Inferred), as do a sport's own
+ * (its spec's `values`). `none` is one run, and `run-walk` is coloured by
+ * segment (0 run, 1 walk, 2 idle).
  */
-export function routeRuns(detail: ActivityDetail, overlay: MapOverlay): RouteRun[] {
+export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpec): RouteRun[] {
 	const points = routePoints(detail);
 	if (points.length < 2) return [];
 	if (overlay === "none") return [{ bucket: null, points: points.map((p) => p.at) }];
-	const bucketOf = overlay === "run-walk" ? runWalkBucket(detail) : overlayBucket(detail, overlay);
+	const bucketOf = overlay === "run-walk" ? runWalkBucket(detail) : overlayBucket(detail, overlay, spec);
 	const runs: RouteRun[] = [];
 	for (let i = 0; i < points.length; i += 1) {
 		const point = points[i]!;
@@ -101,8 +147,8 @@ export function routeRuns(detail: ActivityDetail, overlay: MapOverlay): RouteRun
 	return runs.filter((run) => run.points.length > 1);
 }
 
-/** A sample's slot under a pace or value overlay, or null without a value. */
-export function overlayBucket(detail: ActivityDetail, overlay: Exclude<MapOverlay, "none" | "run-walk">): (sample: number) => number | null {
+/** A sample's slot under a pace or value overlay, or null without a value (or for an overlay neither the run nor the spec knows). */
+export function overlayBucket(detail: ActivityDetail, overlay: string, spec?: MapSpec): (sample: number) => number | null {
 	if (overlay === "pace" || overlay === "gap") {
 		const speeds = detail.samples[overlay === "pace" ? "speed" : "gap"] ?? [];
 		const moving = speeds.filter((v): v is number => typeof v === "number" && v > 0);
@@ -118,7 +164,9 @@ export function overlayBucket(detail: ActivityDetail, overlay: Exclude<MapOverla
 			return slot((slow - 1000 / speed) / (slow - fast));
 		};
 	}
-	const { column, average: avgKey, best: bestKey } = VALUE_OVERLAY[overlay];
+	const source = isValueOverlay(overlay) ? VALUE_OVERLAY[overlay] : defOf(overlay, spec)?.values;
+	if (!source) return () => null;
+	const { column, average: avgKey, best: bestKey } = source;
 	const values = detail.samples[column] ?? [];
 	const present = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 	if (!present.length) return () => null;
@@ -225,9 +273,10 @@ const RUN_WALK_TYPES: readonly string[] = ["RWD_RUN", "RWD_WALK", "RWD_STAND"];
  * The Data Overlay choices an activity has data for, in the sheet's order.
  * None is always there; a run without a power meter offers no Power, as the
  * page leaves out every metric it has no value for (Inferred for the sheet:
- * the captured run has them all).
+ * the captured run has them all). A sport's spec lists its own.
  */
-export function mapOverlays(detail: ActivityDetail): MapOverlay[] {
+export function mapOverlays(detail: ActivityDetail, spec?: MapSpec): string[] {
+	if (spec) return spec.overlays.filter((overlay) => offers(detail, overlay, spec));
 	return MAP_OVERLAYS.filter((overlay) => {
 		if (overlay === "none") return true;
 		if (overlay === "run-walk") return detail.segments.some((s) => RUN_WALK_TYPES.includes(s.type));
@@ -236,9 +285,41 @@ export function mapOverlays(detail: ActivityDetail): MapOverlay[] {
 	});
 }
 
+/** Whether a sport's map can draw an overlay for the activity: the run's by its column, the sport's own by its `values`. */
+function offers(detail: ActivityDetail, overlay: string, spec: MapSpec): boolean {
+	if (overlay === "none") return true;
+	if (overlay === "run-walk") return detail.segments.some((s) => RUN_WALK_TYPES.includes(s.type));
+	const run = isRunOverlay(overlay) ? OVERLAY_COLUMN[overlay as Exclude<MapOverlay, "none" | "run-walk">] : undefined;
+	const own = defOf(overlay, spec)?.values;
+	const [column, positive] = run ?? (own ? [own.column, own.positive === true] : [undefined, false]);
+	if (column === undefined) return false;
+	return (detail.samples[column] ?? []).some((v) => typeof v === "number" && Number.isFinite(v) && (!positive || v > 0));
+}
+
 /** The overlay a map draws: the one asked for when the activity has its data, else none. */
-export function overlayFor(detail: ActivityDetail, wanted: MapOverlay): MapOverlay {
-	return mapOverlays(detail).includes(wanted) ? wanted : "none";
+export function overlayFor(detail: ActivityDetail, wanted: string, spec?: MapSpec): string {
+	return mapOverlays(detail, spec).includes(wanted) ? wanted : "none";
+}
+
+/** The overlay the Overview's map shows, and the full map opens in: the run's pace, or the sport's. */
+export function overviewOverlay(spec?: MapSpec): string {
+	return spec ? spec.overview : "pace";
+}
+
+/** The colours an overlay paints the route with, by bucket: the run's ramps, or the sport's. */
+export function rampOf(overlay: string, spec?: MapSpec): readonly string[] {
+	if (spec) return defOf(overlay, spec)?.ramp ?? PACE_RAMP;
+	return overlay === "run-walk" ? RUN_WALK_RAMP : PACE_RAMP;
+}
+
+/** The route's colour without an overlay (or where a sample has no value). */
+export function baseOf(spec?: MapSpec): string {
+	return spec ? spec.base : ROUTE_BASE;
+}
+
+/** Map Settings' word for an overlay. */
+export function overlayLabel(overlay: string, spec?: MapSpec): string {
+	return defOf(overlay, spec)?.label ?? (isRunOverlay(overlay) ? OVERLAY_LABELS[overlay] : overlay);
 }
 
 export interface LegendKey {
@@ -253,9 +334,17 @@ export type MapLegend = { kind: "ramp"; low: string; high: string; colors: reado
  * The legend for an overlay. Pace and Grade-Adjusted Pace read "Slower" to
  * "Faster", as on the phone; Run/Walk names its three colours, as its chart's
  * legend does; Heart Rate, Power and Elevation run from "Lower" to "Higher"
- * (Inferred: no shot). No overlay, no legend.
+ * (Inferred: no shot). No overlay, no legend. A sport's spec words its own.
  */
-export function mapLegend(overlay: MapOverlay): MapLegend | null {
+export function mapLegend(overlay: string, spec?: MapSpec): MapLegend | null {
+	if (spec) {
+		const def = defOf(overlay, spec);
+		if (overlay === "none" || !def?.legend) return null;
+		const legend = def.legend;
+		return "keys" in legend
+			? { kind: "keys", keys: legend.keys.map((label, i) => ({ label, color: def.ramp[i] ?? spec.base })) }
+			: { kind: "ramp", low: legend.low, high: legend.high, colors: def.ramp };
+	}
 	switch (overlay) {
 		case "none":
 			return null;
@@ -271,3 +360,23 @@ export function mapLegend(overlay: MapOverlay): MapLegend | null {
 			return { kind: "ramp", low: "Lower", high: "Higher", colors: PACE_RAMP };
 	}
 }
+
+/**
+ * The run's map as a spec: what the functions above do without one, as data a
+ * sport can start from (`{ ...RUN_MAP, overlays: … }`). The run's page passes
+ * no spec; a test holds the two to the same answers.
+ */
+export const RUN_MAP: MapSpec = {
+	overlays: MAP_OVERLAYS,
+	overview: "pace",
+	defs: {
+		none: { label: OVERLAY_LABELS.none, ramp: PACE_RAMP, legend: null },
+		pace: { label: OVERLAY_LABELS.pace, ramp: PACE_RAMP, legend: { low: "Slower", high: "Faster" } },
+		gap: { label: OVERLAY_LABELS.gap, ramp: PACE_RAMP, legend: { low: "Slower", high: "Faster" } },
+		"heart-rate": { label: OVERLAY_LABELS["heart-rate"], ramp: PACE_RAMP, legend: { low: "Lower", high: "Higher" } },
+		power: { label: OVERLAY_LABELS.power, ramp: PACE_RAMP, legend: { low: "Lower", high: "Higher" } },
+		elevation: { label: OVERLAY_LABELS.elevation, ramp: PACE_RAMP, legend: { low: "Lower", high: "Higher" } },
+		"run-walk": { label: OVERLAY_LABELS["run-walk"], ramp: RUN_WALK_RAMP, legend: { keys: ["Run", "Walk", "Idle"] } },
+	},
+	base: ROUTE_BASE,
+};

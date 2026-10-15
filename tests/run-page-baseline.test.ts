@@ -52,7 +52,7 @@ const AXES = ["time", "distance"] as const;
 function lapsTable(view: LapsView): { header: string[]; rows: string[][] } {
 	return {
 		header: view.columns.map((c) => (c.unit ? `${c.label} (${c.unit})` : c.label)),
-		rows: view.rows.map((r) => [String(r.n), r.time, r.distance, r.pace]),
+		rows: view.rows.map((r) => r.cells),
 	};
 }
 
@@ -67,6 +67,8 @@ function plotsOf(card: ChartCard): unknown {
 			return { phone: trainingEffectScales(card, PHONE), pane: trainingEffectScales(card, PANE) };
 		case "zones":
 			return { phone: zoneBars(card, PHONE), pane: zoneBars(card, PANE) };
+		case "custom":
+			return card.data;
 	}
 }
 
@@ -108,7 +110,7 @@ function snapshot(): Record<string, unknown> {
 				for (const pace of PACE_CHARTS) {
 					for (const heart of HEART_CHARTS) {
 						for (const power of POWER_CHARTS) {
-							out[`${key}/charts/${axis}/${pace}/${heart}/${power}`] = chartsTabView(detail, { axis, pace, heart, power }, units);
+							out[`${key}/charts/${axis}/${pace}/${heart}/${power}`] = chartsTabView(detail, { axis, picks: { pace, heart, power } }, units);
 						}
 					}
 				}

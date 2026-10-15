@@ -368,8 +368,21 @@ describe("columnStarts", () => {
 	});
 });
 
+/**
+ * The run's laps in the shape these tests were written against: `lapsView`
+ * now gives each row as its cells and each column its width (both held by
+ * `run-page-baseline.test.ts`), so only the input adapts, not what is asserted.
+ */
+function runLaps(detail: ActivityDetail, units: "metric" | "imperial") {
+	const view = lapsView(detail, units);
+	return {
+		columns: view.columns.map((c) => (c.unit ? { label: c.label, unit: c.unit } : { label: c.label })),
+		rows: view.rows.map(({ cells: [n, time, distance, pace] }) => ({ n: Number(n), time: time!, distance: distance!, pace: pace! })),
+	};
+}
+
 describe("lapsView", () => {
-	const view = lapsView(outdoor(), "metric");
+	const view = runLaps(outdoor(), "metric");
 
 	it("has the eleven laps as the phone shows them", () => {
 		assert.deepEqual(
@@ -403,7 +416,7 @@ describe("lapsView", () => {
 	});
 
 	it("reads miles in imperial", () => {
-		const imperial = lapsView(outdoor(), "imperial");
+		const imperial = runLaps(outdoor(), "imperial");
 		assert.deepEqual(imperial.columns.slice(2), [
 			{ label: "Distance", unit: "mi" },
 			{ label: "Avg Pace", unit: "min/mi" },
@@ -415,7 +428,7 @@ describe("lapsView", () => {
 	it("falls back to time over distance without a speed, and to -- without either", () => {
 		const detail = { ...outdoor(), laps: [{ n: 1, duration: 300, distance: 1000 }, { n: 2, duration: 5, distance: 0 }] };
 		assert.deepEqual(
-			lapsView(detail, "metric").rows.map((r) => r.pace),
+			runLaps(detail, "metric").rows.map((r) => r.pace),
 			["5:00", "--"],
 		);
 	});

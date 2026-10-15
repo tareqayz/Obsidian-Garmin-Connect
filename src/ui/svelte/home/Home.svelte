@@ -509,7 +509,7 @@
 	{:else if current.page === "records"}
 		<RecordsPage route={current} data={activities} onBack={back} {go} {swap} />
 	{:else if current.page === "all"}
-		<AllActivitiesPage data={activities} onBack={back} {go} />
+		<AllActivitiesPage route={current} data={activities} {today} {history} {openSheet} onBack={back} {go} {swap} />
 	{:else if current.page === "activity"}
 		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {go} {swap} {reach} />
 	{:else if current.page === "activity-map"}

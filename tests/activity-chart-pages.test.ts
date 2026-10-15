@@ -145,8 +145,12 @@ function run(extra: Partial<ActivityDetail> = {}): ActivityDetail {
 
 const RUN = run();
 
-function tab(route: Partial<ChartsRoute> = {}, units: Units = "metric", detail = RUN): ChartCard[] {
-	return chartsTabView(detail, { axis: "time", ...route }, units).cards;
+/** The tab's route as these tests write it: the axis and the run's three picker choices, which the route keeps in `picks`. */
+type TabRoute = { axis?: ChartsRoute["axis"]; pace?: string; heart?: string; power?: string };
+
+function tab(route: TabRoute = {}, units: Units = "metric", detail = RUN): ChartCard[] {
+	const { axis = "time", ...picks } = route;
+	return chartsTabView(detail, { axis, picks: picks as Record<string, string> }, units).cards;
 }
 
 function card<K extends ChartCard["kind"]>(cards: ChartCard[], id: string, kind: K): Extract<ChartCard, { kind: K }> {
@@ -458,7 +462,7 @@ describe("chartsTabView: marks", () => {
 	});
 
 	it("puts the average lines at the summary's averages, dashed on the dot charts", () => {
-		const avg = (id: string, route: Partial<ChartsRoute> = {}) => series(tab(route), id).average;
+		const avg = (id: string, route: TabRoute = {}) => series(tab(route), id).average;
 		near(avg("pace")!.value, 335.8);
 		near(avg("pace", { pace: "gap" })!.value, 336.25);
 		near(avg("pace", { pace: "lap-pace" })!.value, 335.8);

@@ -5,14 +5,15 @@
 	import type { ActivityTabProps } from "./types";
 
 	/**
-	 * Stats: Garmin's sections in the phone's order, each only with data
-	 * (`statsView`). One list on a phone; from 640pt the sections are cards in
-	 * two columns, from 1000pt three, filled in reading order. The columns
-	 * break where `columnStarts` balances them, as the twin's pane does.
+	 * Stats: Garmin's sections in the sport's order (the run's the phone's),
+	 * each only with data (`statsView`). One list on a phone; from 640pt the
+	 * sections are cards in two columns, from 1000pt three, filled in reading
+	 * order. The columns break where `columnStarts` balances them, as the
+	 * twin's pane does.
 	 */
-	let { detail, route, units, swap }: ActivityTabProps = $props();
+	let { detail, route, units, profile, swap }: ActivityTabProps = $props();
 
-	let sections = $derived(statsView(detail, units));
+	let sections = $derived(statsView(detail, units, profile.stats));
 	let starts2 = $derived(new Set(columnStarts(sections, 2)));
 	let starts3 = $derived(new Set(columnStarts(sections, 3)));
 

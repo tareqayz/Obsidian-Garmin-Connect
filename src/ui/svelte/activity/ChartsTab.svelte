@@ -1,22 +1,25 @@
 <script lang="ts">
 	import { Menu, Platform } from "obsidian";
-	import { chartsTabView, type ChartPicker } from "../../../dashboard/activity-chart-pages";
+	import { chartsTabView, RUN_CHARTS, type ChartCard, type ChartPicker } from "../../../dashboard/activity-chart-pages";
 	import { PANE_WIDTH, type ChartLayout } from "../../../dashboard/activity-charts";
-	import type { ActivityAxis, HeartChart, PaceChart, PowerChart } from "../../../dashboard/routes";
+	import type { ActivityAxis } from "../../../dashboard/routes";
+	import { toIsoDate } from "../../../garmin/endpoints";
 	import AxisSwitch from "./charts/AxisSwitch.svelte";
 	import ChartSection from "./charts/ChartSection.svelte";
 	import type { ActivityTabProps } from "./types";
 
 	/**
 	 * Charts: the Time | Distance control, sticky under the page's tabs, then
-	 * every chart the activity has, in the phone's order (`chartsTabView`). On
-	 * a phone the charts stack under 14 pt bands; in a pane they are bordered
-	 * cards, two to a row from 640 pt and three from 1000 (the twin's 415:3254).
-	 * A picker is Obsidian's menu: a dropdown on a desktop, a sheet on a phone.
+	 * every chart the activity has, in its sport's order (`chartsTabView`, the
+	 * run's the phone's). On a phone the charts stack under 14 pt bands; in a
+	 * pane they are bordered cards, two to a row from 640 pt and three from
+	 * 1000 (the twin's 415:3254). A picker is Obsidian's menu: a dropdown on a
+	 * desktop, a sheet on a phone; its choice is kept in the route's `picks`.
 	 */
-	let { detail, route, units, swap }: ActivityTabProps = $props();
+	let { detail, route, units, profile, rows, swap }: ActivityTabProps = $props();
 
-	let view = $derived(chartsTabView(detail, route, units));
+	let charts = $derived(profile.charts ?? RUN_CHARTS);
+	let view = $derived(chartsTabView(detail, route, units, charts, { rows, today: toIsoDate() }));
 
 	let width = $state(0);
 	let layout: ChartLayout = $derived(width >= PANE_WIDTH ? "pane" : "phone");
@@ -25,19 +28,17 @@
 		if (axis !== route.axis) swap({ ...route, axis });
 	}
 
-	/** The sheet's title on a phone (the twin's 409:2244); the desktop menu has none. */
-	const PICKER_TITLES: Record<ChartPicker["key"], string> = { pace: "Pace", heart: "Heart Rate", power: "Power" };
-
 	function choose(key: ChartPicker["key"], value: string) {
-		if (key === "pace") swap({ ...route, pace: value as PaceChart });
-		else if (key === "heart") swap({ ...route, heart: value as HeartChart });
-		else swap({ ...route, power: value as PowerChart });
+		swap({ ...route, picks: { ...route.picks, [key]: value } });
 	}
 
-	function pick(picker: ChartPicker | undefined, e: MouseEvent) {
+	function pick(card: ChartCard, e: MouseEvent) {
+		const picker = card.picker;
 		if (!picker) return;
 		const menu = new Menu();
-		if (Platform.isPhone) menu.addItem((item) => item.setTitle(PICKER_TITLES[picker.key]).setIsLabel(true));
+		// The sheet's title on a phone (the twin's 409:2244); the desktop menu has none.
+		const title = charts.pickers[card.id]?.title;
+		if (Platform.isPhone && title) menu.addItem((item) => item.setTitle(title).setIsLabel(true));
 		for (const option of picker.options) {
 			menu.addItem((item) =>
 				item
@@ -59,7 +60,7 @@
 	{#if view.cards.length}
 		<div class="chart-list">
 			{#each view.cards as card (card.id)}
-				<ChartSection {card} {layout} onPick={(e) => pick(card.picker, e)} />
+				<ChartSection {card} {layout} onPick={(e) => pick(card, e)} />
 			{/each}
 		</div>
 	{:else}

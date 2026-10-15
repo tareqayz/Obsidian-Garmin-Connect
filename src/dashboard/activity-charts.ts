@@ -219,8 +219,13 @@ export function seriesPlot(chart: SeriesChart, width: number, layout: ChartLayou
 	return out;
 }
 
-/** The chart's frame in a layout: Pace's, Power's, Stamina's, the forced labels' (Vertical Ratio, GCT), or the usual one. */
+/**
+ * The chart's frame in a layout: the one a sport's chart names (its
+ * `MetricDef.frame`), else by the run's metric: Pace's, Power's, Stamina's, the
+ * forced labels' (Vertical Ratio, GCT), or the usual one.
+ */
 function frameOf(frames: (typeof FRAMES)[ChartLayout], chart: SeriesChart): ChartFrame {
+	if (chart.frame) return frames[chart.frame];
 	switch (chart.metric) {
 		case "pace":
 			return frames.pace;

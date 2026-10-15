@@ -3,19 +3,22 @@
 	import type { ActivityTabProps } from "./types";
 
 	/**
-	 * Laps: Lap, Time, Distance and Avg Pace, one striped row a lap and no
-	 * totals (`lapsView`), as the twin's Lap Row (Figma 403:61). The columns
-	 * keep their share of the width, so the pane's 1126pt table reads like the
-	 * phone's. From 640pt the table is a bordered card.
+	 * Laps: the sport's columns (the run's Lap, Time, Distance and Avg Pace),
+	 * one striped row a lap (`lapsView`), as the twin's Lap Row (Figma 403:61);
+	 * a sport's rest rows dimmed and its totals row bold. The columns keep their
+	 * share of the width, so the pane's 1126pt table reads like the phone's.
+	 * From 640pt the table is a bordered card.
 	 */
-	let { detail, units }: ActivityTabProps = $props();
+	let { detail, units, profile }: ActivityTabProps = $props();
 
-	let view = $derived(lapsView(detail, units));
+	let view = $derived(lapsView(detail, units, profile.laps));
+	/** Each column's share of the row; the cells sit at their column's right edge. */
+	let columns = $derived(view.columns.map((c) => `${c.width}%`).join(" "));
 </script>
 
 {#if view.rows.length}
 	<div class="laps-tab">
-		<div class="laps" role="table">
+		<div class="laps" role="table" style:--gc-lap-columns={columns}>
 			<div class="row head" role="row">
 				{#each view.columns as column (column.label)}
 					<div class="cell" role="columnheader">
@@ -24,12 +27,11 @@
 					</div>
 				{/each}
 			</div>
-			{#each view.rows as lap, i (lap.n)}
-				<div class="row lap" class:odd={i % 2 === 0} role="row">
-					<div class="cell" role="cell">{lap.n}</div>
-					<div class="cell" role="cell">{lap.time}</div>
-					<div class="cell" role="cell">{lap.distance}</div>
-					<div class="cell" role="cell">{lap.pace}</div>
+			{#each view.rows as row, i (row.key)}
+				<div class="row lap" class:odd={i % 2 === 0} class:rest={row.kind === "rest"} class:total={row.kind === "total"} role="row">
+					{#each row.cells as cell, c (c)}
+						<div class="cell" role="cell">{cell}</div>
+					{/each}
 				</div>
 			{/each}
 		</div>
@@ -41,10 +43,10 @@
 		padding-bottom: 16px;
 	}
 	/* The cells' right edges, as shares of the row (Lap Row's SCALE columns):
-	   12.25%, 38.37%, 66.98% and 96.01%. */
+	   the run's 12.25%, 38.37%, 66.98% and 96.01%. */
 	.row {
 		display: grid;
-		grid-template-columns: 12.25% 26.12% 28.61% 29.03%;
+		grid-template-columns: var(--gc-lap-columns);
 		box-sizing: border-box;
 		font-size: 15px;
 		line-height: 20px;
@@ -84,6 +86,13 @@
 	}
 	.lap.odd {
 		background: var(--background-secondary);
+	}
+	/* Only a sport's tables have these: a pool swim's rests, a totals row. */
+	.lap.rest {
+		color: var(--text-muted);
+	}
+	.lap.total {
+		font-weight: 600;
 	}
 
 	/* The pane's table (Figma 414:85310): a card whose border is drawn over

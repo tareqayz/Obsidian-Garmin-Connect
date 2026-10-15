@@ -80,6 +80,13 @@ export interface ActivityDetail {
 	gear: ActivityGear[];
 	/** The device as it was: "Forerunner 970", firmware "18.32". */
 	device: { name: string; firmware?: string } | null;
+	/**
+	 * The sensors the activity recorded with ("Rally 100/200", firmware "4.1",
+	 * battery "OK"). Not parsed yet: the detail file's next version fills it.
+	 */
+	sensors?: Array<{ name: string; firmware?: string; battery?: string }>;
+	/** The badges the activity earned ("Climber 1"). Not parsed yet: the detail file's next version fills it. */
+	badges?: Array<{ name: string; description?: string }>;
 	/** The newest weigh-in on or before the activity's day, for Power (W/kg). */
 	weightKg: number | null;
 	/** Blocks fetched, data or not. One not listed failed, and the next view asks again. */

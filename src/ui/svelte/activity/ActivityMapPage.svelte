@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { hasRoute, mapLegend, mapOverlays, overlayFor } from "../../../dashboard/activity-map";
-	import type { ActivityMapRoute, MapOverlay, Route } from "../../../dashboard/routes";
+	import { hasRoute, mapLegend, mapOverlays, overlayFor, overlayLabel } from "../../../dashboard/activity-map";
+	import { profileFor } from "../../../dashboard/activity-sports";
+	import type { ActivityMapRoute, Route } from "../../../dashboard/routes";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
 	import type { OpenSheet } from "../../sheet-modal";
@@ -15,7 +16,8 @@
 	 * pane, to pan and pinch, with the lap numbers, the legend and the layers
 	 * button that opens Map Settings. A page of its own on the stack, as on the
 	 * phone, so Back returns to the activity where it was. Map Settings' choices
-	 * are the route's (`overlay`, `laps`), so a reload keeps them.
+	 * are the route's (`overlay`, `laps`), so a reload keeps them. The overlays
+	 * on offer, their words and colours are the sport's (its profile's map).
 	 */
 	interface Props {
 		route: ActivityMapRoute;
@@ -46,21 +48,25 @@
 		};
 	});
 
+	/** The sport's map: its overlays, their words and colours (the run's without one). */
+	let spec = $derived(detail ? profileFor(detail).map : undefined);
 	/** What the map draws: the route's overlay when the activity has its data. */
-	let overlay = $derived(detail ? overlayFor(detail, route.overlay) : route.overlay);
-	let legend = $derived(mapLegend(overlay));
+	let overlay = $derived(detail ? overlayFor(detail, route.overlay, spec) : route.overlay);
+	let legend = $derived(mapLegend(overlay, spec));
 
 	function openSettings() {
 		const current = detail;
 		if (!current) return;
+		const overlays = mapOverlays(current, spec);
 		openSheet("Map Settings", MapSettings, {
 			provider: tiles() ? "OpenStreetMap" : "Route only (map tiles off)",
 			laps: route.laps,
 			overlay,
-			overlays: mapOverlays(current),
+			overlays,
+			labels: Object.fromEntries(overlays.map((o) => [o, overlayLabel(o, spec)])),
 			// Read the route when the choice is made: the sheet outlives the page's props.
 			onLaps: (laps: boolean) => swap({ ...route, laps }),
-			onOverlay: (next: MapOverlay) => swap({ ...route, overlay: next }),
+			onOverlay: (next: string) => swap({ ...route, overlay: next }),
 		});
 	}
 
@@ -99,7 +105,7 @@
 	<div class="map-area" style:height="{height}px">
 		<div class="map-frame">
 			{#if detail && hasRoute(detail)}
-				<RouteMap {detail} tiles={tiles()} interactive {overlay} laps={route.laps}>
+				<RouteMap {detail} tiles={tiles()} interactive {overlay} map={spec} laps={route.laps}>
 					{#if legend}<div class="legend-at"><MapLegend {legend} /></div>{/if}
 					<button class="layers" aria-label="Map Settings" onclick={openSettings}><span use:lucide={"layers"}></span></button>
 				</RouteMap>

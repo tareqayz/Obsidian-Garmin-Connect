@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { allActivities, type ActivitiesData, type AllItem } from "../../../dashboard/activities";
-	import { activityRoute, type Route } from "../../../dashboard/routes";
+	import { activityRoute, type AllRoute, type Route } from "../../../dashboard/routes";
+	import type { HistoryProgress } from "../../../sync/runner";
+	import type { OpenSheet } from "../../sheet-modal";
 	import { sportIcon } from "../../sport-icons";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
@@ -9,11 +11,23 @@
 	 * Every activity, newest first. Drawn a page at a time as the list scrolls:
 	 * years of history is hundreds of rows, and nobody reads them all at once.
 	 * A run opens its activity page.
+	 *
+	 * `route` (search, sort, filters), `today`, `history`, `openSheet` and
+	 * `swap` are handed in for the rebuilt page (search, sort and the filter
+	 * sheet); this one doesn't read them yet.
 	 */
 	interface Props {
+		route: AllRoute;
 		data: ActivitiesData;
+		/** `YYYY-MM-DD`. */
+		today: string;
+		/** The activity history's download, while it runs. */
+		history: HistoryProgress | null;
+		openSheet: OpenSheet;
 		onBack: () => void;
 		go: (route: Route) => void;
+		/** The same page with another search, sort or filter. */
+		swap: (route: Route) => void;
 	}
 
 	let { data, onBack, go }: Props = $props();

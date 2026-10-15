@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { BENEFIT_SHEET_TITLE, benefitMessage } from "../../../dashboard/activity-copy";
-	import { mapLegend, overlayFor } from "../../../dashboard/activity-map";
-	import { overviewView, type OverviewLink } from "../../../dashboard/activity-overview";
+	import { mapLegend, overlayFor, overviewOverlay } from "../../../dashboard/activity-map";
+	import { overviewView, type OverviewLink, type OverviewView } from "../../../dashboard/activity-overview";
 	import { activityMapRoute } from "../../../dashboard/routes";
 	import { toIsoDate } from "../../../garmin/endpoints";
 	import { sportIcon } from "../../sport-icons";
 	import { lucide } from "../home/lucide";
 	import MapLegend from "./map/MapLegend.svelte";
+	import Badges from "./overview/Badges.svelte";
 	import BenefitSheet from "./overview/BenefitSheet.svelte";
 	import Evaluation from "./overview/Evaluation.svelte";
 	import OverviewStat from "./overview/OverviewStat.svelte";
@@ -16,23 +17,27 @@
 
 	/**
 	 * Overview, as the phone lays it out: the route map (static: a tap opens
-	 * the full-screen map), the date line, the name, the distance and four
-	 * figures, Evaluation, Navigation and the device. A pane puts the map over
-	 * two columns with the rest beside it; between the two, the map runs across
-	 * and the sections pair up below it.
+	 * the full-screen map), the date line, the name, the big figure (the
+	 * distance, or the sport's) and four figures, Evaluation, Badges,
+	 * Navigation and the device with its sensors. A pane puts the map over two
+	 * columns with the rest beside it; between the two, the map runs across and
+	 * the sections pair up below it. The sport's profile decides the figures,
+	 * the links and the map's overlay; Badges and sensors show only when the
+	 * activity has some.
 	 *
 	 * Read-only, as the plugin is: no rename, notes, likes, photo or share, and
 	 * Feel and Perceived Effort are shown, never edited. Only the Primary
 	 * Benefit's "?" opens a sheet.
 	 */
-	let { detail, route, units, tiles, go, swap, reach, openSheet, loading = false }: ActivityTabProps & { loading?: boolean } = $props();
+	let { detail, route, units, profile, tiles, go, swap, reach, openSheet, loading = false }: ActivityTabProps & { loading?: boolean } = $props();
 
 	/** This device's day: an activity from another year shows its year on the date line. */
 	const today = toIsoDate();
-	let view = $derived(overviewView(detail, units, today));
-	/** The phone's Overview map is in the Pace overlay; a run without speeds draws plain. */
-	let overlay = $derived(overlayFor(detail, "pace"));
-	let legend = $derived(mapLegend(overlay));
+	let view = $derived(overviewView(detail, units, today, profile.overview));
+	/** The sport's Overview overlay (the run's pace); an activity without its data draws plain. */
+	let opening = $derived(overviewOverlay(profile.map));
+	let overlay = $derived(overlayFor(detail, opening, profile.map));
+	let legend = $derived(mapLegend(overlay, profile.map));
 	let hasEvaluation = $derived(!!(view.benefit || view.feel || view.effort));
 
 	function openChart(chart: string) {
@@ -44,15 +49,21 @@
 		if (benefit) openSheet(BENEFIT_SHEET_TITLE, BenefitSheet, { benefit, message: benefitMessage(detail.summary.trainingEffectLabel) });
 	}
 
+	/** The records row draws Lucide's trophy, as the phone does; the others their sport's figure. */
 	function linkIcon(link: OverviewLink): string {
-		return link.icon === "medal" ? "trophy" : sportIcon("run");
+		return link.icon === "medal" ? "trophy" : sportIcon(link.icon);
+	}
+
+	/** A sensor's second line: "4.1 • Battery: OK". */
+	function sensorLine(sensor: NonNullable<OverviewView["sensors"]>[number]): string {
+		return [sensor.firmware, sensor.battery ? `Battery: ${sensor.battery}` : undefined].filter(Boolean).join(" • ");
 	}
 </script>
 
-<div class="ov" class:has-map={view.map || view.routeMissing}>
+<div class="ov" class:has-map={view.map || view.routeMissing} class:has-badges={!!view.badges}>
 	{#if view.map}
 		<div class="ov-map">
-			<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} {overlay} onOpen={() => go(activityMapRoute(detail.id))}>
+			<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} {overlay} map={profile.map} onOpen={() => go(activityMapRoute(detail.id, opening))}>
 				{#if legend}<div class="ov-legend"><MapLegend {legend} /></div>{/if}
 				{#if view.weather}<div class="ov-weather"><WeatherChip chip={view.weather} /></div>{/if}
 			</RouteMap>
@@ -78,6 +89,12 @@
 				<span class="distance-unit">{view.distance.unit}</span>
 			</div>
 			<div class="sub">Distance</div>
+		{:else if view.hero}
+			<div class="distance">
+				<span class="distance-value">{view.hero.value}</span>
+				{#if view.hero.unit}<span class="distance-unit">{view.hero.unit}</span>{/if}
+			</div>
+			<div class="sub">{view.hero.label}</div>
 		{/if}
 		{#if view.figures.length}
 			<div class="figures">
@@ -91,6 +108,12 @@
 	{#if hasEvaluation}
 		<section class="ov-eval">
 			<Evaluation benefit={view.benefit} feel={view.feel} effort={view.effort} onBenefit={openBenefit} />
+		</section>
+	{/if}
+
+	{#if view.badges}
+		<section class="ov-badges">
+			<Badges badges={view.badges} />
 		</section>
 	{/if}
 
@@ -109,16 +132,30 @@
 		</section>
 	{/if}
 
-	{#if view.device}
+	{#if view.device || view.sensors}
 		<section class="ov-device">
 			<h3 class="gc-ov-heading">Devices &amp; Apps</h3>
-			<div class="device">
-				<span class="watch" use:lucide={"watch"}></span>
-				<div class="device-text">
-					<div class="device-name">{view.device.name}</div>
-					{#if view.device.firmware}<div class="sub">{view.device.firmware}</div>{/if}
+			{#if view.device}
+				<div class="device">
+					<span class="watch" use:lucide={"watch"}></span>
+					<div class="device-text">
+						<div class="device-name">{view.device.name}</div>
+						{#if view.device.firmware}<div class="sub">{view.device.firmware}</div>{/if}
+					</div>
 				</div>
-			</div>
+			{/if}
+			{#if view.sensors}
+				{#each view.sensors as sensor, i (i)}
+					{@const line = sensorLine(sensor)}
+					<div class="device sensor">
+						<span class="watch" use:lucide={"radio"}></span>
+						<div class="device-text">
+							<div class="device-name">{sensor.name}</div>
+							{#if line}<div class="sub">{line}</div>{/if}
+						</div>
+					</div>
+				{/each}
+			{/if}
 		</section>
 	{/if}
 </div>
@@ -174,6 +211,15 @@
 	}
 	.ov-eval {
 		grid-area: eval;
+		padding-top: 32.2px;
+	}
+	/* Badges sit between Evaluation and Navigation, as on the ride's page; a page
+	   without any keeps the grid it had (the areas below change only with them). */
+	.ov.has-badges {
+		grid-template-areas: "map" "summary" "eval" "badges" "nav" "device";
+	}
+	.ov-badges {
+		grid-area: badges;
 		padding-top: 32.2px;
 	}
 	.ov-nav {
@@ -348,6 +394,10 @@
 	.device-text .sub {
 		margin-top: 1.2px;
 	}
+	/* A sensor under the watch, with a generic figure: the plugin loads no product images (Inferred spacing). */
+	.device.sensor {
+		margin-top: 20px;
+	}
 
 	/* 640pt and up: the map across the top, rounded, and the sections in two columns under it. */
 	@container (min-width: 640px) {
@@ -360,6 +410,12 @@
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 			grid-template-areas: "map map" "summary eval" "nav device";
 			column-gap: 32px;
+		}
+		.ov.has-badges {
+			grid-template-areas: "map map" "summary eval" "badges nav" "badges device";
+		}
+		.ov-badges {
+			padding-top: 32px;
 		}
 		.ov-map {
 			height: 360px;
@@ -409,12 +465,23 @@
 		.ov-device {
 			padding-top: 22.7px;
 		}
+		.ov.has-badges {
+			grid-template-rows: auto auto auto auto 1fr;
+			grid-template-areas: "map summary" "map eval" "map badges" "map nav" "map device";
+		}
+		.ov.has-map .ov-badges {
+			padding-top: 32.2px;
+		}
 		/* No map: three columns from the top. */
 		.ov:not(.has-map) {
 			grid-template-columns: repeat(3, minmax(0, 1fr));
 			grid-template-rows: auto 1fr;
 			grid-template-areas: "summary eval nav" "summary eval device";
 			column-gap: 32px;
+		}
+		.ov.has-badges:not(.has-map) {
+			grid-template-rows: auto 1fr;
+			grid-template-areas: "summary eval nav" "summary badges device";
 		}
 		.ov:not(.has-map) .ov-nav {
 			padding-top: 0;

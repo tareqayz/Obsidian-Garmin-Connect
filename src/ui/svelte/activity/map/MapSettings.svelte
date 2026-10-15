@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { OVERLAY_LABELS } from "../../../../dashboard/activity-map";
-	import type { MapOverlay } from "../../../../dashboard/routes";
 	import { lucide } from "../../home/lucide";
 	import { obsidianToggle } from "./toggle";
 
@@ -13,21 +11,23 @@
 	 * Each choice reaches the map at once through `onLaps` / `onOverlay` and the
 	 * sheet stays open, as a settings sheet does. It was opened with the map's
 	 * choices and keeps its own from there, since a sheet's props don't follow
-	 * the page.
+	 * the page. The overlays and their words are the sport's.
 	 */
 	interface Props {
 		/** "OpenStreetMap", or what the map draws without tiles. */
 		provider: string;
 		laps: boolean;
-		overlay: MapOverlay;
+		overlay: string;
 		/** The overlays this activity has data for. */
-		overlays: readonly MapOverlay[];
+		overlays: readonly string[];
+		/** Each overlay's row, as the sport words it ("Pace", "Run/Walk"). */
+		labels: Readonly<Record<string, string>>;
 		onLaps: (on: boolean) => void;
-		onOverlay: (overlay: MapOverlay) => void;
+		onOverlay: (overlay: string) => void;
 		onClose: () => void;
 	}
 
-	let { provider, laps: openedLaps, overlay: openedOverlay, overlays, onLaps, onOverlay }: Props = $props();
+	let { provider, laps: openedLaps, overlay: openedOverlay, overlays, labels, onLaps, onOverlay }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let laps = $state(openedLaps);
@@ -39,7 +39,7 @@
 		onLaps(on);
 	}
 
-	function choose(next: MapOverlay) {
+	function choose(next: string) {
 		if (next === overlay) return;
 		overlay = next;
 		onOverlay(next);
@@ -59,7 +59,7 @@
 	<div class="list" role="radiogroup">
 		{#each overlays as choice (choice)}
 			<button class="row choice" role="radio" aria-checked={choice === overlay} onclick={() => choose(choice)}>
-				<span class="label">{OVERLAY_LABELS[choice]}</span>
+				<span class="label">{labels[choice] ?? choice}</span>
 				{#if choice === overlay}<span class="check" use:lucide={"check"}></span>{/if}
 			</button>
 		{/each}
