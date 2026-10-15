@@ -51,6 +51,8 @@ export type CoreColour =
 	| "grey"
 	| "lavender"
 	| "white"
+	/** The theme's text colour, where Garmin's white would vanish on a light theme (a Zone 1 bar). */
+	| "text"
 	/** The Heart Rate Zones line's low end (an Inferred stop). */
 	| "sky"
 	/** The heart-rate overlay's line and labels. */
@@ -76,6 +78,8 @@ const CORE_COLOURS: Readonly<Record<CoreColour, string>> = {
 	grey: "#6c6c6c",
 	lavender: "#aa8dfc",
 	white: "#ffffff",
+	// A CSS value, not a hex: paint it as HTML (a zone bar, a key), where var() always resolves.
+	text: "var(--text-normal)",
 	sky: "#3994ef",
 	crimson: "#ff0035",
 	"deep-orange": "#ea670e",
