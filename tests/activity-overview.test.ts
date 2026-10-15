@@ -108,6 +108,8 @@ describe("activity labels", () => {
 		assert.equal(feelLabel(42), null);
 		assert.deepEqual(effortOf(40), { value: 4, score: "4/10", label: "Somewhat Hard" });
 		assert.equal(effortColor(6), "#f5bf2a");
+		assert.equal(effortColor(5), "#f5bf2a");
+		assert.deepEqual([effortColor(2), effortColor(3), effortColor(4), effortColor(7), effortColor(10)], ["#54a9fe", "#0b963f", "#0b963f", "#eb6d0f", "#e02c2c"]);
 	});
 });
 

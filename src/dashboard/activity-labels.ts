@@ -129,14 +129,19 @@ export function effortOf(rpe: unknown): Effort | null {
 	return { value, score: `${value}/10`, label: EFFORT[value]! };
 }
 
-/** The effort dot's colour along the slider: blue → green → yellow → orange → red. 6 is the confirmed yellow. */
+/**
+ * The effort dot's colour along the slider, in pairs: 1–2 blue, 3–4 green,
+ * 5–6 yellow, 7–8 orange, 9–10 red. Seen on the phone: 3 green `#0b963f`, 5
+ * and 6 yellow (ref/activity-details/pool-swim/README.md); the other pairs
+ * are Inferred.
+ */
 export function effortColor(value: number): string {
 	const stops: ReadonlyArray<[number, string]> = [
 		[0, "#54a9fe"],
-		[3, "#34b358"],
-		[6, "#f5bf2a"],
-		[8, "#eb6d0f"],
-		[10, "#e02c2c"],
+		[3, "#0b963f"],
+		[5, "#f5bf2a"],
+		[7, "#eb6d0f"],
+		[9, "#e02c2c"],
 	];
 	let colour = stops[0]![1];
 	for (const [at, c] of stops) if (value >= at) colour = c;
