@@ -527,6 +527,22 @@ export interface ChartsSpec {
 	 * in fifties. The run's code draws the rest.
 	 */
 	runOverrides?: Readonly<Partial<Record<RunMetric, RunOverride>>>;
+	/**
+	 * Where the samples sit on an axis, and where it ends, for a sport whose
+	 * samples don't say: a pool swim's carry no distance, so the sample that
+	 * closes each length sits at the distance swum by then. Undefined (for the
+	 * axis, or no hook) is the samples' own time or distance, as the run's. The
+	 * y axis of a chart on placed samples spans the samples placed.
+	 */
+	places?: (detail: ActivityDetail, axis: ActivityAxis) => AxisPlaces | undefined;
+	/** The Distance axis' ticks and title for its end in metres: a swim's metres; the run's km or miles by default. */
+	distanceAxis?: (end: number, units: Units, detail: ActivityDetail) => XAxis;
+}
+
+/** A sport's places for the samples on an axis (`ChartsSpec.places`): one per sample, null for none; and the axis' end. */
+export interface AxisPlaces {
+	at: ReadonlyArray<number | null>;
+	end: number;
 }
 
 /** A sport's title, y axis, overlay colour or card frame for one of the run's charts. */
@@ -830,11 +846,15 @@ export interface ChartContext {
 	/** The sport's charts. */
 	spec: ChartsSpec;
 	extras: ChartExtras;
+	/** The sport placed the samples itself (`ChartsSpec.places`): each chart's y axis spans the samples placed. */
+	placed?: boolean;
 }
 
 type Context = ChartContext;
 
 function contextOf(detail: ActivityDetail, axis: ActivityAxis, units: Units, spec: ChartsSpec, extras: ChartExtras): Context | null {
+	const own = spec.places?.(detail, axis);
+	if (own) return own.end > 0 ? { detail, axis, units, at: [...own.at], end: own.end, spec, extras, placed: true } : null;
 	const at = (axis === "distance" ? detail.samples.distance : detail.samples.time) ?? [];
 	let end = -Infinity;
 	for (const v of at) if (isNumber(v) && v > end) end = v;
@@ -869,8 +889,8 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 		figures: figuresOf(ctx.detail, metric, ctx.units, ctx.spec),
 		mark: markOf(metric, ctx.spec),
 		points,
-		y: yAxisOf(ctx.detail, metric, ctx.units, values, ctx.spec),
-		x: ctx.axis === "time" ? timeAxis(start, end) : distanceAxis(ctx.end, ctx.units),
+		y: yAxisOf(ctx.detail, metric, ctx.units, ctx.placed ? placedOnly(ctx.at, values) : values, ctx.spec),
+		x: ctx.axis === "time" ? timeAxis(start, end) : distanceTicks(ctx),
 	};
 	const fill = fillOf(metric, ctx.spec);
 	if (fill) chart.fill = fill;
@@ -1100,6 +1120,11 @@ function paceOf(speed: number, units: Units): number {
 	return (units === "imperial" ? METRES_PER_MILE : 1000) / speed;
 }
 
+/** The values of the samples with a place on the axis; the rest none. */
+function placedOnly(at: ReadonlyArray<number | null>, values: ReadonlyArray<number | null>): Array<number | null> {
+	return values.map((v, i) => (isNumber(at[i]) ? v : null));
+}
+
 /** Values on the axis from `start` to `end`: each sample's place as a share of it, and its value or null. */
 export function pointsOf(at: ReadonlyArray<number | null>, values: ReadonlyArray<number | null>, start: number, end: number): ChartPoints {
 	const span = end - start || 1;
@@ -1167,6 +1192,11 @@ export function distanceAxis(metres: number, units: Units): XAxis {
 		ticks.push({ at: length > 0 ? value / length : 0, text: value.toFixed(2) });
 	}
 	return { ticks, title: units === "imperial" ? "Distance (mi)" : "Distance (km)" };
+}
+
+/** The Distance axis of a chart: the sport's own ticks (a swim's metres), or the run's. */
+function distanceTicks(ctx: Pick<Context, "detail" | "end" | "units" | "spec">): XAxis {
+	return ctx.spec.distanceAxis?.(ctx.end, ctx.units, ctx.detail) ?? distanceAxis(ctx.end, ctx.units);
 }
 
 /** A nice step for `raw`: 1, 2 or 5 × 10ⁿ, rounding at 1.5, 3 and 7. */
@@ -1576,7 +1606,7 @@ function runWalk(ctx: Context, opts: RunWalkOptions = {}): RunWalkChart | null {
 		],
 		lanes: LANES,
 		bars,
-		x: time ? timeAxis(0, end, opts.landscape ? TICKS : TICKS - 1) : distanceAxis(end, ctx.units),
+		x: time ? timeAxis(0, end, opts.landscape ? TICKS : TICKS - 1) : distanceTicks({ ...ctx, end }),
 		legend: [
 			{ label: "Run", colour: "blue", kind: "dot" },
 			{ label: "Walk", colour: "green", kind: "dot" },
