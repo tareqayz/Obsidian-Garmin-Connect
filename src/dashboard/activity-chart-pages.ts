@@ -315,7 +315,16 @@ export interface XAxis {
 	title: string;
 }
 
-export type SeriesMark = "area" | "line" | "dots" | "steps" | "blocks";
+/** How a chart of samples draws: `lanes` is a chart of bars in lanes, not of values (a ride's Position). */
+export type SeriesMark = "area" | "line" | "dots" | "steps" | "blocks" | "lanes";
+
+/** Lanes across a chart, with bars rising from its bottom: a ride's Position, Standing over Seated. */
+export interface LaneSet {
+	/** Top to bottom. */
+	lanes: Array<{ id: string; label: string; colour: ChartColour }>;
+	/** Each bar's span on x (0 … 1) and its lane's id. */
+	bars: Array<{ from: number; to: number; lane: string }>;
+}
 
 /** A chart of samples: Pace and the other plots. */
 export interface SeriesChart extends CardBase {
@@ -346,6 +355,8 @@ export interface SeriesChart extends CardBase {
 	legend?: ChartKey[];
 	/** A sport's chart's frame (its `MetricDef.frame`); the run's charts are framed by their metric. */
 	frame?: ChartFrameName;
+	/** A chart of lanes (`mark: "lanes"`): its lanes and bars, in place of points. */
+	lanes?: LaneSet;
 }
 
 /** The card frames `activity-charts.ts` keeps: the usual one, Pace's, the forced labels', Power's and Stamina's. */
@@ -459,6 +470,20 @@ export interface MetricDef {
 	frame?: ChartFrameName;
 	/** Anything more the chart carries: a reference line, a second line, a legend, blocks. `start` is where its time axis starts. */
 	decorate?: (chart: SeriesChart, ctx: ChartContext, start: number) => void;
+	/** The chips' and the landscape title's name where it differs from the card's: "Power Phase Start" for "Power Phase: Start". */
+	chip?: string;
+	/**
+	 * Dots in more than one series, each in its own colour and drawn in turn
+	 * (a ride's left and right pedals). `values` then holds a value only where
+	 * every series has one: the time axis spans those samples.
+	 */
+	series?: (detail: ActivityDetail, units: Units) => ReadonlyArray<{ values: ReadonlyArray<number | null>; colour: ChartColour }>;
+	/** Dots: the card's time axis ends at the last sample with a value, as it starts at the first (a ride's 57:05 where its samples run to 57:20). */
+	trim?: boolean;
+	/** As a landscape overlay, its card's own labels rather than five even ones: L/R Balance's "100% L · 50/50 · 100% R". */
+	keepLabels?: boolean;
+	/** A chart of lanes rather than values (a ride's Position): its lanes and bars on an axis of its own, or null without any. */
+	lanes?: (ctx: ChartContext) => (LaneSet & { x: XAxis }) | null;
 }
 
 /**
@@ -504,10 +529,18 @@ export interface ChartsSpec {
 	runOverrides?: Readonly<Partial<Record<RunMetric, RunOverride>>>;
 }
 
-/** A sport's title or y axis for one of the run's charts. */
+/** A sport's title, y axis, overlay colour or card frame for one of the run's charts. */
 export interface RunOverride {
 	title?: string;
 	axis?: AxisRule;
+	/** Its colour as a landscape overlay: a ride's Power line #ed79d5, where the run's is Garmin's purple. */
+	accent?: ChartColour;
+	/** Its card's frame: a ride's Power in the usual one, where the run's sits higher (`activity-charts.ts`). */
+	frame?: ChartFrameName;
+	/** As a landscape overlay, its card's own labels (a ride's Performance Condition: "+4 +2 0 -2 -4"). */
+	keepLabels?: boolean;
+	/** As a landscape overlay, its card's key under the axis title (a ride's Stamina: "● Stamina — Potential"). */
+	keepKey?: boolean;
 }
 
 /** The two zone scales a page draws. */
@@ -676,7 +709,12 @@ function bandsOf(metric: ChartMetric, spec: ChartsSpec): MetricDef["bands"] {
 }
 
 function accentOf(metric: ChartMetric, spec: ChartsSpec): ChartColour {
-	return isRunMetric(metric) ? ACCENT[metric] : (specMetric(spec, metric)?.accent ?? "blue");
+	return isRunMetric(metric) ? (own(spec.runOverrides, metric)?.accent ?? ACCENT[metric]) : (specMetric(spec, metric)?.accent ?? "blue");
+}
+
+/** A chart's name on its chip and in the landscape title: its card's, or the sport's chip word for it. */
+function chipTitleOf(metric: ChartMetric, spec: ChartsSpec): string {
+	return specMetric(spec, metric)?.chip ?? titleOf(metric, spec);
 }
 
 /* ------------------------------------------------------------------ */
@@ -812,9 +850,16 @@ interface SeriesOptions {
 /** One chart of samples, or null when the activity has none for it. */
 function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: SeriesOptions = {}): SeriesChart | null {
 	if (!hasMetric(ctx.detail, metric, ctx.spec)) return null;
+	const def = specMetric(ctx.spec, metric);
+	if (def?.lanes) return laneChart(ctx, id, metric, def);
 	const values = valuesOf(ctx.detail, metric, ctx.units, ctx.spec);
-	const start = ctx.axis === "time" && isDots(metric, ctx.spec) && !opts.fromZero ? firstAt(ctx.at, values) : 0;
-	const points = pointsOf(ctx.at, values, start, ctx.end);
+	const dots = ctx.axis === "time" && isDots(metric, ctx.spec) && !opts.fromZero;
+	const start = dots ? firstAt(ctx.at, values) : 0;
+	// A sport's dots may end their axis at their last value too; the run's run to the activity's end.
+	const end = dots && def?.trim ? lastAt(ctx.at, values, ctx.end) : ctx.end;
+	const series = def?.series?.(ctx.detail, ctx.units);
+	const drawn = series?.map((s) => valued(upTo(pointsOf(ctx.at, s.values, start, end))));
+	const points = drawn ? joined(drawn) : def?.trim ? upTo(pointsOf(ctx.at, values, start, end)) : pointsOf(ctx.at, values, start, ctx.end);
 	const chart: SeriesChart = {
 		kind: "series",
 		id,
@@ -825,7 +870,7 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 		mark: markOf(metric, ctx.spec),
 		points,
 		y: yAxisOf(ctx.detail, metric, ctx.units, values, ctx.spec),
-		x: ctx.axis === "time" ? timeAxis(start, ctx.end) : distanceAxis(ctx.end, ctx.units),
+		x: ctx.axis === "time" ? timeAxis(start, end) : distanceAxis(ctx.end, ctx.units),
 	};
 	const fill = fillOf(metric, ctx.spec);
 	if (fill) chart.fill = fill;
@@ -833,6 +878,8 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 	if (average !== undefined) chart.average = { value: average, dashed: averageStyle(metric, ctx.spec) === "dashed" };
 	const bands = bandsOf(metric, ctx.spec);
 	if (bands) chart.colours = points.y.map((v) => (v === null ? null : bandOf(bands, rawOf(metric, v, ctx.units, ctx.spec))));
+	// Each series' dots in its own colour, in the order drawn.
+	if (drawn && series) chart.colours = drawn.flatMap((p, i) => p.x.map(() => series[i]!.colour));
 	switch (metric) {
 		case "stride-length":
 			chart.colour = "blue";
@@ -861,14 +908,68 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 			chart.reference = 1;
 			break;
 		default: {
-			const def = specMetric(ctx.spec, metric);
 			if (def?.colour) chart.colour = def.colour;
 			if (def?.frame) chart.frame = def.frame;
 			def?.decorate?.(chart, ctx, start);
 			break;
 		}
 	}
+	const frame = isRunMetric(metric) ? own(ctx.spec.runOverrides, metric)?.frame : undefined;
+	if (frame) chart.frame = frame;
 	return chart;
+}
+
+/**
+ * A chart of lanes (a sport's `MetricDef.lanes`): no values, no value axis,
+ * its bars on an axis of its own (a ride's Position is on the clock, to the
+ * summary's duration).
+ */
+function laneChart(ctx: Context, id: CardId, metric: ChartMetric, def: MetricDef): SeriesChart | null {
+	const lanes = def.lanes?.(ctx);
+	if (!lanes) return null;
+	const chart: SeriesChart = {
+		kind: "series",
+		id,
+		metric,
+		title: titleOf(metric, ctx.spec),
+		help: helpOf(id, ctx.spec),
+		figures: def.figures(ctx.detail, ctx.units),
+		mark: "lanes",
+		points: { x: [], y: [] },
+		y: { bottom: 0, top: 1, labels: [] },
+		x: lanes.x,
+		lanes: { lanes: lanes.lanes, bars: lanes.bars },
+	};
+	if (def.frame) chart.frame = def.frame;
+	def.decorate?.(chart, ctx, 0);
+	return chart;
+}
+
+/** The last sample with a value and a place on the axis; `fallback` without one. */
+export function lastAt(at: ReadonlyArray<number | null>, values: ReadonlyArray<number | null>, fallback: number): number {
+	for (let i = Math.min(at.length, values.length) - 1; i >= 0; i -= 1) {
+		const a = at[i];
+		if (values[i] !== null && values[i] !== undefined && isNumber(a)) return a;
+	}
+	return fallback;
+}
+
+/** The points up to the axis' end: a series' dots past its last shared sample are off the plot. */
+function upTo(points: ChartPoints): ChartPoints {
+	const keep = points.x.map((x) => x <= 1 + 1e-9);
+	if (keep.every(Boolean)) return points;
+	return { x: points.x.filter((_, i) => keep[i]), y: points.y.filter((_, i) => keep[i]) };
+}
+
+/** Only the points with a value: dots in several series keep no gaps, as their order is no longer the samples'. */
+function valued(points: ChartPoints): ChartPoints {
+	const keep = points.y.map((y) => y !== null);
+	return { x: points.x.filter((_, i) => keep[i]), y: points.y.filter((_, i) => keep[i]) };
+}
+
+/** Several series' points as one list, each series after the last. */
+function joined(parts: readonly ChartPoints[]): ChartPoints {
+	return { x: parts.flatMap((p) => p.x), y: parts.flatMap((p) => p.y) };
 }
 
 function markOf(metric: ChartMetric, spec: ChartsSpec): SeriesMark {
@@ -1582,7 +1683,7 @@ export function chartSub(ref: ExpandedChartRef): string {
 	return `chart:${ref.base}:${ref.overlay}${ref.swapped ? ":swap" : ""}`;
 }
 
-export type OverlayMark = "line" | "dots" | "steps" | "zones";
+export type OverlayMark = "line" | "dots" | "steps" | "zones" | "lanes";
 
 /** The overlay on the right axis, in its own colour. */
 export interface OverlaySeries {
@@ -1591,11 +1692,17 @@ export interface OverlaySeries {
 	/** The line's colour and the right labels'. */
 	colour: ChartColour;
 	points: ChartPoints;
-	/** Dots' band colours; zones' colour stops. */
+	/** Dots' band colours, or each dot's series colour; zones' colour stops. */
 	colours?: Array<ChartColour | null>;
 	stops?: Array<{ value: number; colour: ChartColour }>;
-	/** The chart's own axis, labelled with five even values; a pace overlay with its top one only. */
+	/** The chart's own axis, labelled with five even values; a pace overlay with its top one only; lanes with none. */
 	y: YAxis;
+	/** Lanes along the plot's bottom (a ride's Position), in place of points. */
+	lanes?: LaneSet;
+	/** A sport's chart's key, under the axis title: a ride's Left and Right, Seated and Standing. */
+	legend?: ChartKey[];
+	/** An axis of its own the landscape then runs on: Position's, on the clock to the summary's duration. */
+	x?: XAxis;
 }
 
 export interface ExpandedChartView {
@@ -1684,22 +1791,24 @@ export function expandedChartView(
 		.filter((m) => m !== ref.base)
 		.map((metric) => ({
 			metric,
-			label: titleOf(metric, spec),
+			label: chipTitleOf(metric, spec),
 			selected: metric === overlay,
 			// Tapping the chip on again clears it (Inferred); another chip starts unswapped.
 			sub: chartSub(metric === overlay ? { base: ref.base, overlay: null, swapped: false } : { base: ref.base, overlay: metric, swapped: false }),
 		}))
 		.sort((a, b) => a.label.localeCompare(b.label, "en"));
-	const leftTitle = primary.kind === "run-walk" ? primary.title : titleOf(primary.metric, spec);
+	const leftTitle = primary.kind === "run-walk" ? primary.title : chipTitleOf(primary.metric, spec);
+	const secondary = right ? overlaySeries(ctx, right) : null;
 	return {
-		title: right ? `${leftTitle} & ${titleOf(right, spec)}` : leftTitle,
+		title: right ? `${leftTitle} & ${chipTitleOf(right, spec)}` : leftTitle,
 		ref: now,
 		primary,
 		dim,
-		secondary: right ? overlaySeries(ctx, right) : null,
+		secondary,
 		chips,
 		swap: overlay && ref.base !== "run-walk" ? chartSub({ ...now, swapped: !swapped }) : null,
-		x: primary.x,
+		// An overlay on an axis of its own runs the landscape on it: Position's 57:21 where the samples end at 57:20.
+		x: secondary?.x ?? primary.x,
 	};
 }
 
@@ -1707,16 +1816,28 @@ function overlaySeries(ctx: Context, metric: ChartMetric): OverlaySeries | null 
 	const chart = seriesChart(ctx, cardFor(metric, ctx.spec), metric, { fromZero: true });
 	if (!chart) return null;
 	const def = specMetric(ctx.spec, metric);
+	if (chart.mark === "lanes") {
+		// Lanes have no value axis: no right labels.
+		const lanes: OverlaySeries = { metric, mark: "lanes", colour: accentOf(metric, ctx.spec), points: chart.points, y: { bottom: 0, top: 1, labels: [] }, x: chart.x };
+		if (chart.lanes) lanes.lanes = chart.lanes;
+		if (chart.legend) lanes.legend = chart.legend;
+		return lanes;
+	}
 	const zoned = metric === "heart-rate-zones" || (def !== undefined && chart.stops !== undefined);
 	const mark: OverlayMark = chart.mark === "dots" ? "dots" : zoned ? "zones" : chart.mark === "steps" || chart.mark === "blocks" ? "steps" : "line";
 	const pacey = metric === "pace" || metric === "gap" || metric === "lap-pace" || def?.pace === true;
-	const all = forcedLabels(chart.y.bottom, chart.y.top, pacey ? (v) => duration(v) : forcedFormat(metric, ctx.spec));
+	const override = isRunMetric(metric) ? own(ctx.spec.runOverrides, metric) : undefined;
+	// A fixed window keeps its own labels where five even ones would miss them (Peak Power Phase's 0 45 90 135).
+	const keep = def ? def.keepLabels : override?.keepLabels;
+	const all = keep ? chart.y.labels : forcedLabels(chart.y.bottom, chart.y.top, pacey ? (v) => duration(v) : forcedFormat(metric, ctx.spec));
 	// A pace overlay shows only its top label ("4:13"): unexplained, as shot.
 	const y: YAxis = { bottom: chart.y.bottom, top: chart.y.top, labels: pacey ? all.slice(0, 1) : all };
 	const points = (metric === "lap-pace" || def !== undefined) && chart.blocks ? blockSteps(chart.blocks) : chart.points;
 	const out: OverlaySeries = { metric, mark, colour: accentOf(metric, ctx.spec), points, y };
 	if (chart.colours) out.colours = chart.colours;
 	if (chart.stops) out.stops = chart.stops;
+	// A sport's chart keeps its key as an overlay (the ride's Left and Right); the run's overlays stay as they were.
+	if ((def || override?.keepKey) && chart.legend) out.legend = chart.legend;
 	return out;
 }
 

@@ -1,4 +1,4 @@
-import type { ActivityDetail } from "../sync/activity-detail";
+import type { ActivityDetail, ZoneTime } from "../sync/activity-detail";
 import { MAP_OVERLAYS, type MapOverlay } from "./routes";
 
 /**
@@ -28,6 +28,13 @@ export interface MapOverlayDef {
 	 * are; `positive` counts only values above 0 as data.
 	 */
 	values?: { column: string; average: string; best: string; positive?: boolean };
+	/**
+	 * Binned by the activity's own zones rather than in equal slots: a sample's
+	 * slot is its zone's place, the first zone's 0, by the floors the activity
+	 * was recorded with (a ride's Power: 0 / 151 / 205 … W, one colour a zone).
+	 * Without floors the route takes the base colour (Inferred).
+	 */
+	zones?: { column: string; scale: "hr" | "power" };
 }
 
 /** A sport's map. */
@@ -123,7 +130,8 @@ function isValueOverlay(overlay: string): overlay is keyof typeof VALUE_OVERLAY 
  * beyond either end take the end colour. The spec proved this on the phone's
  * map (84% of samples exactly, 95% within a slot); the other value overlays use
  * the same rule over their own column (Inferred), as do a sport's own
- * (its spec's `values`). `none` is one run, and `run-walk` is coloured by
+ * (its spec's `values`); a sport's overlay binned by zones takes a colour a
+ * zone (its spec's `zones`). `none` is one run, and `run-walk` is coloured by
  * segment (0 run, 1 walk, 2 idle).
  */
 export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpec): RouteRun[] {
@@ -149,6 +157,8 @@ export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpe
 
 /** A sample's slot under a pace or value overlay, or null without a value (or for an overlay neither the run nor the spec knows). */
 export function overlayBucket(detail: ActivityDetail, overlay: string, spec?: MapSpec): (sample: number) => number | null {
+	const zoned = defOf(overlay, spec);
+	if (zoned?.zones) return zoneBucket(detail, zoned.zones, zoned.ramp.length);
 	if (overlay === "pace" || overlay === "gap") {
 		const speeds = detail.samples[overlay === "pace" ? "speed" : "gap"] ?? [];
 		const moving = speeds.filter((v): v is number => typeof v === "number" && v > 0);
@@ -177,6 +187,27 @@ export function overlayBucket(detail: ActivityDetail, overlay: string, spec?: Ma
 		const value = values[sample];
 		if (typeof value !== "number" || !Number.isFinite(value)) return null;
 		return slot((value - low) / (best - low));
+	};
+}
+
+/**
+ * A sample's zone under an overlay binned by zones: the last zone whose floor
+ * it reaches (151 W is zone 2's first watt), as a slot from 0, never past the
+ * ramp's last. Null without a value, and for every sample without floors.
+ */
+function zoneBucket(detail: ActivityDetail, zones: NonNullable<MapOverlayDef["zones"]>, slots: number): (sample: number) => number | null {
+	const values = detail.samples[zones.column] ?? [];
+	const floors = (zones.scale === "hr" ? detail.hrZones : detail.powerZones)
+		.filter((z): z is ZoneTime & { floor: number } => typeof z.floor === "number" && Number.isFinite(z.floor))
+		.sort((a, b) => a.zone - b.zone)
+		.map((z) => z.floor);
+	if (!floors.length) return () => null;
+	return (sample) => {
+		const value = values[sample];
+		if (typeof value !== "number" || !Number.isFinite(value)) return null;
+		let slot = 0;
+		for (let i = 0; i < floors.length; i += 1) if (value >= floors[i]!) slot = i;
+		return Math.min(slot, slots - 1);
 	};
 }
 

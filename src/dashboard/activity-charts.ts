@@ -301,6 +301,9 @@ export function marksOf(chart: SeriesChart, plot: PlotRect, markR: number): Char
 		case "line":
 			marks.line = linePath(chart.points.x.map((x, i) => [xOf(x), nullable(chart.points.y[i], yOf)]));
 			break;
+		case "lanes":
+			// A sport's lanes (a ride's Position) are drawn by its own plot, not here.
+			break;
 	}
 	if (chart.stops?.length) marks.zones = zoneGradient(chart.stops, rawY(chart.y, plot));
 	if (chart.line) marks.potential = linePath(chart.line.x.map((x, i) => [xOf(x), nullable(chart.line!.y[i], yOf)]));
@@ -596,6 +599,9 @@ function overlayMarks(series: OverlaySeries, plot: PlotRect): ChartMarks {
 		}
 		case "line":
 			return { line: linePath(series.points.x.map((x, i) => [xOf(x), nullable(series.points.y[i], yOf)])) };
+		case "lanes":
+			// Lanes along the plot's bottom have no line or dots to place here (a ride's Position).
+			return {};
 	}
 }
 
