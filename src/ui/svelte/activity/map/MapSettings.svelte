@@ -11,7 +11,9 @@
 	 * Each choice reaches the map at once through `onLaps` / `onOverlay` and the
 	 * sheet stays open, as a settings sheet does. It was opened with the map's
 	 * choices and keeps its own from there, since a sheet's props don't follow
-	 * the page. The overlays and their words are the sport's.
+	 * the page. The overlays and their words are the sport's; a sport that
+	 * offers only "None" (open water's plain red route) has no Data Overlay
+	 * section, and the sheet hugs the rest (Inferred: not shot).
 	 */
 	interface Props {
 		/** "OpenStreetMap", or what the map draws without tiles. */
@@ -55,15 +57,17 @@
 		<div class="switch" use:obsidianToggle={{ value: laps, onChange: setLaps }}></div>
 	</div>
 
-	<div class="caps">Data Overlay</div>
-	<div class="list" role="radiogroup">
-		{#each overlays as choice (choice)}
-			<button class="row choice" role="radio" aria-checked={choice === overlay} onclick={() => choose(choice)}>
-				<span class="label">{labels[choice] ?? choice}</span>
-				{#if choice === overlay}<span class="check" use:lucide={"check"}></span>{/if}
-			</button>
-		{/each}
-	</div>
+	{#if overlays.length > 1}
+		<div class="caps">Data Overlay</div>
+		<div class="list" role="radiogroup">
+			{#each overlays as choice (choice)}
+				<button class="row choice" role="radio" aria-checked={choice === overlay} onclick={() => choose(choice)}>
+					<span class="label">{labels[choice] ?? choice}</span>
+					{#if choice === overlay}<span class="check" use:lucide={"check"}></span>{/if}
+				</button>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <style>

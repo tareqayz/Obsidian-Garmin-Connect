@@ -445,6 +445,8 @@ export interface LapsView {
 /** The Laps tab of a sport: its profile's `laps`. The run's is the default. */
 export interface LapsSpec {
 	table: (detail: ActivityDetail, units: Units) => LapsView;
+	/** The header stays under the page's bar while the rows scroll, as the phone pins a pool swim's; the run's scrolls away. */
+	pinnedHeader?: boolean;
 }
 
 /**

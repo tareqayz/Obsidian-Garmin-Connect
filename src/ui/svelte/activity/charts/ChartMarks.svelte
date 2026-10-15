@@ -53,7 +53,11 @@
 	{#if marks.area}
 		<path class="area" class:faint={fill === "performance"} d={marks.area} fill={paint} />
 	{/if}
-	{#if marks.blocks}
+	{#if marks.blockRuns}
+		{#each marks.blockRuns as d, i (i)}
+			<path d={d} fill={paint} />
+		{/each}
+	{:else if marks.blocks}
 		{#each marks.blocks as b, i (i)}
 			<rect x={b.x} y={b.y} width={b.width} height={b.height} fill={paint} />
 		{/each}

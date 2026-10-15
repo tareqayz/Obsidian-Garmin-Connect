@@ -12,7 +12,7 @@ import type {
 	YAxis,
 	ZonesChart,
 } from "./activity-chart-pages";
-import { TE_CAP, TE_MAX, TE_SEGMENTS } from "./activity-chart-pages";
+import { isRunMetric, TE_CAP, TE_MAX, TE_SEGMENTS } from "./activity-chart-pages";
 import { linePath, r2 } from "./stat-charts";
 
 /**
@@ -223,6 +223,12 @@ export interface ChartMarks {
 	scatterR?: number;
 	/** Lap Average Pace's blocks. */
 	blocks?: Array<{ x: number; y: number; width: number; height: number }>;
+	/**
+	 * A sport's blocks as one outline per run of touching ones (a pool swim's
+	 * lengths), drawn in place of `blocks` so no anti-aliased hairline shows
+	 * where two meet. The run's blocks stay rects.
+	 */
+	blockRuns?: string[];
 	/** Stamina's Potential, white over the area. */
 	potential?: string;
 	average?: { y: number; dashed: boolean; strong?: boolean };
@@ -342,6 +348,7 @@ export function marksOf(chart: SeriesChart, plot: PlotRect, markR: number): Char
 				const y = yOf(b.value);
 				return { x: r2(xOf(b.from)), y: r2(y), width: r2(xOf(b.to) - xOf(b.from)), height: r2(plot.bottom - y) };
 			});
+			if (!isRunMetric(chart.metric)) marks.blockRuns = blockRuns(marks.blocks, plot.bottom);
 			break;
 		case "dots":
 			marks.scatter = dotPaths(chart.points, chart.colours, chart.colour ?? "blue", xOf, yOf);
@@ -376,6 +383,23 @@ function zoneGradient(stops: NonNullable<SeriesChart["stops"]>, y: (v: number) =
 
 function nullable(v: number | null | undefined, f: (v: number) => number): number | null {
 	return v === null || v === undefined ? null : f(v);
+}
+
+/** Blocks rising from `bottom` as one outline per run of touching ones: each block's top held across its width. */
+export function blockRuns(blocks: NonNullable<ChartMarks["blocks"]>, bottom: number): string[] {
+	const runs: string[] = [];
+	let d = "";
+	let end = NaN;
+	for (const b of blocks) {
+		if (d && Math.abs(b.x - end) > 0.02) {
+			runs.push(`${d} V${r2(bottom)} Z`);
+			d = "";
+		}
+		end = r2(b.x + b.width);
+		d += d ? ` V${b.y} H${end}` : `M${b.x} ${r2(bottom)} V${b.y} H${end}`;
+	}
+	if (d) runs.push(`${d} V${r2(bottom)} Z`);
+	return runs;
 }
 
 /** An area through the points, closed on `base`, one shape per run of values. */

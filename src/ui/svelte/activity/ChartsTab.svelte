@@ -55,7 +55,7 @@
 	}
 </script>
 
-<div class="charts-tab" bind:clientWidth={width}>
+<div class="charts-tab" class:still={!moved} bind:clientWidth={width}>
 	{#if moved}
 		<div class="axis-bar">
 			<div class="axis-inner"><AxisSwitch value={route.axis} onChange={setAxis} /></div>
@@ -114,6 +114,10 @@
 		}
 		.empty {
 			padding: 0 32px 32px;
+		}
+		/* Without the control the cards start 24 pt under the tabs, as a pane's content does. */
+		.still .chart-list {
+			padding-top: 24px;
 		}
 	}
 

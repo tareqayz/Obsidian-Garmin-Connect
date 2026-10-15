@@ -60,7 +60,7 @@
 	}
 </script>
 
-<div class="ov" class:has-map={view.map || view.routeMissing} class:has-badges={!!view.badges}>
+<div class="ov" class:has-map={view.map || view.routeMissing} class:has-badges={!!view.badges} class:pane-grid={profile.id !== "running"}>
 	{#if view.map}
 		<div class="ov-map">
 			<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} {overlay} map={profile.map} onOpen={() => go(activityMapRoute(detail.id, opening))}>
@@ -483,6 +483,12 @@
 		.ov.has-badges:not(.has-map) {
 			grid-template-rows: auto 1fr;
 			grid-template-areas: "summary eval nav" "summary badges device";
+		}
+		/* Every sport but the run sets a map-less pane on the pane's own grid,
+		   three 370pt columns 8pt apart (the swims' and the basic page's twins);
+		   the treadmill run keeps its twin's 32. */
+		.ov.pane-grid:not(.has-map) {
+			column-gap: 8px;
 		}
 		.ov:not(.has-map) .ov-nav {
 			padding-top: 0;
