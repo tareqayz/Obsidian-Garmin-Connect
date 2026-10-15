@@ -1,7 +1,7 @@
 import type { ActivityDetail } from "../../sync/activity-detail";
-import { categoryFor, categoryOf, glyphOf, type Units } from "../activities";
+import { glyphOf, type Units } from "../activities";
 import { RUN_CHARTS, type CardId, type ChartsSpec } from "../activity-chart-pages";
-import { distanceHero, timeHero, type OverviewFigure, type OverviewLink } from "../activity-overview";
+import { distanceHero, groupLink, timeHero, type OverviewFigure, type OverviewLink } from "../activity-overview";
 import {
 	bodyBatteryRows,
 	distanceParts,
@@ -33,7 +33,6 @@ import {
 	type StatsTableRow,
 } from "../activity-stats-pages";
 import type { SportProfile } from "../activity-sports";
-import { categoryRoute } from "../routes";
 
 /**
  * The basic page: every sport without a page of its own (strength, yoga,
@@ -74,16 +73,12 @@ function figures(detail: ActivityDetail, units: Units): OverviewFigure[] {
 }
 
 /**
- * The hub's page for the activity's group, drawn with the activity's own
- * figure, as the phone draws "All Gym & Fitness Equipment Activities" with the
- * stair stepper. No records row; the phone's "<Sport> Reports" is left out, as
- * on the run's page. The group is the hub's (`categoryOf`) until the type
- * table names Garmin's (Inferred for groups without a hub page: "All Other
- * Activities").
+ * The activity's group, drawn with the activity's own figure, as the phone
+ * draws "All Gym & Fitness Equipment Activities" with the stair stepper. No
+ * records row; the phone's "<Sport> Reports" is left out, as on the run's page.
  */
 function links(detail: ActivityDetail): OverviewLink[] {
-	const category = categoryFor(categoryOf(detail));
-	return [{ label: `All ${category.title} Activities`, icon: glyphOf(detail), route: categoryRoute(category.id) }];
+	return [groupLink(detail, glyphOf(detail))];
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,10 +1,11 @@
 import { pace } from "../sync/metrics";
 import { BADGE_DESCRIPTIONS } from "./activity-copy";
 import type { ActivityDetail } from "../sync/activity-detail";
-import { formatDistance, glyphOf, type SportGlyph, type Units } from "./activities";
+import { formatDistance, glyphOf, hubOfGroup, type SportGlyph, type Units } from "./activities";
 import { hasRoute } from "./activity-map";
 import { activityWhen, effortOf, feelLabel, primaryBenefit, type Effort, type PrimaryBenefit } from "./activity-labels";
-import { categoryRoute, type Route } from "./routes";
+import { groupName, groupOf } from "./activity-types";
+import { allRoute, categoryRoute, type Route } from "./routes";
 import { duration } from "./series";
 
 /**
@@ -188,6 +189,18 @@ function links(): OverviewLink[] {
 		{ label: "Running Personal Records", icon: "medal", route: { page: "records", tab: "running" } },
 		{ label: "All Running Activities", icon: "run", route: categoryRoute("running") },
 	];
+}
+
+/**
+ * "All <Group> Activities", by Garmin's filter group (the phone's "All Gym &
+ * Fitness Equipment Activities" under a Stair Stepper): the hub's page for the
+ * group, or All Activities filtered to it where the hub has none (Walking,
+ * Diving…).
+ */
+export function groupLink(detail: ActivityDetail, icon: SportGlyph): OverviewLink {
+	const group = groupOf(detail);
+	const hub = hubOfGroup(group);
+	return { label: `All ${groupName(group)} Activities`, icon, route: hub ? categoryRoute(hub) : allRoute({ types: [group] }) };
 }
 
 /**

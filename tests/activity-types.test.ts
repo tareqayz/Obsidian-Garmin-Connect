@@ -1,7 +1,11 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { ACTIVITY_TYPES, discOf, FILTER_GROUPS, groupName, groupOf, OTHER_GROUP, SHOWN_GROUPS, subTypes, typeName } from "../src/dashboard/activity-types";
+import { hubOfGroup } from "../src/dashboard/activities";
 import { sportTitle } from "../src/dashboard/activity-labels";
+import { groupLink } from "../src/dashboard/activity-overview";
+import { categoryRoute } from "../src/dashboard/routes";
+import type { ActivityDetail } from "../src/sync/activity-detail";
 
 // The type table (spec: ref/activities/all-activities, "Activity types and groups").
 
@@ -55,5 +59,17 @@ describe("the activity type table", () => {
 		assert.equal(discOf({ type: "hiking" }), "red");
 		assert.equal(discOf({ type: "walking" }), "neutral");
 		assert.equal(discOf({ type: "zorbing", parentTypeId: 2 }), "green");
+	});
+});
+
+describe("groupLink", () => {
+	it("opens the hub's page for a group it has, else All Activities filtered to the group", () => {
+		const stairs = groupLink({ type: "stair_climbing", typeId: 31, parentTypeId: 29 } as ActivityDetail, "barbell");
+		assert.deepEqual(stairs, { label: "All Gym & Fitness Equipment Activities", icon: "barbell", route: categoryRoute("gym") });
+		const walk = groupLink({ type: "walking", typeId: 9, parentTypeId: 17 } as ActivityDetail, "walk");
+		assert.equal(walk.label, "All Walking Activities");
+		assert.deepEqual(walk.route, { page: "all", types: [9] });
+		assert.equal(hubOfGroup(9), undefined);
+		assert.equal(hubOfGroup(Number("NaN")), undefined);
 	});
 });

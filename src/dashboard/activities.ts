@@ -87,6 +87,11 @@ export const METRIC_TITLE: Record<MetricId, string> = {
 
 const BRANCH: Record<number, CategoryId> = { 1: "running", 2: "cycling", 29: "gym", 26: "swimming", 3: "hiking", 89: "multisport" };
 
+/** The hub's page for one of Garmin's filter groups (`groupOf`), where the hub has one. */
+export function hubOfGroup(group: number): CategoryId | undefined {
+	return Object.prototype.hasOwnProperty.call(BRANCH, group) ? BRANCH[group] : undefined;
+}
+
 /**
  * Which hub category an activity falls under: its own type or the one above
  * it in Garmin's tree, which is two levels deep. Yoga, stair climbing and
