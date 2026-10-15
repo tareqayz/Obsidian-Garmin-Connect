@@ -16,10 +16,6 @@ Known gaps and open questions, by area.
 - **Cycling Ability and Altitude Acclimation** were left out of Performance
   Stats (2026-10-11): no phone shots, and no altitude data at sea level. Each
   gets its own branch when shots exist.
-- **Activity details for the other sports.** Runs have their page (see
-  "Activity details" under Activities); every other sport's rows still open
-  nothing. Each needs its own phone shots: cycling, swimming, strength and
-  multisport differ the most.
 - **Edit Home**: choosing the cards for Essentials and In Focus.
 - **Remove `LegacyDashboardView`** (`src/dashboard/legacy-view.ts`) in the
   release after 0.2. It only turns tabs saved with the classic dashboard into
@@ -58,8 +54,9 @@ items, to check on the phone:
   watch syncs (yesterday's row).
 - **Load:** the Load Focus titles and copy other than Low Aerobic Shortage,
   and the load copy for every status but Optimal; the bars' stacking order
-  (legend order from the bottom); list rows for sports other than running (no
-  chevron; no distance on stair climbing); a ratio above 2.3 ("2+"); miles.
+  (legend order from the bottom); list rows for sports other than running
+  (ours: a chevron to the page, as a run's; no distance on stair climbing); a
+  ratio above 2.3 ("2+"); miles.
 - **Endurance Score:** the 1y Endurance Score tab was not shot; days other
   than today, and today before the watch syncs; a week without a scored day;
   the colours of groups and types not seen here (ours: a type of its own is
@@ -80,9 +77,10 @@ items, to check on the phone:
 - **Training Effect:** a day with several activities (ours: each chart's day
   maximum, as the web draws it); benefit labels other than Threshold, and the
   band titles and copy other than aerobic 4.x and anaerobic 0.x; the related
-  activity's disc for sports other than runs and swims (ours: grey) and
-  whether it opens anything; a detail whose activity is gone; a 0.0 / 0.0
-  activity (a card, no bar); the 640–999 pt layout.
+  activity's disc for sports the phone hasn't shown (ours: the type table's
+  colour, else neutral) and what it opens (ours: the activity's page); a
+  detail whose activity is gone; a 0.0 / 0.0 activity (a card, no bar); the
+  640–999 pt layout.
 - **Running Tolerance:** the current week's header on a weekday (ours: "OCT 11
   - 12") and past years' headers; the copy for 7 of Garmin's 8 phrases; the
   ring at or over the tolerance (ours: orange, full); Help. Garmin's own
@@ -107,8 +105,8 @@ items, to check on the phone:
   the 1y axis when the last block starts after the last month; the marker on
   a class boundary; tapping a point; Help.
 - **Cycling Power Curve:** previous periods; 3m and 1y scrolled; the 1y empty
-  line's wording; a tap on a record's date or the chart (ours: none — rides
-  have no page); other cycling types counting, and a ride left out of the
+  line's wording; a tap on a record's date (ours: its ride's page) or the
+  chart (ours: none); other cycling types counting, and a ride left out of the
   power curve; the 5-hour row filling; ties (ours: the earliest ride); the y
   axis above 1,000 W; spans on a weekday; a multisport bike leg with power. A
   record deleted on Garmin keeps showing until that ride is listed again
@@ -187,15 +185,46 @@ items, to check on the phone:
   account here has one to check.
 - The Cycling records tab's "2" badge in the app is not built; its source is
   unknown.
-- Sub-type names come from Garmin's type keys, with a few of the app's own names
-  (Road Cycling, Pool Swimming); others may differ from the app.
+- Type names come from the type table (`src/dashboard/activity-types.ts`): the
+  phone's where a shot shows them, else the web's type select; five are
+  Inferred.
 - On macOS the sub-type picker is Obsidian's menu, which follows the "Native
-  menus" setting, so it can look nothing like the Figma sheet.
+  menus" setting, so it can look nothing like the Figma sheet. So is All
+  Activities' Sort.
+- **All Activities** (`ref/activities/all-activities/`, Figma `87:5` and twin
+  `87:9`). **Inferred**, no shot to check against:
+  - a ticked type row; "All <Group>" and its sub-types unticking each other;
+  - chips other than types, their order (as chosen) and the row's end;
+  - the footer with filters set ("Show 1 Activity") and Clear All enabled;
+  - a picked date range, in the fields and on the calendar;
+  - moved slider thumbs, the track outside them, typed values, the steps;
+  - an event type chosen, and whether several can be;
+  - Favorites and Personal Records on, and what the records switch counts;
+  - a typed search, its results, its clear button and the no-results state;
+  - the unopened groups' type names (the web's; Safety's guessed);
+  - the discs of every group but Running, Cycling, Gym and Swimming;
+  - a card from another year, a long name, imperial units, a yard pool;
+  - the singular count, "1 ACTIVITY"; the shot's third chip, "All Hiking";
+  - in the twin: both Sort menus (never rendered); the month and year pickers.
+- **All Activities, shots still wanted:** a typed search, an event type chosen,
+  Favorites and Personal Records on, the chip row scrolled to its end, and the
+  Parasports, Water, Team, Racket, Other and Safety groups opened.
+- After an index's version moves (the activity index's to 3), its pages say
+  "<X> history isn't synced" while they still show its rows, until the history
+  is listed again. Words such as "needs updating" would fit better.
+- A plugin reload (an update) leaves open the update dialog the old instance
+  opened; its Download would agree through the old instance's settings. Close
+  it in `onunload`.
 
 ## Activity details
 
-Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
-(`ref/activity-details/outdoor-run/`, Figma `364:2` and twin `402:2`).
+Every sport has a page, each built from one activity's shots
+(`ref/activity-details/`): runs (outdoor, trail, track, treadmill) from an
+outdoor run (`outdoor-run/`, Figma `364:2` and twin `402:2`); rides from a road
+ride with power pedals (`road-cycling/`, `886:2` and `886:5`); the swims from a
+pool and an open-water swim (`pool-swim/` and `open-water-swim/`, `886:3` and
+`886:6`); every other sport from a Stair Stepper session (`basic/`, `886:4` and
+`886:7`).
 
 - **Check on the phone** (again after the 2026-10-11 fixes):
   - the map: tiles load, a finger scrolls the page past the Overview map, the
@@ -211,28 +240,76 @@ Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
     step speed loss rows; whether the phone keeps the Impact Load Factor chart
     as the web does);
   - the Power (W/kg) chart's axis and labels.
-- **Inferred**, no shot to check against:
+- **Inferred on every page**, no shot to check against:
   - the Gear tab, empty (the web's "No gear added" copy) and filled;
-  - the Overview below Devices & Apps, how notes show, and whether Devices &
-    Apps lists sensors (the web lists the HRM);
+  - the Overview below Devices & Apps, how notes show, and whether a run's
+    Devices & Apps lists its sensors as a ride's does (ours: it does);
+  - Zone 1 and Zone 5 bar colours; the Heart Rate Zones line's colour stops;
+  - what ends the Charts tab below the zones (ours: nothing);
+  - Feel words other than Normal; Perceived Effort words other than 3, 4 and 6,
+    and its colours other than 3 (green) and 5–6 (yellow); Primary Benefit
+    names other than Threshold, Tempo, Recovery and Base, and the benefit
+    sheet's copy for all but Threshold;
+  - weather icons other than a clear day's sun and Mostly Cloudy, the wind's
+    unit (shown as knots × 1.852 because 5 shows "9"), and what tapping the
+    weather chip opens;
+  - the lock for `subscribers` and `public` activities;
+  - badge descriptions but `cycle_climb_500ft`'s, badge art (ours: a medal),
+    and what a badge opens (ours: nothing);
+  - sensor battery words other than "OK", and a sensor with a battery level;
+  - every pane, and the 640–999 pt Overview: Garmin has neither.
+- **Runs, Inferred** (`outdoor-run/`):
   - every Data Overlay but Pace on the full map, their legends, and Laps off;
   - the landscape chips past Heart Rate Zones, the chart Avg Pace opens, and
-    whether a chip toggles off;
-  - Zone 1 and Zone 5 bar colours; the Heart Rate Zones line's colour stops;
-  - Feel words other than Normal; Perceived Effort words other than 4 and 6,
-    and the dot's colour per value; Primary Benefit names other than Threshold
-    and Tempo, and their sheet copy;
-  - weather icons other than a clear day's sun, and the wind's unit (shown as
-    knots × 1.852 because 5 shows "9");
-  - the lock for `subscribers` and `public` activities.
-- **Help copy not captured:** the nine Stats HELP sheets and the twelve Charts
-  "?" sheets. Their links are left out until it is; only the Primary Benefit
-  "?" opens a sheet.
-- **Axis rules not settled:** Stride, Vertical Ratio and GCT start at their
-  first sample, which reads 0:08 where the phone shows 0:09; Run/Walk drops its
-  last time label; Power's top (≈1.66 × max) and Impact Load Factor's (≈2 ×
-  max); the Distance ticks (nice steps — shooting the 8.01 km run of Oct 3
-  would settle it).
+    whether a chip toggles off.
+- **Rides, Inferred** (`road-cycling/`):
+  - the charts on the Distance axis (the twin doesn't draw them either);
+  - Map Settings' overlays (None, Speed, Heart Rate, Power, Elevation), legends;
+  - the colours of Power Zones 3, 6 and 7;
+  - the Power Phase pickers' sheets and words; does one choice switch both?
+  - the peak keys' second line in Power Phase and Balance;
+  - a ride without power, with one-sided pedals or no cycling dynamics;
+  - the landscape opened from cards but Elevation, and its swap view;
+  - which chart each chart badge on Overview and Stats opens;
+  - the expanded charts' layout, as the twin draws them;
+  - Position's marks 6–7 s early, and Garmin's clock after a pause (kept);
+  - Heart Rate's axis top, Stamina's 0–102 overlay, the 0.428 pad;
+  - "--" for a PCO average of 0 (kept); the Power Curve axis past this ride.
+- **Pool swims, Inferred** (`pool-swim/`):
+  - what tapping an interval opens (the web lists its lengths);
+  - the landscape chips (ours: Pace, Strokes, Swolf, Heart Rate, its zones);
+  - Heart Rate Zones on Distance; that axis in fifths, open water's in steps;
+  - the pace axes' 0.45 pad and 5:00 cap;
+  - yard pools and imperial units;
+  - the twin's choices: rest rows unstyled, the pinned header, the Total row.
+- **Open-water swims, Inferred** (`open-water-swim/`):
+  - Map Settings without a Data Overlay;
+  - the Heart Rate picker's sheet, and Heart Rate Zones;
+  - Temperature and the zones on the Distance axis; Zone 1;
+  - the temperature axis rule and the pace's slow-end cap;
+  - the landscape chips (ours: Pace, Strokes, Temperature, Heart Rate, zones);
+  - imperial units, and a hero of 1,000 m or more ("1,234 m").
+- **Every other sport, Inferred** (`basic/`):
+  - every sport but the Stair Stepper: a walk or hike with a map, yoga, strength;
+  - the Heart Rate picker's sheet (the pool's) and Heart Rate Zones;
+  - the landscape chips (ours: Heart Rate, its zones, Pace and Elevation);
+  - the long group name cut short in Navigation; the Charts pane's padding.
+- **Shots still wanted:** a ride on the Distance axis, its Gear, Map Settings
+  and HELP sheets, and a ride without power; pool intervals 12–18 and what
+  tapping an interval opens; open water's Map Settings; another sport on the
+  basic page, such as Strength or Yoga.
+- **Help copy not captured:** the HELP sheets and Charts "?" sheets of every
+  sport, among them a run's nine and twelve. Their links are left out until it
+  is; only the Primary Benefit "?" opens a sheet.
+- **Primary Benefit in Stats** wraps "Tempo / (High Aerobic)" where the twin
+  has "Tempo (High / Aerobic)": the shared `StatRow`.
+- **One swimmer glyph** draws both swims; the phone draws a pool swimmer and an
+  open-water one.
+- **A run's axis rules not settled:** Stride, Vertical Ratio and GCT start at
+  their first sample, which reads 0:08 where the phone shows 0:09; Run/Walk
+  drops its last time label; Power's top (≈1.66 × max) and Impact Load
+  Factor's (≈2 × max); the Distance ticks (nice steps — shooting the 8.01 km
+  run of Oct 3 would settle it).
 - **The map's pace colours** bin in equal steps of pace from the best pace to a
   slow end mirrored about the average (84% of the phone's samples exactly, 95%
   within a slot); the exact slow end is not proved.
@@ -241,7 +318,8 @@ Built for runs (outdoor, trail, track, treadmill) from one outdoor run's shots
   Give it `SheetModal`'s header treatment.
 - **Left out on purpose:** writing anything to Garmin (rename, notes, likes,
   photos, sharing, self-evaluation), Garmin's map provider, Map / Satellite /
-  Terrain, Running Reports (no plugin page), the watch's product image.
+  Terrain, every sport's Reports (no plugin page), the watch's product image,
+  the rotate glyph on Laps and Charts and the landscape laps table it opens.
 
 ## Steps, Floors and Intensity Minutes
 

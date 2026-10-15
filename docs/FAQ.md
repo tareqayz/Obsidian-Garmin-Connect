@@ -36,9 +36,9 @@ groups you turn on:
   range…**): six more, for the day's curves.
 - **Each sync:** about fifteen more, for your profile and the range calls.
 - **Once, for the history you choose in the setup:** about 150 a year of
-  history for Charts & trends, 15 a day for Day details and 10 a run for Run
-  details. It downloads in the background, paced by the **Sync speed** setting
-  and kept under an hourly budget: 10,000 requests at Normal.
+  history for Charts & trends, 15 a day for Day details and 8 to 11 an activity
+  for Activity details. It downloads in the background, paced by the **Sync
+  speed** setting and kept under an hourly budget: 10,000 requests at Normal.
 
 The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
 

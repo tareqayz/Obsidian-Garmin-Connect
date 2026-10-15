@@ -269,9 +269,61 @@ activities**.
   the activities — or, over a year, one row a month, which opens that month.
 - **View Personal Records** opens the records for that sport: Steps, Running,
   Cycling, Swimming and Strength, with every distance Garmin keeps a record for,
-  whether you have one or not.
-- **A run opens its page**: from its sport's page, a month, All Activities, a
-  running record or Home's Today's Activity. It has the app's five tabs:
+  whether you have one or not. A record opens the activity that set it.
+- The pages read the activity index (`activities/`). Filling it costs about one
+  request per hundred activities; after that, routine syncs keep it current with
+  the request they already make.
+- Panes from 1000px wide put the controls on one row, the totals beside the chart
+  and the lists three across.
+
+### All Activities
+
+Garmin's list of every activity, from the hub or Home's All Activities card.
+
+- **Search** stays at the top while the list scrolls. It finds what you type
+  anywhere in an activity's name, whatever the case and accents: "cafe" finds
+  "Café". An activity without a name goes by its sport's.
+- The filter button beside the title opens **Filters**, and shows a dot while a
+  filter is on. Each filter in force is a chip under the search, whose × removes
+  that filter alone.
+- Then the count, exact ("341 ACTIVITIES"), and **Sort**: Newest First, Oldest
+  First, A to Z or Z to A.
+- Each card has the sport's coloured disc and figure, the name, the date, and
+  the distance, or the time for an activity without one. A swim's distance is in
+  whole metres, or yards for a yard pool. The cards run one, two or three across
+  as the pane widens, and load sixty at a time as you scroll.
+- **Filters** has:
+  - **Activities**: Garmin's groups in its order, the first five and then
+    **Show All**; tick **All <Group>** or any of its sub-types;
+  - **Date Range**: a start and an end, picked on a calendar whose title opens
+    month and year pickers;
+  - **Distance** and **Time**: a slider each, or a typed minimum and maximum;
+    the slider's end, 150+ km or 24h+, sets no limit;
+  - **Total Ascent**: a minimum and a maximum;
+  - **Event Type**: Race, Training, Transportation and Garmin's other types,
+    several at once if you like;
+  - **Favorite Activities** and **Personal Records**.
+
+  Its footer counts what the choices would list as you make them ("Show 28
+  Activities"), and **Clear All** empties them. The search and the sort stay as
+  they are.
+- It filters the activity index, so it sends no request. The search, sort and
+  filters belong to the page: Back from an activity, or a restart, keeps them.
+- Favourites and records are as of the last listing: a sync refreshes the
+  newest activities, **Sync activity history** the rest. Garmin's own count can
+  be one higher than the plugin's, when it counts a multisport leg the index
+  leaves out.
+
+### An activity's page
+
+Every activity opens its page, whatever the sport: from All Activities, a
+sport's page or a month, Personal Records, Home's Today's Activity, Load's
+Exercise Load list, Training Effect's related activity and the Cycling Power
+Curve's record dates. Each page has the app's five tabs, **Overview**,
+**Stats**, **Laps**, **Charts** and **Gear**, filled as the app fills them for
+that sport:
+
+- **A run**:
   - **Overview**: the route map and the weather, the headline figures,
     Evaluation (Primary Benefit, Feel, Perceived Effort), links to running
     records and all running activities, and the watch it was recorded on;
@@ -281,11 +333,41 @@ activities**.
     condition, running dynamics, training effect, run/walk and time in zones,
     against **Time** or **Distance**;
   - **Gear**.
+- **A ride** colours its route by power zone, from Less Power to More Power.
+  Under the map come Distance, Total Time, Avg Speed, Total Ascent and Avg
+  Power, and under Devices & Apps the sensors it used ("Rally 100/200", with
+  their firmware and battery). Stats has sixteen sections, among them Power
+  (normalized power, Intensity Factor, Training Stress Score, FTP, work) and
+  Cycling Dynamics (time and power seated and standing, the power phases, the
+  platform centre offset). Laps gives Avg Speed rather than pace, and a Total
+  row. Charts has twenty cards, among them Position, Time in Position, the Power
+  Phase and Balance dials, Platform Offset, the seven power zones, and the Power
+  Curve against your record in W or W/kg. Full size, a chart offers up to
+  fifteen others to lay over it.
+- **A pool swim** has no map. Laps is Garmin's interval table, **Int**, rests
+  included, with a Total. Charts draws each length as a bar, for pace per 100 m,
+  strokes and Swolf, against **Time** or **Distance**, then heart rate, Training
+  Effect and the zones.
+- **An open-water swim** draws its route in red, with the weather. Its charts
+  are pace, strokes a minute and temperature, then heart rate, Training Effect
+  and the zones.
+- **Every other sport** gets the sections the sports share, as the app draws a
+  Stair Stepper session, each only with data: pace and speed, timing, heart
+  rate, Training Effect, Nutrition & Hydration and the rest; laps with a Total;
+  and charts of heart rate, Training Effect and the zones, with pace and
+  elevation for an activity that moved. Without a distance the big figure is
+  Total Time, and Charts has no **Time** / **Distance** switch. Garmin's own
+  placeholders show as the app shows them: "0:00 /km" for a pace that never
+  moved, "-- m" for an ascent not measured.
 
-  A chart icon beside a figure opens its chart full size, where the chips lay a
-  second measure over it. Tapped, the map opens full screen: it pans and zooms,
-  and its layers button colours the route by another measure or hides the lap
-  numbers. Other sports' rows don't open anything yet.
+Every Overview shows the badges the activity earned and the sensors it recorded
+with, when it has any. A chart icon beside a figure opens its chart full size,
+where the chips lay a second measure over it. Tapped, the map opens full screen:
+it pans and zooms, and its layers button colours the route by another measure or
+hides the lap numbers. **All <Group> Activities**, under Navigation, opens the
+hub's page for the activity's group, or All Activities filtered to the group
+where the hub has none: "All Walking Activities" under a walk.
+
 - The first time an activity's page opens it costs eight to eleven requests
   (a run with power or a ride eleven, a pool swim or yoga eight), made between
   syncs, never during one. The answer is kept in `activity-details/`, so the page
@@ -296,18 +378,15 @@ activities**.
   the history download, newest first, at least two seconds apart. A run is about
   150 KB in the vault and eleven requests, so 230 runs come to about 35 MB and
   2,500 requests. A page you open goes first, and a sync waits only for the
-  activity in hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile policy rules
-  out bulk downloads): offline, a map draws the tiles that device viewed in the
-  last week or so, and the route alone elsewhere.
-- The map's tiles come from OpenStreetMap, which sees roughly where the run was.
-  **Map tiles** under **Settings → Maps** turns them off, and the route is drawn
-  on its own, as it is offline. A treadmill run has no map.
-- The pages read the activity index (`activities/`). Filling it costs about one
-  request per hundred activities; after that, routine syncs keep it current with
-  the request they already make.
-- Panes from 1000px wide put the controls on one row, the totals beside the chart
-  and the lists three across. A run's page puts its map beside the figures, and
-  its stats and charts three across.
+  activity in hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile
+  policy rules out bulk downloads): offline, a map draws the tiles that device
+  viewed in the last week or so, and the route alone elsewhere.
+- The map's tiles come from OpenStreetMap, which sees roughly where the
+  activity was. **Map tiles** under **Settings → Maps** turns them off, and the
+  route is drawn on its own, as it is offline. An activity without GPS, such as
+  a treadmill run or a pool swim, has no map.
+- Panes from 1000px wide put an activity's map beside its figures, and its stats
+  and charts three across.
 
 ## Steps, Floors and Intensity Minutes
 

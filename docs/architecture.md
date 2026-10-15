@@ -61,6 +61,8 @@ src/garmin/
   tokens.ts              TokenStore, expiry, refresh
   client.ts              authenticated transport: refresh, 401 retry
   endpoints.ts           typed API wrappers (extends client), the GraphQL gateway included
+  device-names.ts        sensor names by FIT product number, generated from Garmin's product
+                         catalogue (scripts/api/device-names.mjs) — pure
 src/sync/
   metrics.ts             Garmin payloads → properties; groups and the request budget — pure
   numbers.ts             num / isFiniteNumber, for Garmin's nulls and stray strings — pure
@@ -105,13 +107,26 @@ src/dashboard/
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
+  activity-types.ts      Garmin's activity types: the app's names, All Activities' filter groups,
+                         the card discs — pure
+  all-activities.ts      All Activities: the search, the sorts, the cards, the chips and the
+                         Filters sheet — pure
+  activity-sports.ts     sportOf and profileFor: the sport profile an activity's page is drawn
+                         with — pure
+  sports/                the profiles, running.ts, cycling.ts, swimming.ts and basic.ts, and the
+                         palettes their charts use — pure
   activity-map.ts        an activity's map as data: route points, overlay runs, lap markers — pure
   activity-labels.ts     the words the activity tabs share: sport, date, benefit, feel, effort — pure
   activity-overview.ts   the Overview tab's view model — pure
   activity-stats-pages.ts the Stats, Laps and Gear tabs' view models — pure
   activity-chart-pages.ts the Charts tab and the expanded chart's view models — pure
   activity-charts.ts     their geometry, measured off the phone and the twin — pure
-  activity-copy.ts       the benefit sheet's wording, from the app — pure
+  cycling-metrics.ts     a ride's Charts tab as data: its metrics, pickers, power zones and own
+                         cards — pure
+  cycling-activity-charts.ts where a ride's own cards draw — pure
+  swim-metrics.ts        a swim's charts as data: per-length bars, stroke rate, temperature, and
+                         where a pool's samples sit on the Distance axis — pure
+  activity-copy.ts       the benefit sheet's and the badges' wording, from the app — pure
   totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
   stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
   stats-charts.ts        their charts' geometry, measured off the app — pure
@@ -147,8 +162,10 @@ src/ui/
                          (tiles.ts); the TileSource the pages see (tile-source.ts, pure)
 src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel, SyncRangeForm, DeleteData,
                          DataUpdate and RemovedData, and one folder per area below. Obsidian comes
-                         in through actions (obsidian-setting.ts, home/lucide.ts), apart from
-                         SettingsPanel's Notice and the Activities sub-type Menu
+                         in through actions (obsidian-setting.ts, home/lucide.ts,
+                         activity/map/toggle.ts), apart from SettingsPanel's Notice and the
+                         Menus: the Activities sub-type picker, All Activities' Sort and the
+                         Charts pickers
   settings/              DataSection.svelte: Settings → Data
   setup/                 Setup.svelte: the setup's four steps
   home/                  the Home screen, one component per Garmin card; SeeAll.svelte is
@@ -156,13 +173,16 @@ src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel, SyncRangeForm, De
                          back / title / action bar every page inside the view shares;
                          BackfillPill.svelte and SetupCard.svelte, the plugin's own, above it all
   activities/            More, the Activities hub, a sport's page, a month, Personal Records
-                         and All Activities, with their parts; HistoryBanner.svelte
+                         and All Activities, with their parts; HistoryBanner.svelte; all/
+                         (All Activities' search, chips, cards and Filters sheet)
   activity/              an activity's page (ActivityPage.svelte: bar, tabs, the expanded chart
                          in place of the page) and a component per tab, the full-screen map
                          (ActivityMapPage.svelte) and RouteMap.svelte; overview/ (weather chip,
-                         figures, Evaluation, the benefit sheet), map/ (legend, Map Settings,
-                         pins and lap markers), stats/ (sections, rows, the chart badge) and
-                         charts/ (sections, axes, marks, zones, the expanded plot and its chips)
+                         figures, Evaluation, the benefit sheet, Badges), map/ (legend, Map
+                         Settings, pins and lap markers), stats/ (sections, rows, the chart
+                         badge), charts/ (sections, axes, marks, zones, the expanded plot and
+                         its chips) and a folder per sport for the plots it draws itself
+                         (cycling/, swim/)
   stats/                 the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
   sleep/                 the Sleep pages: the night, the factor pages, the Sleep Coach, the periods
@@ -281,10 +301,112 @@ Activities, a sport, a month, Personal Records, All Activities, an activity and
 its full-screen map, Steps, Floors or Intensity Minutes, Health Stats, Sleep, or
 any other Health Stats page. Back pops one; a filter or a tab replaces the top
 rather than adding a step; a link to a page already on the stack goes back down
-to it (`pushOrReturn`). The
-stack is the view's state (`getState` / `setState`), so a reload comes back to
-the same page, and every **Open …** command (Open activities, Open sleep, Open
-stress and the rest) opens the view through the same `setState`.
+to it (`pushOrReturn`, comparing routes by `routeKey`, their keys sorted at
+every level). The stack is the view's state (`getState` / `setState`), so a
+reload comes back to the same page, and every **Open …** command (Open
+activities, Open sleep, Open stress and the rest) opens the view through the
+same `setState`. A route carries what its page shows: All Activities its search,
+sort and filters (`AllRoute`), an activity its tab, axis, expanded chart and
+picker choices (`picks`, by the picker's key; a run's route saved before them
+kept `pace`, `heart` and `power`, which `readRoute` folds in).
+
+## Activity pages
+
+Every activity opens the same page (`src/ui/svelte/activity/ActivityPage.svelte`),
+with the run's five tabs; what fills them is its sport's. What the page reads,
+and how it loads, is under [Activity details on view](#activity-details-on-view).
+
+### Sport profiles
+
+`sportOf` (`src/dashboard/activity-sports.ts`) reads an activity's place in
+Garmin's type tree, its type or the one above it, as the hub's categories do
+(`categoryOf`): the running family is `running`, the cycling family `cycling`,
+`lap_swimming` is `pool-swim`, `open_water_swimming` is `open-water-swim`, and
+every other sport is `basic`. `profileFor` hands the page that sport's
+`SportProfile`, from `src/dashboard/sports/`:
+
+| Profile | File | Draws |
+| --- | --- | --- |
+| `RUNNING` | `running.ts` | every run, outdoor, trail, track or treadmill: the run page as it was built |
+| `CYCLING` | `cycling.ts` | every cycling type: the power-zone map, Power and Cycling Dynamics, twenty chart cards (`cycling-metrics.ts`; its own cards placed by `cycling-activity-charts.ts`) |
+| `POOL_SWIM`, `OPEN_WATER_SWIM` | `swimming.ts` | the pool's intervals and a bar a length (`swim-metrics.ts`); open water's red route |
+| `BASIC` | `basic.ts` | every other sport, modelled on Garmin's Stair Stepper: the sections the sports share, each only with data |
+
+A profile has five optional parts, and the shared view model of each tab takes
+its part as an argument:
+
+| Part | Says | Read by |
+| --- | --- | --- |
+| `overview` (`OverviewSpec`) | the big figure, the figures under it, the Navigation links | `overviewView` |
+| `stats` (`StatsSpec`) | the sections in order, and which have a HELP link | `statsView` |
+| `laps` (`LapsSpec`) | the columns and the rows, a rest or a Total among them | `lapsView` |
+| `charts` (`ChartsSpec`) | the cards, the landscape chips, the pickers, the charts and cards the run doesn't have, the zones' names and colours | `chartsTabView`, `expandedChartView` |
+| `map` (`MapSpec`) | Map Settings' overlays, the Overview's, their colours and legend words, the plain route's colour | `activity-map.ts` |
+
+A part left out is the run's. The view models' defaults are the run page as it
+was built before there were profiles, so `RUNNING` is only `{ id: "running" }`
+and a run is drawn by the code that drew it then.
+`tests/run-page-baseline.test.ts` holds every view the run page draws, for an
+outdoor and a treadmill run in both units, so nothing another sport needs can
+move the run.
+
+- The sport modules import the shared view models, never the other way round.
+  `activity-chart-pages.ts` reads only their data-only palettes
+  (`sports/*-palette.ts`).
+- What a sport draws that the run doesn't comes through `ChartsSpec`, every
+  hook opt-in: `metrics` (a ride's speed, power phases and pedal offsets),
+  `custom` (cards the sport draws itself), `runOverrides` (one of the run's
+  charts drawn its own way: a ride's Power), `zoneTotal` (a zone's share of the
+  zones' sum, or of the activity's time), `places` and `distanceAxis` (samples
+  that carry no distance: a pool swim's lengths).
+- A custom card names its plot (`CustomChart.plot`). Each sport keeps its plots
+  in its own folder (`activity/cycling/plots.ts`), which
+  `activity/charts/kinds.ts` spreads into `CARD_PLOTS`.
+- A map overlay can bin by the activity's own zones (`MapOverlayDef.zones`): a
+  ride's route takes a colour a power zone.
+
+### The type table
+
+`src/dashboard/activity-types.ts` lists Garmin's 154 activity types, each with
+the app's English name, the filter group All Activities' sheet files it under,
+its place in that group and its card's disc colour. It was generated from the
+spec's table (the phone's names, else the web's type select) and is edited by
+hand since; `api:check` on `activity-types` reports when Garmin's tree moves
+from it.
+
+- `FILTER_GROUPS`: the sheet's fifteen groups in its order, the first
+  `SHOWN_GROUPS` (five) before Show All.
+- `typeName` names a type wherever a page does: titles, the sub-type picker,
+  the cards. `groupOf`, `groupName`, `subTypes` and `discOf` read the rest.
+- A type the table lacks, one Garmin adds later, is named from its key and
+  filed under its parent's group, else Other.
+- "All <Group> Activities" under an activity (`groupLink` in
+  `activity-overview.ts`) follows the group: the hub's page where it has one
+  (`hubOfGroup`), else All Activities filtered to the group.
+
+### All Activities
+
+`src/dashboard/all-activities.ts` searches, sorts and filters the activity
+index, so the page sends no request. The route holds all of it (`AllRoute` in
+`routes.ts`): the search `q`, the `sort`, and the sheet's `types`,
+`from`/`to`, `dmin`/`dmax`, `tmin`/`tmax`, `amin`/`amax`, `events`, `fav`
+and `pr`, in metres and seconds whatever the units. Read back, or built by
+`allRoute`, each field is checked and repaired on its own (`allOf`), so one bad
+value never costs the others.
+
+- `allView(rows, route, units, today)` gives the matching rows as cards in the
+  route's order, the exact count, a chip per filter whose `remove` is the same
+  route without it, and the empty state.
+- `matcherOf`: the search is a substring of the card's name folded (`fold`:
+  decomposed, accents dropped, lower case); types are OR'd, by a row's own type
+  or its group; a distance, time or ascent a row lacks counts as 0.
+- Newest First goes by the local start, then the GMT start, then the id:
+  Garmin's own order. A to Z and Z to A compare folded names, ties newest first.
+- The Filters sheet edits a draft (`draftOf`, then `toggleType`, `setDates`,
+  `setRange` and the rest), counted live by `footerOf`; `applyDraft` makes the
+  route, keeping the search and the sort. `filterTree`, `rangeScales`,
+  `monthGrid`, `monthOptions` and `yearOptions` feed its sections.
+- The page draws sixty cards and adds sixty as the list scrolls.
 
 ## Health and Performance Stats foundation
 
