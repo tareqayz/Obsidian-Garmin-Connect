@@ -19,7 +19,9 @@
 	let { detail, route, units, profile, rows, swap }: ActivityTabProps = $props();
 
 	let charts = $derived(profile.charts ?? RUN_CHARTS);
-	let view = $derived(chartsTabView(detail, route, units, charts, { rows, today: toIsoDate() }));
+	/** Only an activity that moved has the Time | Distance control: a Stair Stepper's charts are on time alone. */
+	let moved = $derived(typeof detail.summary.distance === "number" && detail.summary.distance > 0);
+	let view = $derived(chartsTabView(detail, moved ? route : { ...route, axis: "time" }, units, charts, { rows, today: toIsoDate() }));
 
 	let width = $state(0);
 	let layout: ChartLayout = $derived(width >= PANE_WIDTH ? "pane" : "phone");
@@ -54,9 +56,11 @@
 </script>
 
 <div class="charts-tab" bind:clientWidth={width}>
-	<div class="axis-bar">
-		<div class="axis-inner"><AxisSwitch value={route.axis} onChange={setAxis} /></div>
-	</div>
+	{#if moved}
+		<div class="axis-bar">
+			<div class="axis-inner"><AxisSwitch value={route.axis} onChange={setAxis} /></div>
+		</div>
+	{/if}
 	{#if view.cards.length}
 		<div class="chart-list">
 			{#each view.cards as card (card.id)}

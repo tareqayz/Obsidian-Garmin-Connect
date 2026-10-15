@@ -205,7 +205,7 @@ export const CHART_TITLES: Readonly<Record<RunMetric | "run-walk" | "training-ef
  * neither knows (a Stats badge then names its row instead).
  */
 export function chartTitle(id: string, spec?: ChartsSpec): string | undefined {
-	return own<string>(CHART_TITLES, id) ?? specMetric(spec, id)?.title;
+	return own(spec?.runOverrides, id)?.title ?? own<string>(CHART_TITLES, id) ?? specMetric(spec, id)?.title;
 }
 
 /** The run's Charts tab's cards, top to bottom, as the phone lists them. */
@@ -496,6 +496,18 @@ export interface ChartsSpec {
 	 * show, its zones' 34:20 being short of its 34:52.
 	 */
 	zoneTotal?: "zones" | "duration";
+	/**
+	 * What a sport draws differently on one of the run's own charts: a ride's
+	 * Power titled "Power" on its own axis, the basic page's heart rate labelled
+	 * in fifties. The run's code draws the rest.
+	 */
+	runOverrides?: Readonly<Partial<Record<RunMetric, RunOverride>>>;
+}
+
+/** A sport's title or y axis for one of the run's charts. */
+export interface RunOverride {
+	title?: string;
+	axis?: AxisRule;
 }
 
 /** The two zone scales a page draws. */
@@ -531,6 +543,14 @@ export interface AxisRule {
 	fixed?: readonly [bottom: number, top: number];
 	/** Five labels in equal steps from bottom to top, rounded half-even, rather than nice ones. */
 	forced?: boolean;
+	/**
+	 * The labels' step: the run's nice step for about four intervals by
+	 * default; `fit`, the smallest 1, 2 or 5 × 10ⁿ with at most 5.5 steps in the
+	 * range, as the swims' and the basic page's charts show (100 / 150 / 200).
+	 */
+	step?: "fit";
+	/** Bounds at ±(the largest |value|, whole, + reach): a ride's Performance Condition (reach 1). */
+	reach?: number;
 }
 
 type PaceMetric = "pace" | "gap" | "lap-pace";
@@ -1062,13 +1082,17 @@ function yAxisOf(detail: ActivityDetail, metric: ChartMetric, units: Units, valu
 	if (metric === "pace" || metric === "gap" || metric === "lap-pace") return paceAxis(detail, metric, units);
 	const def = specMetric(spec, metric);
 	if (def?.yAxis) return def.yAxis(detail, units, values);
-	const rule: AxisRule = isRunMetric(metric) ? AXES[metric as Exclude<RunMetric, PaceMetric>] : (def?.axis ?? {});
+	const override = isRunMetric(metric) ? own(spec.runOverrides, metric)?.axis : undefined;
+	const rule: AxisRule = override ?? (isRunMetric(metric) ? AXES[metric as Exclude<RunMetric, PaceMetric>] : (def?.axis ?? {}));
 	const finite = values.filter((v): v is number => v !== null && Number.isFinite(v));
 	const min = finite.length ? Math.min(...finite) : 0;
 	const max = finite.length ? Math.max(...finite) : 1;
 	let bottom: number;
 	let top: number;
-	if (rule.fixed) {
+	if (rule.reach !== undefined) {
+		const reach = Math.ceil(Math.max(Math.abs(min), Math.abs(max))) + rule.reach;
+		[bottom, top] = [-reach, reach];
+	} else if (rule.fixed) {
 		[bottom, top] = rule.fixed;
 		// Performance Condition past ±3 widens the axis rather than leave the plot.
 		const reach = Math.ceil(Math.max(Math.abs(min), Math.abs(max)));
@@ -1080,8 +1104,19 @@ function yAxisOf(detail: ActivityDetail, metric: ChartMetric, units: Units, valu
 	}
 	const text = labelFormat(metric, spec);
 	if (rule.forced) return { bottom, top, labels: forcedLabels(bottom, top, text) };
-	const step = metric === "stride-length" && units === "metric" ? STRIDE_STEP_M : undefined;
+	const step = rule.step === "fit" ? fitStep(top - bottom) : metric === "stride-length" && units === "metric" ? STRIDE_STEP_M : undefined;
 	return { bottom, top, labels: niceLabels(bottom, top, text, step) };
+}
+
+/** The smallest 1, 2 or 5 × 10ⁿ that cuts `range` into at most 5.5 steps. */
+export function fitStep(range: number): number {
+	if (!(range > 0) || !Number.isFinite(range)) return 1;
+	for (let exp = Math.floor(Math.log10(range / 5.5)) - 1; ; exp += 1) {
+		for (const f of [1, 2, 5]) {
+			const step = Number((f * 10 ** exp).toPrecision(12));
+			if (range / step <= 5.5) return step;
+		}
+	}
 }
 
 /**
