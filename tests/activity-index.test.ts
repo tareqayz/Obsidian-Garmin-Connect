@@ -118,6 +118,44 @@ describe("rowOf — Performance Stats fields", () => {
 	});
 });
 
+describe("rowOf — All Activities fields (index 3)", () => {
+	const swim: Activity = {
+		...dubaiRun,
+		activityName: "Pool Swim",
+		activityType: { typeId: 27, typeKey: "lap_swimming", parentTypeId: 26 },
+		eventType: { typeId: 4, typeKey: "training", sortOrder: 7 },
+		favorite: true,
+		isFavorite: true,
+		pr: true,
+		isPR: true,
+		poolLength: 2500,
+		unitOfPoolLength: { unitId: 1, unitKey: "meter", factor: 100 },
+	};
+
+	it("keeps the event type, the favourite and PR flags and the pool's unit, last", () => {
+		const r = rowOf(swim)!;
+		assert.deepEqual([r.event, r.favorite, r.pr, r.pool], ["training", true, true, "m"]);
+		assert.deepEqual(Object.keys(r).slice(-4), ["event", "favorite", "pr", "pool"]);
+	});
+
+	it("leaves the defaults out: uncategorized, not starred, no record, no pool", () => {
+		const r = rowOf({ ...dubaiRun, eventType: { typeId: 9, typeKey: "uncategorized" }, favorite: false, isFavorite: false, pr: false, isPR: false, unitOfPoolLength: null })!;
+		for (const key of ["event", "favorite", "pr", "pool"]) assert.equal(key in r, false, key);
+	});
+
+	it("reads isFavorite and isPR alone, and a yard pool", () => {
+		const r = rowOf({ ...dubaiRun, isFavorite: true, isPR: true, unitOfPoolLength: { unitId: 2, unitKey: "yard", factor: 91.44 } })!;
+		assert.deepEqual([r.favorite, r.pr, r.pool], [true, true, "yd"]);
+	});
+
+	it("survives a year file, and drops a flag or unit that isn't one", () => {
+		const r = rowOf(swim)!;
+		assert.deepEqual(parseYear(serializeYear("2026", [r])), [r]);
+		const text = JSON.stringify({ activities: [{ id: 2, type: "yoga", start: "2026-09-01T07:00:00", begin: 5, favorite: "yes", pr: 1, pool: "km", event: "" }] });
+		assert.deepEqual(parseYear(text), [{ id: 2, type: "yoga", start: "2026-09-01T07:00:00", begin: 5 }]);
+	});
+});
+
 describe("mergeListing", () => {
 	const t0 = Date.UTC(2026, 8, 1);
 	const index = [row(1, t0), row(2, t0 + 24 * HOUR), row(3, t0 + 60 * HOUR), row(4, t0 + 72 * HOUR)];
@@ -196,11 +234,13 @@ describe("year files", () => {
 
 describe("index meta", () => {
 	it("round-trips and rejects another version", () => {
-		const meta = { version: 2 as const, complete: true, units: "metric" as const, total: 338 };
+		const meta = { version: 3 as const, complete: true, units: "metric" as const, total: 338 };
 		assert.deepEqual(parseMeta(serializeMeta(meta)), meta);
-		// Version 1 rows lack training effect and power: they read as no index, so the history is listed again.
+		// Version 1 rows lack training effect and power, version 2 rows the event type, favourite and
+		// PR flags: they read as no index, so the history is listed again.
 		assert.equal(parseMeta('{"version":1,"complete":true}'), null);
-		assert.equal(parseMeta('{"version":3,"complete":true}'), null);
+		assert.equal(parseMeta('{"version":2,"complete":true}'), null);
+		assert.equal(parseMeta('{"version":4,"complete":true}'), null);
 		assert.equal(parseMeta("nope"), null);
 	});
 });

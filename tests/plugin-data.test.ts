@@ -95,7 +95,7 @@ describe("PluginData", () => {
 		assert.deepEqual(data.settings.data, {
 			dayDetails: "30d",
 			runDetails: "all",
-			accepted: ["activities@2", "daily-stats@1", "sleep@1", "index:critical-swim-speed@1", "runs@5"],
+			accepted: ["activities@3", "daily-stats@1", "sleep@1", "index:critical-swim-speed@1", "runs@5"],
 			deferred: [],
 		});
 		assert.equal(saved.length, 1);

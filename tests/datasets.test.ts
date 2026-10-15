@@ -31,7 +31,7 @@ describe("consent keys", () => {
 	it("list every chart index of the groups on, and only those", () => {
 		const all = chartKeys(ALL_GROUPS);
 		assert.equal(all.length, 3 + DAY_INDEXES.length);
-		assert.ok(all.includes("activities@2") && all.includes("daily-stats@1") && all.includes("sleep@1"));
+		assert.ok(all.includes("activities@3") && all.includes("daily-stats@1") && all.includes("sleep@1"));
 		assert.deepEqual(chartKeys(["sleep", "spo2"]), ["sleep@1", "index:pulse-ox@1"]);
 	});
 });
