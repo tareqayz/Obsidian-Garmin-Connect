@@ -23,8 +23,10 @@ import type { DayRow } from "./series";
 import type { HistoryView, SleepData } from "./sleep-pages";
 import type { StatsData } from "./stats-pages";
 import type { DaySeries } from "../sync/intraday";
+import type { SetupCardKind } from "../ui/setup-flow";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
+
 
 /** The series files' entry among the versions: not a name an index can have. */
 const SERIES = "#series";
@@ -34,6 +36,9 @@ const ACCOUNT = "#account";
 
 /** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
 const REMEMBERED_ACTIVITIES = 8;
+
+/** While a backfill writes, Home rebuilds at most this often. */
+const BACKFILL_REFRESH_MS = 30_000;
 
 /**
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
@@ -59,6 +64,11 @@ export class GarminHomeView extends ItemView {
 	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
+	/** Unsubscribes from the runner's progress. */
+	private unbind: Array<() => void> = [];
+	/** When each version last moved, and when Home last rebuilt: while a backfill writes, both wait their turn. */
+	private bumpedAt = new Map<string, number>();
+	private refreshedAt = 0;
 	/** What a page read, by the same keys, for as long as its version holds. */
 	private cache = new Map<string, { version: number; data: Promise<unknown> }>();
 	private activities = new Map<number, ActivityDetail>();
@@ -118,7 +128,13 @@ export class GarminHomeView extends ItemView {
 				initialHidden: [...this.plugin.data.home.hidden],
 				initialGlance: this.plugin.data.home.glance ? [...this.plugin.data.home.glance] : undefined,
 				today,
-				canSync: this.plugin.garmin.isAuthenticated,
+				initialCanSync: this.plugin.garmin.isAuthenticated,
+				initialSetupCard: await this.setupCard(),
+				initialBackfill: this.plugin.sync.backfillProgress,
+				onSetUp: () => this.plugin.openSetup(),
+				onSignIn: () => this.plugin.openLogin(),
+				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
+				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
 					const report = await this.plugin.sync.syncRecent();
 					return report ? describe(report).replace(/^Garmin sync: /, "") : null;
@@ -148,10 +164,9 @@ export class GarminHomeView extends ItemView {
 			},
 		});
 
-		this.register(this.plugin.sync.onHistory((progress) => this.component?.setHistory(progress)));
-		this.register(this.plugin.sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)));
-		this.register(this.plugin.sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)));
-		this.register(this.plugin.sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)));
+		this.bindRunner();
+		// The first Garmin view after an update asks about what it offers, once.
+		void this.plugin.askForUpdates();
 
 		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {
@@ -163,6 +178,8 @@ export class GarminHomeView extends ItemView {
 				return;
 			}
 			if (!store.owns(file.path)) return;
+			// Coverage is the backfill's bookkeeping: no page reads it.
+			if (file.path === store.dayCoveragePath || file.path === store.runCoveragePath) return;
 			if (store.isSeriesPath(file.path)) this.bump(SERIES);
 			else if (file.path.startsWith(`${store.sleepFolder}/`)) this.bump("sleep");
 			else if (file.path.startsWith(`${store.dailyStatsFolder}/`)) this.bump("daily-stats");
@@ -175,7 +192,49 @@ export class GarminHomeView extends ItemView {
 		this.registerEvent(this.app.vault.on("delete", onFile));
 	}
 
+	/** The runner's progress, to the pages. Bound again when signing in elsewhere replaces the runner. */
+	private bindRunner(): void {
+		const sync = this.plugin.sync;
+		this.unbind.push(
+			sync.onHistory((progress) => this.component?.setHistory(progress)),
+			sync.onStatsHistory((progress) => this.component?.setStatsHistory(progress)),
+			sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)),
+			sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)),
+			sync.onBackfill((progress) => this.component?.setBackfill(progress)),
+		);
+	}
+
+	rebindRunner(): void {
+		for (const off of this.unbind.splice(0)) off();
+		this.bindRunner();
+		this.component?.setBackfill(this.plugin.sync.backfillProgress);
+	}
+
+	/** Signed in or out, set up or not: the Sync button and the setup card follow. */
+	async refreshState(): Promise<void> {
+		this.component?.setCanSync(this.plugin.garmin.isAuthenticated);
+		this.component?.setSetupCard(await this.setupCard());
+	}
+
+	/**
+	 * The card Home shows above everything else, if any: the setup to finish,
+	 * a sign-in, or — set up, signed in, and still nothing here — data that
+	 * another device has but this one never received.
+	 */
+	private async setupCard(): Promise<SetupCardKind | null> {
+		if (!this.plugin.data.settings.setup) return "finish";
+		if (!this.plugin.garmin.isAuthenticated) return "signed-out";
+		const store = this.store();
+		if (!store.hasData()) {
+			// An account with nothing on Garmin yet is not missing anything here.
+			const scan = await store.readScan();
+			if (!scan || scan.days || scan.activities) return "no-data";
+		}
+		return null;
+	}
+
 	async onClose(): Promise<void> {
+		for (const off of this.unbind.splice(0)) off();
 		window.clearTimeout(this.pending);
 		for (const timer of this.bumps.values()) window.clearTimeout(timer);
 		this.bumps.clear();
@@ -302,26 +361,46 @@ export class GarminHomeView extends ItemView {
 		return def ? store.readDayIndex(def) : { rows: [], meta: null };
 	}
 
-	/** Moves one version, once a burst of file events settles: a sync writes a year file and the meta together. */
+	/** The backfill is writing: Home redraws at most every `BACKFILL_REFRESH_MS`. */
+	private get backfilling(): boolean {
+		return this.plugin.sync.backfillProgress?.status === "running";
+	}
+
+	/**
+	 * Moves one version, once a burst of file events settles: a sync writes a
+	 * year file and the meta together. While a backfill writes, at most every
+	 * `BACKFILL_REFRESH_MS`, a burst never putting it off.
+	 */
 	private bump(key: string): void {
 		this.cache.delete(key);
+		const fire = () => {
+			this.bumps.delete(key);
+			this.cache.delete(key);
+			this.bumpedAt.set(key, Date.now());
+			const version = (this.versions.get(key) ?? 0) + 1;
+			this.versions.set(key, version);
+			if (key === SERIES) this.component?.setSeriesVersion(version);
+			else this.component?.setIndexVersion(key, version);
+		};
+		if (this.backfilling) {
+			if (this.bumps.has(key)) return;
+			this.bumps.set(key, window.setTimeout(fire, Math.max(150, (this.bumpedAt.get(key) ?? 0) + BACKFILL_REFRESH_MS - Date.now())));
+			return;
+		}
 		window.clearTimeout(this.bumps.get(key));
-		this.bumps.set(
-			key,
-			window.setTimeout(() => {
-				this.bumps.delete(key);
-				this.cache.delete(key);
-				const version = (this.versions.get(key) ?? 0) + 1;
-				this.versions.set(key, version);
-				if (key === SERIES) this.component?.setSeriesVersion(version);
-				else this.component?.setIndexVersion(key, version);
-			}, 150),
-		);
+		this.bumps.set(key, window.setTimeout(fire, 150));
 	}
 
 	private scheduleRefresh(): void {
+		let wait = 150;
+		if (this.backfilling) {
+			if (this.pending) return;
+			wait = Math.max(150, this.refreshedAt + BACKFILL_REFRESH_MS - Date.now());
+		}
 		window.clearTimeout(this.pending);
 		this.pending = window.setTimeout(() => {
+			this.pending = 0;
+			this.refreshedAt = Date.now();
 			const today = toIsoDate();
 			void this.rows().then(async (rows) => {
 				const [model, activities] = await Promise.all([this.build(today, rows), this.buildActivities(rows)]);
@@ -331,6 +410,6 @@ export class GarminHomeView extends ItemView {
 				this.component?.setStats(stats);
 				this.component?.setSleep(sleep);
 			});
-		}, 150);
+		}, wait);
 	}
 }

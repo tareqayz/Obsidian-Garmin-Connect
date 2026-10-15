@@ -68,7 +68,8 @@ interface KeptTile {
 	used: number;
 }
 
-const DB_NAME = "garmin-connect-map-tiles";
+/** The tile cache's IndexedDB database, on this device. An uninstall deletes it (main.ts). */
+export const TILE_DB = "garmin-connect-map-tiles";
 const STORE = "tiles";
 /** About 50 MB of OpenStreetMap tiles. */
 const MAX_TILES = 2500;
@@ -78,7 +79,7 @@ let db: Promise<IDBDatabase | null> | null = null;
 function open(): Promise<IDBDatabase | null> {
 	db ??= new Promise((resolve) => {
 		if (typeof indexedDB === "undefined") return resolve(null);
-		const req = indexedDB.open(DB_NAME, 1);
+		const req = indexedDB.open(TILE_DB, 1);
 		req.onupgradeneeded = () => {
 			const store = req.result.createObjectStore(STORE, { keyPath: "url" });
 			store.createIndex("used", "used");

@@ -2,15 +2,32 @@
 
 How to use the plugin once it's [installed](INSTALLATION.md).
 
-## 1. Sign in
+## 1. Set up
 
-Run **Sign in to Garmin Connect** from the command palette, or use the button in
-**Settings → Connection**. Accounts on Garmin's China service set **Region** to
-`garmin.cn` there first.
+Enabling the plugin in a vault not set up yet opens Home with the setup over it.
+The setup also opens from **Set up Garmin Connect…** in the command palette,
+Home's **Finish setting up** card and **Settings → Data → Run setup again**. It
+has four steps:
 
-Your password is used for one request and never written anywhere. If your
-account has MFA on, the same dialog asks for the code next: three tries before
-the sign-in starts over.
+1. **Sign in.** Your password is used for one request and never written
+   anywhere. If your account has MFA on, the same form asks for the code next:
+   three tries before the sign-in starts over. Signed in already, the setup
+   starts at the scan.
+2. **Scan.** A few requests find where your Garmin history starts and how much
+   of it there is: the watch's last upload, your activities and the oldest of
+   them, and the weeks with health data. The result is kept in `scan.json`.
+   While you choose, the recent days sync in the background.
+3. **Choose** what to keep: the three data sets below, each with its size, how
+   long it takes and what it adds a year, and the **Sync speed**.
+4. **Start download** fetches it in the background. **Keep new days only**
+   fetches no history at all; **Settings → Data** can add it later.
+
+Accounts on Garmin's China service close the setup, set **Region** to
+`garmin.cn` in **Settings → Connection**, and run it again from **Settings →
+Data**.
+
+To sign in again later without the rest, run **Sign in to Garmin Connect**, or
+use the button in **Settings → Connection**.
 
 ## 2. Sync
 
@@ -18,32 +35,70 @@ the sign-in starts over.
 | --- | --- |
 | **Sync recent days** | Everything since the last recent sync, from the day before through today; at least yesterday and today, at most 30 days (see [settings](settings.md#sync)). Home's ↻ button runs the same thing. |
 | **Sync today** | Just today. |
-| **Sync a date range…** | Backfill. Shows the request count and time it will take before you start. |
+| **Sync a date range…** | Any stretch of days, by hand. Shows the request count and time it will take before you start. |
 
 Turn on **Sync on startup** to run **Sync recent days** shortly after Obsidian
 loads.
 
-### History
+### What to keep
 
-The pages read history files that a routine sync only keeps topped up. After the
-first sync of a session, the plugin fills them by itself, one after the other,
-for the groups that are on:
-- activities;
-- steps, floors and intensity minutes;
-- sleep;
-- each Health Stats and Performance Stats history.
+The setup offers three data sets; **Settings → Data** changes them later. The
+sizes were measured on a real vault, with every metric group on:
 
-A run cut short, by a rate limit or by closing Obsidian, keeps what it fetched
-and carries on next time.
+| Data set | Holds | How far back | About |
+| --- | --- | --- | --- |
+| **Charts & trends** | Every stat's 7d, 4w and 1y charts, the activity list and the sleep scores: the history indexes | All history, always | 0.9 MB and 150 requests a year of history |
+| **Day details** | Each day's file and its timelines: heart rate, stress, Body Battery, steps, floors and sleep stages through the day | **New days only**, **Last 30 days**, **Last 90 days** (the default), **Last year** or **All history** | 44 KB and 15 requests a day |
+| **Run details** | A run's page: map, charts, splits and laps | **Only runs I open** (the default), **Last 90 days**, **Last year** or **All runs** | 150 KB and 10 requests a run |
+
+A range only says how far back the download goes. Every new day is kept with
+its timelines whatever the range (timelines need the **intraday** group), and a
+run's page downloads the first time you open it.
+
+### The history download
+
+What you agreed to downloads in the background, about ten seconds of work at a
+time: the activity list first, then the chart histories a year at a time, then
+Day details and Run details, newest first. Nothing fetches your history unless
+you agreed to it, in the setup or in the update dialog below.
+
+- A sync, or a page loading what it needs, always goes first.
+- It stays under an hourly request budget: 5,000 at Gentle **Sync speed**,
+  10,000 at Normal, 15,000 at Fast.
+- A 429 pauses it for five minutes, doubling each time up to an hour. A session
+  that ended pauses it until you sign in again.
+- It carries on after a restart, from what the files say is still missing. On a
+  phone it stops while Obsidian is in the background.
+- With the same vault on two devices, one downloads and the other leaves it
+  alone, until the first has been quiet for ten minutes.
+
+It shows on **Home**, under the title ("Downloading history · 42% · Mar 2025",
+with a pause button, then "History up to date"), in **Settings → Data**, and on
+a computer in the status bar ("Garmin · history 42%"), which opens the
+settings. **Pause** holds it on every device until **Resume**.
 
 Until a page's history is complete it shows a banner — "Activity history isn't
 synced", "Sleep history isn't synced" and so on — with a rough request count and
-a **Sync history** button. Each history also has its own command (below).
+a **Sync history** button, which fetches it at once. Each history also has its
+own command (below).
+
+### After an update
+
+An update that can fill in more of your history — a page with a history of its
+own, or more detail for days you keep — asks once, the first time a Garmin page
+opens after it while you are signed in. **New data for your history** lists each
+item with its size and time, ticked. **Download now** fetches the ticked ones in
+the background; **Later** puts them off. Either way it doesn't ask again, and
+**Settings → Data** lists what is still on offer, with a **Download** button.
+
+What you already agreed to needs no question: new days, and gaps in your Day
+details and Run details ranges, keep filling. Only what an older version saved
+is asked about again.
 
 ## Where the data goes
 
 Everything the sync writes is JSON in the data folder, `Garmin/data` by default
-(**Settings → Storage → Data folder**). It writes no notes, so your own notes
+(**Settings → Data → Data folder**). It writes no notes, so your own notes
 are never touched, and every day is writable, so a backfill works from nothing.
 
 Each day's numbers go into a file per year, `days/<year>.json`, keyed by date,
@@ -76,7 +131,7 @@ The pages need more than a day's summary can hold. These files sit beside
 | `series/<date>.json` | A day's curves: heart rate, stress, Body Battery, steps, floors, intensity, the sleep hypnogram | `intraday` |
 | `account.json` | Facts that belong to no day: the watch, personal records, lactate threshold, training plan | `profile` |
 | `activities/` | Every activity on the account | `workouts` |
-| `activity-details/` | One file per run whose page you opened, or every run with **Download runs** on: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens or after a sync |
+| `activity-details/` | One file per run whose page you opened, and each run in the **Run details** range: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens or by the history download |
 | `daily-stats/` | Steps, floors and intensity minutes | `activity` |
 | `sleep/` | A row per night | `sleep` |
 | `stress/`, `body-battery/` | Stress and Body Battery | `stress` |
@@ -101,8 +156,22 @@ The pages need more than a day's summary can hold. These files sit beside
 | `critical-swim-speed/` | Critical Swim Speed | `workouts` |
 | `hrv-stress/` | HRV Stress | `hrv` |
 
+A few small files keep the sync's own bookkeeping:
+
+| Path | Holds | Written by |
+| --- | --- | --- |
+| `sync-state.json` | Where the last **Sync recent days** got to: its mark | **Sync recent days** |
+| `scan.json` | Where your Garmin history starts and ends, as the scan found it | the setup |
+| `backfill.json` | Whether the history download is paused, and which device runs it | the history download |
+| `days/index.json` | Which days' details were fetched whole, and by which version of Day details | every sync and the history download |
+| `activity-details/index.json` | The version of each run's file | each run's page as it is saved |
+
 They are plain JSON written through Obsidian, so they sync like any other file.
-They are rewritten only when their content changes.
+With Obsidian Sync that needs **Sync all other types**, which is off by default.
+Without it the data stays on the device that fetched it, and Home on another
+device says "No Garmin data on this device". The files are rewritten only when
+their content changes, and a sync writes each `days/<year>.json` once, after
+its days are in.
 
 ## What gets collected
 
@@ -116,7 +185,7 @@ its requests, where it has any of its own:
 | sleep, hrv, readiness, body, training, health | One request a day each |
 | fitness | Two requests a day |
 | races, workouts | One range request per sync, not per day |
-| intraday | Six requests a day, for the newest seven days of a sync only |
+| intraday | Six requests a day, for the days inside Day details, and for every day of **Sync a date range…** (before the setup, the newest seven days of a sync) |
 | profile | About nine requests per sync, not per day |
 
 Some groups also make range requests once per sync: fitness two (VO₂ max and
@@ -124,9 +193,9 @@ hill score), training two (running tolerance by day and by week) and health one
 (Health Snapshots). The settings screen shows each group's cost beside its switch.
 
 With everything on, a day costs nine requests. On top of that come the intraday
-and per-sync requests, the history fills described above, and ten requests the
-first time you open a run's page — or for every run, after a sync, with
-**Download runs** on (see [Activities](#activities)).
+and per-sync requests, the history download described above, and ten requests
+the first time you open a run's page, or for each run in the **Run details**
+range (see [Activities](#activities)).
 
 ## Home
 
@@ -140,6 +209,10 @@ arrived.
   you hid with its **Hide** link.
 - It shows today. Before today has synced it shows the newest synced day, and
   says so.
+- Above everything else it shows the [history download](#the-history-download)
+  while there is one, and a card when something stands in the way: **Finish
+  setting up**, **Sign in to Garmin Connect**, or **No Garmin data on this
+  device** when the settings reached this device but the data folder did not.
 - The header's ↻ runs **Sync recent days**; **⋯** opens **More**, which holds
   **Activities** and **Health Stats**.
 - Cards open their pages, as in the app:
@@ -214,15 +287,14 @@ activities**.
 - The first time a run's page opens it costs ten requests, made between syncs,
   never during one. The answer is kept in `activity-details/`, so the page opens
   again without asking. It needs a session and the `workouts` group.
-- **Download runs** under **Settings → Sync** fetches every run's page ahead,
-  so it opens without a connection: after each sync, in the background, newest
-  first, at least two seconds apart. A run is about 150 KB in the vault and ten
-  requests, so 230 runs come to about 35 MB and 2,300 requests, spread over as
-  many sessions as it takes. A page you open goes first, a sync waits for the run
-  in hand, and a 429 stops the downloads until the next sync. The map's tiles
-  aren't fetched ahead (OpenStreetMap's tile policy rules out bulk downloads):
-  offline, a map draws the tiles that device viewed in the last week or so, and
-  the route alone elsewhere.
+- **Run details**, in the setup or **Settings → Data**, fetches the pages of the
+  runs in its range ahead, so they open without a connection: in the history
+  download, newest first, at least two seconds apart. A run is about 150 KB in
+  the vault and ten requests, so 230 runs come to about 35 MB and 2,300
+  requests. A page you open goes first, and a sync waits only for the run in
+  hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile policy rules
+  out bulk downloads): offline, a map draws the tiles that device viewed in the
+  last week or so, and the route alone elsewhere.
 - The map's tiles come from OpenStreetMap, which sees roughly where the run was.
   **Map tiles** under **Settings → Maps** turns them off, and the route is drawn
   on its own, as it is offline. A treadmill run has no map.
@@ -259,8 +331,8 @@ floors** and **Open intensity minutes**. Each has **1d / 7d / 4w / 1y** and
 - A day in a list opens that day's page; **Back** returns to the list.
 - **Where the data comes from.** The pages read the daily stats index
   (`daily-stats/`), whose whole history costs about 40 requests a year. Day
-  charts come from the series files, so they cover days synced with the
-  **intraday** group on.
+  charts come from the series files, so they cover the days inside Day details,
+  synced with the **intraday** group on.
 
 ## Sleep
 
@@ -306,9 +378,10 @@ its metric group on.
 - Most pages read their own history index (see the table under
   [Where the data goes](#history-and-series-files)). A banner offers to fill it
   until it holds the whole history.
-- A day page's curve comes from that day's series file. For a day older than
-  the newest seven of a sync, the page fetches the curve when you open it, if
-  you are signed in and the page's metric group is on.
+- A day page's curve comes from that day's series file. For a day whose file
+  doesn't have it, such as one older than your Day details range, the page
+  fetches the curve when you open it, if you are signed in and the page's
+  metric group is on.
 - Health Snapshots are fetched when the page opens.
 
 ## Performance Stats
@@ -365,6 +438,7 @@ All are in the command palette under **Garmin Connect:**.
 
 | Other | What it does |
 | --- | --- |
+| **Set up Garmin Connect…** | Opens the setup: sign in, scan your account, choose what to keep |
 | **Sign in to Garmin Connect** | Signs in, asking for an MFA code if Garmin wants one |
 | **Run diagnostics** | Four checks of sign-in and connectivity — see [Troubleshooting](troubleshooting.md#diagnostics) |
 
@@ -378,8 +452,9 @@ All are in the command palette under **Garmin Connect:**.
   whole run. One endpoint failing for one day is just a warning, and the rest of
   that day still gets written.
 - **It stops at the end of your history.** After 45 consecutive empty days
-  (**Settings → Advanced → Stop after empty days**; 0 disables) a backfill gives
-  up and says so. Nothing bogus is ever written.
+  (**Settings → Advanced → Stop after empty days**; 0 disables) **Sync a date
+  range…** gives up and says so. The history download needs no such guard: the
+  scan found where your history starts. Nothing bogus is ever written.
 - **Newest day first**, so a run cut short still covered the days you care
   about.
 

@@ -5,7 +5,7 @@ import type { DayData, MetricGroup } from "./metrics";
 
 /**
  * Intraday blocks a page loads on view: a day's chart for any date, not only
- * the newest days a sync spends intraday requests on (`INTRADAY_DAYS`).
+ * the days a sync spends intraday requests on (those inside Day details).
  *
  * A key names a block of the day's series file. The file's own blocks keep
  * their keys (`stress`, `bodyBattery`, `heartRate`, `bodyBatteryEvents`), so
@@ -177,25 +177,77 @@ export function blocksFromDay(extras: readonly IntradayDef[], day: DayData, date
 	return out;
 }
 
+/** The series file's own blocks, in the order `mapSeries` makes them. */
+const BLOCK_KEYS = [
+	"stress",
+	"bodyBattery",
+	"heartRate",
+	"steps",
+	"floors",
+	"intensity",
+	"dayStart",
+	"sleepLevels",
+	"sleep",
+	"bodyBatteryEvents",
+] as const satisfies ReadonlyArray<keyof DaySeries>;
+
+/** The blocks the sleep payload makes, which every synced day fetches. */
+const SLEEP_KEYS: ReadonlySet<string> = new Set(["sleepLevels", "sleep"]);
+
+/** What the sync's write of the day asked Garmin for. */
+export interface KeepOptions {
+	/**
+	 * Whether the day's intraday requests went out. A day outside a run's
+	 * newest few only fetched its sleep payload, so its write may change the
+	 * night's blocks and nothing else.
+	 */
+	intraday: boolean;
+}
+
 /**
  * The day's series file after a sync, with the blocks it keeps itself.
  *
- * - `written`, the series the sync writes for the day, replaces the file as
- *   a sync's write always has, on-view extras and `checked` included — but
- *   the kept blocks (`kept`) the file held stay unless `fresh` brings them
- *   again.
+ * - `written`, the series the sync made for the day, refreshes the blocks it
+ *   asked Garmin for. A block Garmin no longer sends keeps the file's copy:
+ *   Garmin drops old intraday data, and a re-sync must not erase it.
+ *   - A write that fetched the day's intraday requests starts the rest
+ *     afresh: on-view extras and `checked` go, so a page asks again, but the
+ *     kept blocks (`kept`) stay unless `fresh` brings them again.
+ *   - A write without them changes only the night's blocks. Everything else
+ *     the file held, on-view extras and `checked` included, stays.
  * - Without one, the file keeps everything and only `fresh` goes in under
  *   `extra`: the same blocks make the same text, so the store leaves the
  *   file alone. Null when there is nothing to write.
  */
-export function keepBlocks(stored: DaySeries | null | undefined, written: DaySeries | null | undefined, fresh: Readonly<Record<string, unknown>>, kept: readonly string[]): DaySeries | null {
-	if (written) {
+export function keepBlocks(
+	stored: DaySeries | null | undefined,
+	written: DaySeries | null | undefined,
+	fresh: Readonly<Record<string, unknown>>,
+	kept: readonly string[],
+	{ intraday }: KeepOptions,
+): DaySeries | null {
+	if (written && intraday) {
+		const out: Record<string, unknown> = {};
+		for (const key of BLOCK_KEYS) {
+			const value = written[key] ?? stored?.[key];
+			if (value !== undefined) out[key] = value;
+		}
 		const extra: Record<string, unknown> = {};
 		for (const key of kept) if (stored?.extra?.[key] !== undefined) extra[key] = stored.extra[key];
 		Object.assign(extra, fresh);
-		const out: DaySeries = { ...written };
-		delete out.extra;
-		return Object.keys(extra).length ? { ...out, extra } : out;
+		if (Object.keys(extra).length) out.extra = extra;
+		return out as DaySeries;
+	}
+	if (written) {
+		const out: Record<string, unknown> = {};
+		for (const key of BLOCK_KEYS) {
+			const value = SLEEP_KEYS.has(key) ? (written[key] ?? stored?.[key]) : stored?.[key];
+			if (value !== undefined) out[key] = value;
+		}
+		const extra = { ...(stored?.extra ?? {}), ...fresh };
+		if (Object.keys(extra).length) out.extra = extra;
+		if (stored?.checked) out.checked = stored.checked;
+		return out as DaySeries;
 	}
 	if (!Object.keys(fresh).length) return null;
 	return { ...(stored ?? {}), extra: { ...(stored?.extra ?? {}), ...fresh } };

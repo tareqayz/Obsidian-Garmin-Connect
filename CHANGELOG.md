@@ -71,15 +71,48 @@ GitHub release takes its notes from the matching section here — see
     size with a second metric to compare.
 
   The page loads from Garmin the first time it opens and is kept in the vault,
-  in `activity-details/`. On a phone its sheets rise from the bottom and drag
-  down to close.
-- **Download runs** (Settings → Sync, off by default): every run's page,
-  downloaded in the background after each sync so it opens without a
-  connection. About 150 KB and ten requests a run.
+  in `activity-details/`, or downloads ahead with Run details (below). On a
+  phone its sheets rise from the bottom and drag down to close.
 - **Activity maps.** OpenStreetMap under the route, coloured by pace (or grade-
   adjusted pace, heart rate, power, elevation or run/walk), with lap markers.
   The full-screen map pans and pinches. **Settings → Maps → Map tiles** turns
   the tiles off and draws the route alone.
+- **A setup.** Enabling the plugin opens it over Home: sign in, scan your
+  account, choose what to keep, start. The scan finds where your Garmin
+  history starts in a few requests. You choose from three data sets, each
+  with its size, how long it takes and what it adds a year:
+  - **Charts & trends**: every page's history, always all of it, under 1 MB a
+    year;
+  - **Day details**: each day's file and its timelines, from new days only to
+    all history (the last 90 days by default), about 44 KB a day;
+  - **Run details**: a run's map, charts and laps, from only the runs you open
+    (the default) to every run, about 150 KB a run.
+
+  It opens again from **Set up Garmin Connect…**, Home and Settings → Data. On
+  a phone it is a sheet on the bottom edge.
+- **The history download.** What you choose downloads in the background,
+  about ten seconds at a time, and a sync or a page always goes first. It stays
+  under an hourly request limit, pauses after a 429 or until you sign in again,
+  carries on after a restart, and runs on one device at a time. Home, Settings
+  → Data and the status bar on a computer show how far it has got, with Pause
+  and Resume.
+- **New data for your history.** An update that can fill in more of the
+  history you keep asks once, with each item's size: Download now or Later.
+  Settings → Data keeps what you put off.
+- **Settings → Data**, in place of Storage: the data folder, what it takes on
+  disk by data set, the Day details and Run details ranges with what is still
+  missing, the download in progress, and Run setup again.
+- **Delete synced data…** under Settings → Danger zone moves the plugin's own
+  files in the data folder to the trash, the diagnostics notes too if you ask,
+  and leaves anything else there.
+- **After an uninstall** the plugin asks whether to keep the synced data or
+  move it to the trash, and clears the map tiles that device cached.
+- **"No Garmin data on this device"** on Home, when the settings reached a
+  device and the data did not: with Obsidian Sync, turn on Sync all other
+  types.
+- For contributors: `tests/dataset-shapes.test.ts` fails when a data set
+  stores something new without a version bump (see
+  [Data versions](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/CONTRIBUTING.md#data-versions)).
 
 ### Changed
 
@@ -108,6 +141,21 @@ GitHub release takes its notes from the matching section here — see
   under the pointer and follows it, and a dashed outline marks where it will
   land. The other cards slide out of its way, and on release it settles into
   place. With reduced motion turned on, the cards move without sliding.
+- **History downloads only when you say so.** The histories no longer fill in
+  by themselves after the first sync of a session: Charts & trends, Day
+  details and Run details download what you agreed to, in the setup or an
+  update dialog, and nothing else. A vault signed in before the update is
+  taken as set up, without the setup: the histories it was filling carry on,
+  and Day details keep the last 30 days. Its first Garmin page after the
+  update offers the recent days an older version saved without their full
+  timelines.
+- **Timelines follow Day details.** A routine sync fetches the timelines of
+  every day it covers inside the Day details range, not only its newest seven
+  days. **Sync a date range…** fetches every day's, and its estimate counts
+  them.
+- **Settings.** The headings are Obsidian's own setting headings, and **Stop
+  after empty days** is for **Sync a date range…**: the history download
+  knows from the scan where your history starts.
 
 ### Removed
 
@@ -123,6 +171,15 @@ GitHub release takes its notes from the matching section here — see
   modal's own.
 - On a phone with Obsidian's floating navigation bar, the end of every page
   stayed under the bar. Pages now scroll clear of it.
+- Re-syncing an older day kept only its night, erasing the stress, Body
+  Battery, heart rate, steps, floors and intensity timelines an earlier sync
+  had saved. A sync now changes only what it asked Garmin for, and keeps the
+  rest.
+- A sync of many days rewrote its year file once for every day, and a sync
+  service uploaded each rewrite. It now writes each year file once, after the
+  days are in.
+- Closing Obsidian during a history walk lost everything the walk had fetched.
+  Walks now keep each year as it comes in and carry on from there.
 
 ## [0.2.0] — 2026-10-09
 

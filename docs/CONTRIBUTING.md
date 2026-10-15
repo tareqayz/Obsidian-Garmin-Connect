@@ -108,6 +108,30 @@ A tester on `1.2.0-beta.1` will **not** be auto-offered `1.2.0`. They stay on th
 5. Submission is through [community.obsidian.md](https://community.obsidian.md) with an
    Obsidian account and a linked GitHub account — not a pull request to `obsidian-releases`.
 
+## Data versions
+
+A vault keeps what it downloaded, so a release that stores new data for days a vault
+already holds has to fetch those days again, and ask first. Such a change:
+
+1. Bumps the data set's version: `DAY_DETAILS_VERSION` in `src/sync/datasets.ts` for the
+   day files and timelines, `ACTIVITY_DETAIL_VERSION` in `src/sync/activity-detail.ts`
+   (which `RUN_DETAILS_VERSION` follows) for a run's page, or the index's own `version`
+   for a chart history.
+2. Adds a line to the set's `changes` in `src/sync/datasets.ts`, keyed by the new
+   version. For Day details its summary is what the update dialog says about the days
+   an older version saved.
+3. Runs `UPDATE_SHAPES=1 npm test` to record the new shape in
+   `tests/fixtures/dataset-shapes.json`, and commits it with the change.
+
+A bumped version is a consent key the vault has not seen (`days@2`, `index:stress@2`),
+so the first Garmin view after the update asks once, in "New data for your history".
+Without the bump, only the days synced from then on get the new data.
+
+`tests/dataset-shapes.test.ts` snapshots what each store keeps beside its version — the
+endpoints and series blocks of Day details, the blocks of a run's page, each index's
+columns — and fails when one moves without a bump. It cannot see a new property mapped
+from an endpoint already called: bump by hand when the days already held should get it.
+
 ## Before the first directory submission
 
 Each of these will fail the automated review or the guidelines it checks:
@@ -127,7 +151,7 @@ Each of these will fail the automated review or the guidelines it checks:
 - [ ] `version` bumped to `1.0.0`.
 
 - [ ] UI text in sentence case throughout (commands, settings, notices).
-- [ ] Settings headings through `setHeading()` rather than raw `<h3>` elements.
+- [x] Settings headings through `setHeading()` rather than raw `<h3>` elements.
 
 `id` is already valid: lowercase and hyphens only, no `obsidian`, no `plugin` suffix.
 

@@ -13,12 +13,17 @@ the vault and draws it as the phone app does:
 It runs on **desktop and mobile**.
 
 Everything stays in your vault as ordinary JSON files in one data folder
-(`Garmin/data` by default):
-- **Day files:** one file per year, with each day's numbers under its date.
-- **History files:** JSON indexes and per-day series files, which the pages
-  read.
+(`Garmin/data` by default). The sync writes no notes, so your own notes are
+never touched. How much room it takes depends on how much history you keep:
+- **Charts & trends**, every page's 7-day, 4-week and 1-year history: under
+  1 MB a year of history, always all of it.
+- **Day details**, each day's numbers and its timelines: about 44 KB a day,
+  16 MB a year.
+- **Run details**, a run's map, charts and laps: about 150 KB a run. By
+  default only the runs you open.
 
-The sync writes no notes, so your own notes are never touched.
+With Obsidian Sync, turn on **Sync all other types** so the JSON reaches your
+other devices.
 
 ## Before you install
 
@@ -44,12 +49,34 @@ The sync writes no notes, so your own notes are never touched.
 Not affiliated with or endorsed by Garmin. Garmin, Garmin Connect, Body Battery
 and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
 
+## Setting up
+
+Enabling the plugin opens a setup over Home:
+1. **Sign in** to your Garmin account.
+2. **Scan**: a few requests find where your Garmin history starts.
+3. **Choose** how much history to keep. Each choice shows its size and how
+   long it takes.
+4. **Start**: the history downloads in the background, under an hourly request
+   limit, and carries on after a restart. Home shows how far it has got.
+
+Run it again with **Set up Garmin Connect…** or from **Settings → Data**. An
+update that can fill in more of your history asks before it downloads
+anything. See the [Guide](docs/GUIDE.md).
+
+## Removing the plugin
+
+Uninstalling deletes the plugin's folder, and your settings and Garmin session
+with it. The synced data stays in the vault: on the device you uninstall from,
+the plugin then offers to keep it or move it to the trash. **Settings → Danger
+zone → Delete synced data…** removes it without uninstalling. See the
+[FAQ](docs/FAQ.md#how-do-i-uninstall-it-and-remove-the-data).
+
 ## Documentation
 
 | Page | What it answers |
 | --- | --- |
 | [Installation](docs/INSTALLATION.md) | How to install it, with BRAT or by hand |
-| [Guide](docs/GUIDE.md) | How to use it: the pages, the commands, where the data goes |
+| [Guide](docs/GUIDE.md) | How to use it: the setup, the pages, the commands, where the data goes |
 | [Troubleshooting](docs/troubleshooting.md) | Something is broken — start here |
 | [FAQ](docs/FAQ.md) | Common questions |
 | [Properties](docs/properties.md) | Every value a day file holds, and its units |

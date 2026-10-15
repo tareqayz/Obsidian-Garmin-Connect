@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
 import { FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
-import { endpointsFor } from "../sync/metrics";
+import { requestsPerDay } from "../sync/estimate";
 import { secondsPerDay, SYNC_SPEEDS } from "../sync/speed";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
 
@@ -21,19 +21,9 @@ export class SyncRangeModal extends Modal {
 		const settings = this.plugin.data.settings;
 		const { from, to } = lastNDays(FIRST_SYNC_DAYS, toIsoDate());
 		// Only the endpoints the enabled groups actually need count towards the
-		// estimate, so turning groups off visibly lowers it.
-		const wanted = endpointsFor(settings.groups);
-		const perDay = [
-			wanted.summary,
-			wanted.sleep,
-			wanted.hrv,
-			wanted.readiness,
-			wanted.endurance,
-			wanted.training,
-			wanted.body,
-			wanted.fitnessAge,
-			wanted.health,
-		].filter(Boolean).length;
+		// estimate, so turning groups off visibly lowers it: the day's own
+		// requests, and its timelines' six with intraday on.
+		const perDay = requestsPerDay(settings.groups);
 
 		this.form = mount(SyncRangeForm, {
 			target: this.contentEl,

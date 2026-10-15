@@ -32,8 +32,10 @@ interface DayTarget {
 
 That is the whole contract. It keeps the engine — dates, budgets, back-off,
 partial failures — pure and testable with no Obsidian at all. Moving the days
-from note frontmatter to JSON files only swapped the target: it is now
-`VaultSeriesStore.writeDay`, which answers yes to every `exists()`.
+from note frontmatter to JSON files only swapped the target: it is now a
+`DayBuffer` (`VaultSeriesStore.dayBuffer()`), which answers yes to every
+`exists()`, holds the run's days, and writes each year file once when the run
+flushes it.
 
 The reason "build `node-garminconnect` first, then consume it" fails is not that
 libraries are wrong. It is that a Node library bakes in Node assumptions
@@ -46,7 +48,8 @@ Starting transport-agnostic gets you both.
 src/main.ts              plugin entry: the views, commands, ribbon and settings tab
 src/settings.ts          the settings tab, which mounts SettingsPanel.svelte
 src/settings-data.ts     GarminSettings, DEFAULT_SETTINGS, SETTINGS_VERSION — pure
-src/plugin-data.ts       owns data.json: settings, the session, Home's state; the group migrations
+src/plugin-data.ts       owns data.json: settings, the session, Home's state; the migrations
+src/uninstall-watch.ts   after onunload, whether the plugin's folder is gone: an uninstall — pure
 src/http.ts              HttpClient, CookieJar                — imports nothing
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
 src/log.ts               the Log interface, the diagnostics renderer, redaction
@@ -61,8 +64,9 @@ src/garmin/
 src/sync/
   metrics.ts             Garmin payloads → properties; groups and the request budget — pure
   numbers.ts             num / isFiniteNumber, for Garmin's nulls and stray strings — pure
-  days.ts                the day files: merging a day, a year file's text and parsing it — pure
+  days.ts                the day files: merging a day, a year file's text and parsing it, DayBuffer — pure
   engine.ts              orchestration, the DayTarget, the history walks — pure
+  segments.ts            history walks a year of windows at a time — pure
   progress.ts            what a sync reports while it runs: the Notice's bar — pure
   intraday.ts            intraday payloads → the day's series file — pure
   account.ts             account.json: profile, watch, latest values, plans, records — pure
@@ -81,7 +85,15 @@ src/sync/
                          index and activity file on disk
   import-notes.ts        the one-time copy of old builds' day notes into the day files
   vault-paths.ts         ensureFolder, trimSlashes
-  runner.ts              settings → a run, the history walks in turn, reporting
+  datasets.ts            the data sets: versions, ranges, consent keys — pure
+  coverage.ts            days/index.json and activity-details/index.json: what the vault holds — pure
+  scan.ts                the account scan and scan.json — pure
+  estimate.ts            what a choice of data sets takes: bytes, requests, time — pure
+  backfill.ts            planBackfill, backfill.json, the hourly budget — pure
+  debt.ts                what an update offers that is not agreed to — pure
+  owned-paths.ts         which files "Delete synced data" removes — pure
+  runner-lock.ts         one thing talks to Garmin at a time, by priority — pure
+  runner.ts              settings → a run; the history walks, the scan and the backfill; reporting
 src/dashboard/
   home-view.ts           the Home ItemView: rows, series files, account.json, the indexes
   legacy-view.ts         turns a saved tab of the retired classic dashboard into Home
@@ -119,6 +131,12 @@ src/ui/
   icon.ts                the Garmin Connect ribbon icon
   sport-icons.ts         sport figures (Tabler, MIT) registered as Obsidian icons
   login-modal.ts         Sign in to Garmin Connect (LoginForm.svelte)
+  setup-flow.ts          the setup's steps, and what Start agrees to — pure
+  setup-modal.ts         Set up Garmin Connect (setup/Setup.svelte): a sheet on a phone
+  data-update-modal.ts   New data for your history (DataUpdate.svelte), after an update
+  delete-data.ts         moving the plugin's files to the trash; needs only the app
+  delete-data-modal.ts   Delete synced data? (DeleteData.svelte)
+  removed-data-modal.ts  Garmin Connect was removed (RemovedData.svelte), after an uninstall
   probe-modal.ts         Run diagnostics (ProbePanel.svelte), and saving a run to the log folder
   sync-range-modal.ts    Sync a date range… (SyncRangeForm.svelte)
   add-stat-modal.ts      Add a Stat, the picker See All's edit mode opens
@@ -127,13 +145,16 @@ src/ui/
   map/                   the activity maps: Leaflet, loaded with the first map (leaflet.ts);
                          OpenStreetMap's tiles through requestUrl, cached in IndexedDB
                          (tiles.ts); the TileSource the pages see (tile-source.ts, pure)
-src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel and SyncRangeForm, and one folder
-                         per area below. Obsidian comes in through actions (obsidian-setting.ts,
-                         home/lucide.ts), apart from SettingsPanel's Notice and the Activities
-                         sub-type Menu
+src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel, SyncRangeForm, DeleteData,
+                         DataUpdate and RemovedData, and one folder per area below. Obsidian comes
+                         in through actions (obsidian-setting.ts, home/lucide.ts), apart from
+                         SettingsPanel's Notice and the Activities sub-type Menu
+  settings/              DataSection.svelte: Settings → Data
+  setup/                 Setup.svelte: the setup's four steps
   home/                  the Home screen, one component per Garmin card; SeeAll.svelte is
                          At a Glance's See All page and its edit mode; PageBar.svelte is the
-                         back / title / action bar every page inside the view shares
+                         back / title / action bar every page inside the view shares;
+                         BackfillPill.svelte and SetupCard.svelte, the plugin's own, above it all
   activities/            More, the Activities hub, a sport's page, a month, Personal Records
                          and All Activities, with their parts; HistoryBanner.svelte
   activity/              an activity's page (ActivityPage.svelte: bar, tabs, the expanded chart
@@ -177,9 +198,11 @@ engine.ts        syncRange: endpointsFor(groups) → only the calls this config 
    │               │  activity, heart, stress, respiration and spo2), sleep, hrv,
    │               │  readiness, endurance and fitnessAge (fitness), training, body,
    │               │  health
-   │               ├─ intraday, for the newest INTRADAY_DAYS (7) only: stress (with
+   │               ├─ intraday, for the run's days inside Day details (intradayFor;
+   │               │  every day for Sync a date range…; the newest INTRADAY_DAYS,
+   │               │  7, before the setup): stress (with
    │               │  Body Battery), heartRate, steps, floors, intensity minutes,
-   │               │  Body Battery events → the day's series file
+   │               │  Body Battery events → the day's series file (keepBlocks)
    │               └─ after the days: the daily stats index (steps, floors and
    │                  minutes from the summaries; the range endpoints for days whose
    │                  summary failed, 3 requests per 28 days), the sleep index, then each
@@ -188,12 +211,12 @@ engine.ts        syncRange: endpointsFor(groups) → only the calls this config 
    │
 metrics.ts       mapDay(payloads) → canonical properties     (pure)
    │
-target.write()   series-store.ts writeDay: days.ts mergeDay over what the day held,
-   │               serializeDays → <dataFolder>/days/<year>.json
+target.write()   days.ts DayBuffer: mergeDay over what the year held; after the
+   │               days, flush writes each year file once → <dataFolder>/days/<year>.json
    │               └─ same text → "unchanged", file untouched
    │
-runner.ts        after the days: account.json (profile, about nine requests a
-                 sync)
+runner.ts        after the days: the full days into days/index.json, then
+                 account.json (profile, about nine requests a sync)
 ```
 
 One detail in there carries real weight:
@@ -201,7 +224,7 @@ One detail in there carries real weight:
 - **Range endpoints are called once for the window, not once per day.**
   `maxMetrics`, `racePredictions`, the activity list and the other range calls
   all take a range or a page, so the request budget is roughly *per-day calls ×
-  days*, plus six intraday calls for each of the newest seven days,
+  days*, plus six intraday calls for each day inside Day details,
   plus a small constant. The settings tab shows each group's share
   (`REQUESTS_PER_DAY`, `FREE_GROUPS`, `REQUESTS_PER_SYNC`, `RANGE_GROUPS`).
 
@@ -227,9 +250,10 @@ first, so a listing from its first page is a stretch with nothing missing: rows
 in that stretch that Garmin no longer returns were deleted, while rows older
 than it are left alone. A listing that reached the list's end replaces the index.
 
-The runner starts the history sync by itself once per session, after the first
-sync, until the index says `complete`; `SyncRunner.onHistory` reports its
-progress to the banner on the sport pages.
+Its whole history comes once, from the backfill once Charts & trends are agreed
+to (see [Data sets and the backfill](#data-sets-and-the-backfill)), or from
+**Sync activity history**, whose progress `SyncRunner.onHistory` reports to the
+banner on the sport pages.
 
 The Steps, Floors and Intensity Minutes pages work the same way from their own
 store, `<dataFolder>/daily-stats/` (see `docs/properties.md`, "The daily stats
@@ -296,7 +320,7 @@ export const HEALTH_PAGES: … = { stress: StressPage };
 
 | Registration | What it switches on |
 | --- | --- |
-| `DAY_INDEXES` | routine syncs feed the index; the once-per-session history walk takes it in turn, while its group is on; a **Sync <title> history** command; `readIndex(kind)`; Home watches its folder |
+| `DAY_INDEXES` | routine syncs feed the index; the backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to, while its group is on; a **Sync <title> history** command; `readIndex(kind)`; Home watches its folder |
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
 | `HEALTH_PAGES` | the stat's row in the hub, an **Open <stat>** command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
 | `PERFORMANCE_PAGES` | the same for the `performance-stat` route, its In Focus card too (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The section's hub, More's row and **Open performance stats** appear with its first hub stat |
@@ -406,7 +430,8 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
   the lactate threshold's heart rate and speed. The engine books it per
   window, in a sync's report and a history walk's log.
 - Bump **`version`** when a row's meaning changes: an `index.json` of another
-  version reads as none, and the history is fetched again.
+  version reads as none, and the history is fetched again once its new consent
+  key is agreed to (see [Data versions](CONTRIBUTING.md#data-versions)).
 - **`fromDay`** (a `DayFeed`, not with `fromSummary`) does the same from
   what the day sync fetched for the day file anyway (`maxMetrics`,
   `hillScore`, `runningTolerance`, …): `read(day, date)` makes the row, and
@@ -422,8 +447,8 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 engine.ts     takeSummary ← each day's summary, through fromSummary, at no cost ──┐
               feedIndex → fetchWindow for the days the summaries missed,          ──┤
                           and the stretch since index.json's `to`                   │
-              walkHistory → windowDays a request, back to the start               ──┤  (runner: once a session,
-                                                                                    ▼   after the first sync)
+              walkHistory → windowDays a request, back to the start               ──┤  (the backfill, a year
+                                                                                    ▼   a segment)
 day-index.ts      normalize · merge · serializeYear, from the definition       (pure)
                                                                                     ▼
 series-store.ts   mergeDayIndex: one file per year, rewritten only on change
@@ -438,10 +463,11 @@ read the two older indexes the same way, for pages that need nights or steps.
 
 ### Intraday on view
 
-A sync spends intraday requests on the newest days only (`INTRADAY_DAYS`). A
-day page asks for what it draws instead: `loadIntraday(date, keys)` fetches
-whatever of `keys` the day's series file lacks, merges it in, writes the file
-and resolves with the day's series.
+A routine sync spends intraday requests only on the days inside Day details,
+and **Sync a date range…** on every day it covers (the newest `INTRADAY_DAYS`
+before the setup). A day page asks for what it draws instead:
+`loadIntraday(date, keys)` fetches whatever of `keys` the day's series file
+lacks, merges it in, writes the file and resolves with the day's series.
 
 - The series file's own blocks load by their own keys, under the `intraday`
   group: `stress` and `bodyBattery` (one request), `heartRate`,
@@ -450,14 +476,18 @@ and resolves with the day's series.
   loadable: their pages read what a sync wrote.
 - An extra's block goes under `extra[key]`. `checked` lists the keys fetched on
   view, data or not, so a day Garmin had nothing for is not asked again.
-- Loads run in the runner, never beside a sync: they wait, a second ask for a
-  day already waiting joins it, the client's throttle paces them, and the
-  automatic history walks let waiting loads in between walks. Signed out, or
-  with the block's group off, a load resolves at once and `reason` says why. A
-  429 answers every waiting load without asking again.
-- A sync's own write of a day replaces the file, as it always has, extras and
-  `checked` included. That is what keeps a recent day's on-view blocks fresh:
-  the next view fetches them again.
+- Loads run in the runner as *page* work, never beside a sync: they wait for
+  one, a second ask for a day already waiting joins it, the client's throttle
+  paces them, and they go ahead of the backfill (see
+  [the runner lock](#the-backfill)). Signed out, or with the block's group off,
+  a load resolves at once and `reason` says why. A 429 answers every waiting
+  load without asking again.
+- A sync's write of a day (`keepBlocks`) refreshes the blocks it asked Garmin
+  for and keeps the file's copy of any Garmin no longer sends. A write that
+  fetched the day's intraday drops the extras and `checked`, which keeps a
+  recent day's on-view blocks fresh: the next view fetches them again. A write
+  that fetched only the night changes the night's blocks and keeps the rest,
+  extras and `checked` included.
 - An extra with `fromDay(day, date)` is written by the sync itself, for every
   synced day whose payload the day sync already fetched (HRV Status's night
   from `hrv`), merged into the file and carried through the sync's own write.
@@ -487,14 +517,13 @@ the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
 - The loads queue with the intraday ones, in the same runner: never beside a
   sync, paced by the client's throttle, and a 429 or a dead session answers every
   waiting load without asking again. Gated on the `workouts` group.
-- **Download runs** (`downloadRuns`) loads the rest the same way, after each
-  sync and the session's history walks: `runsToDownload` lists the index's runs
-  (the rows that open a page, `categoryOf(row) === "running"`, handed to the
-  runner by `main.ts`) without a file, newest first. They come last in the same
-  drain — days, then activities a page asked for, then downloads — at least
-  two seconds apart. A sync or history walk that finds a download in hand waits
-  for that one run instead of being turned away; a 429 drops the rest until the
-  next sync, and a run that failed is not asked for again until a reload.
+- **Run details** (`data.runDetails`) past `opened` loads the rest the same way,
+  as the backfill's `runs` task: the index's runs in the range (the rows that
+  open a page, `categoryOf(row) === "running"`, `isRun` in `main.ts`) without a
+  file of today's version, newest first, one a unit and at least two seconds
+  apart. A sync waits only for the run in hand; a 429 pauses the backfill, and a
+  run that failed is not asked for again until the next session. Every write of
+  a run's file books its version in `activity-details/index.json`.
 - The view keeps the last few details in memory, so a page coming back (Back
   from the map) draws at once and its scroll position holds.
 
@@ -598,6 +627,164 @@ The view behind it is `periodOf` for the span, `daysOf` and `dayAxis` for
 the points and the axis, `periodLabel` for the label and `meanOf(values,
 "round")` for the average.
 
+## Data sets and the backfill
+
+Nothing walks history the user has not agreed to. What the setup offers, what
+the vault holds of it and what is still missing are worked out from small files
+in the data folder, so the history download keeps no plan of its own and
+carries on after a restart, a 429 or another device's turn.
+
+### Data sets
+
+`src/sync/datasets.ts` names the three sets the setup offers:
+
+| Set | Stores | Range (`data.*`) | Version |
+| --- | --- | --- | --- |
+| Charts & trends | the chart indexes: `activities/`, `daily-stats/`, `sleep/` and every `DAY_INDEXES` folder | always the whole history | each index's own |
+| Day details | the day files and each day's full timelines (`series/`) | `dayDetails`: `new`, `30d`, `90d` (default), `1y`, `all` | `DAY_DETAILS_VERSION` |
+| Run details | a run's page (`activity-details/`) | `runDetails`: `opened` (default), `90d`, `1y`, `all` | `RUN_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` |
+
+A range only says how far back the backfill goes (`rangeStart`, held to where
+the account's history starts). Every new day is kept whatever it is, because a
+routine sync fetches the timelines of every day it covers inside the range
+(`intradayFor` in the runner). `changes` says what each version added, for the
+update dialog; bumping a version is the rule in
+[Data versions](CONTRIBUTING.md#data-versions).
+
+`estimate.ts` turns a scan and a choice into bytes, requests and time per set,
+and what keeping new data adds a year, for the setup and Settings → Data. The
+sizes were measured on a vault of 439 days and 233 runs: a day file 3.7 KB, its
+timelines 40 KB, a run 154 KB. Times follow the sync speed, the ten-second
+units and the hourly budget below.
+
+### Coverage
+
+The chart indexes keep their own span in each `index.json`. The other two sets
+keep a file beside their data (`coverage.ts`, read and written by
+`series-store.ts`):
+
+- `days/index.json`: spans of days `[from, to, version]` whose details were
+  fetched whole, at that version of Day details. A day is whole
+  (`DayResult.full`) when every request the run's groups ask of it came back,
+  data or not, intraday included when its group is on, and nothing failed to
+  write. Every sync books its full days after the run.
+- `activity-details/index.json`: each run file's version, by activity id,
+  updated by every write of a run's file.
+
+Both are built the first time from the files already there. A series file of
+today's shape, with the day's start (`dayStart`) and the night's detail beside
+its hypnogram, counts as version 1; intraday blocks from before those as version
+0; a night alone is not covered. A run file's version is read from the start of
+its text. A copy another device overwrote can only have lost entries, never
+claim one it did not fetch. Home ignores both files.
+
+### The consent ledger
+
+`data.accepted` and `data.deferred` in the settings hold consent keys: a store
+at a version, `<store>@<version>` — `days@1`, `runs@5`, `activities@…`,
+`daily-stats@…`, `sleep@…`, `index:<kind>@<version>`. A new index, or a version
+bump, is a key the ledger has not seen.
+
+- `planBackfill` (`backfill.ts`) walks a chart index once its key at today's
+  version is agreed to: a bump reads as no index at all, a whole history to
+  fetch again. Missing days and runs are fetched under any version of their key
+  agreed to, since they come back in today's shape; those held at an older
+  version only once today's key is.
+- `debtItems` (`debt.ts`) lists what has something to fetch and is not agreed to
+  at today's version: a chart index never walked, days or runs an older version
+  saved, and, for a set never agreed to, the gaps in its range. The first Garmin
+  view of a session, signed in, shows those not put off in **New data for your
+  history** (`askForUpdates` in `main.ts`); Settings → Data lists them all.
+- The setup's **Start download** agrees to every chart key and both details
+  keys (`agreement` in `setup-flow.ts`). **Keep new days only** agrees to the
+  details keys with the ranges `new` and `opened`, and puts the chart keys off.
+  Choosing a range in Settings → Data agrees to its set's key.
+- Settings v5 (`migrate` in `plugin-data.ts`) takes a vault with a saved session
+  as set up: Day details `30d`, Run details from `downloadRuns`, the chart keys
+  agreed to, and `runs@5` when Download runs was on. `days@1` is left out, so
+  the first update dialog offers the recent days an older build saved without
+  timelines.
+- `onExternalSettingsChange` takes another device's `setup` and `data` from
+  `data.json`, and nothing else.
+
+### The account scan
+
+`scanAccount` (`scan.ts`, run by `SyncRunner.scan` as foreground work) finds
+where the account's history starts and ends in about a request a year plus
+four (see [Garmin API](garmin-api.md#account-scan)), and writes `scan.json`
+even when a request stopped it early. The estimates read it, `planBackfill`
+leaves out the weeks it found empty, and every history walk stops past the
+earlier of its first day and the oldest activity (`notBefore`).
+
+### The backfill
+
+The runner works through `planBackfill`'s tasks in order — the activity list,
+the chart walks, Day details newest first, Run details newest first — a unit at
+a time, each about ten seconds of work:
+
+| Task | One unit |
+| --- | --- |
+| `activities` | the whole list (`activityWalk`), a request per hundred |
+| `walk` | a segment (a year of windows, `segments.ts`) of as many walks side by side as the speed's `parallelDays`, each merged into its index as it lands. The empty-window streak carries from one segment to the next, so a walk in segments asks what one long walk would |
+| `days` | a chunk sized to about `CHUNK_SECONDS` at the speed (`chunkDays`): each day's file and full timelines, the activities listed by date (`activitiesByDate`), no chart index fed, the day files written a year file at a time, the full days booked in the coverage |
+| `runs` | one run (`loadActivityFor`), at least two seconds after the last |
+
+**The runner lock** (`runner-lock.ts`) gives the runner to one piece of work at
+a time:
+- *foreground* — a sync, a history command, the scan — waits for whoever holds
+  it and goes next. A second foreground request, while one holds or waits, is
+  turned away: two syncs never queue.
+- *page* — an on-view load — goes after any foreground waiting.
+- *background* — a backfill unit — starts only when nothing at all waits, so it
+  delays nothing for longer than the unit in hand.
+
+The runner passes from holder to waiter inside the release, so nothing slips in
+between. The drain (`drainIntraday`) takes a page's day, then a page's activity,
+then a backfill unit.
+
+**Before each unit** the runner reads `backfill.json`, fresh rather than cached:
+- A pause holds: the user's (`user`) until Resume, on every device sharing the
+  file; a dead session's (`sign-in`) until a sign-in (`signedIn`); a 429's
+  (`rate-limit`) for 5 minutes, doubling to an hour (`rateLimitWait`); any other
+  failure of a unit (`error`) for ten minutes.
+- Another device's lease younger than `LEASE_MS` (ten minutes) makes this one
+  wait and look again in five. Otherwise this device writes its own: an id kept
+  in the vault's local storage, a label ("Mac", "iPhone") and a heartbeat it
+  renews at the start of a unit, at most once a minute.
+- `RequestBudget` keeps the last hour's requests under `HOURLY_BUDGET`: 5,000,
+  10,000 or 15,000 by speed, well under the pace measured clean (8,800 requests
+  in half an hour; see [Request pace](garmin-api.md#request-pace)).
+
+Days and runs that failed, and walks whose request failed, are left for the
+next session. The backfill starts 8 s after the layout is ready, after every
+sync that finished, and when a choice, a sign-in or another device's settings
+change; `stop()` on unload ends the unit in hand at its next day or window.
+`onBackfill` reports a `BackfillProgress` (running, paused, waiting or
+elsewhere, with its reason, when it resumes, and requests done and left) to
+Home's pill, Settings → Data and, on a computer, the status bar. While it
+writes, Home rebuilds at most every 30 s.
+
+### Deleting and the uninstall watch
+
+`owned-paths.ts` decides what "Delete synced data" removes: the folders the sync
+writes (`OWNED_FOLDERS` and the registered indexes' folders), each whole only
+when everything in it is the plugin's, the files it writes at the top
+(`OWNED_FILES`), conflict copies included, and the data folder and then its
+parent once each is empty. The data folder may point at one that holds notes,
+so nothing else is touched. `delete-data.ts` moves the files to the trash and
+needs only the app. The plugin then forgets the setup and the ledger, so no
+backfill fetches the data straight back.
+
+Obsidian has no uninstall hook: uninstalling runs `onunload` and then deletes
+the plugin's folder (read from Obsidian 1.14.4's own code), while a disable or
+an update leaves the folder. So `onunload` looks again at 1.5, 4 and 10 s
+(`uninstall-watch.ts`), with plain timers since unloading clears the plugin's
+own. The folder gone, it deletes the map tiles' IndexedDB (`TILE_DB`) and the
+device id, and, while the data folder still holds the plugin's files, opens
+"Garmin Connect was removed" (`removed-data-modal.ts`). That prompt brings its
+own styles, since `styles.css` left with the plugin. A folder deleted by hand,
+or an uninstall on another device, gets no prompt.
+
 ## Error taxonomy
 
 `src/garmin/errors.ts`. The distinction that matters most is **Blocked vs Auth**:
@@ -658,6 +845,9 @@ declining. Different problems, different errors.
    do without it). See [api/README.md](../api/README.md).
 4. Add a test in `tests/metrics.test.ts`.
 5. Update [docs/properties.md](properties.md).
+6. If the days a vault already holds should get it too, bump
+   `DAY_DETAILS_VERSION` (see [Data versions](CONTRIBUTING.md#data-versions)).
+   The shape guard does not see a new field from an endpoint already called.
 
 ### Add a metric group
 
@@ -675,6 +865,10 @@ As above, plus:
    once while a group someone turned off stays off. Extend
    `tests/plugin-data.test.ts`.
 5. The group on the endpoint's entry in `api/endpoints.json` (`groups`).
+6. A group that adds a request changes what Day details fetch, so
+   `tests/dataset-shapes.test.ts` fails until `DAY_DETAILS_VERSION` is bumped
+   with a `changes` line and the shape recorded (see
+   [Data versions](CONTRIBUTING.md#data-versions)).
 
 ### Add a chart
 
@@ -718,7 +912,11 @@ What the suite pins down beyond the seams:
   phone showed when the page was specified. A change that moves one needs a
   reason, not a new expected value.
 - **`data.json`.** `tests/plugin-data.test.ts` covers the allowlist read, the
-  group migrations and what a save may carry.
+  migrations and what a save may carry.
+- **Data-set versions.** `tests/dataset-shapes.test.ts` snapshots what each
+  store keeps beside its version (`tests/fixtures/dataset-shapes.json`) and
+  fails when one changes without a bump; see
+  [Data versions](CONTRIBUTING.md#data-versions).
 - **The API catalogue, offline.** `tests/api-catalogue.test.ts` and its
   neighbours check `api/endpoints.json` against the probes and the recorded
   shapes, with no account.

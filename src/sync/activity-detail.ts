@@ -10,7 +10,6 @@ import type {
 	WeighIn,
 } from "../garmin/endpoints";
 import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../garmin/errors";
-import type { ActivityRow } from "./activity-index";
 import type { IntradayMiss } from "./intraday-registry";
 import type { MetricGroup } from "./metrics";
 
@@ -23,8 +22,8 @@ import type { MetricGroup } from "./metrics";
  * the summary's firmware id and date — and none after. A block whose request
  * failed is asked for again on the next view; one Garmin had nothing for (a
  * treadmill run's weather) is not. A file whose activity was renamed or trimmed
- * since is fetched afresh. With "Download runs" on, every run is loaded the
- * same way in the background, newest first (`runsToDownload`).
+ * since is fetched afresh. With Run details on, the backfill loads every run
+ * in its range the same way, newest first (`backfill.ts`).
  *
  * Values keep Garmin's units (metres, seconds, m/s, °F); the pages round them.
  * The summary's and the laps' figures are kept exactly as Garmin sent them:
@@ -342,20 +341,6 @@ export interface LoadActivityOptions {
 	groups: readonly MetricGroup[];
 	/** The activity's index row, when it has one. */
 	row?: ActivityIdentity | null;
-}
-
-/**
- * The runs "Download runs" asks for: the index's rows that `isRun` picks —
- * the ones whose page opens — without a detail file, less those that already
- * failed, in the index's order, newest first.
- */
-export function runsToDownload(
-	rows: readonly ActivityRow[],
-	isRun: (row: ActivityRow) => boolean,
-	saved: ReadonlySet<number>,
-	failed: ReadonlySet<number>,
-): number[] {
-	return rows.filter((row) => isRun(row) && !saved.has(row.id) && !failed.has(row.id)).map((row) => row.id);
 }
 
 /** What the summary tells the blocks that wait for it. */

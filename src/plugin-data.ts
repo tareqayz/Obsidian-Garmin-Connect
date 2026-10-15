@@ -2,7 +2,8 @@ import type { Plugin } from "obsidian";
 import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
-import { DEFAULT_SETTINGS, SETTINGS_VERSION, type GarminSettings } from "./settings-data";
+import { DEFAULT_SETTINGS, defaultData, SETTINGS_VERSION, type DataChoices, type GarminSettings, type SetupState } from "./settings-data";
+import { chartKeys, isDayDetailsRange, isRunDetailsRange, parseConsentKey, RUN_DETAILS_KEY } from "./sync/datasets";
 import type { LegacyNotes } from "./sync/import-notes";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { isSyncSpeed, speedFromPause } from "./sync/speed";
@@ -27,6 +28,25 @@ function groups(v: unknown, fallback: MetricGroup[]): MetricGroup[] {
 	const valid = v.filter((g): g is MetricGroup => ALL_GROUPS.includes(g as MetricGroup));
 	// An empty list is a legitimate choice; a malformed one is not.
 	return valid.length === v.length ? valid : fallback;
+}
+
+function setupOf(v: unknown): SetupState | null {
+	const raw = v as Partial<SetupState> | null | undefined;
+	if (!raw || typeof raw !== "object" || typeof raw.completedAt !== "string" || Number.isNaN(Date.parse(raw.completedAt))) return null;
+	return { completedAt: raw.completedAt, ...(raw.migrated === true ? { migrated: true } : {}) };
+}
+
+const keys = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((k): k is string => typeof k === "string" && parseConsentKey(k) !== null))] : []);
+
+function dataOf(v: unknown): DataChoices {
+	const raw = (v ?? {}) as Record<string, unknown>;
+	const d = defaultData();
+	return {
+		dayDetails: isDayDetailsRange(raw.dayDetails) ? raw.dayDetails : d.dayDetails,
+		runDetails: isRunDetailsRange(raw.runDetails) ? raw.runDetails : d.runDetails,
+		accepted: keys(raw.accepted),
+		deferred: keys(raw.deferred),
+	};
 }
 
 interface Persisted {
@@ -61,7 +81,7 @@ const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
  * password, no access token.
  */
 export class PluginData implements TokenStore {
-	settings: GarminSettings = { ...DEFAULT_SETTINGS };
+	settings: GarminSettings = { ...DEFAULT_SETTINGS, data: defaultData() };
 	/**
 	 * The Home screen's own state. Kept beside settings rather than inside them:
 	 * settings say what to sync, this says how Home shows it, and the settings
@@ -104,7 +124,8 @@ export class PluginData implements TokenStore {
 					: d.units,
 			dataFolder: nonEmpty(source.dataFolder, d.dataFolder),
 			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
-			downloadRuns: bool(source.downloadRuns, d.downloadRuns),
+			setup: setupOf(source.setup),
+			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
 			// An older build saved a pause in ms; the speed nearest it stands in.
 			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : speedFromPause(source.pauseBetweenDays),
@@ -113,7 +134,10 @@ export class PluginData implements TokenStore {
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
-		const migrated = this.migrate();
+		const auth = raw.auth as PersistedAuth | null | undefined;
+		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
+
+		const migrated = this.migrate(source.downloadRuns === true);
 		this.legacyNotes = {
 			dataFolder: this.settings.dataFolder,
 			dataFolderPrefix: text(source.dataFolderPrefix, ""),
@@ -132,10 +156,20 @@ export class PluginData implements TokenStore {
 			...(glance ? { glance } : {}),
 		};
 
-		const auth = raw.auth as PersistedAuth | null | undefined;
-		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
-
 		if (migrated) await this.flush();
+	}
+
+	/**
+	 * The setup and the data choices again from `data.json`, after another
+	 * device changed them (`onExternalSettingsChange`). Nothing else: the
+	 * session and the rest stay as this device has them.
+	 */
+	async reloadChoices(): Promise<void> {
+		const raw = (await this.plugin.loadData()) as Record<string, unknown> | null;
+		const source = (raw?.settings ?? {}) as Record<string, unknown>;
+		if (int(source.settingsVersion, 1, 1, SETTINGS_VERSION) < SETTINGS_VERSION) return;
+		this.settings.setup = setupOf(source.setup);
+		this.settings.data = dataOf(source.data);
 	}
 
 	/**
@@ -147,7 +181,7 @@ export class PluginData implements TokenStore {
 	 * Versioned rather than "add anything missing", so a group you deliberately
 	 * turned off stays off.
 	 */
-	private migrate(): boolean {
+	private migrate(downloadRuns: boolean): boolean {
 		if (this.settings.settingsVersion >= SETTINGS_VERSION) return false;
 		if (this.settings.groups.length > 0) {
 			const from = this.settings.settingsVersion;
@@ -161,6 +195,19 @@ export class PluginData implements TokenStore {
 					(g) => this.settings.groups.includes(g) || added.includes(g),
 				),
 			];
+		}
+		if (this.settings.settingsVersion < 5) {
+			// "Download runs" became the Run details range.
+			this.settings.data = { ...defaultData(), runDetails: downloadRuns ? "all" : "opened" };
+			// A vault that was already syncing is set up: no wizard. Its charts
+			// were walked already; its runs were if Download runs was on. Its day
+			// details are left for the first update dialog, which offers the
+			// recent days an older build saved without timelines.
+			if (this.auth) {
+				this.settings.setup = { completedAt: new Date().toISOString(), migrated: true };
+				this.settings.data.dayDetails = "30d";
+				this.settings.data.accepted = [...chartKeys(this.settings.groups), ...(downloadRuns ? [RUN_DETAILS_KEY] : [])];
+			}
 		}
 		this.settings.settingsVersion = SETTINGS_VERSION;
 		return true;

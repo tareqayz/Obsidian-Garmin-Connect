@@ -11,7 +11,8 @@ its help. Helpers: `scripts/dev/ev.sh` (eval with retries), `capture-view.sh`, `
   instead of looping on its output.
 - A plugin load runs the startup sync (~50 Garmin requests, writes the day files) when Sync on
   startup is on — check `app.plugins.plugins['garmin-connect'].data.settings.syncOnStartup`
-  with `ev.sh`, never `data.json` — and the history walks follow the first sync of a session.
+  with `ev.sh`, never `data.json` — and the history download carries on in the background
+  for whatever was agreed to (`plugin.sync.backfillProgress`).
   Batch fixes; never reload per tweak.
 - **Stale Svelte CSS** after a reload: `ev.sh "document.querySelectorAll('style').forEach(s => s.id?.startsWith('svelte-') && s.remove())"`,
   detach the Garmin leaves, reopen with `obsidian command id=garmin-connect:open-dashboard`.

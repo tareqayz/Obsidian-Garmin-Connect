@@ -29,7 +29,7 @@ import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
 import { isEmptySeries, mapSeries, type DaySeries, type IntradayPayloads } from "./intraday";
-import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef } from "./intraday-registry";
+import { blocksFromDay, keepBlocks, keptKeys, type IntradayDef, type KeepOptions } from "./intraday-registry";
 import { rowsFromSleepStats, type SleepBatch, type SleepRow } from "./sleep-index";
 import {
 	bucketWorkoutsByDate,
@@ -74,6 +74,8 @@ export interface SyncSource {
 	/** A night a day for the sleep index. 28 days a call at most. */
 	sleepStats(start: string, end: string): Promise<SleepStatsDay[]>;
 	activities(start?: number, limit?: number): Promise<Activity[]>;
+	/** The activities that started between two local days, newest first. Needed by `SyncOptions.activityRange`. */
+	activitiesByDate?(from: string, to: string, start?: number, limit?: number): Promise<Activity[]>;
 }
 
 export type WriteOutcome = "written" | "unchanged" | "missing";
@@ -197,9 +199,16 @@ export interface SyncOptions {
 	 */
 	extras?: readonly IntradayDef[];
 	/**
-	 * How many of the newest days in a run get intraday series. They cost six
-	 * requests a day, and a year's backfill of them would be 2,190 requests for
-	 * charts nobody scrolls back to. Defaults to `INTRADAY_DAYS`.
+	 * List the run's activities by date (`activitiesByDate`, a request per
+	 * hundred) rather than paging back from the newest, which reaches only the
+	 * newest 250: what a backfill far from today needs. The list then feeds
+	 * the day files alone, not `activities`, which wants the newest pages.
+	 */
+	activityRange?: boolean;
+	/**
+	 * How many of the newest days in a run get intraday series: six requests a
+	 * day. The runner passes the run's days inside Day details, or all of them
+	 * for a range asked for by hand; `INTRADAY_DAYS` before the setup.
 	 */
 	intradayDays?: number;
 	/** Courtesy pause between days, in ms. The client's throttle is what paces a sync now; this is for a caller without one. */
@@ -238,6 +247,12 @@ export interface DayResult {
 	/** Endpoints that failed for this day without stopping the sync. */
 	warnings?: string[];
 	error?: string;
+	/**
+	 * Every request the run's groups ask of a day went out and came back,
+	 * data or not, intraday included, and the day was written: nothing about
+	 * it is left to fetch at this version.
+	 */
+	full?: true;
 }
 
 export interface SyncReport {
@@ -253,6 +268,8 @@ export interface SyncReport {
 	failed: number;
 	/** Set when the sync gave up before finishing the range. */
 	stoppedEarly?: string;
+	/** The 429 or dead session it gave up on, when that was why. */
+	fatal?: unknown;
 	requests: number;
 	/** Days whose series file was created or changed. */
 	seriesWritten: number;
@@ -428,11 +445,13 @@ export async function syncRange(
 	let workoutsByDate = new Map<string, Activity[]>();
 	if (wanted.workouts) {
 		try {
-			const { activities, requests, reachedEnd } = await fetchActivitiesFor(source, opts.from);
+			const { activities, requests, reachedEnd } = opts.activityRange
+				? await fetchActivitiesBetween(source, opts.from, opts.to)
+				: await fetchActivitiesFor(source, opts.from);
 			report.requests += requests;
 			workoutsByDate = bucketWorkoutsByDate(activities);
 			log.detail("workouts found", activities.length);
-			if (opts.activities) {
+			if (opts.activities && !opts.activityRange) {
 				try {
 					report.activityFilesWritten += await opts.activities.merge(activities, reachedEnd);
 				} catch (err) {
@@ -625,7 +644,7 @@ export async function syncRange(
 		const writing = series && !isEmptySeries(series) ? series : null;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await writeSeries(opts.series, date, writing, fresh, kept)) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
 			} catch (err) {
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
@@ -653,6 +672,7 @@ export async function syncRange(
 			}
 		}
 
+		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched)) result.full = true;
 		report.days.push(result);
 
 		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
@@ -688,12 +708,12 @@ export async function syncRange(
 }
 
 /**
- * A day's series file after the sync: the series it made for the day, when it
- * made one, with the blocks the extras keep (`fresh`) folded in over what the
- * file holds (`keepBlocks`). Only reads the file when there are kept blocks to
- * carry or fold in. A target that cannot read gets the day's series and its
- * fresh blocks alone, and no write of kept blocks by themselves, which would
- * replace a file it cannot see. Null when nothing was written.
+ * A day's series file after the sync: the blocks the series it made for the
+ * day brings, over what the file holds, with the blocks the extras keep
+ * (`fresh`) folded in (`keepBlocks`). A target that cannot read gets the
+ * day's series and its fresh blocks alone, and no write of kept blocks by
+ * themselves, which would replace a file it cannot see. Null when nothing was
+ * written.
  */
 async function writeSeries(
 	target: SeriesTarget,
@@ -701,11 +721,11 @@ async function writeSeries(
 	writing: DaySeries | null,
 	fresh: Readonly<Record<string, unknown>>,
 	kept: readonly string[],
+	keep: KeepOptions,
 ): Promise<"written" | "unchanged" | null> {
-	const merging = writing ? kept.length > 0 : Object.keys(fresh).length > 0;
-	if (merging && !target.read && !writing) return null;
-	const stored = merging && target.read ? await target.read(date) : null;
-	const next = keepBlocks(stored, writing, fresh, kept);
+	if (!target.read && !writing) return null;
+	const stored = target.read ? await target.read(date) : null;
+	const next = keepBlocks(stored, writing, fresh, kept, keep);
 	return next ? target.write(date, next) : null;
 }
 
@@ -760,6 +780,11 @@ export interface SleepHistoryOptions {
 	notBefore?: string;
 	/** Windows in a row without a night that end the walk. */
 	emptyWindows?: number;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back with nights forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -778,6 +803,8 @@ export interface SleepHistoryFetch {
 	requests: number;
 	/** The walk ran past the start of the account's sleep history. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -792,9 +819,9 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 	const wait = opts.wait ?? defaultWait;
 	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
 	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
-	const out: SleepHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: SleepHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -815,6 +842,7 @@ export async function fetchSleepHistory(source: Pick<SyncSource, "sleepStats">, 
 		opts.onWindow?.(start);
 
 		empty = rows.length ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;
@@ -958,6 +986,11 @@ export interface WalkOptions {
 	today?: string;
 	/** Keep walking through empty windows until past this day: the oldest activity, say. */
 	notBefore?: string;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back with rows forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -976,6 +1009,8 @@ export interface WalkResult<R extends DayRow = DayRow> {
 	requests: number;
 	/** The walk found where the history starts, or reached `maxHistoryDays`: nothing older is left. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -999,13 +1034,13 @@ export async function walkHistory<R extends DayRow>(
 	// About twelve years, whatever the window: what 160 windows of 28 days reach.
 	const maxWindows = Math.max(1, opts.maxWindows ?? Math.ceil(4480 / size));
 	const floor = def.maxHistoryDays ? shiftDate(opts.today ?? opts.until, -(def.maxHistoryDays - 1)) : undefined;
-	const out: WalkResult<R> = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: WalkResult<R> = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	if (floor && opts.until < floor) {
 		out.complete = true;
 		return out;
 	}
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -1034,6 +1069,7 @@ export async function walkHistory<R extends DayRow>(
 			break;
 		}
 		empty = rows.length ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;
@@ -1165,6 +1201,11 @@ export interface DailyHistoryOptions {
 	notBefore?: string;
 	/** Windows in a row with no steps at all that end the walk. */
 	emptyWindows?: number;
+	/**
+	 * Empty windows in a row just above `until`: a walk taken a segment at a
+	 * time carries the count over, so it stops where one long walk would.
+	 */
+	emptyStreak?: number;
 	/** A hard stop, should every window come back non-empty forever. */
 	maxWindows?: number;
 	/** Courtesy pause between windows, in ms. */
@@ -1183,6 +1224,8 @@ export interface DailyHistoryFetch {
 	requests: number;
 	/** The walk ran past the start of the account's history. */
 	complete: boolean;
+	/** Empty windows in a row at the walk's oldest end, for the next segment's `emptyStreak`. */
+	emptyStreak: number;
 	/** A 429 or a dead session. What came before it is still good. */
 	fatal?: unknown;
 	error?: string;
@@ -1198,9 +1241,9 @@ export async function fetchDailyStatsHistory(source: StatsSource, opts: DailyHis
 	const wait = opts.wait ?? defaultWait;
 	const emptyLimit = Math.max(1, opts.emptyWindows ?? 4);
 	const maxWindows = Math.max(1, opts.maxWindows ?? 160);
-	const out: DailyHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false };
+	const out: DailyHistoryFetch = { batch: { rows: [], dates: [] }, covered: null, requests: 0, complete: false, emptyStreak: 0 };
 	let end = opts.until;
-	let empty = 0;
+	let empty = Math.max(0, opts.emptyStreak ?? 0);
 
 	for (let n = 0; n < maxWindows; n++) {
 		if (opts.shouldStop?.()) break;
@@ -1233,6 +1276,7 @@ export async function fetchDailyStatsHistory(source: StatsSource, opts: DailyHis
 		opts.onWindow?.(start);
 
 		empty = got.steps ? 0 : empty + 1;
+		out.emptyStreak = empty;
 		if (empty >= emptyLimit && (!opts.notBefore || start <= opts.notBefore)) {
 			out.complete = true;
 			break;
@@ -1272,6 +1316,8 @@ interface DayFetch {
 	summaryFetched: boolean;
 	/** The day's parts that came back, empty or not: what a `fromDay` index may read. */
 	ok: Set<keyof DayData>;
+	/** Whether the day's intraday requests went out, so its series write may refresh more than the night. */
+	intradayFetched: boolean;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1302,7 +1348,15 @@ async function fetchDay(
 
 	const settled = await Promise.allSettled(jobs.map((j) => j.run()));
 
-	const out: DayFetch = { data: {}, intraday: {}, warnings: [], requests: jobs.length, summaryFetched: false, ok: new Set() };
+	const out: DayFetch = {
+		data: {},
+		intraday: {},
+		warnings: [],
+		requests: jobs.length,
+		summaryFetched: false,
+		ok: new Set(),
+		intradayFetched: Boolean(wanted.intraday),
+	};
 	settled.forEach((result, i) => {
 		const name = jobs[i]!.name;
 		if (result.status === "fulfilled") {
@@ -1439,6 +1493,30 @@ function byDate<T>(rows: readonly T[], dateOf: (row: T) => string | undefined): 
 
 const ACTIVITY_PAGE = 50;
 const MAX_ACTIVITY_PAGES = 5;
+/** Activities a page when listing by date. The list honours 100. */
+const DATED_PAGE = 100;
+
+/**
+ * The run's activities by date: a request per hundred, however far the run
+ * is from today. `reachedEnd` is false: a window says nothing about what is
+ * older.
+ */
+async function fetchActivitiesBetween(
+	source: SyncSource,
+	from: string,
+	to: string,
+): Promise<{ activities: Activity[]; requests: number; reachedEnd: boolean }> {
+	if (!source.activitiesByDate) throw new Error("activityRange needs activitiesByDate");
+	const activities: Activity[] = [];
+	let requests = 0;
+	for (let start = 0; ; start += DATED_PAGE) {
+		const batch = await source.activitiesByDate(from, to, start, DATED_PAGE);
+		requests += 1;
+		activities.push(...batch);
+		if (batch.length < DATED_PAGE) break;
+	}
+	return { activities, requests, reachedEnd: false };
+}
 
 /**
  * Walks the activity list back to `from` rather than asking per day — one paged
@@ -1548,6 +1626,7 @@ function message(err: unknown): string {
 }
 
 function stop(report: SyncReport, err: unknown, log: Log): SyncReport {
+	if (isFatal(err)) report.fatal = err;
 	report.stoppedEarly =
 		err instanceof GarminRateLimitError
 			? `rate limited by Garmin — ${message(err)}`

@@ -3,10 +3,11 @@
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
 	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
-	import { INTRADAY_DAYS } from "../../sync/engine";
 	import { isSyncSpeed, SPEED_LABELS } from "../../sync/speed";
 	import { DEFAULT_SETTINGS, type GarminSettings } from "../../settings-data";
 	import { obsidianSetting } from "./obsidian-setting";
+	import DataSection from "./settings/DataSection.svelte";
+	import { DeleteDataModal } from "../delete-data-modal";
 
 	let { plugin }: { plugin: GarminPlugin } = $props();
 
@@ -52,7 +53,7 @@
 	function costOf(group: MetricGroup): string {
 		if (freeGroups.has(group)) return "Free — shares the daily summary request";
 		if (group === "intraday") {
-			return `${REQUESTS_PER_DAY.intraday} requests per day, for the newest ${INTRADAY_DAYS} days of a sync only`;
+			return `${REQUESTS_PER_DAY.intraday} requests per day, for the days inside Day details (Data, above)`;
 		}
 		const perSync = REQUESTS_PER_SYNC[group];
 		if (perSync) return `About ${perSync} requests per sync, not per day — saved to account.json`;
@@ -68,7 +69,7 @@
 	}
 </script>
 
-<h3>Connection</h3>
+<div use:obsidianSetting={(setting) => setting.setName("Connection").setHeading()}></div>
 
 {#key signedIn}
 	<div
@@ -131,7 +132,7 @@
 			)}
 ></div>
 
-<h3>Sync</h3>
+<div use:obsidianSetting={(setting) => setting.setName("Sync").setHeading()}></div>
 
 <div
 	use:obsidianSetting={(setting) =>
@@ -142,24 +143,6 @@
 				t.setValue(s.syncOnStartup).onChange((v) => {
 					s.syncOnStartup = v;
 					save();
-				}),
-			)}
-></div>
-
-<div
-	use:obsidianSetting={(setting) =>
-		setting
-			.setName("Download runs")
-			.setDesc(
-				"Saves every run's page — charts, laps and route — to the vault in the background after a sync, " +
-					"newest first, so it opens without a connection. About 150 KB and ten requests a run. " +
-					"Off, a run downloads when you first open it.",
-			)
-			.addToggle((t) =>
-				t.setValue(s.downloadRuns).onChange((v) => {
-					s.downloadRuns = v;
-					save();
-					if (v) plugin.sync.startDownloads();
 				}),
 			)}
 ></div>
@@ -182,29 +165,9 @@
 			)}
 ></div>
 
-<h3>Storage</h3>
+<DataSection {plugin} />
 
-<div
-	use:obsidianSetting={(setting) =>
-		setting
-			.setName("Data folder")
-			.setDesc(
-				"Everything the sync writes is JSON in this folder — a file a year for the days in days/, " +
-					"intraday charts in series/, and the activity, sleep and health indexes. " +
-					"Moving it does not move files already written.",
-			)
-			.addText((t) =>
-				t
-					.setPlaceholder(DEFAULT_SETTINGS.dataFolder)
-					.setValue(s.dataFolder)
-					.onChange((v) => {
-						s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder;
-						save();
-					}),
-			)}
-></div>
-
-<h3>Metrics</h3>
+<div use:obsidianSetting={(setting) => setting.setName("Metrics").setHeading()}></div>
 <p class="hint">
 	Each group says what it costs in Garmin requests: most per day synced, a few once per sync. The free
 	ones share the daily summary request, so one request a day covers all of them.
@@ -222,7 +185,7 @@
 	></div>
 {/each}
 
-<h3>Maps</h3>
+<div use:obsidianSetting={(setting) => setting.setName("Maps").setHeading()}></div>
 
 <div
 	use:obsidianSetting={(setting) =>
@@ -239,7 +202,7 @@
 			)}
 ></div>
 
-<h3>Advanced</h3>
+<div use:obsidianSetting={(setting) => setting.setName("Advanced").setHeading()}></div>
 
 <div
 	use:obsidianSetting={(setting) =>
@@ -266,10 +229,10 @@
 		setting
 			.setName("Stop after empty days")
 			.setDesc(
-				"A backfill walks newest to oldest. When it reaches past the start of your " +
+				"For Sync a date range…, which walks newest to oldest: once it reaches past the start of your " +
 					"Garmin history it gives up after this many days with nothing in them, " +
 					"instead of asking all the way to the start date and being rate limited. " +
-					"Set to 0 to always walk the whole range.",
+					"Set to 0 to always walk the whole range. The download Data sets up already knows where your history starts.",
 			)
 			.addSlider((sl) =>
 				sl
@@ -310,6 +273,19 @@
 						save();
 					}),
 			)}
+></div>
+
+<div use:obsidianSetting={(setting) => setting.setName("Danger zone").setHeading()}></div>
+
+<div
+	use:obsidianSetting={(setting) =>
+		setting
+			.setName("Delete synced data")
+			.setDesc(`Moves the plugin’s files in ${s.dataFolder} to the trash. Your notes and your Garmin account are not affected.`)
+			.addButton((b) => {
+				b.setButtonText("Delete…").onClick(() => new DeleteDataModal(plugin.app, plugin).open());
+				b.buttonEl.addClass("gch-danger");
+			})}
 ></div>
 
 <style>

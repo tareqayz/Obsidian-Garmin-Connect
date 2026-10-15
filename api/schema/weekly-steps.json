@@ -1,0 +1,57 @@
+{
+	"endpoint": "weekly-steps",
+	"path": "/usersummary-service/stats/steps/weekly/{endDate}/{weeks}",
+	"plugin": "GarminApi.weeklySteps",
+	"firstRecorded": "2026-10-14T07:29:58.120Z",
+	"updatedAt": "2026-10-14T07:29:58.120Z",
+	"samples": 2,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"calendarDate": {
+					"type": [
+						"string"
+					]
+				},
+				"values": {
+					"type": [
+						"object"
+					],
+					"fields": {
+						"averageDistance": {
+							"type": [
+								"number"
+							]
+						},
+						"averageSteps": {
+							"type": [
+								"number"
+							]
+						},
+						"totalDistance": {
+							"type": [
+								"number"
+							]
+						},
+						"totalSteps": {
+							"type": [
+								"number"
+							]
+						},
+						"wellnessDataDaysCount": {
+							"type": [
+								"number"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

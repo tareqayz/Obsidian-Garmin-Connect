@@ -37,11 +37,12 @@ export class LoginModal extends Modal {
 						// whole sign-in stays one await and the SSO cookies survive it.
 						await this.plugin.garmin.login(email, password, { onMfaRequired });
 						new Notice("Signed in to Garmin Connect.");
+						this.plugin.authChanged();
 						this.onDone?.();
 						this.close();
 						return null;
 					} catch (err) {
-						return explain(err);
+						return explainSignIn(err);
 					}
 				},
 				onCancel: () => this.close(),
@@ -58,7 +59,8 @@ export class LoginModal extends Modal {
 	}
 }
 
-function explain(err: unknown): string {
+/** A failed sign-in, in words, for the sign-in form and the setup's. */
+export function explainSignIn(err: unknown): string {
 	if (err instanceof GarminMfaCancelledError) {
 		return "Sign-in cancelled at the verification code step.";
 	}

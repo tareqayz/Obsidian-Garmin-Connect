@@ -44,12 +44,25 @@ import {
 } from "./sleep-index";
 import { ensureFolder, trimSlashes } from "./vault-paths";
 import type { DayRow as HomeDayRow } from "../dashboard/series";
-import { dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties } from "./days";
-import type { Properties } from "./metrics";
+import { DayBuffer, dayRowOf, isDaysFile, parseDays, type DayProperties } from "./days";
 import type { AccountInfo } from "./account";
 import { parseSyncState, serializeSyncState, type SyncState } from "./sync-state";
 import { parseSeries, serializeSeries, type DaySeries } from "./intraday";
 import { parseActivityDetail, serializeActivityDetail, type ActivityDetail, type ActivityDetailStore } from "./activity-detail";
+import {
+	addDays,
+	detailVersionOf,
+	parseDayCoverage,
+	parseRunCoverage,
+	serializeDayCoverage,
+	serializeRunCoverage,
+	seriesVersion,
+	type DayCoverage,
+	type RunCoverage,
+	type Span,
+} from "./coverage";
+import { parseScan, serializeScan, type AccountScan } from "./scan";
+import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
 
 export const SERIES_FOLDER = "series";
 /** Every day's properties, a file a year (see `days.ts`). */
@@ -71,6 +84,24 @@ export const DAY_INDEX_META_FILE = "index.json";
  * activity page's alone.
  */
 export const ACTIVITY_DETAILS_FOLDER = "activity-details";
+/** The days whose details were fetched whole, and at which version (see `coverage.ts`). */
+export const DAY_COVERAGE_FILE = "index.json";
+/** Each downloaded run's file version, beside the run files. */
+export const RUN_COVERAGE_FILE = "index.json";
+/** Where the account's history starts and ends, as the last scan found it (see `scan.ts`). */
+export const SCAN_FILE = "scan.json";
+/** Whether the backfill is paused and which device runs it (see `backfill.ts`). */
+export const BACKFILL_FILE = "backfill.json";
+
+/** Bytes on disk by data set (see `diskUsage`). */
+export interface DiskUsage {
+	charts: number;
+	days: number;
+	runs: number;
+	other: number;
+	total: number;
+	files: number;
+}
 
 export interface SleepIndex {
 	/** Oldest first. */
@@ -150,29 +181,25 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return this.join(DAYS_FOLDER);
 	}
 
-	/** Folds a day's properties into its year file, over whatever the day already held. */
-	async writeDay(date: string, properties: Properties): Promise<"written" | "unchanged"> {
-		const year = date.slice(0, 4);
-		const path = this.join(`${DAYS_FOLDER}/${year}.json`);
-		const file = this.app.vault.getAbstractFileByPath(path);
-		const days = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
-		return this.put(path, serializeDays(year, mergeDay(days, date, properties)));
-	}
-
 	/** Several days at once, a write a year: the import from the old day notes. */
 	async writeDays(incoming: DayProperties): Promise<number> {
-		let written = 0;
-		const years = new Set([...incoming.keys()].map((d) => d.slice(0, 4)));
-		for (const year of years) {
-			const path = this.join(`${DAYS_FOLDER}/${year}.json`);
-			const file = this.app.vault.getAbstractFileByPath(path);
-			let days: DayProperties = file instanceof TFile ? parseDays(await this.app.vault.read(file)) : new Map();
-			for (const [date, properties] of incoming) {
-				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
-			}
-			if ((await this.put(path, serializeDays(year, days))) === "written") written += 1;
-		}
-		return written;
+		const buffer = this.dayBuffer();
+		for (const [date, properties] of incoming) await buffer.write(date, properties);
+		return buffer.flush();
+	}
+
+	/**
+	 * The day files as a sync's target: days held, then written a year file
+	 * at a time by `flush` (see `DayBuffer`).
+	 */
+	dayBuffer(): DayBuffer {
+		return new DayBuffer({
+			readYear: async (year) => {
+				const file = this.app.vault.getAbstractFileByPath(this.join(`${DAYS_FOLDER}/${year}.json`));
+				return file instanceof TFile ? this.app.vault.read(file) : null;
+			},
+			writeYear: (year, body) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body),
+		});
 	}
 
 	/** Every synced day, oldest first. */
@@ -205,8 +232,15 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return parseActivityDetail(await this.app.vault.cachedRead(file));
 	}
 
+	/** Writes the run's file and books its version in the run coverage. */
 	async writeActivityDetail(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
-		return this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
+		const outcome = await this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
+		const runs = await this.readRunCoverage();
+		if (runs.get(id) !== detail.version) {
+			runs.set(id, detail.version);
+			await this.put(this.runCoveragePath, serializeRunCoverage(runs));
+		}
+		return outcome;
 	}
 
 	/** The activities with a detail file, by id, read from the folder's listing. */
@@ -219,6 +253,157 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 			if (id) ids.add(Number(id));
 		}
 		return ids;
+	}
+
+	get runCoveragePath(): string {
+		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${RUN_COVERAGE_FILE}`);
+	}
+
+	/**
+	 * Each downloaded run's file version, by id. Built from the run files the
+	 * first time, reading only the start of each; a run listed is a run whose
+	 * file is there.
+	 */
+	async readRunCoverage(): Promise<RunCoverage> {
+		const file = this.app.vault.getAbstractFileByPath(this.runCoveragePath);
+		const held = file instanceof TFile ? parseRunCoverage(await this.app.vault.cachedRead(file)) : null;
+		if (held) return held;
+		const runs: RunCoverage = new Map();
+		for (const id of await this.activityDetailIds()) {
+			const detail = this.app.vault.getAbstractFileByPath(this.activityDetailPath(id));
+			if (!(detail instanceof TFile)) continue;
+			const version = detailVersionOf(await this.app.vault.cachedRead(detail));
+			if (version !== undefined) runs.set(id, version);
+		}
+		await this.put(this.runCoveragePath, serializeRunCoverage(runs));
+		return runs;
+	}
+
+	get scanPath(): string {
+		return this.join(SCAN_FILE);
+	}
+
+	async readScan(): Promise<AccountScan | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.scanPath);
+		return file instanceof TFile ? parseScan(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
+		return this.put(this.scanPath, serializeScan(scan));
+	}
+
+	/**
+	 * Bytes on disk under the data folder, by data set, from the vault's own
+	 * file sizes: Day details are the day files and series, Run details the
+	 * runs' pages, Charts & trends the indexes, and the rest is the small
+	 * bookkeeping files.
+	 */
+	diskUsage(): DiskUsage {
+		const usage: DiskUsage = { charts: 0, days: 0, runs: 0, other: 0, total: 0, files: 0 };
+		const root = this.app.vault.getAbstractFileByPath(this.join(""));
+		if (!(root instanceof TFolder)) return usage;
+		const charts = new Set([ACTIVITIES_FOLDER, DAILY_STATS_FOLDER, SLEEP_FOLDER, ...DAY_INDEXES.map((def) => def.folder)]);
+		const walk = (folder: TFolder, set: keyof Omit<DiskUsage, "total" | "files">) => {
+			for (const child of folder.children) {
+				if (child instanceof TFolder) walk(child, set);
+				else if (child instanceof TFile) {
+					usage[set] += child.stat.size;
+					usage.total += child.stat.size;
+					usage.files += 1;
+				}
+			}
+		};
+		for (const child of root.children) {
+			if (child instanceof TFolder) {
+				const set = child.name === DAYS_FOLDER || child.name === SERIES_FOLDER ? "days" : child.name === ACTIVITY_DETAILS_FOLDER ? "runs" : charts.has(child.name) ? "charts" : "other";
+				walk(child, set);
+			} else if (child instanceof TFile) {
+				usage.other += child.stat.size;
+				usage.total += child.stat.size;
+				usage.files += 1;
+			}
+		}
+		return usage;
+	}
+
+	/** Whether any day or activity has reached this device's data folder. */
+	hasData(): boolean {
+		for (const name of [DAYS_FOLDER, ACTIVITIES_FOLDER]) {
+			const folder = this.app.vault.getAbstractFileByPath(this.join(name));
+			if (folder instanceof TFolder && folder.children.some((child) => child instanceof TFile && /^\d{4}\.json$/.test(child.name))) return true;
+		}
+		return false;
+	}
+
+	get backfillPath(): string {
+		return this.join(BACKFILL_FILE);
+	}
+
+	/** Read fresh, not from the cache: another device may have written it a moment ago. */
+	async readBackfill(): Promise<BackfillState> {
+		const file = this.app.vault.getAbstractFileByPath(this.backfillPath);
+		return file instanceof TFile ? parseBackfill(await this.app.vault.read(file)) : {};
+	}
+
+	async writeBackfill(state: BackfillState): Promise<"written" | "unchanged"> {
+		return this.put(this.backfillPath, serializeBackfill(state));
+	}
+
+	/** The chart indexes' metas by store (`activities`, `daily-stats`, `sleep`, `index:<kind>`): what the backfill plans walks from. */
+	async readChartMetas(): Promise<Map<string, ChartMeta | null>> {
+		const out = new Map<string, ChartMeta | null>();
+		const [activities, daily, sleep] = await Promise.all([this.readActivities(), this.readDailyStatsMeta(), this.readSleepMeta()]);
+		out.set("activities", activities.meta ? { complete: activities.meta.complete === true } : null);
+		out.set("daily-stats", daily ? { complete: daily.complete === true, ...(daily.from ? { from: daily.from } : {}) } : null);
+		out.set("sleep", sleep ? { complete: sleep.complete === true, ...(sleep.from ? { from: sleep.from } : {}) } : null);
+		for (const def of DAY_INDEXES) {
+			const meta = await this.readDayIndexMeta(def);
+			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...(meta.from ? { from: meta.from } : {}) } : null);
+		}
+		return out;
+	}
+
+	get dayCoveragePath(): string {
+		return this.join(`${DAYS_FOLDER}/${DAY_COVERAGE_FILE}`);
+	}
+
+	/**
+	 * The days whose details were fetched whole (see `coverage.ts`). The
+	 * first time, built from the files the vault holds: the series files'
+	 * timelines (`seriesVersion`), or every day file's day when `intraday`
+	 * is off and the day file is all a day's details are.
+	 */
+	async readDayCoverage(intraday: boolean): Promise<DayCoverage> {
+		const file = this.app.vault.getAbstractFileByPath(this.dayCoveragePath);
+		const held = file instanceof TFile ? parseDayCoverage(await this.app.vault.cachedRead(file)) : null;
+		if (held) return held;
+		let spans: Span[] = [];
+		if (intraday) {
+			const folder = this.app.vault.getAbstractFileByPath(this.join(SERIES_FOLDER));
+			const byVersion = new Map<number, string[]>();
+			if (folder instanceof TFolder) {
+				for (const child of folder.children) {
+					const date = child instanceof TFile ? /^(\d{4}-\d{2}-\d{2})\.json$/.exec(child.name)?.[1] : undefined;
+					if (!date || !(child instanceof TFile)) continue;
+					const version = seriesVersion(parseSeries(await this.app.vault.cachedRead(child)));
+					if (version !== undefined) byVersion.set(version, [...(byVersion.get(version) ?? []), date]);
+				}
+			}
+			for (const [version, dates] of byVersion) spans = addDays(spans, dates, version);
+		} else {
+			spans = addDays([], (await this.readDays()).map((row) => row.date), 1);
+		}
+		const coverage = { spans };
+		await this.put(this.dayCoveragePath, serializeDayCoverage(coverage));
+		return coverage;
+	}
+
+	/** Books days a sync fetched whole at `version` of the day details. */
+	async recordDays(dates: readonly string[], version: number, intraday: boolean): Promise<void> {
+		if (!dates.length) return;
+		const coverage = await this.readDayCoverage(intraday);
+		const next = { spans: addDays(coverage.spans, dates, version) };
+		await this.put(this.dayCoveragePath, serializeDayCoverage(next));
 	}
 
 	async writeAccount(account: AccountInfo): Promise<"written" | "unchanged"> {

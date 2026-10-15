@@ -1,4 +1,5 @@
 import type { GarminDomain } from "./garmin/constants";
+import { DEFAULT_DAY_DETAILS, DEFAULT_RUN_DETAILS, type ConsentKey, type DayDetailsRange, type RunDetailsRange } from "./sync/datasets";
 import type { MetricGroup } from "./sync/metrics";
 import { ALL_GROUPS } from "./sync/metrics";
 import type { SyncSpeed } from "./sync/speed";
@@ -12,10 +13,38 @@ import type { SyncSpeed } from "./sync/speed";
  */
 
 /**
- * Bumped when a release adds metric groups that an existing vault should get
- * switched on rather than have to discover. See `PluginData.migrate`.
+ * Bumped when a release changes what an existing vault's settings should
+ * become: metric groups switched on rather than left to discover, or (5) the
+ * setup taken as done for a vault synced before it existed. See
+ * `PluginData.migrate`.
  */
-export const SETTINGS_VERSION = 4;
+export const SETTINGS_VERSION = 5;
+
+/** The setup, once it ran. */
+export interface SetupState {
+	/** When it finished, ISO. */
+	completedAt: string;
+	/** Taken as done on the first load of a release with the setup, for a vault that was already syncing. */
+	migrated?: boolean;
+}
+
+/**
+ * The data sets chosen (see `sync/datasets.ts`) and the consent ledger: the
+ * keys of the stores the user said yes or "later" to. A key in neither is
+ * asked about once — what a release that adds history data shows.
+ */
+export interface DataChoices {
+	dayDetails: DayDetailsRange;
+	runDetails: RunDetailsRange;
+	/** Agreed to: their gaps fill without asking. */
+	accepted: ConsentKey[];
+	/** Put off with Later: listed in Settings → Data, not asked about again. */
+	deferred: ConsentKey[];
+}
+
+export function defaultData(): DataChoices {
+	return { dayDetails: DEFAULT_DAY_DETAILS, runDetails: DEFAULT_RUN_DETAILS, accepted: [], deferred: [] };
+}
 
 export interface GarminSettings {
 	/** Absent in anything written before the migration existed, which reads as 1. */
@@ -30,11 +59,10 @@ export interface GarminSettings {
 	dataFolder: string;
 
 	syncOnStartup: boolean;
-	/**
-	 * Download every run's page — samples, laps, route — in the background
-	 * after a sync, newest first, rather than only the ones opened.
-	 */
-	downloadRuns: boolean;
+	/** Null until the setup ran: the wizard then opens on the first enable, and Home offers it. */
+	setup: SetupState | null;
+	/** What to keep, and the consent ledger. Replaced `downloadRuns` (`runDetails`). */
+	data: DataChoices;
 	/**
 	 * Draw OpenStreetMap's map under an activity's route. Off, the route is
 	 * drawn alone and no tile is ever asked for.
@@ -59,9 +87,10 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// JSON only, in a folder of its own: nothing here touches a note you wrote.
 	dataFolder: "Garmin/data",
 	syncOnStartup: false,
-	// Off: ten requests a run, every run in the history, is a lot to ask of
-	// Garmin unprompted. A run's page downloads it when it opens either way.
-	downloadRuns: false,
+	setup: null,
+	// Runs only when opened: ten requests a run, every run in the history, is
+	// a lot to ask of Garmin unprompted. The setup offers more.
+	data: defaultData(),
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,

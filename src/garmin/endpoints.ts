@@ -950,6 +950,23 @@ export interface WeeklyStatRow {
 	value: number | null;
 }
 
+/**
+ * A week of `/usersummary-service/stats/steps/weekly`: `calendarDate` is the
+ * week's first day, and the weeks end on the day asked for. A week without
+ * any wellness data is left out.
+ */
+export interface WeeklyStepsRow {
+	calendarDate: string;
+	values?: {
+		totalSteps?: number | null;
+		averageSteps?: number | null;
+		/** Days of the week with any wellness data: what the account scan counts. */
+		wellnessDataDaysCount?: number | null;
+		totalDistance?: number | null;
+		averageDistance?: number | null;
+	} | null;
+}
+
 /** One day of `/usersummary-service/stats/respiration/daily`: breaths a minute, flat rather than under `values`. */
 export interface RespirationStatRow {
 	calendarDate: string;
@@ -1420,6 +1437,13 @@ export class GarminApi extends GarminClient {
 		assertIsoDate(start, "start");
 		assertIsoDate(end, "end");
 		return (await this.request<DailyStepStat[] | null>(`/usersummary-service/stats/steps/daily/${start}/${end}`)) ?? [];
+	}
+
+	/** Steps a week for the `weeks` weeks ending on `end`: 52 at most (53 is HTTP 400). */
+	async weeklySteps(end: string, weeks = 52): Promise<WeeklyStepsRow[]> {
+		assertIsoDate(end, "end");
+		assertCount(weeks, "weeks");
+		return (await this.request<WeeklyStepsRow[] | null>(`/usersummary-service/stats/steps/weekly/${end}/${weeks}`)) ?? [];
 	}
 
 	async dailyFloorStats(start: string, end: string): Promise<DailyFloorStat[]> {
@@ -2115,6 +2139,24 @@ export class GarminApi extends GarminClient {
 			"/activitylist-service/activities/search/activities",
 			{ query: { start: String(start), limit: String(limit) } },
 		);
+		return list ?? [];
+	}
+
+	/**
+	 * The activities that started between two local days, inclusive, newest
+	 * first, paged like the list. The same rows as `activities`: a backfill
+	 * far from today asks for its own window rather than paging down to it.
+	 */
+	async activitiesByDate(from: string, to: string, start = 0, limit = 100): Promise<Activity[]> {
+		if (!Number.isInteger(start) || start < 0) {
+			throw new TypeError(`start must be a non-negative integer, got ${start}`);
+		}
+		if (!Number.isInteger(limit) || limit < 1) {
+			throw new TypeError(`limit must be a positive integer, got ${limit}`);
+		}
+		const list = await this.request<Activity[] | null>("/activitylist-service/activities/search/activities", {
+			query: { startDate: assertIsoDate(from, "from"), endDate: assertIsoDate(to, "to"), start: String(start), limit: String(limit) },
+		});
 		return list ?? [];
 	}
 

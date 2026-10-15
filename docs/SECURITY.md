@@ -15,7 +15,7 @@ vault's `.obsidian/plugins/garmin-connect/`.
 | --- | --- |
 | OAuth2 **refresh token** | Your **password** |
 | The DI client ID that token belongs to | The access token (memory only) |
-| Your settings, including the account email | |
+| Your settings, including the account email, when the setup ran and what you agreed to download | |
 | Home's state: the preset, hidden sections, At a Glance order | |
 
 **Your password is never written anywhere.** It is used for one sign-in request
@@ -34,9 +34,10 @@ default). The sync writes no notes:
 | --- | --- | --- |
 | Day files | `<data folder>/days/<year>.json` | each day's numbers, keyed by date |
 | Series files | `<data folder>/series/<date>.json` | the day's heart rate, stress, Body Battery and other curves, sleep stages, and what the pages loaded on view |
-| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, or every run with **Download runs** on: its samples, laps, zones and weather, and its GPS route — where you ran |
+| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, and each run in the **Run details** range: its samples, laps, zones and weather, and its GPS route — where you ran |
 | Indexes | `<data folder>/activities/`, `daily-stats/`, `sleep/`, and one folder per Health Stats index (`stress/`, `heart-rate/`, `weight/`, `blood-pressure/` and the rest) | your activities, and a row a day of each metric's history |
 | Account file | `<data folder>/account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP, running economy, cycling ability, training plans, upcoming events and personal records |
+| Bookkeeping | `<data folder>/scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, how many days of each week hold data, your activity count, the oldest activity's day and the watch's last upload; which device runs the history download (a random id, a name such as "Mac" or "iPhone", and when it last checked in); which days and runs the vault holds |
 
 `account.json` never holds the sign-in email or a token. Garmin's `userName` is
 the sign-in email, so it is deliberately left out.
@@ -65,6 +66,24 @@ control, treat it as a live credential.
   in memory until the plugin reloads, and writes it back the next time it
   refreshes the token or saves a setting.
 
+## Removing the plugin and its data
+
+- **Uninstalling deletes `data.json`**, with the refresh token in it, because
+  Obsidian deletes the plugin's folder. As with signing out, Garmin is not
+  contacted, so a copy of the file taken earlier still holds a working token.
+- **The data folder stays.** It is part of your vault, not the plugin. On the
+  device you uninstall from, the plugin then asks once whether to keep it or
+  move its files to the trash, and deletes that device's map tile cache and the
+  id it used for the history download. There is no prompt when the plugin's
+  folder is deleted by hand, or the plugin is uninstalled on another device:
+  delete the data folder yourself.
+- **Delete synced data…** (**Settings → Danger zone**) moves the plugin's own
+  files in the data folder to the trash, and the diagnostics notes if you tick
+  the box. Anything else in that folder stays. It does not sign you out.
+- **The trash still holds them.** Files moved to the system trash or the vault's
+  `.trash` folder stay on the disk until it is emptied, and a vault sync or a
+  backup may keep its own copies.
+
 ## What leaves your device
 
 | Destination | When | What |
@@ -82,7 +101,8 @@ changes accordingly.
 
 The pages load no scripts from anywhere, and no images but the map tiles above.
 Tiles are kept on the device that drew them, outside the vault, for a week or
-as long as the server allows, so a map opened again asks for nothing. With
+as long as the server allows, so a map opened again asks for nothing, and an
+uninstall on that device deletes them. With
 **Map tiles** off the route is drawn on its own. A few pages link to Garmin
 Connect's website or to a health reference; those open in your browser only
 when you click them.

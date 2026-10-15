@@ -91,12 +91,12 @@ the news this file exists to carry.
 
 It drives the plugin's own `GarminApi` — not a parallel HTTP client — so a path,
 header or parameter that stops working here is one that stops working in the
-plugin. 102 endpoints and about 630 response paths, sampling the last three
+plugin. 104 endpoints and several hundred response paths, sampling the last three
 complete days and a fourteen-day range. The weekly routes ask for their usual 52
 weeks, and the weight and blood pressure ranges for 52 weeks too: the weekly
 forms accept no other span, and a rare weigh-in needs the wider net.
 
-Twenty-seven of the 102 have no caller in the plugin. The Health and
+Twenty-seven of the 104 have no caller in the plugin. The Health and
 Performance Stats work catalogued them: weekly, monthly and latest forms of
 routes the pages read another way, and routes for pages still to be built.
 Until they are wired up or unchecked, the check spends a request on each:

@@ -171,10 +171,11 @@ export interface DaySeries {
 	bodyBatteryEvents?: BodyBatteryMarker[];
 	/**
 	 * Blocks a stat page had fetched on view, by the key its definition
-	 * registered (`intraday-registry.ts`). A sync's own write of the day starts
-	 * the file afresh, so they are fetched again on the next view — except a
-	 * definition's `fromDay` block (HRV Status's night), which the sync writes
-	 * itself from the payload it already fetched and never erases.
+	 * registered (`intraday-registry.ts`). A sync's write of a day it fetched
+	 * the intraday requests for drops them, so they are fetched again on the
+	 * next view — except a definition's `fromDay` block (HRV Status's night),
+	 * which the sync writes itself from the payload it already fetched and
+	 * never erases. A write that fetched only the night keeps them.
 	 */
 	extra?: Record<string, unknown>;
 	/** Keys fetched on view, data or not, so a day Garmin had nothing for is not asked again. */
