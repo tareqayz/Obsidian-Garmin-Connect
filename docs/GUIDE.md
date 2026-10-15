@@ -49,17 +49,17 @@ sizes were measured on a real vault, with every metric group on:
 | --- | --- | --- | --- |
 | **Charts & trends** | Every stat's 7d, 4w and 1y charts, the activity list and the sleep scores: the history indexes | All history, always | 0.9 MB and 150 requests a year of history |
 | **Day details** | Each day's file and its timelines: heart rate, stress, Body Battery, steps, floors and sleep stages through the day | **New days only**, **Last 30 days**, **Last 90 days** (the default), **Last year** or **All history** | 44 KB and 15 requests a day |
-| **Run details** | A run's page: map, charts, splits and laps | **Only runs I open** (the default), **Last 90 days**, **Last year** or **All runs** | 150 KB and 10 requests a run |
+| **Activity details** | An activity's page, every sport: map, charts, splits and laps | **Only activities I open** (the default), **Last 90 days**, **Last year** or **All activities** | up to 150 KB and 8 to 11 requests an activity |
 
 A range only says how far back the download goes. Every new day is kept with
-its timelines whatever the range (timelines need the **intraday** group), and a
-run's page downloads the first time you open it.
+its timelines whatever the range (timelines need the **intraday** group), and an
+activity's page downloads the first time you open it.
 
 ### The history download
 
 What you agreed to downloads in the background, about ten seconds of work at a
 time: the activity list first, then the chart histories a year at a time, then
-Day details and Run details, newest first. Nothing fetches your history unless
+Day details and Activity details, newest first. Nothing fetches your history unless
 you agreed to it, in the setup or in the update dialog below.
 
 - A sync, or a page loading what it needs, always goes first.
@@ -92,8 +92,10 @@ the background; **Later** puts them off. Either way it doesn't ask again, and
 **Settings → Data** lists what is still on offer, with a **Download** button.
 
 What you already agreed to needs no question: new days, and gaps in your Day
-details and Run details ranges, keep filling. Only what an older version saved
-is asked about again.
+details and Activity details ranges, keep filling. Only what an older version saved
+is asked about again. A **Run details** range chosen before every sport had a page
+keeps your runs coming; the other sports, and the runs saved before, wait for one
+**Download now**.
 
 ## Where the data goes
 
@@ -131,7 +133,7 @@ The pages need more than a day's summary can hold. These files sit beside
 | `series/<date>.json` | A day's curves: heart rate, stress, Body Battery, steps, floors, intensity, the sleep hypnogram | `intraday` |
 | `account.json` | Facts that belong to no day: the watch, personal records, lactate threshold, training plan | `profile` |
 | `activities/` | Every activity on the account | `workouts` |
-| `activity-details/` | One file per run whose page you opened, and each run in the **Run details** range: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens or by the history download |
+| `activity-details/` | One file per activity whose page you opened, and each activity in the **Activity details** range: its samples, laps, zones, weather, sensors, badges and GPS route | `workouts`, when the page opens or by the history download |
 | `daily-stats/` | Steps, floors and intensity minutes | `activity` |
 | `sleep/` | A row per night | `sleep` |
 | `stress/`, `body-battery/` | Stress and Body Battery | `stress` |
@@ -164,7 +166,7 @@ A few small files keep the sync's own bookkeeping:
 | `scan.json` | Where your Garmin history starts and ends, as the scan found it | the setup |
 | `backfill.json` | Whether the history download is paused, and which device runs it | the history download |
 | `days/index.json` | Which days' details were fetched whole, and by which version of Day details | every sync and the history download |
-| `activity-details/index.json` | The version of each run's file | each run's page as it is saved |
+| `activity-details/index.json` | The version of each activity's file | each activity's page as it is saved |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 With Obsidian Sync that needs **Sync all other types**, which is off by default.
@@ -193,9 +195,9 @@ hill score), training two (running tolerance by day and by week) and health one
 (Health Snapshots). The settings screen shows each group's cost beside its switch.
 
 With everything on, a day costs nine requests. On top of that come the intraday
-and per-sync requests, the history download described above, and ten requests
-the first time you open a run's page, or for each run in the **Run details**
-range (see [Activities](#activities)).
+and per-sync requests, the history download described above, and eight to
+eleven requests the first time you open an activity's page, or for each activity
+in the **Activity details** range (see [Activities](#activities)).
 
 ## Home
 
@@ -284,15 +286,17 @@ activities**.
   second measure over it. Tapped, the map opens full screen: it pans and zooms,
   and its layers button colours the route by another measure or hides the lap
   numbers. Other sports' rows don't open anything yet.
-- The first time a run's page opens it costs ten requests, made between syncs,
-  never during one. The answer is kept in `activity-details/`, so the page opens
-  again without asking. It needs a session and the `workouts` group.
-- **Run details**, in the setup or **Settings → Data**, fetches the pages of the
-  runs in its range ahead, so they open without a connection: in the history
-  download, newest first, at least two seconds apart. A run is about 150 KB in
-  the vault and ten requests, so 230 runs come to about 35 MB and 2,300
-  requests. A page you open goes first, and a sync waits only for the run in
-  hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile policy rules
+- The first time an activity's page opens it costs eight to eleven requests
+  (a run with power or a ride eleven, a pool swim or yoga eight), made between
+  syncs, never during one. The answer is kept in `activity-details/`, so the page
+  opens again without asking. It needs a session and the `workouts` group. A
+  run's page saved before every sport had one asks two requests more, once.
+- **Activity details**, in the setup or **Settings → Data**, fetches the pages
+  of the activities in its range ahead, so they open without a connection: in
+  the history download, newest first, at least two seconds apart. A run is about
+  150 KB in the vault and eleven requests, so 230 runs come to about 35 MB and
+  2,500 requests. A page you open goes first, and a sync waits only for the
+  activity in hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile policy rules
   out bulk downloads): offline, a map draws the tiles that device viewed in the
   last week or so, and the route alone elsewhere.
 - The map's tiles come from OpenStreetMap, which sees roughly where the run was.

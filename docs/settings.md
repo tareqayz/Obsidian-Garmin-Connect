@@ -82,9 +82,9 @@ download, for what you agreed to (see [Data](#data)).
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
 | Data folder | `dataFolder` | `Garmin/data` | Where everything the sync writes goes, all of it JSON: the day files in `days/`, the series files, the history indexes, the activity pages' files, `account.json` and the bookkeeping files. Changing it does not move files already written. |
-| On disk | — | — | What the data folder takes, by data set: Charts & trends (the history indexes), Day details (`days/` and `series/`), Run details (`activity-details/`) and Other (the files at the folder's top). |
+| On disk | — | — | What the data folder takes, by data set: Charts & trends (the history indexes), Day details (`days/` and `series/`), Activity details (`activity-details/`) and Other (the files at the folder's top). |
 | Day details | `data.dayDetails` | `90d` | How far back the history download fetches each day's file and timelines: `new` (New days only, from the setup on), `30d`, `90d`, `1y` or `all`. Every new day is kept whatever the range. Below it: the days still missing, their size and how long they take. |
-| Run details | `data.runDetails` | `opened` | Which runs' pages the download fetches: `opened` (Only runs I open: each downloads the first time you open it), `90d`, `1y` or `all`. Below it: the runs left to download. |
+| Activity details | `data.activityDetails` | `opened` | Which activities' pages the download fetches, every sport: `opened` (Only activities I open: each downloads the first time you open it), `90d`, `1y` or `all`. Below it: the activities left to download. A vault saved before every sport had a page keeps its choice from `data.runDetails`. |
 | Run setup again | — | — | **Open setup** runs the setup again: a fresh scan of your Garmin history, and the choices. |
 
 The sync writes no notes. Each day's numbers go into `days/<year>.json`, keyed
@@ -103,10 +103,13 @@ the [Guide](GUIDE.md#after-an-update)).
 
 **The consent ledger.** `data.accepted` lists what you agreed to and
 `data.deferred` what you put off, each as a store at a version: `days@1` for Day
-details, `runs@5` for Run details, and `activities@…`, `daily-stats@…`,
-`sleep@…` and `index:<kind>@<version>` for each chart history. A key in neither
-is asked about once. A store you agreed to keeps filling its gaps without
-asking; only what an older version saved is asked about again.
+details, `activity-details@6` for Activity details, and `activities@…`,
+`daily-stats@…`, `sleep@…` and `index:<kind>@<version>` for each chart history.
+A key in neither is asked about once. A store you agreed to keeps filling its
+gaps without asking; only what an older version saved is asked about again.
+`runs@5` is Run details', from when only runs had a page: a vault that agreed to
+it keeps downloading the runs in its range, and is asked once about the other
+sports and the runs saved before.
 
 `setup` is `null` until the setup has run, then holds when it finished
 (`completedAt`). While it is `null`, enabling the plugin opens the setup, Home
@@ -190,7 +193,7 @@ yourself stays off, and an empty selection stays empty.
 | 2 | Switches on `respiration`, `spo2`, `body`, `training` |
 | 3 | Switches on `intraday` |
 | 4 | Switches on `health`, `profile` |
-| 5 | Replaces `downloadRuns` with `data.runDetails`: `all` if it was on, `opened` if not. A vault with a saved session is taken as set up without running the setup: Day details `30d`, and the chart histories agreed to, `runs@5` too when `downloadRuns` was on |
+| 5 | Replaces `downloadRuns` with the details range, `data.activityDetails` (`data.runDetails` in builds before every sport had a page, still read): `all` if it was on, `opened` if not. A vault with a saved session is taken as set up without running the setup: Day details `30d`, and the chart histories agreed to, `runs@5` too when `downloadRuns` was on |
 
 Version 5 leaves Day details unagreed, so the first update dialog offers the
 recent days an older build saved without their full timelines.

@@ -504,26 +504,36 @@ An activity's page is never synced: `loadActivity(id)` fetches it the first time
 the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
 (`activity-detail.ts`), outside `activities/` so the write does not rebuild Home.
 
-- Ten blocks, one request each: the summary, the samples (`details`, kept as
-  named columns — `time`, `distance`, `hr`, `speed`, `lat`, `lon` and the rest —
-  plus `clock`, seconds since the start), the laps, the typed splits (run/walk),
-  heart rate and power zones, weather and gear go together; then the device as
-  it was (its firmware id is in the summary) and the weight on the activity's
-  day, for Power (W/kg). Each costs a request once.
+- Eleven blocks, one request each. The summary, the samples (`details`, kept as
+  named columns — `time`, `distance`, `hr`, `speed`, `lat`, `lon`, a ride's power
+  phases, a swim's stroke rate and the rest — plus `clock`, seconds since the
+  start), the laps (a pool swim's lengths among them), the typed splits
+  (run/walk), heart rate zones, gear and badges go together. Then what the
+  summary says applies (`AFTER_SUMMARY`): power zones when it has time in them,
+  weather with a GPS track, the device as it was (its firmware id is in the
+  summary) and the weight on the activity's day, with power, for W/kg. A block
+  that doesn't apply is marked checked without a request: 11 for a run with power
+  or a ride, 9 for an open-water swim, 8 for a pool swim or yoga.
+- The sensors are named from the summary's FIT product numbers
+  (`src/garmin/device-names.ts`), never with a request, and keep no serial.
 - `checked` lists the blocks fetched, data or not: a block whose request failed
   is asked for again on the next view; one Garmin had nothing for is not. A file
   whose activity the index shows renamed or trimmed is fetched afresh, and a file
-  of another `version` reads as missing.
+  of another `version` reads as missing — except a running file of version 5,
+  which reads as 6 with the blocks version 6 changed (`CHANGED_IN_6`: the summary
+  and the badges) left to fetch, two requests instead of eleven.
 - The loads queue with the intraday ones, in the same runner: never beside a
   sync, paced by the client's throttle, and a 429 or a dead session answers every
   waiting load without asking again. Gated on the `workouts` group.
-- **Run details** (`data.runDetails`) past `opened` loads the rest the same way,
-  as the backfill's `runs` task: the index's runs in the range (the rows that
-  open a page, `categoryOf(row) === "running"`, `isRun` in `main.ts`) without a
-  file of today's version, newest first, one a unit and at least two seconds
-  apart. A sync waits only for the run in hand; a 429 pauses the backfill, and a
-  run that failed is not asked for again until the next session. Every write of
-  a run's file books its version in `activity-details/index.json`.
+- **Activity details** (`data.activityDetails`, read from the older
+  `data.runDetails`) past `opened` loads the rest the same way, as the
+  backfill's `details` task: the index's activities in the range without a file
+  of today's version, newest first, one a unit and at least two seconds apart.
+  Until `activity-details@<version>` is agreed to, an older Run details
+  agreement (`runs@5`) keeps fetching the runs alone (`isRun` in `main.ts`). A
+  sync waits only for the activity in hand; a 429 pauses the backfill, and one
+  that failed is not asked for again until the next session. Every write of an
+  activity's file books its version in `activity-details/index.json`.
 - The view keeps the last few details in memory, so a page coming back (Back
   from the map) draws at once and its scroll position holds.
 
@@ -642,7 +652,7 @@ carries on after a restart, a 429 or another device's turn.
 | --- | --- | --- | --- |
 | Charts & trends | the chart indexes: `activities/`, `daily-stats/`, `sleep/` and every `DAY_INDEXES` folder | always the whole history | each index's own |
 | Day details | the day files and each day's full timelines (`series/`) | `dayDetails`: `new`, `30d`, `90d` (default), `1y`, `all` | `DAY_DETAILS_VERSION` |
-| Run details | a run's page (`activity-details/`) | `runDetails`: `opened` (default), `90d`, `1y`, `all` | `RUN_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` |
+| Activity details | an activity's page, every sport (`activity-details/`) | `activityDetails`: `opened` (default), `90d`, `1y`, `all` | `ACTIVITY_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` |
 
 A range only says how far back the backfill goes (`rangeStart`, held to where
 the account's history starts). Every new day is kept whatever it is, because a
@@ -654,7 +664,7 @@ update dialog; bumping a version is the rule in
 `estimate.ts` turns a scan and a choice into bytes, requests and time per set,
 and what keeping new data adds a year, for the setup and Settings → Data. The
 sizes were measured on a vault of 439 days and 233 runs: a day file 3.7 KB, its
-timelines 40 KB, a run 154 KB. Times follow the sync speed, the ten-second
+timelines 40 KB, an activity's page 154 KB (a run's; other sports' are smaller). Times follow the sync speed, the ten-second
 units and the hourly budget below.
 
 ### Coverage
@@ -668,31 +678,34 @@ keep a file beside their data (`coverage.ts`, read and written by
   (`DayResult.full`) when every request the run's groups ask of it came back,
   data or not, intraday included when its group is on, and nothing failed to
   write. Every sync books its full days after the run.
-- `activity-details/index.json`: each run file's version, by activity id,
-  updated by every write of a run's file.
+- `activity-details/index.json`: each activity file's version, by activity id,
+  updated by every write of a file (written under `activities`; one written
+  before every sport had a page, under `runs`, is read the same).
 
 Both are built the first time from the files already there. A series file of
 today's shape, with the day's start (`dayStart`) and the night's detail beside
 its hypnogram, counts as version 1; intraday blocks from before those as version
-0; a night alone is not covered. A run file's version is read from the start of
-its text. A copy another device overwrote can only have lost entries, never
+0; a night alone is not covered. An activity file's version is read from the
+start of its text. A copy another device overwrote can only have lost entries, never
 claim one it did not fetch. Home ignores both files.
 
 ### The consent ledger
 
 `data.accepted` and `data.deferred` in the settings hold consent keys: a store
-at a version, `<store>@<version>` — `days@1`, `runs@5`, `activities@…`,
-`daily-stats@…`, `sleep@…`, `index:<kind>@<version>`. A new index, or a version
+at a version, `<store>@<version>` — `days@1`, `activity-details@6`,
+`activities@…`, `daily-stats@…`, `sleep@…`, `index:<kind>@<version>`, and
+`runs@5`, Run details' from when only runs had a page. A new index, or a version
 bump, is a key the ledger has not seen.
 
 - `planBackfill` (`backfill.ts`) walks a chart index once its key at today's
   version is agreed to: a bump reads as no index at all, a whole history to
-  fetch again. Missing days and runs are fetched under any version of their key
-  agreed to, since they come back in today's shape; those held at an older
-  version only once today's key is.
+  fetch again. Missing days and activities are fetched under any version of
+  their key agreed to, since they come back in today's shape; those held at an
+  older version only once today's key is. `runs@5` counts for runs only.
 - `debtItems` (`debt.ts`) lists what has something to fetch and is not agreed to
-  at today's version: a chart index never walked, days or runs an older version
-  saved, and, for a set never agreed to, the gaps in its range. The first Garmin
+  at today's version: a chart index never walked, days or activities an older
+  version saved, and, for a set never agreed to, the gaps in its range (less the
+  runs an older Run details agreement fills). The first Garmin
   view of a session, signed in, shows those not put off in **New data for your
   history** (`askForUpdates` in `main.ts`); Settings → Data lists them all.
 - The setup's **Start download** agrees to every chart key and both details
@@ -700,7 +713,7 @@ bump, is a key the ledger has not seen.
   details keys with the ranges `new` and `opened`, and puts the chart keys off.
   Choosing a range in Settings → Data agrees to its set's key.
 - Settings v5 (`migrate` in `plugin-data.ts`) takes a vault with a saved session
-  as set up: Day details `30d`, Run details from `downloadRuns`, the chart keys
+  as set up: Day details `30d`, Activity details from `downloadRuns`, the chart keys
   agreed to, and `runs@5` when Download runs was on. `days@1` is left out, so
   the first update dialog offers the recent days an older build saved without
   timelines.
@@ -719,7 +732,7 @@ earlier of its first day and the oldest activity (`notBefore`).
 ### The backfill
 
 The runner works through `planBackfill`'s tasks in order — the activity list,
-the chart walks, Day details newest first, Run details newest first — a unit at
+the chart walks, Day details newest first, Activity details newest first — a unit at
 a time, each about ten seconds of work:
 
 | Task | One unit |
@@ -727,7 +740,7 @@ a time, each about ten seconds of work:
 | `activities` | the whole list (`activityWalk`), a request per hundred |
 | `walk` | a segment (a year of windows, `segments.ts`) of as many walks side by side as the speed's `parallelDays`, each merged into its index as it lands. The empty-window streak carries from one segment to the next, so a walk in segments asks what one long walk would |
 | `days` | a chunk sized to about `CHUNK_SECONDS` at the speed (`chunkDays`): each day's file and full timelines, the activities listed by date (`activitiesByDate`), no chart index fed, the day files written a year file at a time, the full days booked in the coverage |
-| `runs` | one run (`loadActivityFor`), at least two seconds after the last |
+| `details` | one activity (`loadActivityFor`), at least two seconds after the last |
 
 **The runner lock** (`runner-lock.ts`) gives the runner to one piece of work at
 a time:

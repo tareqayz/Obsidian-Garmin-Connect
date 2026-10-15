@@ -19,8 +19,8 @@ never touched. How much room it takes depends on how much history you keep:
   1 MB a year of history, always all of it.
 - **Day details**, each day's numbers and its timelines: about 44 KB a day,
   16 MB a year.
-- **Run details**, a run's map, charts and laps: about 150 KB a run. By
-  default only the runs you open.
+- **Activity details**, an activity's map, charts and laps, every sport: about
+  150 KB a run, less for most others. By default only the activities you open.
 
 With Obsidian Sync, turn on **Sync all other types** so the JSON reaches your
 other devices.
