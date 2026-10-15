@@ -1,3 +1,4 @@
+import { UPGRADED_VERSION } from "./activity-detail";
 import { gaps, stale, type Span } from "./coverage";
 import {
 	ACTIVITY_DETAILS_KEY,
@@ -60,6 +61,12 @@ export interface DebtItem {
 	/** For Charts & trends, the store walked; for Day details the days to fetch; for Activity details the activities. */
 	store: string;
 	units: number;
+	/**
+	 * Of Activity details' `units`, the runs saved by the version before every
+	 * sport had a page: kept, with only what changed fetched again (two
+	 * requests, no new bytes).
+	 */
+	upgrades?: number;
 }
 
 /** Everything with something to fetch that has not been agreed to at today's version, deferred items included. */
@@ -117,12 +124,15 @@ export function debtItems(input: DebtInput): DebtItem[] {
 			const runs = agreedBefore(input.accepted, LEGACY_RUNS_STORE);
 			let missing = 0;
 			let old = 0;
+			let upgrades = 0;
 			for (const activity of input.activities) {
 				if (activity.date < from) continue;
 				const held = input.detailFiles.get(activity.id);
 				if (held === ACTIVITY_DETAILS_VERSION) continue;
-				if (held !== undefined) old += 1;
-				else if (!older && !(runs && activity.run)) missing += 1;
+				if (held !== undefined) {
+					old += 1;
+					if (held === UPGRADED_VERSION && activity.run) upgrades += 1;
+				} else if (!older && !(runs && activity.run)) missing += 1;
 			}
 			if (missing + old) {
 				const change = dataSet("activity-details").changes[ACTIVITY_DETAILS_VERSION]?.summary;
@@ -137,6 +147,7 @@ export function debtItems(input: DebtInput): DebtItem[] {
 					].join(" · "),
 					store: ACTIVITY_DETAILS_STORE,
 					units: missing + old,
+					...(upgrades ? { upgrades } : {}),
 				});
 			}
 		}

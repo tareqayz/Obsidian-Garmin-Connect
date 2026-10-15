@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { UPGRADED_VERSION } from "../src/sync/activity-detail";
 import type { ChartMeta } from "../src/sync/backfill";
 import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION, chartKeys, consentKey, dataSet, LEGACY_RUNS_STORE } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
@@ -77,6 +78,22 @@ describe("what an update offers", () => {
 		// Run details fills the runs' gaps: the other sports, and what an older version saved, are asked about.
 		assert.deepEqual(line([consentKey(LEGACY_RUNS_STORE, ACTIVITY_DETAILS_VERSION - 1)]), [[ACTIVITY_DETAILS_KEY, 2, "1 activity · 1 saved by an older version"]]);
 		assert.deepEqual(line([ACTIVITY_DETAILS_KEY]), []);
+	});
+
+	it("counts the runs saved by the version before as upgrades, which the estimate prices apart", () => {
+		const activities = [
+			{ id: 4, date: "2026-10-03", run: true },
+			{ id: 3, date: "2026-10-02", run: false },
+			{ id: 2, date: "2026-10-01", run: true },
+			{ id: 1, date: "2026-09-01", run: true },
+		];
+		// A run at the version before (upgraded in place), a ride at it (fetched whole), a run older still, and a gap.
+		const detailFiles = new Map([[1, UPGRADED_VERSION], [2, UPGRADED_VERSION - 1], [3, UPGRADED_VERSION]]);
+		const accepted = [...chartKeys(["sleep", "fitness"]), consentKey(LEGACY_RUNS_STORE, UPGRADED_VERSION)];
+		const [item] = debtItems(input({ accepted, charts: complete(ALL_CHARTS), activities, detailFiles, activityDetails: "all" })).filter((i) => i.set === "activity-details");
+		assert.equal(item?.units, 3);
+		assert.equal(item?.upgrades, 1);
+		assert.equal("upgrades" in debtItems(input({ accepted, charts: complete(ALL_CHARTS), activities, detailFiles: new Map(), activityDetails: "all" }))[0]!, false);
 	});
 
 	it("asks about what was put off with Later no more, though Settings still lists it", () => {

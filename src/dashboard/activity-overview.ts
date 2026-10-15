@@ -1,4 +1,5 @@
 import { pace } from "../sync/metrics";
+import { BADGE_DESCRIPTIONS } from "./activity-copy";
 import type { ActivityDetail } from "../sync/activity-detail";
 import { formatDistance, glyphOf, type SportGlyph, type Units } from "./activities";
 import { hasRoute } from "./activity-map";
@@ -93,7 +94,13 @@ export interface OverviewView {
 	/** The sensors under the device; only when there are any. */
 	sensors?: NonNullable<ActivityDetail["sensors"]>;
 	/** The Badges section's rows; only when there are any. */
-	badges?: NonNullable<ActivityDetail["badges"]>;
+	badges?: OverviewBadge[];
+}
+
+/** A badge's row: "Climber 1" over "Climb 500 feet during a cycling activity." when the app's copy is known. */
+export interface OverviewBadge {
+	name: string;
+	description?: string;
 }
 
 export function overviewView(detail: ActivityDetail, units: Units, today?: string, spec?: OverviewSpec): OverviewView {
@@ -101,7 +108,7 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 	const map = hasRoute(detail);
 	const view: OverviewView = {
 		map,
-		routeMissing: !map && !detail.checked.includes("samples") && !INDOOR.test(detail.type),
+		routeMissing: !map && !detail.checked.includes("samples") && (detail.hasPolyline ?? !INDOOR.test(detail.type)),
 		weather: weatherChip(detail, units),
 		when: activityWhen(detail.start, today),
 		glyph: glyphOf({ type: detail.type, typeId: detail.typeId, parentTypeId: detail.parentTypeId }),
@@ -126,7 +133,12 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 		}
 	}
 	if (detail.sensors?.length) view.sensors = detail.sensors;
-	if (detail.badges?.length) view.badges = detail.badges;
+	if (detail.badges?.length) {
+		view.badges = detail.badges.map((badge) => {
+			const description = badge.key ? BADGE_DESCRIPTIONS[badge.key] : undefined;
+			return description ? { name: badge.name, description } : { name: badge.name };
+		});
+	}
 	return view;
 }
 
@@ -144,7 +156,10 @@ export function timeHero(detail: ActivityDetail): OverviewHero | null {
 	return seconds === undefined ? null : { value: duration(seconds), label: "Total Time" };
 }
 
-/** Sports recorded without GPS, whose page never has a map: `treadmill_running`, `indoor_running`, `virtual_run`. */
+/**
+ * Sports recorded without GPS, whose page never has a map: `treadmill_running`, `indoor_running`,
+ * `virtual_run`. Only for a file that doesn't say (`hasPolyline`, from version 6).
+ */
 const INDOOR = /treadmill|indoor|virtual/;
 
 /** Avg Heart Rate and Avg Pace (each with its chart badge), Total Time, Total Calories: those that have a value. */

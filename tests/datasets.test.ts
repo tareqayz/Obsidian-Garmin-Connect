@@ -25,7 +25,7 @@ describe("consent keys", () => {
 		assert.equal(consentKey("index:stress", 1), "index:stress@1");
 		assert.deepEqual(parseConsentKey("index:heat-acclimation@2"), { store: "index:heat-acclimation", version: 2 });
 		assert.equal(parseConsentKey("nope"), null);
-		assert.deepEqual([DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY, LEGACY_RUNS_KEY], ["days@1", "activity-details@5", "runs@5"]);
+		assert.deepEqual([DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY, LEGACY_RUNS_KEY], ["days@1", "activity-details@6", "runs@5"]);
 	});
 
 	it("list every chart index of the groups on, and only those", () => {

@@ -1,7 +1,20 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { ACTIVITY_DETAILS_VERSION } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
-import { chunkDays, estimate, formatBytes, formatDuration, requestsPerChunk, requestsPerDay, withBudget, type EstimateInput } from "../src/sync/estimate";
+import {
+	chunkDays,
+	costOf,
+	DETAIL_BYTES,
+	estimate,
+	formatBytes,
+	formatDuration,
+	requestsPerChunk,
+	requestsPerDay,
+	UPGRADE_REQUESTS,
+	withBudget,
+	type EstimateInput,
+} from "../src/sync/estimate";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import type { AccountScan } from "../src/sync/scan";
 
@@ -30,6 +43,17 @@ const input = (over: Partial<EstimateInput> = {}): EstimateInput => ({
 });
 
 const set = (got: ReturnType<typeof estimate>, id: string) => got.sets.find((s) => s.id === id)!;
+
+describe("costOf: Activity details", () => {
+	it("prices a run saved by the version before at two requests and no new bytes", () => {
+		const whole = costOf({ set: "activity-details", store: "activity-details", units: 3 }, [], "normal");
+		const upgraded = costOf({ set: "activity-details", store: "activity-details", units: 3, upgrades: 2 }, [], "normal");
+		assert.deepEqual([whole.requests, whole.bytes], [33, 3 * DETAIL_BYTES]);
+		assert.deepEqual([upgraded.requests, upgraded.bytes], [11 + 2 * UPGRADE_REQUESTS, DETAIL_BYTES]);
+		assert.equal(UPGRADE_REQUESTS, 2);
+		assert.ok(upgraded.seconds < whole.seconds);
+	});
+});
 
 describe("estimates — the request arithmetic", () => {
 	it("counts a day's requests and a chunk's from the groups on", () => {
@@ -90,14 +114,14 @@ describe("estimates — Day details", () => {
 describe("estimates — Activity details and Charts", () => {
 	const activities = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, date: shiftDate(TODAY, -i * 3), run: i % 2 === 0 }));
 
-	it("120 activities: 1,200 requests, 18.5 MB, about six minutes", () => {
+	it("120 activities: 1,320 requests, 18.5 MB, about six minutes", () => {
 		const run = set(estimate(input({ activities: activities.slice(0, 120), activityDetails: "all" })), "activity-details");
-		assert.deepEqual([run.units, run.requests, run.bytes], [120, 1_200, 18_480_000]);
+		assert.deepEqual([run.units, run.requests, run.bytes], [120, 1_320, 18_480_000]);
 		assert.ok(Math.abs(run.seconds - 342) < 0.01);
 	});
 
 	it("takes the range's activities without a file of today's version, and nothing for those opened", () => {
-		const held = { details: new Map([[1, 5], [2, 1]]) };
+		const held = { details: new Map([[1, ACTIVITY_DETAILS_VERSION], [2, 1]]) };
 		// The last 90 days hold activities 1..30; 1 is current, 2's file is old.
 		assert.equal(set(estimate(input({ activities, activityDetails: "90d", held })), "activity-details").units, 29);
 		const opened = set(estimate(input({ activities, activityDetails: "opened" })), "activity-details");

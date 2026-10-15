@@ -1,3 +1,4 @@
+import { CHANGED_IN_6 } from "./activity-detail";
 import type { Span } from "./coverage";
 import { versionOn } from "./coverage";
 import type { DetailCandidate } from "./backfill";
@@ -25,10 +26,14 @@ export const TIMELINE_BYTES = 40_000;
 export const DETAIL_BYTES = 154_000;
 /** A row on the activity list. */
 export const ACTIVITY_ROW_BYTES = 355;
-/** Requests an activity's page takes. */
-export const DETAIL_REQUESTS = 10;
+/** Requests an activity's page takes: a run's or a ride's, the most (a pool swim or yoga skips three). */
+export const DETAIL_REQUESTS = 11;
 /** An activity downloads no faster than one each this long: a pause between them, and its requests. */
 export const DETAIL_SECONDS = 2.85;
+/** A run's page saved by the version before: only what changed, kept in the same file (`CHANGED_IN_6`). */
+export const UPGRADE_REQUESTS = CHANGED_IN_6.length;
+/** …and its pause, with two requests instead of eleven. */
+export const UPGRADE_SECONDS = 2.15;
 /** How long one window of a history walk waits on Garmin. */
 export const WINDOW_SECONDS = 0.6;
 /** Day chunks are sized to take about this long, so a sync never waits longer for one. */
@@ -152,15 +157,22 @@ export function estimate(input: EstimateInput): Estimate {
 }
 
 /** What one store's fetch costs: a chart index's walk over `units` days, Day details' `units` days, or Activity details' `units` activities. */
-export function costOf(item: { set: DataSetId; store: string; units: number }, groups: readonly MetricGroup[], speed: SyncSpeed): { requests: number; bytes: number; seconds: number } {
+export function costOf(
+	item: { set: DataSetId; store: string; units: number; upgrades?: number },
+	groups: readonly MetricGroup[],
+	speed: SyncSpeed,
+): { requests: number; bytes: number; seconds: number } {
 	const preset = SYNC_SPEEDS[speed];
 	let requests = 0;
 	let bytes = 0;
 	let raw = 0;
 	if (item.set === "activity-details") {
-		requests = item.units * DETAIL_REQUESTS;
-		bytes = item.units * DETAIL_BYTES;
-		raw = item.units * DETAIL_SECONDS;
+		// A run saved by the version before is kept: two requests, and its file stays its size.
+		const upgrades = Math.min(item.upgrades ?? 0, item.units);
+		const full = item.units - upgrades;
+		requests = full * DETAIL_REQUESTS + upgrades * UPGRADE_REQUESTS;
+		bytes = full * DETAIL_BYTES;
+		raw = full * DETAIL_SECONDS + upgrades * UPGRADE_SECONDS;
 	} else if (item.set === "day-details") {
 		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups, speed)) : 0;
 		requests = item.units * requestsPerDay(groups) + chunks * requestsPerChunk(groups);

@@ -1,5 +1,9 @@
+import { DEVICE_NAMES } from "../garmin/device-names";
 import type {
+	ActivityBadgeDTO,
 	ActivityDetails,
+	ActivityLength as GarminLength,
+	ActivitySensorDTO,
 	ActivitySplits,
 	ActivitySummary,
 	ActivityTypedSplits,
@@ -17,13 +21,15 @@ import type { MetricGroup } from "./metrics";
  * One activity's page, as the vault keeps it:
  * `<dataFolder>/activity-details/<id>.json`.
  *
- * The page loads it when it opens (`SyncRunner.loadActivity`): ten requests
- * the first time — eight together, then the device and the weight, which need
- * the summary's firmware id and date — and none after. A block whose request
- * failed is asked for again on the next view; one Garmin had nothing for (a
- * treadmill run's weather) is not. A file whose activity was renamed or trimmed
- * since is fetched afresh. With Run details on, the backfill loads every run
- * in its range the same way, newest first (`backfill.ts`).
+ * The page loads it when it opens (`SyncRunner.loadActivity`): about eleven
+ * requests the first time for a run or a ride, eight for a pool swim or yoga —
+ * seven together, then the four the summary decides (power zones only with
+ * them, weather only with a route, the weight only with power, the device by
+ * its firmware id) — and none after. A block whose request failed is asked
+ * for again on the next view; one Garmin had nothing for (a treadmill run's
+ * weather) is not. A file whose activity was renamed or trimmed since is
+ * fetched afresh. With an Activity details range, the backfill loads every
+ * activity in it the same way, newest first (`backfill.ts`).
  *
  * Values keep Garmin's units (metres, seconds, m/s, °F); the pages round them.
  * The summary's and the laps' figures are kept exactly as Garmin sent them:
@@ -35,15 +41,28 @@ import type { MetricGroup } from "./metrics";
  * Pure: the API and the store are handed in.
  */
 
-/** Bumped when the file's shape changes: a file of another version is fetched again. */
-export const ACTIVITY_DETAIL_VERSION = 5;
+/**
+ * Bumped when the file's shape changes: a file of another version is fetched
+ * again.
+ *
+ * 6 (2026-10-15): every sport has a page — a ride's power, cadence and cycling
+ * dynamics, a swim's strokes, Swolf and lengths, temperature — and every page
+ * its sensors and badges, and whether the activity has a route. A run's file
+ * of version 5 reads as version 6 that lacks its summary and badges
+ * (`upgradeRun`), so it costs two requests on its next view, not eleven.
+ */
+export const ACTIVITY_DETAIL_VERSION = 6;
 
-/** One request each, in the order the file lists them. */
-export const ACTIVITY_BLOCKS = ["summary", "samples", "laps", "segments", "hrZones", "powerZones", "weather", "gear", "device", "weight"] as const;
+/** One request each at most, in the order the file lists them. */
+export const ACTIVITY_BLOCKS = ["summary", "samples", "laps", "segments", "hrZones", "powerZones", "weather", "gear", "device", "weight", "badges"] as const;
 export type ActivityBlock = (typeof ACTIVITY_BLOCKS)[number];
 
-/** Blocks that need the summary first: the firmware id and the activity's date. */
-const AFTER_SUMMARY: ReadonlySet<ActivityBlock> = new Set(["device", "weight"]);
+/**
+ * Blocks that wait for the summary: it says whether each applies — power
+ * zones, a route's weather, a weigh-in for power — and gives the firmware id
+ * and the day. One that doesn't apply costs no request.
+ */
+const AFTER_SUMMARY: ReadonlySet<ActivityBlock> = new Set(["powerZones", "weather", "device", "weight"]);
 
 export interface ActivityDetail {
 	version: number;
@@ -67,6 +86,12 @@ export interface ActivityDetail {
 	deviceVersionPk?: number;
 	/** Running power counted the wind (Stats → Power → "Wind Data: Enabled"). */
 	windData?: boolean;
+	/** It has a GPS track (`metadataDTO.hasPolyline`): its page draws a map. */
+	hasPolyline?: boolean;
+	/** Garmin keeps its time in power zones (`metadataDTO.hasPowerTimeInZones`). */
+	hasPowerZones?: boolean;
+	/** A pool swim's pool: its length, in metres or yards. */
+	pool?: { length: number; unit: "m" | "yd" };
 	/** The summary's totals and averages, by Garmin's key, in Garmin's units. */
 	summary: Record<string, number | string>;
 	/** One value per sample, by column (`SAMPLE_COLUMNS`), plus `clock`. */
@@ -80,17 +105,61 @@ export interface ActivityDetail {
 	gear: ActivityGear[];
 	/** The device as it was: "Forerunner 970", firmware "18.32". */
 	device: { name: string; firmware?: string } | null;
-	/**
-	 * The sensors the activity recorded with ("Rally 100/200", firmware "4.1",
-	 * battery "OK"). Not parsed yet: the detail file's next version fills it.
-	 */
-	sensors?: Array<{ name: string; firmware?: string; battery?: string }>;
-	/** The badges the activity earned ("Climber 1"). Not parsed yet: the detail file's next version fills it. */
-	badges?: Array<{ name: string; description?: string }>;
+	/** The sensors the activity recorded with: "Rally 100/200", firmware "4.1", battery "OK". Never a serial. */
+	sensors?: ActivitySensor[];
+	/** The badges the activity earned: "Climber 1". */
+	badges?: ActivityBadge[];
+	/** A ride's rider positions on the clock: where each stretch of standing or sitting began. */
+	positions?: RiderPosition[];
 	/** The newest weigh-in on or before the activity's day, for Power (W/kg). */
 	weightKg: number | null;
 	/** Blocks fetched, data or not. One not listed failed, and the next view asks again. */
 	checked: ActivityBlock[];
+}
+
+export interface ActivitySensor {
+	/** "Rally 100/200", from the product catalogue (`device-names.ts`), else what it measures: "Power Meter". */
+	name: string;
+	/** Garmin's FIT product number: 3578. */
+	product?: number;
+	/** `BIKE_POWER`, `HEART_RATE`, … */
+	type?: string;
+	/** "4.1". */
+	firmware?: string;
+	/** "OK", "Low", or "73%". */
+	battery?: string;
+}
+
+export interface ActivityBadge {
+	name: string;
+	/** Garmin's key, `cycle_climb_500ft`: the badge's description is the app's own copy, by it. */
+	key?: string;
+}
+
+export interface RiderPosition {
+	/** Seconds on the samples' `clock`. */
+	at: number;
+	/** 0 seated, 1 standing, 2 to seated, 3 to standing. */
+	position: number;
+}
+
+/** One pool length. */
+export interface ActivityLength {
+	/** 1-based, through the whole swim. */
+	n?: number;
+	/** Seconds on the samples' `clock` at its start. */
+	start?: number;
+	duration: number;
+	/** Metres; 0 for a rest. */
+	distance: number;
+	/** m/s. */
+	speed?: number;
+	strokes?: number;
+	swolf?: number;
+	/** `FREESTYLE`, … */
+	stroke?: string;
+	hr?: number;
+	maxHr?: number;
 }
 
 export interface ActivityLap {
@@ -118,6 +187,27 @@ export interface ActivityLap {
 	ascent?: number;
 	descent?: number;
 	calories?: number;
+	/** A ride's: rpm, and watts. */
+	bikeCadence?: number;
+	maxPower?: number;
+	normalizedPower?: number;
+	/** A swim's: strokes in the lap, Swolf, strokes a minute and a length, metres a stroke. */
+	strokes?: number;
+	swolf?: number;
+	strokeRate?: number;
+	maxStrokeRate?: number;
+	strokesPerLength?: number;
+	strokeDistance?: number;
+	/** Lengths swum: 0 on a pool swim's rest. */
+	activeLengths?: number;
+	/** A pool swim's rest: no length swum. */
+	rest?: true;
+	/** `FREESTYLE`, … ; absent on a rest. */
+	stroke?: string;
+	/** °C. */
+	temperature?: number;
+	/** A pool swim's lengths. */
+	lengths?: ActivityLength[];
 	/** Where the lap ended, `[lat, lon]`: its marker on the map. */
 	end?: [number, number];
 }
@@ -188,6 +278,22 @@ export const SAMPLE_COLUMNS: Readonly<Record<string, readonly [string, number]>>
 	directStepSpeedLossPercent: ["speedLossPct", 2],
 	directLatitude: ["lat", 5],
 	directLongitude: ["lon", 5],
+	// A ride's: cadence, the right pedal's share of the power, the power phases (degrees) and platform centre offsets (mm).
+	directBikeCadence: ["bikeCadence", 0],
+	directRightBalance: ["balanceRight", 1],
+	directLeftPowerPhaseStart: ["ppStartL", 1],
+	directLeftPowerPhaseEnd: ["ppEndL", 1],
+	directLeftPowerPhasePeakStart: ["pppStartL", 1],
+	directLeftPowerPhasePeakEnd: ["pppEndL", 1],
+	directRightPowerPhaseStart: ["ppStartR", 1],
+	directRightPowerPhaseEnd: ["ppEndR", 1],
+	directRightPowerPhasePeakStart: ["pppStartR", 1],
+	directRightPowerPhasePeakEnd: ["pppEndR", 1],
+	directLeftPlatformCenterOffset: ["pcoL", 0],
+	directRightPlatformCenterOffset: ["pcoR", 0],
+	// An open-water swim's strokes a minute, and the air or water temperature (°C).
+	directSwimCadence: ["strokeRate", 0],
+	directAirTemperature: ["temperature", 1],
 };
 
 /** The summary keys kept, numbers and Garmin's own labels. */
@@ -242,6 +348,48 @@ const SUMMARY_KEYS = [
 	"maxRespirationRate",
 	"stepSpeedLoss",
 	"stepSpeedLossPercent",
+	// A ride's power, cadence and cycling dynamics.
+	"averageBikeCadence",
+	"maxBikeCadence",
+	"maxPowerTwentyMinutes",
+	"leftBalance",
+	"rightBalance",
+	"intensityFactor",
+	"trainingStressScore",
+	"functionalThresholdPower",
+	"totalWork",
+	"seatedTime",
+	"standingTime",
+	"averageSeatedPower",
+	"maxSeatedPower",
+	"averageStandingPower",
+	"maxStandingPower",
+	"leftPowerPhaseStart",
+	"leftPowerPhaseEnd",
+	"leftPowerPhaseArcLength",
+	"leftPowerPhasePeakStart",
+	"leftPowerPhasePeakEnd",
+	"leftPowerPhasePeakArcLength",
+	"rightPowerPhaseStart",
+	"rightPowerPhaseEnd",
+	"rightPowerPhaseArcLength",
+	"rightPowerPhasePeakStart",
+	"rightPowerPhasePeakEnd",
+	"rightPowerPhasePeakArcLength",
+	"leftPlatformCenterOffset",
+	"rightPlatformCenterOffset",
+	// A ride's pedal strokes, or a swim's strokes.
+	"totalNumberOfStrokes",
+	// A swim's.
+	"averageSWOLF",
+	"averageStrokeDistance",
+	"averageStrokes",
+	"averageSwimCadence",
+	"maxSwimCadence",
+	"numberOfActiveLengths",
+	"averageTemperature",
+	"minTemperature",
+	"maxTemperature",
 ] as const;
 
 /** What the activity index says the activity is, to tell a file that is out of date. */
@@ -287,7 +435,12 @@ export function buildActivityDetail(id: number, got: ActivityPayloads, base: Act
 	if (summary) Object.assign(out, headerOf(summary));
 	const clockStart = epochOfGmt(out.startGmt);
 	if (got.samples !== undefined) out.samples = samplesOf(got.samples as ActivityDetails | null, clockStart);
-	if (got.laps !== undefined) out.laps = lapsOf(got.laps as ActivitySplits | null, clockStart);
+	if (got.laps !== undefined) {
+		out.laps = lapsOf(got.laps as ActivitySplits | null, clockStart);
+		const positions = positionsOf(got.laps as ActivitySplits | null, clockStart);
+		if (positions.length) out.positions = positions;
+		else delete out.positions;
+	}
 	if (got.segments !== undefined) out.segments = segmentsOf(got.segments as ActivityTypedSplits | null, clockStart);
 	if (got.hrZones !== undefined) out.hrZones = zonesOf(got.hrZones as ActivityZone[] | null);
 	if (got.powerZones !== undefined) out.powerZones = zonesOf(got.powerZones as ActivityZone[] | null);
@@ -295,6 +448,11 @@ export function buildActivityDetail(id: number, got: ActivityPayloads, base: Act
 	if (got.gear !== undefined) out.gear = gearOf(got.gear);
 	if (got.device !== undefined) out.device = deviceOf(got.device as DeviceAppInfo | null);
 	if (got.weight !== undefined) out.weightKg = weightOf(got.weight as WeighIn | null);
+	if (got.badges !== undefined) {
+		const badges = badgesOf(got.badges as ActivityBadgeDTO[] | null);
+		if (badges.length) out.badges = badges;
+		else delete out.badges;
+	}
 	const checked = new Set<ActivityBlock>(out.checked);
 	for (const block of ACTIVITY_BLOCKS) if (got[block] !== undefined) checked.add(block);
 	out.checked = ACTIVITY_BLOCKS.filter((block) => checked.has(block));
@@ -305,21 +463,42 @@ export function serializeActivityDetail(detail: ActivityDetail): string {
 	return `${JSON.stringify(detail)}\n`;
 }
 
-/** A file read back: null when it isn't one, or is of another version. */
+/** A file read back: null when it isn't one, or is of another version (a run's of version 5 is upgraded). */
 export function parseActivityDetail(text: string): ActivityDetail | null {
 	try {
 		const parsed = JSON.parse(text) as Partial<ActivityDetail> | null;
 		if (!parsed || typeof parsed !== "object") return null;
-		if (parsed.version !== ACTIVITY_DETAIL_VERSION || typeof parsed.id !== "number") return null;
+		if (typeof parsed.id !== "number") return null;
 		if (!parsed.summary || typeof parsed.summary !== "object" || !parsed.samples || typeof parsed.samples !== "object") return null;
-		return {
-			...emptyDetail(parsed.id),
-			...parsed,
-			checked: (parsed.checked ?? []).filter((b): b is ActivityBlock => (ACTIVITY_BLOCKS as readonly string[]).includes(b)),
-		} as ActivityDetail;
+		const checked = (parsed.checked ?? []).filter((b): b is ActivityBlock => (ACTIVITY_BLOCKS as readonly string[]).includes(b));
+		if (parsed.version === ACTIVITY_DETAIL_VERSION) return { ...emptyDetail(parsed.id), ...parsed, checked } as ActivityDetail;
+		if (parsed.version === UPGRADED_VERSION && isRunFamily(parsed)) return upgradeRun({ ...emptyDetail(parsed.id), ...parsed, checked } as ActivityDetail);
+		return null;
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Version 6 changed nothing a run's page draws but what the summary carries
+ * (its sensors, whether it has a route and power zones) and added the badges
+ * block: a run's version 5 file is kept, those two blocks marked unfetched,
+ * so its next view or download asks two requests instead of eleven. The
+ * coverage keeps the file at 5 until it is written, so the backfill treats it
+ * as one an older version saved.
+ */
+export const CHANGED_IN_6: readonly ActivityBlock[] = ["summary", "badges"];
+
+/** The version whose running files are kept and upgraded (`CHANGED_IN_6`) rather than fetched again. */
+export const UPGRADED_VERSION = 5;
+
+function upgradeRun(detail: ActivityDetail): ActivityDetail {
+	return { ...detail, version: ACTIVITY_DETAIL_VERSION, checked: detail.checked.filter((block) => !CHANGED_IN_6.includes(block)) };
+}
+
+/** Running or one of its sub-types (treadmill, trail, track, …): the only sport with pages at version 5. */
+function isRunFamily(detail: Partial<ActivityDetail>): boolean {
+	return detail.typeId === 1 || detail.parentTypeId === 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,6 +534,10 @@ interface SummaryFacts {
 	versionPk?: number;
 	/** The activity's local day. */
 	date?: string;
+	/** Whether it has a route, power zones, power: false skips the block's request. */
+	hasPolyline?: boolean;
+	hasPowerZones?: boolean;
+	hasPower?: boolean;
 }
 
 const FETCH: Record<ActivityBlock, (api: GarminApi, id: number, facts: SummaryFacts) => Promise<unknown>> = {
@@ -363,12 +546,15 @@ const FETCH: Record<ActivityBlock, (api: GarminApi, id: number, facts: SummaryFa
 	laps: (api, id) => api.activitySplits(id),
 	segments: (api, id) => api.activityTypedSplits(id),
 	hrZones: (api, id) => api.activityHrZones(id),
-	powerZones: (api, id) => api.activityPowerZones(id),
-	weather: (api, id) => api.activityWeather(id),
+	// Garmin says when it keeps none; an activity without a route has no weather.
+	powerZones: (api, id, facts) => (facts.hasPowerZones === false ? Promise.resolve([]) : api.activityPowerZones(id)),
+	weather: (api, id, facts) => (facts.hasPolyline === false ? Promise.resolve(null) : api.activityWeather(id)),
 	gear: (api, id) => api.activityGear(id),
 	// No firmware id, or no day: nothing to ask, which reads as Garmin having none.
 	device: (api, _id, facts) => (facts.versionPk ? api.deviceAppInfo(facts.versionPk) : Promise.resolve(null)),
-	weight: (api, _id, facts) => (facts.date ? api.weightLatest(facts.date) : Promise.resolve(null)),
+	// The weight is only for Power (W/kg).
+	weight: (api, _id, facts) => (facts.date && facts.hasPower !== false ? api.weightLatest(facts.date) : Promise.resolve(null)),
+	badges: (api, id) => api.activityBadges(id),
 };
 
 /**
@@ -454,13 +640,20 @@ function emptyDetail(id: number): ActivityDetail {
 	};
 }
 
-/** The firmware id and the local day, from the summary just fetched or the file. */
+/** The firmware id, the local day and what applies, from the summary just fetched or the file. */
 function factsOf(summary: ActivitySummary | null | undefined, base: ActivityDetail | null): SummaryFacts {
 	const versionPk = summary?.metadataDTO?.deviceMetaDataDTO?.deviceVersionPk ?? base?.deviceVersionPk;
 	const start = clockTime(summary?.summaryDTO?.startTimeLocal) ?? base?.start;
 	const facts: SummaryFacts = {};
 	if (typeof versionPk === "number" && Number.isSafeInteger(versionPk) && versionPk > 0) facts.versionPk = versionPk;
 	if (start) facts.date = start.slice(0, 10);
+	const meta = summary?.metadataDTO;
+	const hasPolyline = typeof meta?.hasPolyline === "boolean" ? meta.hasPolyline : base?.hasPolyline;
+	if (hasPolyline !== undefined) facts.hasPolyline = hasPolyline;
+	const hasPowerZones = typeof meta?.hasPowerTimeInZones === "boolean" ? meta.hasPowerTimeInZones : base?.hasPowerZones;
+	if (hasPowerZones !== undefined) facts.hasPowerZones = hasPowerZones;
+	const power = summary ? numberOf(summary.summaryDTO?.averagePower) : base ? numberOf(base.summary.averagePower) : undefined;
+	if (summary || base) facts.hasPower = power !== undefined && power > 0;
 	return facts;
 }
 
@@ -487,6 +680,108 @@ function headerOf(summary: ActivitySummary): Partial<ActivityDetail> {
 	if (typeof versionPk === "number" && Number.isSafeInteger(versionPk) && versionPk > 0) out.deviceVersionPk = versionPk;
 	const wind = summary.metadataDTO?.runPowerWindDataEnabled;
 	if (typeof wind === "boolean") out.windData = wind;
+	const polyline = summary.metadataDTO?.hasPolyline;
+	if (typeof polyline === "boolean") out.hasPolyline = polyline;
+	const powerZones = summary.metadataDTO?.hasPowerTimeInZones;
+	if (typeof powerZones === "boolean") out.hasPowerZones = powerZones;
+	const pool = poolOf(dto);
+	if (pool) out.pool = pool;
+	const sensors = sensorsOf(summary.metadataDTO?.sensors);
+	if (sensors.length) out.sensors = sensors;
+	return out;
+}
+
+/** A pool swim's pool: Garmin keeps the length in centimetres and names its unit, `factor` centimetres to one. */
+/**
+ * The summary's pool: `poolLength` is in the pool's own unit (25 for a 25 m
+ * pool), where the activity list sends centimetres (2500) beside the same
+ * `unitOfPoolLength`.
+ */
+function poolOf(dto: Record<string, unknown>): ActivityDetail["pool"] | undefined {
+	const length = numberOf(dto.poolLength);
+	const unit = dto.unitOfPoolLength as { unitKey?: unknown } | null | undefined;
+	const key = unit?.unitKey === "meter" ? "m" : unit?.unitKey === "yard" ? "yd" : undefined;
+	if (length === undefined || length <= 0 || !key) return undefined;
+	return { length: round(length, 2), unit: key };
+}
+
+/** What a sensor measures, for one the product catalogue doesn't name (Inferred words). */
+const SENSOR_WORDS: Readonly<Record<string, string>> = {
+	BIKE_POWER: "Power Meter",
+	HEART_RATE: "Heart Rate Monitor",
+	BIKE_SPEED_CADENCE: "Speed/Cadence Sensor",
+	BIKE_SPEED: "Speed Sensor",
+	BIKE_CADENCE: "Cadence Sensor",
+	FOOTPOD: "Foot Pod",
+	STRIDE_SPEED_DISTANCE: "Foot Pod",
+	TEMPERATURE: "Temperature Sensor",
+};
+
+/** The sensors an activity used, named by product number; never their serials. */
+function sensorsOf(sensors: ActivitySensorDTO[] | null | undefined): ActivitySensor[] {
+	const out: ActivitySensor[] = [];
+	for (const sensor of sensors ?? []) {
+		if (!sensor || typeof sensor !== "object") continue;
+		const product = numberOf(sensor.fitProductNumber);
+		const type = typeof sensor.antplusDeviceType === "string" && sensor.antplusDeviceType ? sensor.antplusDeviceType : undefined;
+		const name = (product !== undefined ? DEVICE_NAMES[product] : undefined) ?? (type ? SENSOR_WORDS[type] : undefined) ?? "Sensor";
+		const item: ActivitySensor = { name };
+		if (product !== undefined) item.product = product;
+		if (type) item.type = type;
+		const firmware = sensor.softwareVersion;
+		if (typeof firmware === "number" && Number.isFinite(firmware)) item.firmware = String(firmware);
+		else if (typeof firmware === "string" && firmware.trim()) item.firmware = firmware.trim();
+		const status = typeof sensor.batteryStatus === "string" && sensor.batteryStatus ? sensor.batteryStatus : undefined;
+		const level = numberOf(sensor.batteryLevel);
+		if (status) item.battery = status === "OK" ? "OK" : status.charAt(0) + status.slice(1).toLowerCase();
+		else if (level !== undefined) item.battery = `${Math.round(level)}%`;
+		out.push(item);
+	}
+	return out;
+}
+
+/** The badges an activity earned, by name and key. */
+function badgesOf(badges: ActivityBadgeDTO[] | null | undefined): ActivityBadge[] {
+	const out: ActivityBadge[] = [];
+	for (const badge of badges ?? []) {
+		const name = typeof badge?.badgeName === "string" ? badge.badgeName.trim() : "";
+		if (!name) continue;
+		out.push(typeof badge.badgeKey === "string" && badge.badgeKey ? { name, key: badge.badgeKey } : { name });
+	}
+	return out;
+}
+
+/** A ride's rider positions, from the laps payload's events: where each stretch began, on the clock. */
+function positionsOf(splits: ActivitySplits | null, clockStart: number | undefined): RiderPosition[] {
+	if (clockStart === undefined) return [];
+	const out: RiderPosition[] = [];
+	for (const event of splits?.eventDTOs ?? []) {
+		const kind = event?.sectionTypeDTO?.key ?? event?.sectionTypeDTO?.sectionTypeKey;
+		if (kind !== "riderPosition" && kind !== "RIDER_POSITION") continue;
+		const position = numberOf(event.riderPosition);
+		const ms = numberOf(event.startTimeGMTDoubleValue) ?? epochOfGmt(clockTime(event.startTimeGMT));
+		if (position === undefined || ms === undefined) continue;
+		out.push({ at: Math.round((ms - clockStart) / 1000), position });
+	}
+	return out.sort((a, b) => a.at - b.at);
+}
+
+/** A pool swim's lengths in a lap. */
+function lengthsOf(lengths: GarminLength[] | null | undefined, clockStart: number | undefined): ActivityLength[] {
+	const out: ActivityLength[] = [];
+	for (const length of lengths ?? []) {
+		const item: ActivityLength = { duration: numberOf(length.duration) ?? 0, distance: numberOf(length.distance) ?? 0 };
+		const start = clockOf(length.startTimeGMT, clockStart);
+		if (start !== undefined) item.start = start;
+		keep(item, "speed", length.averageSpeed);
+		keep(item, "strokes", length.totalNumberOfStrokes);
+		keep(item, "swolf", length.averageSWOLF);
+		keep(item, "hr", length.averageHR);
+		keep(item, "maxHr", length.maxHR);
+		keep(item, "n", length.lengthIndex);
+		if (typeof length.swimStroke === "string" && length.swimStroke) item.stroke = length.swimStroke;
+		out.push(item);
+	}
 	return out;
 }
 
@@ -553,6 +848,22 @@ function lapsOf(splits: ActivitySplits | null, clockStart: number | undefined): 
 		keep(out, "ascent", lap.elevationGain);
 		keep(out, "descent", lap.elevationLoss);
 		keep(out, "calories", lap.calories);
+		keep(out, "bikeCadence", lap.averageBikeCadence);
+		keep(out, "maxPower", lap.maxPower);
+		keep(out, "normalizedPower", lap.normalizedPower);
+		keep(out, "strokes", lap.totalNumberOfStrokes);
+		keep(out, "swolf", lap.averageSWOLF);
+		keep(out, "strokeRate", lap.averageSwimCadence);
+		keep(out, "maxStrokeRate", lap.maxSwimCadence);
+		keep(out, "strokesPerLength", lap.averageStrokes);
+		keep(out, "strokeDistance", lap.averageStrokeDistance);
+		keep(out, "activeLengths", lap.numberOfActiveLengths);
+		keep(out, "temperature", lap.averageTemperature);
+		if (typeof lap.swimStroke === "string" && lap.swimStroke) out.stroke = lap.swimStroke;
+		const lengths = lengthsOf(lap.lengthDTOs, clockStart);
+		if (lengths.length) out.lengths = lengths;
+		// A pool swim's rest: a lap of lengths none of which was swum.
+		if (lengths.length && out.activeLengths === 0 && out.distance === 0) out.rest = true;
 		const lat = numberOf(lap.endLatitude);
 		const lon = numberOf(lap.endLongitude);
 		if (lat !== undefined && lon !== undefined) out.end = [round(lat, 5), round(lon, 5)];

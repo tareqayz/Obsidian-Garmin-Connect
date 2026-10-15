@@ -71,7 +71,13 @@ export const DATA_SETS: readonly DataSet[] = [
 		id: "activity-details",
 		label: "Activity details",
 		blurb: "Map, charts, laps and stats for each activity: runs, rides, swims and every other sport.",
-		changes: { 5: { summary: "Run pages: samples, laps, splits, zones, weather, gear and device.", refetch: true } },
+		changes: {
+			5: { summary: "Run pages: samples, laps, splits, zones, weather, gear and device.", refetch: true },
+			6: {
+				summary: "Pages for every sport: rides (power, cycling dynamics), swims (lengths, strokes, Swolf) and the rest; sensors and badges on run pages.",
+				refetch: true,
+			},
+		},
 	},
 ];
 

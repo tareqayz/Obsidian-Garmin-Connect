@@ -585,7 +585,38 @@ export interface ActivityDetails {
 /** `/activity-service/activity/{id}/splits`: the laps. */
 export interface ActivitySplits {
 	activityId?: number;
-	lapDTOs?: Array<ActivityStats & { lapIndex?: number; startLatitude?: number | null; startLongitude?: number | null; endLatitude?: number | null; endLongitude?: number | null; intensityType?: string }>;
+	lapDTOs?: Array<
+		ActivityStats & {
+			lapIndex?: number;
+			startLatitude?: number | null;
+			startLongitude?: number | null;
+			endLatitude?: number | null;
+			endLongitude?: number | null;
+			intensityType?: string;
+			/** A pool swim's lengths in the lap (one, of 0 m, for a rest). */
+			lengthDTOs?: ActivityLength[] | null;
+		}
+	>;
+	/** The timer's starts and stops and, on a ride with pedals, where the rider stood or sat (`riderPosition`). */
+	eventDTOs?: ActivityEvent[] | null;
+	[key: string]: unknown;
+}
+
+/** One pool length: its time, distance, strokes, Swolf and stroke. */
+export interface ActivityLength extends ActivityStats {
+	lengthIndex?: number;
+	/** `FREESTYLE`, `BREASTSTROKE`, … ; null on a rest. */
+	swimStroke?: string | null;
+}
+
+/** An event on the activity's clock: `TIMER_TRIGGER`, or `RIDER_POSITION` with its `riderPosition`. */
+export interface ActivityEvent {
+	startTimeGMT?: string;
+	/** Epoch ms. */
+	startTimeGMTDoubleValue?: number;
+	sectionTypeDTO?: { id?: number; key?: string; sectionTypeKey?: string } | null;
+	/** 0 seated, 1 standing, 2 to seated, 3 to standing (Garmin's FIT values). */
+	riderPosition?: number | null;
 	[key: string]: unknown;
 }
 

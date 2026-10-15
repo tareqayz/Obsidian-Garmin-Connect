@@ -138,7 +138,7 @@ describe("a sport's Overview spec", () => {
 		const detail: ActivityDetail = {
 			...outdoorRun(),
 			sensors: [{ name: "Rally 100/200", firmware: "4.1", battery: "OK" }],
-			badges: [{ name: "Climber 1", description: "Climb 500 feet during a cycling activity." }],
+			badges: [{ name: "Climber 1", key: "cycle_climb_500ft" }, { name: "Mystery Badge", key: "something_new" }],
 		};
 		const view = overviewView(detail, "metric", TODAY, {
 			hero: () => ({ value: "1,100", unit: "m", label: "Distance" }),
@@ -150,7 +150,8 @@ describe("a sport's Overview spec", () => {
 		assert.deepEqual(view.figures, [{ value: "57:21", label: "Total Time" }]);
 		assert.deepEqual(view.links, []);
 		assert.deepEqual(view.sensors, detail.sensors);
-		assert.deepEqual(view.badges, detail.badges);
+		// The description is the app's copy, by key; a badge without one shows its name alone.
+		assert.deepEqual(view.badges, [{ name: "Climber 1", description: "Climb 500 feet during a cycling activity." }, { name: "Mystery Badge" }]);
 		const none = overviewView({ ...outdoorRun(), sensors: [], badges: [] }, "metric", TODAY);
 		assert.equal("sensors" in none, false);
 		assert.equal("badges" in none, false);
