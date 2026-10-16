@@ -16,7 +16,7 @@ your desktop like any other.
 | --- | --- |
 | **1. Network fingerprint** | What this platform looks like on the wire. Asks `tls.peet.ws` for the User-Agent the server actually saw, JA3/JA4 and the HTTP version. If `requestUrl` dropped your UA override, nothing below matters. |
 | **2. Test login** | Reachability without credentials, then the login POST, then MFA if demanded, then the ticket exchange, then a live API call. |
-| **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from `data.json`, mints a new access token from it alone, then makes two real calls. |
+| **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from this device's keychain, mints a new access token from it alone, then makes two real calls. |
 | **4. Inspect fitness endpoints** | Prints the raw keys `maxMetrics`, `racePredictions` and `enduranceScore` return, then what the mapper makes of them. |
 
 Checks 1 and 4 need no password. Check 2 costs a login attempt — see the lockout
@@ -86,8 +86,10 @@ client saves the new token straight away, so if this happens, diagnostics check
 If check 3 fails while check 2 passes, Garmin has probably rotated its client
 IDs. They rotate roughly quarterly; open an issue with the saved run.
 
-The session lives in the plugin's `data.json`. If your vault sync copies that
-file between devices, they share one session.
+A refresh that fails for a reason other than the token — a Garmin outage, a bot
+check — keeps the session, and the next sync tries again. Only Garmin saying the
+token is spent ends it. The session lives in this device's keychain, so another
+device signing in or out never touches it.
 
 ## Rate limited (429)
 
@@ -297,8 +299,9 @@ is hardest to debug.
 If you are not building from source, run diagnostics check 1 on the phone. If
 `requestUrl` dropped the User-Agent override there, that is the difference.
 
-A phone signed out while the desktop works usually just has no session: sign in
-there. Its vault sync may not be copying the plugin's `data.json`.
+A phone that says "Not signed in on this device" while the desktop works has no
+session of its own: each device signs in on its own. It still shows what the
+desktop syncs; sign in there only to sync from the phone too.
 
 ## Reading a diagnostics log on a phone
 

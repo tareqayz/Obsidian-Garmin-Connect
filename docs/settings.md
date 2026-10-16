@@ -7,23 +7,28 @@ actually does. Defaults come from `DEFAULT_SETTINGS` in `src/settings-data.ts`.
 ## Where settings live
 
 Everything is saved to `data.json` in the plugin's folder
-(`.obsidian/plugins/garmin-connect/`), in three blocks:
+(`.obsidian/plugins/garmin-connect/`), in two blocks:
 
 | Block | Holds |
 | --- | --- |
 | `settings` | Every setting on this page, plus `settingsVersion` (see [upgrades](#upgrades)), `setup` and the consent ledger (see [Data](#data)). |
-| `auth` | The session: a refresh token, the DI client ID it belongs to, and when it was saved (`savedAt`). No password and no access token. |
 | `home` | Home's own state — see [Home's state](#homes-state). |
+
+The Garmin session is not in it. It is kept in Obsidian's keychain on each
+device (**Settings → Keychain**, the secret `garmin-connect-session`): a refresh
+token, the DI client ID it belongs to, and when it was saved. No password and
+no access token. A session an older build left in `data.json` moves there on
+load and drops out of the file.
 
 The file is read by allowlist. A key this version does not know, such as one
 left by an older build, is dropped at the next save. A value out of range is
 pulled back into it. Read [security](SECURITY.md) before you put that file
 anywhere public.
 
-`data.json` sits in the vault's configuration folder. A sync tool that copies
-plugin settings between devices therefore copies the session along with them.
-When another device's copy arrives, a running plugin takes its `setup` and
-`data` from it and nothing else.
+`data.json` sits in the vault's configuration folder, so a sync tool that copies
+plugin settings copies these between devices. When another device's copy
+arrives, a running plugin takes its `setup` and `data` from it and nothing else.
+The session never travels: each device signs in on its own.
 
 ## Connection
 
@@ -34,7 +39,8 @@ When another device's copy arrives, a running plugin takes its `setup` and
 | Region | `domain` | `garmin.com` | `garmin.cn` for mainland China accounts. Changes every host the plugin talks to, so the client is rebuilt on the spot. |
 
 Your **password is never stored**. It is used for one sign-in request and then
-dropped. Only the refresh token and the DI client ID it belongs to are written.
+dropped. Only the refresh token and the DI client ID it belongs to are kept, in
+this device's keychain.
 
 If the account has multi-factor authentication on, the sign-in dialog asks for
 the verification code as a second step. The code is not stored either.

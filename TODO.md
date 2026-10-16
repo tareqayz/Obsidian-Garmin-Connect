@@ -490,11 +490,6 @@ open:
 - Check behaviour under sync load: hours of `connectapi` calls, now that the
   history download can fetch years of Day details under its hourly budget
   (5,000 to 15,000 requests by sync speed).
-- **One session for every device.**
-  - The refresh token lives in `data.json`, which travels with the vault when
-    its sync copies plugin settings, so every device shares one session.
-  - Find out whether two devices refreshing the same token conflict.
-  - If they do, decide whether the session should stay per device.
 
 ## Platform and release
 

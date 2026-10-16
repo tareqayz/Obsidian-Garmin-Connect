@@ -152,6 +152,17 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **The Garmin session stays on the device.** It is kept in Obsidian's
+  keychain (**Settings → Keychain**), never in `data.json`, so a vault backup,
+  a shared folder or a public repository of your vault holds no token. Each
+  device signs in once and refreshes its own session; one that only reads what
+  another syncs says "Not signed in on this device" on Home, with **Not now**
+  to put that away. Updating moves the session out of `data.json` on the first
+  device to start; the others ask you to sign in once. Needs Obsidian 1.11.4.
+- A token refresh that failed for a reason other than the token — Garmin
+  down, a proxy's error page, a bot check — signed you out on every device that
+  shared the session. Only Garmin saying the token is spent ends a session
+  now; anything else keeps it, stops the sync, and the next one tries again.
 - **Run details is now Activity details**, for every sport, in the setup and
   Settings → Data. A Run details range chosen before keeps downloading runs
   without asking; the other sports, and the runs saved before, are offered once

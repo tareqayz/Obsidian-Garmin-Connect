@@ -48,7 +48,7 @@ Starting transport-agnostic gets you both.
 src/main.ts              plugin entry: the views, commands, ribbon and settings tab
 src/settings.ts          the settings tab, which mounts SettingsPanel.svelte
 src/settings-data.ts     GarminSettings, DEFAULT_SETTINGS, SETTINGS_VERSION — pure
-src/plugin-data.ts       owns data.json: settings, the session, Home's state; the migrations
+src/plugin-data.ts       owns data.json: settings and Home's state; the migrations; moves an old session to the keychain
 src/uninstall-watch.ts   after onunload, whether the plugin's folder is gone: an uninstall — pure
 src/http.ts              HttpClient, CookieJar                — imports nothing
 src/obsidian-http.ts     requestUrl adapter  — the only Obsidian import in the auth path
@@ -956,6 +956,12 @@ declining. Different problems, different errors.
   already refreshed past the token that failed, the retry uses theirs.
 - **Persists rotation.** Garmin may hand back a new refresh token on use;
   dropping it strands the session days later for no visible reason.
+- **One session per device.** `SecretTokenStore` keeps it in Obsidian's
+  keychain (SecretStorage, local to the device and vault), never in
+  `data.json`, so no two devices present the same refresh token.
+- **Only Garmin's own "no" ends a session.** A refresh answered with an OAuth
+  error signs out; a 5xx, an HTML page or an answer without a token raises
+  `GarminRefreshError` (or `GarminBlockedError` for a 403 page) and keeps it.
 - **A failed re-login leaves a working session alone.** A 429 while signing in
   again should not sign you out of the session you had.
 
@@ -1047,7 +1053,8 @@ What the suite pins down beyond the seams:
   phone showed when the page was specified. A change that moves one needs a
   reason, not a new expected value.
 - **`data.json`.** `tests/plugin-data.test.ts` covers the allowlist read, the
-  migrations and what a save may carry.
+  migrations, the move of an old session to the keychain and that no save
+  carries one.
 - **Data-set versions.** `tests/dataset-shapes.test.ts` snapshots what each
   store keeps beside its version (`tests/fixtures/dataset-shapes.json`) and
   fails when one changes without a bump; see

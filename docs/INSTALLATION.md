@@ -4,7 +4,7 @@ The plugin is not in Obsidian's [community plugin
 directory](https://community.obsidian.md/search?type=plugin) yet. Until it is,
 releases are betas: GitHub pre-releases you install with BRAT, or by hand.
 
-It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**.
+It works on **desktop and mobile**, and needs **Obsidian 1.11.4 or later**.
 
 ## With BRAT (recommended)
 
@@ -40,11 +40,10 @@ There is no separate mobile download. The plugin folder reaches the phone throug
 your vault sync like any other folder; then enable the plugin in **Settings →
 Community plugins** there too.
 
-Your Garmin session is the refresh token in the plugin's `data.json`, in that
-same folder, so whether you sign in again depends on your sync:
-- **It copies `data.json`:** the other device has the same session and
-  settings, and is signed in already.
-- **It does not:** sign in on that device as well.
+Your Garmin session is not part of that folder. It is kept in Obsidian's
+keychain on each device, so a second device asks you to sign in only if you
+want to sync from it too. Without signing in there, it shows what your other
+devices sync.
 
 ## From source
 

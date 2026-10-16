@@ -6,24 +6,32 @@ device, and what to be careful about.
 
 ## What is stored, and where
 
-### The session: `data.json`
+### The session: Obsidian's keychain
 
-The plugin's own state persists to `data.json` beside the plugin, inside your
-vault's `.obsidian/plugins/garmin-connect/`.
+The Garmin session is kept in Obsidian's keychain on each device (**Settings →
+Keychain**, the secret `garmin-connect-session`), not in the vault. Obsidian
+keeps the keychain in that device's local storage for the vault, so the session
+never travels with a vault sync, a backup or a repository of the vault.
 
-| Stored | Not stored |
+| Stored in the keychain | Not stored anywhere |
 | --- | --- |
 | OAuth2 **refresh token** | Your **password** |
 | The DI client ID that token belongs to | The access token (memory only) |
-| Your settings, including the account email, when the setup ran and what you agreed to download | |
-| Home's state: the preset, hidden sections, At a Glance order | |
 
 **Your password is never written anywhere.** It is used for one sign-in request
 and dropped. The access token lives in memory and is re-minted from the refresh
 token after a restart.
 
-Persistence reads a narrow set of known keys rather than spreading whatever it
-finds, so a stray secret cannot survive the next save.
+### Settings: `data.json`
+
+The plugin's settings persist to `data.json` beside the plugin, inside your
+vault's `.obsidian/plugins/garmin-connect/`: your settings, including the
+account email, when the setup ran and what you agreed to download, and Home's
+state (the preset, hidden sections, At a Glance order). No token.
+
+`data.json` is read by a narrow set of known keys rather than spreading whatever
+it finds, so a stray value cannot survive the next save. A session an older
+version left in it moves to the keychain on load and drops out of the file.
 
 ### Your health data: the data folder
 
@@ -49,32 +57,27 @@ with the data folder in it the way you would treat a medical record.
 
 This is the part worth taking seriously.
 
-That token can mint new access tokens for your Garmin account, and it sits in a
-file your vault synchronises. Anyone with your vault has it. If you sync your
-vault to a shared drive, a public git repository, or a device you do not
-control, treat it as a live credential.
+That token can mint new access tokens for your Garmin account. It stays on the
+device, in the keychain, so a copy of your vault does not hold it. Anyone with
+access to the device's Obsidian does.
 
-- **Sign out from settings** when you are finished with a device. That deletes
-  the stored token from `data.json`. It does not contact Garmin, so a copy of
-  the file taken earlier still holds a working token.
-- **Do not commit `data.json`.** It is in `.gitignore`; keep it there.
-- **The session belongs to the vault, not to the device.** It lives in
-  `data.json`, so if your sync copies plugin folders (iCloud copies the whole
-  `.obsidian` folder; Obsidian Sync can, depending on its settings), every
-  device uses the same session, and signing out on one removes it for all of
-  them once the file syncs. A device that is already running keeps its session
-  in memory until the plugin reloads, and writes it back the next time it
-  refreshes the token or saves a setting.
+- **Sign out from settings** when you are finished with a device. That empties
+  the keychain entry. It does not contact Garmin.
+- **One session per device.** Each device signs in on its own and refreshes its
+  own token. Signing out on one leaves the others signed in.
+- **Versions before 1.0** kept the token in `data.json`. If you shared or
+  committed a vault while on one of them, sign out and in again: a new sign-in
+  issues a new token.
 
 ## Removing the plugin and its data
 
-- **Uninstalling deletes `data.json`**, with the refresh token in it, because
-  Obsidian deletes the plugin's folder. As with signing out, Garmin is not
-  contacted, so a copy of the file taken earlier still holds a working token.
+- **Uninstalling deletes `data.json`** with your settings, because Obsidian
+  deletes the plugin's folder. On the device you uninstall from, the plugin
+  also empties its keychain entry. Garmin is not contacted.
 - **The data folder stays.** It is part of your vault, not the plugin. On the
   device you uninstall from, the plugin then asks once whether to keep it or
-  move its files to the trash, and deletes that device's map tile cache and the
-  id it used for the history download. There is no prompt when the plugin's
+  move its files to the trash, and deletes that device's map tile cache, its
+  Garmin session and the id it used for the history download. There is no prompt when the plugin's
   folder is deleted by hand, or the plugin is uninstalled on another device:
   delete the data folder yourself.
 - **Delete synced data…** (**Settings → Danger zone**) moves the plugin's own
@@ -89,8 +92,12 @@ control, treat it as a live credential.
 | Destination | When | What |
 | --- | --- | --- |
 | `sso.garmin.com`, `diauth.garmin.com`, `connectapi.garmin.com` | Sign-in and sync | Credentials at sign-in; bearer token thereafter |
-| `tls.peet.ws` | Only when you run **Network fingerprint** in the diagnostics | A User-Agent string. Nothing else. |
-| `tile.openstreetmap.org` | When a page draws an activity's map, while **Map tiles** is on | Requests for the map tiles around the route — so, roughly where the activity was — and a User-Agent naming this plugin. Nothing else. |
+| `tls.peet.ws` | Only when you run **Network fingerprint** in the diagnostics | A User-Agent string. |
+| `tile.openstreetmap.org` | When a page draws an activity's map, while **Map tiles** is on | Requests for the map tiles around the route — so, roughly where the activity was — and a User-Agent naming this plugin. |
+
+Like any server, each of these also sees your IP address, and `tls.peet.ws`
+sees what your connection looks like (its TLS fingerprint): that is what it is
+for.
 
 `tls.peet.ws` is a third-party TLS echo service. It is in the diagnostics to report
 what your platform looks like on the wire, which is the first thing you need when

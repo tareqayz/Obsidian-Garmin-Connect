@@ -3,8 +3,8 @@
 ## Is my password stored?
 
 No. It's used for one sign-in request and dropped. Only an OAuth2 refresh token
-and its client ID are written, to the plugin's `data.json`. See
-[Security](SECURITY.md).
+and its client ID are kept, in Obsidian's keychain on that device (**Settings →
+Keychain**), never in the vault. See [Security](SECURITY.md).
 
 ## Does it work on mobile?
 
@@ -12,11 +12,18 @@ Yes — that was the point. Same plugin, same pages.
 
 ## Do I have to sign in on every device?
 
-It depends on your vault sync. The session is the refresh token in
-`.obsidian/plugins/garmin-connect/data.json`, beside the plugin's settings.
-- **Your sync copies that file to the other device:** the device shares the
-  session and is signed in already.
-- **It doesn't:** sign in on that device too.
+Only on the devices you want to sync from. The session is kept in Obsidian's
+keychain on each device, not in the vault, so it never travels with your vault
+sync and no two devices share one.
+
+- **Sign in on one device** and the others show what it syncs: the data is
+  ordinary files in the vault. Home there says "Not signed in on this device",
+  with **Not now** to put that away.
+- **Sign in on another device too** to sync from it as well. Each device
+  refreshes its own session.
+
+After updating from a version that kept the session in `data.json`, the first
+device to start moves it into its keychain; the others ask you to sign in once.
 
 The data is separate: ordinary files in the vault, which travel with it.
 Obsidian Sync carries them only with **Sync all other types** on, and it is off
@@ -131,13 +138,13 @@ one Yes.
 ## How do I uninstall it and remove the data?
 
 Obsidian's **Uninstall** deletes the plugin's folder, with `data.json` in it:
-your settings and the Garmin session. The data folder (`Garmin/data`) is part of
-your vault, so it stays.
+your settings. The data folder (`Garmin/data`) is part of your vault, so it
+stays.
 
 On the device you uninstall from, the plugin notices its folder has gone and
 asks: **Keep data**, or **Move to trash**, which sends the plugin's own files in
 the data folder to the trash and leaves anything else there. It also clears the
-map tiles that device cached. It can't ask when the folder goes another way,
+map tiles that device cached and its Garmin session from the keychain. It can't ask when the folder goes another way,
 deleted by hand or uninstalled on another device; delete the data folder
 yourself then.
 
@@ -195,8 +202,9 @@ The full table is in [Troubleshooting](troubleshooting.md).
 ## Does a sync ever ask for an MFA code?
 
 No. A sync runs on the stored refresh token; only *signing in* is challenged. If
-a sync stops with an auth error, the session is dead and the fix is to sign in
-again.
+a sync stops because Garmin ended the session, sign in again. A refresh that
+fails for another reason — Garmin down, a bot check — keeps the session, and the
+next sync tries again.
 
 ## Can I query the data with Dataview or Bases?
 

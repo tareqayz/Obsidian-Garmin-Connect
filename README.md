@@ -32,7 +32,8 @@ other devices.
 
 - **You need a Garmin Connect account.** The plugin signs in to it the way
   Garmin's mobile app does. Your password is used for the sign-in and never
-  stored.
+  stored. The session stays on the device, in Obsidian's keychain, never in
+  the vault.
 - **Network use.**
   - The plugin talks only to Garmin's own servers: `sso.garmin.com`,
     `diauth.garmin.com` and `connectapi.garmin.com`, or their `garmin.cn`
@@ -47,7 +48,7 @@ other devices.
     with no request at all.
   - There is no telemetry or analytics.
 - **It is in beta.** Install it with BRAT. See [Installation](docs/INSTALLATION.md).
-- **Obsidian 1.9.10 or later.**
+- **Obsidian 1.11.4 or later.**
 
 Not affiliated with or endorsed by Garmin. Garmin, Garmin Connect, Body Battery
 and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
