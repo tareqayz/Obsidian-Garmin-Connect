@@ -135,7 +135,7 @@ export class PluginData {
 			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
 			// An older build saved a pause in ms; the speed nearest it stands in.
-			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : speedFromPause(source.pauseBetweenDays),
+			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : source.pauseBetweenDays !== undefined ? speedFromPause(source.pauseBetweenDays) : d.syncSpeed,
 			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),

@@ -24,7 +24,7 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminAuthError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
+import { GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
@@ -612,36 +612,53 @@ export async function syncRange(
 			for (const run of runs) await feed(run, false);
 			return stop(report, fetched.fatal, log);
 		}
-		if (stats && fetched.summaryFetched) {
-			stats.dates.add(date);
-			const row = rowFromSummary(date, fetched.data.summary);
-			if (row) stats.rows.push(row);
+		// Reading Garmin's answers: a payload in a shape the mappers don't expect
+		// fails this day alone, which stays unfetched for the next sync, rather
+		// than the whole run (and a backfill unit retried forever).
+		let series: DaySeries | null;
+		let data: DayData;
+		let properties: Properties;
+		let fresh: Record<string, unknown>;
+		try {
+			if (stats && fetched.summaryFetched) {
+				stats.dates.add(date);
+				const row = rowFromSummary(date, fetched.data.summary);
+				if (row) stats.rows.push(row);
+			}
+			if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
+
+			// The hypnogram rides in the sleep payload, so every day with sleep gets
+			// a series file, not only the newest few that paid for the rest.
+			series = withSeries ? mapSeries({ ...fetched.intraday, sleep: fetched.data.sleep }) : null;
+
+			data = {
+				...fetched.data,
+				workouts: workoutsByDate.get(date) ?? [],
+				maxMetrics: maxMetricsByDate.get(date) ?? null,
+				races: racesByDate.get(date) ?? null,
+				hillScore: hillByDate.get(date) ?? null,
+				runningTolerance: toleranceByDate.get(date) ?? null,
+				healthSnapshots: snapshotsByDate.get(date) ?? null,
+				series,
+			};
+			for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
+			properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
+			// Every synced day, not only the newest few: what Garmin may drop later is kept now.
+			fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
+		} catch (err) {
+			const error = `Garmin's answer for this day couldn't be read: ${message(err)}`;
+			report.days.push({ date, status: "failed", properties: 0, error });
+			report.failed += 1;
+			log.fail(`${date}: ${error}`);
+			done += 1;
+			opts.onProgress?.(done, due.length, date);
+			continue;
 		}
-		if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
-
-		// The hypnogram rides in the sleep payload, so every day with sleep gets
-		// a series file, not only the newest few that paid for the rest.
-		const series = withSeries ? mapSeries({ ...fetched.intraday, sleep: fetched.data.sleep }) : null;
-
-		const data: DayData = {
-			...fetched.data,
-			workouts: workoutsByDate.get(date) ?? [],
-			maxMetrics: maxMetricsByDate.get(date) ?? null,
-			races: racesByDate.get(date) ?? null,
-			hillScore: hillByDate.get(date) ?? null,
-			runningTolerance: toleranceByDate.get(date) ?? null,
-			healthSnapshots: snapshotsByDate.get(date) ?? null,
-			series,
-		};
-		for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
-		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
 		const count = Object.keys(properties).length;
 
 		const result: DayResult = { date, status: "no-data", properties: count };
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
-		// Every synced day, not only the newest few: what Garmin may drop later is kept now.
-		const fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
 		const writing = series && !isEmptySeries(series) ? series : null;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
@@ -1618,12 +1635,14 @@ export async function fetchAllActivities(
 /* ------------------------------------------------------------------ */
 
 /**
- * Errors that make every remaining request pointless: a 429, a dead session, a
+ * Errors that make every remaining request pointless: a 429, Garmin's edge
+ * refusing the client (asking on keeps a block in place), a dead session, a
  * session Garmin couldn't refresh just now, or files a newer build wrote.
  */
 function isFatal(err: unknown): boolean {
 	return (
 		err instanceof GarminRateLimitError ||
+		err instanceof GarminBlockedError ||
 		err instanceof GarminAuthError ||
 		err instanceof GarminRefreshError ||
 		err instanceof NewerDataError

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../src/garmin/errors";
+import { GarminApiError, GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../src/garmin/errors";
 import {
 	RANGE_CHUNK_DAYS,
 	chunkRange,
@@ -386,6 +386,51 @@ describe("syncRange", () => {
 
 		const report = await syncRange(source, target, options());
 		assert.match(report.stoppedEarly!, /token rejected/);
+	});
+
+	it("abandons the range when Garmin's edge refuses the client: asking on keeps a block in place", async () => {
+		const source = new FakeSource();
+		source.failWith.dailySummary = new GarminBlockedError("Garmin's edge refused the request", 403);
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+
+		const report = await syncRange(source, target, options());
+		assert.match(report.stoppedEarly!, /edge refused/);
+		assert.ok(report.fatal instanceof GarminBlockedError);
+		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 1);
+	});
+
+	it("abandons the range when Garmin can't refresh the session just now", async () => {
+		const source = new FakeSource();
+		source.failWith.dailySummary = new GarminRefreshError("Garmin couldn't refresh the session (HTTP 502)", 502);
+		const report = await syncRange(source, new FakeTarget(new Set(["2026-09-12", "2026-09-11"])), options());
+		assert.ok(report.fatal instanceof GarminRefreshError);
+	});
+
+	it("fails a day whose answer can't be read, and goes on to the next", async () => {
+		const source = new FakeSource();
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) => {
+			const summary = await original(date);
+			if (date !== "2026-09-11") return summary;
+			// A shape the mappers don't expect: reading it throws.
+			return Object.defineProperty({ ...summary }, "totalSteps", {
+				enumerable: true,
+				get() {
+					throw new TypeError("summary.metrics is not iterable");
+				},
+			});
+		};
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+
+		const report = await syncRange(source, target, options());
+
+		assert.equal(report.stoppedEarly, undefined);
+		const failed = report.days.find((d) => d.date === "2026-09-11")!;
+		assert.equal(failed.status, "failed");
+		assert.match(failed.error!, /couldn't be read: summary\.metrics is not iterable/);
+		assert.equal(failed.full, undefined, "left for the next sync");
+		assert.ok(target.written.has("2026-09-12"));
+		assert.ok(target.written.has("2026-09-10"));
 	});
 
 	it("records a write failure without abandoning the range", async () => {

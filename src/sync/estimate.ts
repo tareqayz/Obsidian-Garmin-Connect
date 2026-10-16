@@ -40,11 +40,13 @@ export const WINDOW_SECONDS = 0.6;
 export const CHUNK_SECONDS = 10;
 
 /**
- * Requests an hour a backfill stays under, by speed: well inside the
- * ~17,600 an hour measured clean (`docs/garmin-api.md`, Request pace), for a
- * quota Garmin may count over hours.
+ * Requests an hour this device's history download stays under, by speed, with
+ * the manual syncs counted in: far inside the ~17,600 an hour measured clean
+ * once on one account (`docs/garmin-api.md`, Request pace). Every install
+ * looks alike to Garmin, so a quota it counts over hours, or a rule against
+ * the pattern, would meet every user at once; the margin is for that.
  */
-export const HOURLY_BUDGET: Record<SyncSpeed, number> = { gentle: 5_000, normal: 10_000, fast: 15_000 };
+export const HOURLY_BUDGET: Record<SyncSpeed, number> = { gentle: 2_500, normal: 5_000, fast: 8_000 };
 
 /** Bytes a day each chart index keeps, measured. Sparse ones (a row a week or a test) count `SPARSE_ROW_BYTES`. */
 const ROW_BYTES: Record<string, number> = {

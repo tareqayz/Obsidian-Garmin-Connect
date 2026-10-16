@@ -14,7 +14,7 @@ import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { DAY_INDEXES } from "./sync/day-indexes";
 import { importDayNotes } from "./sync/import-notes";
-import { SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
+import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
@@ -38,7 +38,7 @@ import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
-/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id and its Garmin session. */
+/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id, its request budget and its Garmin session. */
 function forgetThisDevice(app: App): void {
 	try {
 		window.indexedDB.deleteDatabase(TILE_DB);
@@ -47,6 +47,7 @@ function forgetThisDevice(app: App): void {
 	}
 	app.saveLocalStorage(DEVICE_KEY, null);
 	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
+	app.saveLocalStorage(BUDGET_KEY, null);
 	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
@@ -179,6 +180,21 @@ export default class GarminPlugin extends Plugin {
 			callback: () => this.openSetup(),
 		});
 		this.addCommand({
+			id: "stop-sync",
+			name: "Stop syncing",
+			callback: () => new Notice(this.sync.stopForeground() ? "Garmin: stopping after the day in progress." : "No Garmin sync is running."),
+		});
+		this.addCommand({
+			id: "pause-download",
+			name: "Pause the history download",
+			callback: () => void this.sync.pauseBackfill(),
+		});
+		this.addCommand({
+			id: "resume-download",
+			name: "Resume the history download",
+			callback: () => void this.sync.resumeBackfill(),
+		});
+		this.addCommand({
 			id: "run-probe",
 			name: "Run diagnostics",
 			callback: () => new ProbeModal(this.app, this).open(),
@@ -282,6 +298,8 @@ export default class GarminPlugin extends Plugin {
 							? "Garmin · sign in to continue"
 							: progress.reason === "update"
 								? "Garmin · update the plugin to continue"
+							: progress.reason === "blocked"
+								? "Garmin · refused by Garmin, resting"
 							: progress.reason === "user"
 								? "Garmin · download paused"
 								: "Garmin · download resting";

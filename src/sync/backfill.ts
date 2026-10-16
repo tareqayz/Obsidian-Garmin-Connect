@@ -203,10 +203,10 @@ export function nextChunk(task: { from: string; to: string }, size: number): { f
 export const BACKFILL_FILE_VERSION = 1;
 
 /** Why a backfill stopped until something changes. */
-export type PauseReason = "user" | "sign-in" | "rate-limit" | "error";
+export type PauseReason = "user" | "sign-in" | "rate-limit" | "blocked" | "error";
 
 export interface BackfillState {
-	/** Set while paused. A 429 or an error pauses until `until`; a sign-in until one; the user until they resume. */
+	/** Set while paused. A 429, a bot check's refusal or an error pauses until `until`; a sign-in until one; the user until they resume. */
 	paused?: { reason: PauseReason; until?: string };
 	/** The device running it, and when it last finished a unit. */
 	lease?: Lease;
@@ -233,7 +233,7 @@ export function parseBackfill(text: string): BackfillState {
 		if (!raw || raw.version !== BACKFILL_FILE_VERSION) return {};
 		const out: BackfillState = {};
 		const paused = raw.paused as { reason?: unknown; until?: unknown } | undefined;
-		if (paused && ["user", "sign-in", "rate-limit", "error"].includes(paused.reason as string)) {
+		if (paused && ["user", "sign-in", "rate-limit", "blocked", "error"].includes(paused.reason as string)) {
 			out.paused = { reason: paused.reason as PauseReason, ...(typeof paused.until === "string" ? { until: paused.until } : {}) };
 		}
 		const lease = raw.lease as Partial<Lease> | undefined;
@@ -268,24 +268,62 @@ export function rateLimitWait(n: number): number {
 	return Math.min(60, 5 * 2 ** Math.max(0, n - 1)) * 60_000;
 }
 
+/**
+ * How long to wait after the `n`th refusal in a row from Garmin's edge (a bot
+ * check's 403): half an hour, doubling, at most twelve. Asking again soon is
+ * what keeps a block in place.
+ */
+export function blockedWait(n: number): number {
+	return Math.min(720, 30 * 2 ** Math.max(0, n - 1)) * 60_000;
+}
+
+/** A saved budget's entries, those that make sense. */
+function entriesOf(raw: unknown): BudgetEntries {
+	if (!Array.isArray(raw)) return [];
+	return raw.filter(
+		(e): e is { at: number; requests: number } =>
+			!!e && typeof e === "object" && Number.isFinite((e as { at?: unknown }).at) && Number.isFinite((e as { requests?: unknown }).requests) && (e as { requests: number }).requests > 0,
+	);
+}
+
 /* ------------------------------------------------------------------ */
 /*  The hourly budget                                                  */
 /* ------------------------------------------------------------------ */
 
+/** What the budget has spent in the last hour: `[epoch ms, requests]` pairs. */
+export type BudgetEntries = Array<{ at: number; requests: number }>;
+
+/** Where a budget keeps what it spent, so a restart doesn't hand it a fresh hour. */
+export interface BudgetStore {
+	load(): unknown;
+	save(entries: BudgetEntries): void;
+}
+
 /** Requests spent in the last hour, a unit at a time, for the budget. */
 export class RequestBudget {
-	private spent: Array<{ at: number; requests: number }> = [];
+	private spent: BudgetEntries;
 
-	constructor(private readonly perHour: () => number) {}
+	constructor(
+		private readonly perHour: () => number,
+		private readonly store?: BudgetStore,
+	) {
+		this.spent = entriesOf(store?.load());
+	}
 
 	add(requests: number, at: number): void {
-		if (requests > 0) this.spent.push({ at, requests });
+		if (requests <= 0) return;
+		this.spent.push({ at, requests });
+		this.store?.save(this.spent);
 	}
 
 	/** Requests spent in the hour before `now`. */
 	used(now: number): number {
-		this.spent = this.spent.filter((entry) => now - entry.at < 3_600_000);
-		return this.spent.reduce((n, entry) => n + entry.requests, 0);
+		const kept = this.spent.filter((entry) => now - entry.at < 3_600_000 && entry.at <= now + 60_000);
+		if (kept.length !== this.spent.length) {
+			this.spent = kept;
+			this.store?.save(kept);
+		}
+		return kept.reduce((n, entry) => n + entry.requests, 0);
 	}
 
 	/** Milliseconds until a unit of `next` requests fits, 0 when it does now. */

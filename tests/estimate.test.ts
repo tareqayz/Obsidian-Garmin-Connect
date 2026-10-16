@@ -70,10 +70,12 @@ describe("estimates — the request arithmetic", () => {
 	});
 
 	it("holds a long backfill to the hourly budget", () => {
-		assert.equal(withBudget(9_000, 600, "normal"), 600);
-		// 25,000 at Normal: two full hours, then the last 5,000 at the pace.
-		assert.equal(withBudget(25_000, 1_250, "normal"), 2 * 3600 + 250);
-		assert.equal(withBudget(25_000, 1_250, "fast"), 3600 + 500);
+		assert.equal(withBudget(4_000, 600, "normal"), 600);
+		// 12,000 at Normal: two full hours of 5,000, then the last 2,000 at the pace.
+		assert.equal(withBudget(12_000, 1_200, "normal"), 2 * 3600 + 200);
+		assert.equal(withBudget(12_000, 1_200, "fast"), 3600 + 400);
+		// Gentle, the default, keeps to 2,500 an hour.
+		assert.equal(withBudget(6_000, 1_200, "gentle"), 2 * 3600 + 200);
 	});
 });
 
@@ -90,10 +92,10 @@ describe("estimates — Day details", () => {
 		assert.deepEqual([day.units, day.requests, day.bytes], [365, 5_649, 15_950_500]);
 	});
 
-	it("ten years: 56,436 requests, held by the budget to about five hours", () => {
+	it("ten years: 56,436 requests, held by the budget to about eleven hours", () => {
 		const day = set(estimate(input({ scan: account(3_650), dayDetails: "all" })), "day-details");
 		assert.deepEqual([day.units, day.requests], [3_650, 56_436]);
-		assert.equal(formatDuration(day.seconds), "about 5 hours");
+		assert.equal(formatDuration(day.seconds), "about 11 hours");
 	});
 
 	it("counts only days with data, and not the days already held at today's version", () => {

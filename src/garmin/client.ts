@@ -394,7 +394,9 @@ export class GarminClient {
 					403,
 				);
 			}
-			throw new GarminAuthError(`${path}: forbidden — ${snippet(res.text, 120)}`);
+			// The API declining this endpoint for this account. Not a dead session:
+			// a 401 says that, and signing in again would not change this answer.
+			throw new GarminApiError(`${path}: forbidden — ${snippet(res.text, 120)}`, 403, snippet(res.text, 200));
 		}
 		if (res.status < 200 || res.status >= 300) {
 			throw new GarminApiError(`${path}: HTTP ${res.status}`, res.status, snippet(res.text, 200));

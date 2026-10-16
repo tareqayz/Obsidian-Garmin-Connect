@@ -1,5 +1,5 @@
 import { GarminClient, type LoginOptions } from "./client";
-import { GarminApiError, GarminAuthError } from "./errors";
+import { GarminApiError } from "./errors";
 
 /* ------------------------------------------------------------------ */
 /*  Response shapes                                                    */
@@ -1484,9 +1484,10 @@ export class GarminApi extends GarminClient {
 			{ query: { calendarDate: date } },
 		);
 		if (summary?.privacyProtected === true) {
-			throw new GarminAuthError(
-				"Garmin returned a privacy-protected summary — the session is not fully authorised",
-			);
+			// Read as empty it would pass for a day without data. Not a dead session
+			// either: signing in again would get the same answer, so the day fails
+			// alone and the sync says why.
+			throw new GarminApiError("Garmin returned this day's summary as privacy-protected", 403, "");
 		}
 		return summary;
 	}

@@ -12,6 +12,8 @@
 		secondsPerDay: number;
 		/** Days of nothing before the sync gives up, or 0 if that guard is off. */
 		stopAfterEmptyDays: number;
+		/** Requests the history download keeps to in an hour at the chosen speed. */
+		hourly: number;
 		onRun: (from: string, to: string) => void;
 		onCancel: () => void;
 	}
@@ -23,6 +25,7 @@
 		today,
 		secondsPerDay,
 		stopAfterEmptyDays,
+		hourly,
 		onRun,
 		onCancel,
 	}: Props = $props();
@@ -70,6 +73,10 @@
 	<div class="caution">
 		Long backfills get rate limited. The sync runs newest first, so if it stops early you
 		still have the recent days.
+		{#if requests > hourly}
+			This is more than the history download asks of Garmin in an hour. For a long stretch,
+			choose it under Day details in Settings → Data instead: the download spreads it over hours.
+		{/if}
 		{#if stopAfterEmptyDays > 0}
 			It also gives up once it hits {stopAfterEmptyDays} days running with nothing in them,
 			so reaching back past the start of your Garmin history costs little.

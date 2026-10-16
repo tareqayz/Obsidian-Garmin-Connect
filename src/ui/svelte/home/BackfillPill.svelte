@@ -60,7 +60,7 @@
 {:else if progress?.status === "paused" || progress?.status === "waiting"}
 	<div class="pill" role="status">
 		<span class="icon" use:lucide={"clock"}></span>
-		<span>{progress.reason === "rate-limit" ? "Garmin asked for a pause" : "Download resting"}{until ? ` · resumes ${until}` : ""}</span>
+		<span>{progress.reason === "rate-limit" ? "Garmin asked for a pause" : progress.reason === "blocked" ? "Refused by Garmin's bot check" : "Download resting"}{until ? ` · resumes ${until}` : ""}</span>
 	</div>
 {:else if progress?.status === "elsewhere"}
 	<div class="pill" role="status">

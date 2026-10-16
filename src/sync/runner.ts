@@ -33,7 +33,7 @@ import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type PauseReason, type Task } from "./backfill";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetStore, type PauseReason, type Task } from "./backfill";
 import { chunkDays, DETAIL_REQUESTS, HOURLY_BUDGET, requestsPerChunk, requestsPerDay } from "./estimate";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
@@ -165,6 +165,12 @@ export class SyncRunner {
 	private backfillDone = 0;
 	/** 429s in a row, for the growing pause. */
 	private rateLimits = 0;
+	/** Refusals from Garmin's edge in a row, for their growing pause. */
+	private blocks = 0;
+	/** Units in a row that failed for some other reason: the third skips that unit for the session. */
+	private unitFailures = 0;
+	/** Set by Stop syncing: the sync or history walk in progress stops after the day or window it is on. */
+	private foregroundCancel = false;
 	/** When this device last wrote its lease. */
 	private leaseWrittenAt = 0;
 	private budget: RequestBudget;
@@ -191,7 +197,7 @@ export class SyncRunner {
 		this.app = app;
 		this.api = api;
 		this.settings = settings;
-		this.budget = new RequestBudget(() => HOURLY_BUDGET[this.settings().syncSpeed]);
+		this.budget = new RequestBudget(() => HOURLY_BUDGET[this.settings().syncSpeed], localBudget(app));
 	}
 
 	get isRunning(): boolean {
@@ -210,8 +216,28 @@ export class SyncRunner {
 	 * Null when another sync holds it or waits for it.
 	 */
 	private async claim(priority: Priority): Promise<Release | null> {
-		return this.applied(await this.lock.acquire(priority));
+		const release = this.applied(await this.lock.acquire(priority));
+		if (!release || priority !== "foreground") return release;
+		this.foregroundCancel = false;
+		this.foregroundRunning = true;
+		return () => {
+			this.foregroundRunning = false;
+			release();
+		};
 	}
+
+	/**
+	 * Stops the sync or history walk in progress after the day or window it is
+	 * on, keeping what came in. False when none is running.
+	 */
+	stopForeground(): boolean {
+		if (!this.foregroundRunning) return false;
+		this.foregroundCancel = true;
+		return true;
+	}
+
+	/** Whether a sync or history walk someone asked for holds the runner. */
+	private foregroundRunning = false;
 
 	/** `claim`, but only if the runner is free now with nothing waiting ahead. */
 	private claimNow(priority: Priority): Release | null {
@@ -221,7 +247,11 @@ export class SyncRunner {
 	private applied(release: Release | null): Release | null {
 		if (!release) return null;
 		this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
+		const since = Date.now();
 		return () => {
+			// Whatever Garmin was asked while the runner was held — a sync, a
+			// download unit, a page's load, every retry — counts against the hour.
+			this.budget.add(this.api.stats.since(since).length, Date.now());
 			release();
 			if (!this.lock.busy && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 		};
@@ -365,6 +395,7 @@ export class SyncRunner {
 				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
 				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
+				shouldStop: () => this.foregroundCancel,
 				log,
 				onProgress: (done, total, date) => {
 					notice.setMessage(
@@ -442,10 +473,15 @@ export class SyncRunner {
 		try {
 			if (auto && (await store.readActivities()).meta?.complete) return null;
 			this.setHistory({ fetched: 0 });
-			const got = await this.activityWalk(store, log, (fetched, total) => {
-				this.setHistory({ fetched, total });
-				notice?.setMessage(historyBody({ fetched, total }));
-			});
+			const got = await this.activityWalk(
+				store,
+				log,
+				(fetched, total) => {
+					this.setHistory({ fetched, total });
+					notice?.setMessage(historyBody({ fetched, total }));
+				},
+				() => this.foregroundCancel,
+			);
 			notice?.hide();
 
 			const stoppedEarly = got.fatal ? explain(got.fatal) : got.error;
@@ -476,6 +512,7 @@ export class SyncRunner {
 		store: VaultSeriesStore,
 		log?: Log,
 		onPage?: (fetched: number, total?: number) => void,
+		shouldStop: () => boolean = () => this.backfillStopped,
 	): Promise<{ fetched: number; complete: boolean; requests: number; fatal?: unknown; error?: string }> {
 		const units = await this.resolveUnits(this.settings().units);
 		let requests = 0;
@@ -490,7 +527,7 @@ export class SyncRunner {
 			log?.warn(`activity count failed: ${explain(err)}`);
 		}
 		onPage?.(0, total);
-		const got = await fetchAllActivities(this.api, { pageSize: HISTORY_PAGE, onPage: (fetched) => onPage?.(fetched, total) });
+		const got = await fetchAllActivities(this.api, { pageSize: HISTORY_PAGE, shouldStop, onPage: (fetched) => onPage?.(fetched, total) });
 		requests += got.requests;
 		// Even cut short, what came back is the newest stretch with no gaps,
 		// which is what a routine sync merges too.
@@ -548,7 +585,7 @@ export class SyncRunner {
 
 			const notBefore = await this.notBefore(store);
 			const got = await walkInSegments((emptyStreak) =>
-				this.dailyStatsSegment(store, { notBefore, emptyStreak }, (reached) => {
+				this.dailyStatsSegment(store, { notBefore, emptyStreak, shouldStop: () => this.foregroundCancel }, (reached) => {
 					this.setStatsHistory({ reached });
 					notice?.setMessage(statsHistoryBody({ reached }));
 				}),
@@ -614,7 +651,7 @@ export class SyncRunner {
 
 			const notBefore = await this.notBefore(store);
 			const got = await walkInSegments((emptyStreak) =>
-				this.sleepSegment(store, { notBefore, emptyStreak }, (reached) => {
+				this.sleepSegment(store, { notBefore, emptyStreak, shouldStop: () => this.foregroundCancel }, (reached) => {
 					this.setSleepHistory({ reached });
 					notice?.setMessage(historyNotice("Garmin sleep history", { reached }));
 				}),
@@ -683,7 +720,7 @@ export class SyncRunner {
 
 			const notBefore = await this.notBefore(store);
 			const got = await walkInSegments((emptyStreak) =>
-				this.indexSegment(def, store, { notBefore, emptyStreak }, (reached) => {
+				this.indexSegment(def, store, { notBefore, emptyStreak, shouldStop: () => this.foregroundCancel }, (reached) => {
 					this.setIndexHistory(kind, { reached });
 					notice?.setMessage(historyNotice(label, { reached }));
 				}),
@@ -713,11 +750,18 @@ export class SyncRunner {
 		for (const listener of this.indexHistoryListeners) listener(kind, progress);
 	}
 
-	/** Books the days a run fetched whole in the day coverage. A failure costs a day fetched again later. */
+	/**
+	 * Books the days a run fetched whole in the day coverage. A failure costs a
+	 * day fetched again later. Today goes on changing until it ends, so it is
+	 * never booked: the history download fetches it again in a later session —
+	 * not straight after the sync that just did.
+	 */
 	private async recordDays(store: VaultSeriesStore, report: SyncReport, log?: Log): Promise<void> {
+		const today = toIsoDate();
 		const full = report.days.filter((day) => day.full).map((day) => day.date);
+		if (full.includes(today)) this.backfillSkip.days.add(today);
 		try {
-			await store.recordDays(full, DAY_DETAILS_VERSION, this.settings().groups.includes("intraday"));
+			await store.recordDays(full.filter((date) => date < today), DAY_DETAILS_VERSION, this.settings().groups.includes("intraday"));
 		} catch (err) {
 			log?.warn(`day coverage failed: ${explain(err)}`);
 		}
@@ -1162,7 +1206,6 @@ export class SyncRunner {
 		} catch (err) {
 			fatal = err;
 		}
-		this.budget.add(requests, Date.now());
 		this.backfillDone += requests;
 
 		if (fatal instanceof GarminAuthError) {
@@ -1179,12 +1222,32 @@ export class SyncRunner {
 			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
 			return;
 		}
+		if (fatal instanceof GarminBlockedError) {
+			// Garmin's edge refused this device. Asking again soon keeps a block in
+			// place, so the pause grows with each refusal in a row.
+			this.blocks += 1;
+			const wait = blockedWait(this.blocks);
+			const until = new Date(Date.now() + wait).toISOString();
+			await store.writeBackfill({ paused: { reason: "blocked", until } });
+			this.backfillLater(wait);
+			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			return;
+		}
 		if (fatal instanceof NewerDataError) {
 			// Another device runs a newer build. Its files stay as they are, and the
 			// pause stays on this device: backfill.json would stop that one too.
 			this.backfillPending = false;
 			new Notice(`Garmin: ${fatal.message}`, 15000);
 			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			return;
+		}
+		if (fatal !== undefined && ++this.unitFailures >= MAX_UNIT_FAILURES) {
+			// The same unit failed three times running for no reason the client
+			// knows: leave it for the next session rather than wedge the download.
+			this.unitFailures = 0;
+			this.skipUnit(task);
+			new Notice(`Garmin: the history download skipped ${unitName(task)} for now, after it failed ${MAX_UNIT_FAILURES} times: ${explain(fatal)}`, 15000);
+			this.backfillLater(1_000);
 			return;
 		}
 		if (fatal !== undefined) {
@@ -1196,6 +1259,8 @@ export class SyncRunner {
 			return;
 		}
 		this.rateLimits = 0;
+		this.blocks = 0;
+		this.unitFailures = 0;
 		const left = this.backfillTasks;
 		const next = left[0];
 		this.setBackfill(
@@ -1211,6 +1276,26 @@ export class SyncRunner {
 		);
 		// Used up: plan once more, for whatever arrived meanwhile.
 		if (!left.length) this.backfillTasks = null;
+	}
+
+	/** Leaves the unit of `task` that keeps failing for the next session, and moves the plan past it. */
+	private skipUnit(task: Task): void {
+		const tasks = this.backfillTasks;
+		if (!tasks) return;
+		const settings = this.settings();
+		if (task.kind === "days") {
+			const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
+			for (let date = chunk.from; date <= chunk.to; date = shiftDay(date, 1)) this.backfillSkip.days.add(date);
+			if (chunk.from <= task.from) tasks.shift();
+			else task.to = shiftDay(chunk.from, -1);
+		} else if (task.kind === "details") {
+			const id = task.ids.shift();
+			if (id !== undefined) this.backfillSkip.details.add(id);
+			if (!task.ids.length) tasks.shift();
+		} else if (task.kind === "walk") {
+			this.backfillSkip.walks.add(task.store);
+			tasks.splice(tasks.indexOf(task), 1);
+		} else tasks.shift();
 	}
 
 	/** Requests a unit of `task` is about to spend, for the budget. */
@@ -1343,6 +1428,7 @@ export class SyncRunner {
 
 	/** Called on sign-out, so a second account does not inherit the first's units. */
 	reset(): void {
+		this.unitFailures = 0;
 		this.unitsCache = null;
 		this.backfillTasks = null;
 		this.backfillPending = false;
@@ -1556,6 +1642,27 @@ function dailyStatsSink(store: VaultSeriesStore): DailyStatsSink {
 	return {
 		coverage: () => store.readDailyStatsMeta(),
 		merge: (batch, covered) => store.mergeDailyStats(batch, { covered }),
+	};
+}
+
+/** Times in a row a download unit may fail before it is left for the next session. */
+const MAX_UNIT_FAILURES = 3;
+
+/** What a download unit fetches, for a notice. */
+function unitName(task: Task): string {
+	if (task.kind === "days") return `the days up to ${task.to}`;
+	if (task.kind === "details") return `activity ${task.ids[0] ?? ""}`.trim();
+	if (task.kind === "walk") return `the ${task.store.replace(/^index:/, "")} history`;
+	return "the activity list";
+}
+
+/** Where the hourly budget is kept: this device's local storage for the vault, never synced. */
+export const BUDGET_KEY = "garmin-connect-budget";
+
+function localBudget(app: App): BudgetStore {
+	return {
+		load: () => app.loadLocalStorage(BUDGET_KEY) as unknown,
+		save: (entries) => app.saveLocalStorage(BUDGET_KEY, entries),
 	};
 }
 

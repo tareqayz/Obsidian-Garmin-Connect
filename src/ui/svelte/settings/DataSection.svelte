@@ -132,6 +132,7 @@
 		if (p.status === "paused" && p.reason === "user") return `Download paused · ${percent}% · ${what}${reached}`;
 		if (p.status === "paused" && p.reason === "sign-in") return "Your Garmin session ended. Sign in to keep downloading.";
 		if (p.status === "paused" && p.reason === "rate-limit") return `Garmin asked us to slow down · resumes at ${until}`;
+		if (p.status === "paused" && p.reason === "blocked") return `Garmin's bot check refused this device · trying again at ${until}`;
 		if (p.status === "paused" && p.reason === "update") return "Another device runs a newer version of the plugin. Update it here to keep downloading.";
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
 		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;

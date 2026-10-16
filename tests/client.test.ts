@@ -322,11 +322,12 @@ describe("request", () => {
 		assert.equal(client.isAuthenticated, true);
 	});
 
-	it("reads a JSON 403 as the API declining", async () => {
+	it("reads a JSON 403 as the API declining that endpoint, not as a dead session", async () => {
 		const { client } = await signedIn([
 			{ url: "/wellness-service", status: 403, json: { message: "forbidden" } },
 		]);
-		await assert.rejects(() => client.request("/wellness-service/x"), GarminAuthError);
+		await assert.rejects(() => client.request("/wellness-service/x"), (err: unknown) => err instanceof GarminApiError && err.status === 403);
+		assert.equal(client.isAuthenticated, true);
 	});
 
 	it("reads a non-JSON 403 as the edge declining", async () => {

@@ -94,7 +94,9 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,
-	syncSpeed: "normal",
+	// Gentle until the plugin has met more accounts than one: every install
+	// looks alike to Garmin.
+	syncSpeed: "gentle",
 	// A backfill that reaches past the start of your Garmin history would
 	// otherwise keep asking, four requests a day, until Garmin rate-limits it.
 	stopAfterEmptyDays: 45,
