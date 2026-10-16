@@ -39,11 +39,11 @@ import { ALL, dayReadingsOf, historyCounts, rangeOf } from "./training-readiness
 /** Oct 11 as `trainingreadiness/2026-10-11` sent it at 22:29 (`2026-10-11.json`), whole. */
 const OCT_11_PAYLOAD: TrainingReadinessReading[] = [
 	{
-		userProfilePK: 136055941,
+		userProfilePK: 123456789,
 		calendarDate: "2026-10-11",
 		timestamp: "2026-10-11T05:41:11.0",
 		timestampLocal: "2026-10-11T09:41:11.0",
-		deviceId: 3611994638,
+		deviceId: 3600000001,
 		level: "POOR",
 		feedbackLong: "POOR_RT_HIGH_SS_GOOD_OR_MOD",
 		feedbackShort: "LET_YOUR_BODY_RECOVER",
@@ -70,11 +70,11 @@ const OCT_11_PAYLOAD: TrainingReadinessReading[] = [
 		recoveryTimeChangePhrase: "NO_CHANGE_SLEEP",
 	},
 	{
-		userProfilePK: 136055941,
+		userProfilePK: 123456789,
 		calendarDate: "2026-10-11",
 		timestamp: "2026-10-11T03:36:43.0",
 		timestampLocal: "2026-10-11T07:36:43.0",
-		deviceId: 3611994638,
+		deviceId: 3600000001,
 		level: "MODERATE",
 		feedbackLong: "MOD_RT_MOD_SS_GOOD",
 		feedbackShort: "BOOSTED_BY_GOOD_SLEEP",

@@ -38,7 +38,7 @@ import type { SportProfile } from "../activity-sports";
  * The basic page: every sport without a page of its own (strength, yoga,
  * cardio, the stair stepper, walking, hiking …) gets the run page's shared
  * sections, each only with data, laid out as Garmin's Stair Stepper
- * (`ref/activity-details/basic`: activity 24150511862, shots 1163–1169).
+ * (`ref/activity-details/basic`: activity 90000000007, shots 1163–1169).
  *
  * Garmin's oddities are kept, as the plan asks: a standstill reads "0:00 /km"
  * and "0.0 km/h", and an ascent it didn't measure "-- m". A sport Garmin sends

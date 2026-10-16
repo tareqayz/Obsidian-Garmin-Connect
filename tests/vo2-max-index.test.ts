@@ -14,7 +14,7 @@ import { VO2_MAX_INDEX, rowOfMaxMetrics, vo2DateOf, type Vo2MaxRow } from "../sr
 
 /** A day with both readings; the cycling one is 2025's first. */
 const SEP_1_2025: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: { calendarDate: "2025-09-01", vo2MaxPreciseValue: 55.6, vo2MaxValue: 56, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 0 },
 	cycling: { calendarDate: "2025-09-01", vo2MaxPreciseValue: 55.9, vo2MaxValue: 56, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 1 },
 	heatAltitudeAcclimation: {
@@ -39,7 +39,7 @@ const SEP_1_2025: MaxMetrics = {
 
 /** A ride only: `generic` is null, and Garmin's integer for 56.5 is 56. */
 const SEP_10_2025: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: null,
 	cycling: { calendarDate: "2025-09-10", vo2MaxPreciseValue: 56.5, vo2MaxValue: 56, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 1 },
 	heatAltitudeAcclimation: { calendarDate: "2025-09-10", heatAcclimationPercentage: 24, previousHeatAcclimationPercentage: 28, heatTrend: "DEACCLIMATIZING", currentAltitude: 92 },
@@ -47,14 +47,14 @@ const SEP_10_2025: MaxMetrics = {
 
 /** The newest cycling reading, Current's on the Cycling tab. */
 const OCT_15_2025: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: { calendarDate: "2025-10-15", vo2MaxPreciseValue: 56.1, vo2MaxValue: 56, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 0 },
 	cycling: { calendarDate: "2025-10-15", vo2MaxPreciseValue: 57.4, vo2MaxValue: 57, fitnessAge: 20, fitnessAgeDescription: null, maxMetCategory: 1 },
 	heatAltitudeAcclimation: { calendarDate: "2025-10-15", heatAcclimationPercentage: 72, previousHeatAcclimationPercentage: 47, heatTrend: "ACCLIMATIZING" },
 };
 
 const OCT_10: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: { calendarDate: "2026-10-10", vo2MaxPreciseValue: 54.8, vo2MaxValue: 55, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 0 },
 	cycling: null,
 	heatAltitudeAcclimation: { calendarDate: "2026-10-10", heatAcclimationPercentage: 79, previousHeatAcclimationPercentage: 68, heatTrend: "ACCLIMATIZING" },
@@ -62,7 +62,7 @@ const OCT_10: MaxMetrics = {
 
 /** The capture day: the phone's "Today · 55 · Excellent". */
 const OCT_11: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: { calendarDate: "2026-10-11", vo2MaxPreciseValue: 54.9, vo2MaxValue: 55, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 0 },
 	cycling: null,
 	heatAltitudeAcclimation: {
@@ -87,7 +87,7 @@ const OCT_11: MaxMetrics = {
 
 /** `maxmet/weekly/2026-07-20/2026-10-11`'s first row: its acclimation block is a day later than its reading. */
 const WEEKLY_AUG_1: MaxMetrics = {
-	userId: 136055941,
+	userId: 123456789,
 	generic: { calendarDate: "2026-08-01", vo2MaxPreciseValue: 55.1, vo2MaxValue: 55, fitnessAge: null, fitnessAgeDescription: null, maxMetCategory: 0 },
 	cycling: null,
 	heatAltitudeAcclimation: { calendarDate: "2026-08-02", heatAcclimationDate: "2026-08-01", heatAcclimationPercentage: 75, currentAltitude: 308 },

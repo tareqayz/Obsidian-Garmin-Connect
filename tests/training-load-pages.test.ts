@@ -365,8 +365,8 @@ describe("Exercise Load — Sep 14 – Oct 11", () => {
 
 	it("opens every activity's page: the runs, the treadmill run and the swim", () => {
 		const v = exercise();
-		assert.deepEqual(v.list[0]!.route, activityRoute(24680971010));
-		assert.deepEqual(v.list[7]!.route, activityRoute(24454826243));
+		assert.deepEqual(v.list[0]!.route, activityRoute(90000000032));
+		assert.deepEqual(v.list[7]!.route, activityRoute(90000000025));
 		assert.deepEqual(v.list[11]!.route, activityRoute(v.list[11]!.id));
 		assert.ok(v.list.every((r) => r.route !== undefined));
 	});

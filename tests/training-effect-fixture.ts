@@ -9,7 +9,7 @@ import { rowOf, sortRows, type ActivityRow } from "../src/sync/activity-index";
  * would have stored. The spec's redacted fixture
  * (`te-fixture-2026-08-17-2026-10-11-redacted.json`) holds the same rows to a
  * tenth. Ids are synthetic and only the two runs the detail shots open carry
- * a name, the shots' "Dubai Running". The 7d and 4w windows roll daily, so
+ * a name, the shots' "Morning Run". The 7d and 4w windows roll daily, so
  * the golden numbers only reproduce with today pinned to the capture day.
  * Not a test file: the pages tests import it (and the charts tests will).
  */
@@ -56,8 +56,8 @@ const LISTED = `
 
 /** The two runs the detail shots open, by local start: their name, as the shots read it. */
 const NAMED: Readonly<Record<string, string>> = {
-	"2026-10-11T08:21:37": "Dubai Running",
-	"2026-10-10T08:19:48": "Dubai Running",
+	"2026-10-11T08:21:37": "Morning Run",
+	"2026-10-10T08:19:48": "Morning Run",
 };
 
 /** A listed activity as the list sends it, under a synthetic id. */

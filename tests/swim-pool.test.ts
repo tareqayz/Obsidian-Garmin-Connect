@@ -28,7 +28,7 @@ import { poolSwim, TODAY } from "./swim-fixture";
 /*
  * The pool swim's page against its spec's golden numbers
  * (ref/activity-details/pool-swim/README.md, "Golden numbers"): activity
- * 24362982767, 1,100 m in a 25 m pool, 28 laps of which 14 are rests, 58
+ * 90000000021, 1,100 m in a 25 m pool, 28 laps of which 14 are rests, 58
  * lengths of which 44 were swum. Every value below is on the phone's shots
  * (intervals 12–18 on the web's) or is the spec's rule for it.
  */

@@ -25,7 +25,7 @@ export const TODAY = "2026-10-11";
  * sleep/pct/band recovery/pct/band acute/pct/band hrv/pct/band
  * sleepHistory-pct/band stressHistory-pct/band recoveryTimeChangePhrase`,
  * the context W (wake-up), A (after an activity) or R (realtime), "-" for
- * null. Every reading was user 136055941's, device 3611994638, the
+ * null. Every reading was user 123456789's, device 3600000001, the
  * preferred tracker, `validSleep` exactly when it has a sleep score.
  */
 export const READINGS = `
@@ -140,11 +140,11 @@ export function readingsOf(text: string): TrainingReadinessReading[] {
 			const [sleepHistoryPct, sleepHistoryFb] = sleepHistory!.split("/");
 			const [stressHistoryPct, stressHistoryFb] = stressHistory!.split("/");
 			return {
-				userProfilePK: 136055941,
+				userProfilePK: 123456789,
 				calendarDate: date!,
 				timestamp: `${gmt}.0`,
 				timestampLocal: `${date}T${local}.0`,
-				deviceId: 3611994638,
+				deviceId: 3600000001,
 				level: level!,
 				feedbackLong: long!,
 				feedbackShort: short!,

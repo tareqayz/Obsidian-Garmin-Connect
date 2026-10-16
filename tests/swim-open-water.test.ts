@@ -24,7 +24,7 @@ import { openWaterSwim, TODAY } from "./swim-fixture";
 /*
  * The open-water swim's page against its spec's golden numbers
  * (ref/activity-details/open-water-swim/README.md, "Golden numbers"):
- * activity 20780627494, 519.39 m in 11:37.7 with a 36 s pause before the
+ * activity 90000000002, 519.39 m in 11:37.7 with a 36 s pause before the
  * first stroke, two laps, 699 samples. Every value below is on the phone's
  * shots (Zone 1 on the web's) or is the spec's rule for it.
  */

@@ -489,7 +489,7 @@ describe("mapDay — training load", () => {
 			{
 				training: {
 					latestTrainingStatusData: {
-						"3418285688": { trainingStatusFeedbackPhrase: "PRODUCTIVE_1", weeklyTrainingLoad: 712 },
+						"3400000001": { trainingStatusFeedbackPhrase: "PRODUCTIVE_1", weeklyTrainingLoad: 712 },
 					},
 				},
 			},

@@ -11,7 +11,7 @@ import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-d
 
 /*
  * The basic page on Garmin's Stair Stepper (ref/activity-details/basic: the
- * summary of activity 24150511862 and shots 1163–1169), with a made-up id and
+ * summary of activity 90000000007 and shots 1163–1169), with a made-up id and
  * a few made-up samples carrying the phone's heart-rate range (83–162 bpm) on
  * its 34:52 timer. Its zones are the shot's: 4:08, 2:09 and 28:03 above 103,
  * 124 and 144 bpm.

@@ -6,20 +6,25 @@
  * only show up as a probe that silently never ran.
  */
 import { strict as assert } from "node:assert";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GarminApi } from "../src/garmin/endpoints";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import {
+	API_DIR,
 	checkedEndpoints,
 	loadCatalogue,
 	readSchema,
 	schemaPath,
+	writeSchema,
 	type CatalogueEntry,
+	type RecordedSchema,
 } from "../scripts/api/catalogue";
 import { assertProbesMatchCatalogue, PROBES, yearBefore } from "../scripts/api/probes";
-import { hasPath } from "../scripts/api/schema";
+import { fieldName, foldKeys, hasPath, type Shape } from "../scripts/api/schema";
 
 const catalogue = loadCatalogue();
 const checked = checkedEndpoints(catalogue);
@@ -109,6 +114,54 @@ describe("recorded shapes", () => {
 			for (const path of entry.critical ?? []) {
 				assert.ok(hasPath(shape, path), `${entry.id}: nothing recorded at "${path}"`);
 			}
+		}
+	});
+
+	// A device id, an activity id or a day written down as a field name is the
+	// account's data in a public file. The message names where, never the key.
+	it("hold no ids or dates as field names", () => {
+		const dir = join(API_DIR, "schema");
+		for (const name of readdirSync(dir).filter((file) => file.endsWith(".json"))) {
+			const found = new Set<string>();
+			const walk = (shape: Shape | undefined, path: string): void => {
+				if (!shape) return;
+				for (const [key, child] of Object.entries(shape.fields ?? {})) {
+					if (fieldName(key) !== key) found.add(path || "(root)");
+					walk(child, path ? `${path}.${fieldName(key)}` : fieldName(key));
+				}
+				walk(shape.items, `${path}[]`);
+			};
+			walk((JSON.parse(readFileSync(join(dir, name), "utf8")) as RecordedSchema).shape, "");
+			assert.deepEqual([...found], [], `${name}: id or date keys under ${[...found].join(", ")}`);
+		}
+	});
+});
+
+describe("recording", () => {
+	const entry: CatalogueEntry = {
+		id: "training-status-daily",
+		method: "GET",
+		path: "/metrics-service/metrics/trainingstatus/daily/{date}",
+		service: "metrics-service",
+		schema: "schema/training-status-daily.json",
+	};
+	// As the device-keyed maps were recorded before the recorder folded them.
+	const old: Shape = {
+		type: ["object"],
+		fields: { latestTrainingStatusData: { type: ["object"], fields: { "3000000001": { type: ["object"], fields: { trainingStatus: { type: ["number"] } } } } } },
+	};
+	const doc: RecordedSchema = { endpoint: entry.id, path: entry.path, firstRecorded: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", samples: 1, shape: old };
+
+	it("writes the placeholder, never the id, and reads an old file back folded", () => {
+		const dir = mkdtempSync(join(tmpdir(), "garmin-api-schema-"));
+		try {
+			writeSchema(entry, doc, dir);
+			const text = readFileSync(schemaPath(entry, dir), "utf8");
+			assert.ok(text.includes('"<id>"') && !text.includes("3000000001"));
+			writeFileSync(schemaPath(entry, dir), JSON.stringify(doc));
+			assert.deepEqual(readSchema(entry, dir)?.shape, foldKeys(old));
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 });

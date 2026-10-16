@@ -4,7 +4,7 @@ import { RIDES } from "./cycling-power-curve-fixture";
 
 /*
  * The captured road ride for the cycling page's tests
- * (ref/activity-details/road-cycling: activity 24706138262, Rally power
+ * (ref/activity-details/road-cycling: activity 90000000033, Rally power
  * pedals, Forerunner 970), built through the detail file's own
  * `buildActivityDetail` from payloads transcribed off `api-samples/`: the
  * summary's numbers, laps, zones, weather, the pedals' sensor (no serial),

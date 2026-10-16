@@ -60,7 +60,7 @@ const OCT_11_VALUES =
 	"83 76 85 87 86 86 93 89 87 105 98 94 101 97 104 87 72 84 81 82 77 94 90 83 82 76 74 75 73 87 82 92 88 88 91 78 79 78 84 88 74 74";
 
 const OCT_11: HrvData = {
-	userProfilePk: 136055941,
+	userProfilePk: 123456789,
 	hrvSummary: OCT_11_SUMMARY,
 	hrvReadings: readings(OCT_11_VALUES, "2026-10-10T20:01:41", 4 * HOUR),
 	startTimestampGMT: "2026-10-10T19:58:40.0",
@@ -75,7 +75,7 @@ const OCT_11: HrvData = {
 
 /** 76 readings with a 25-minute gap, 05:59:50 → 06:24:50 local, at +4 h. */
 const JUL_11: HrvData = {
-	userProfilePk: 136055941,
+	userProfilePk: 123456789,
 	hrvSummary: {
 		calendarDate: "2026-07-11",
 		weeklyAvg: 85,
@@ -100,7 +100,7 @@ const JUL_11: HrvData = {
 
 /** A status but no overnight value: the summary, no readings, no sleep window. */
 const SEP_17: HrvData = {
-	userProfilePk: 136055941,
+	userProfilePk: 123456789,
 	hrvSummary: {
 		calendarDate: "2026-09-17",
 		weeklyAvg: 73,
@@ -124,7 +124,7 @@ const SEP_17: HrvData = {
 
 /** Onboarding, before the readings Garmin keeps: no baseline, status NONE, no readings. */
 const AUG_10_2025: HrvData = {
-	userProfilePk: 136055941,
+	userProfilePk: 123456789,
 	hrvSummary: { calendarDate: "2025-08-10", weeklyAvg: 80, lastNightAvg: 76, lastNight5MinHigh: 93, baseline: null, status: "NONE", feedbackPhrase: "ONBOARDING_1" },
 	hrvReadings: [],
 	sleepStartTimestampGMT: null,
@@ -177,7 +177,7 @@ function rangeApi(calls: string[]): GarminApi {
 			calls.push(`${start} ${end}`);
 			if (daysIn(start, end) > 367) throw new GarminApiError("HTTP 400", 400, "");
 			const rows = HISTORY.filter((d) => d >= start && d <= end).map((d) => ({ ...OCT_11_SUMMARY, calendarDate: d }));
-			return rows.length ? { hrvSummaries: rows, userProfilePk: 136055941 } : null;
+			return rows.length ? { hrvSummaries: rows, userProfilePk: 123456789 } : null;
 		},
 	} as unknown as GarminApi;
 }

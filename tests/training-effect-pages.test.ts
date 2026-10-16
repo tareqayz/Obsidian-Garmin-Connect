@@ -289,10 +289,10 @@ describe("the Training Effect page — the Oct 11 run", () => {
 		);
 	});
 
-	it("names the related activity: the run's disc, Dubai Running, Oct 11 @ 8:21 AM and the card's subtitle; it opens the run", () => {
+	it("names the related activity: the run's disc, Morning Run, Oct 11 @ 8:21 AM and the card's subtitle; it opens the run", () => {
 		assert.deepEqual(detail(id).related, {
 			id,
-			name: "Dubai Running",
+			name: "Morning Run",
 			when: "Oct 11 @ 8:21 AM",
 			subtitle: "Threshold (High Aerobic) • 4.5 • 0.2",
 			glyph: "run",
@@ -333,7 +333,7 @@ describe("the Training Effect page — the Oct 10 run", () => {
 
 	it("names the run as the shot does: Oct 10 @ 8:19 AM, … • 4.3 • 0.0", () => {
 		const { related } = detail(id);
-		assert.deepEqual([related.name, related.when, related.subtitle], ["Dubai Running", "Oct 10 @ 8:19 AM", "Threshold (High Aerobic) • 4.3 • 0.0"]);
+		assert.deepEqual([related.name, related.when, related.subtitle], ["Morning Run", "Oct 10 @ 8:19 AM", "Threshold (High Aerobic) • 4.3 • 0.0"]);
 	});
 });
 
@@ -533,15 +533,15 @@ describe("edges", () => {
 	});
 
 	it("reads the sub-page back only when it names an activity id", () => {
-		assert.equal(activitySub(24680971010), "activity:24680971010");
-		assert.equal(activityOfSub("activity:24680971010"), 24680971010);
+		assert.equal(activitySub(90000000032), "activity:90000000032");
+		assert.equal(activityOfSub("activity:90000000032"), 90000000032);
 		assert.deepEqual(
 			[undefined, "", "activity:", "activity:0", "activity:-3", "activity:1.5", "activity:abc", "activity:99999999999999999", "month:2026-03", " activity:1"].map(activityOfSub),
 			Array(10).fill(undefined),
 		);
 		// The route keeps it: a short token.
-		assert.equal(cardRoute("4w", -2, 24680971010).sub, "activity:24680971010");
-		assert.deepEqual(cardRoute("4w", -2, 24680971010), { page: "performance-stat", stat: "training-effect", range: "4w", offset: -2, sub: "activity:24680971010" });
+		assert.equal(cardRoute("4w", -2, 90000000032).sub, "activity:90000000032");
+		assert.deepEqual(cardRoute("4w", -2, 90000000032), { page: "performance-stat", stat: "training-effect", range: "4w", offset: -2, sub: "activity:90000000032" });
 	});
 
 	it("reads another range as the default 7d", () => {

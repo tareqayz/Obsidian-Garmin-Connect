@@ -97,11 +97,11 @@ describe("a series file's version, for the first build of the coverage", () => {
 describe("activity details coverage", () => {
 	it("round-trips by id, in id order, under activities", () => {
 		const files = new Map([
-			[24589239622, 1],
-			[19938710621, 5],
+			[90000000030, 1],
+			[90000000001, 5],
 		]);
 		const text = serializeDetailCoverage(files);
-		assert.ok(text.indexOf("19938710621") < text.indexOf("24589239622"));
+		assert.ok(text.indexOf("90000000001") < text.indexOf("90000000030"));
 		assert.match(text, /"activities": \{/);
 		assert.deepEqual(parseDetailCoverage(text), files);
 		assert.deepEqual(parseDetailCoverage(JSON.stringify({ version: 1, activities: { "12": 5, x: 5, "13": "5" } })), new Map([[12, 5]]));

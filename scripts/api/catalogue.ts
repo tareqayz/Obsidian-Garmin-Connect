@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import type { Shape } from "./schema";
+import { foldKeys, type Shape } from "./schema";
 
 /**
  * Found by walking up from the working directory rather than from this file:
@@ -82,17 +82,24 @@ export function schemaPath(entry: CatalogueEntry, dir = API_DIR): string {
 	return join(dir, entry.schema ?? `schema/${entry.id}.json`);
 }
 
-/** Null when nothing has been recorded yet — the first run of a new endpoint. */
+/**
+ * Null when nothing has been recorded yet — the first run of a new endpoint.
+ * Id and date keys come back folded (`foldKeys`), so a file recorded before
+ * the recorder folded them compares and merges like one recorded today.
+ */
 export function readSchema(entry: CatalogueEntry, dir = API_DIR): RecordedSchema | null {
+	let doc: RecordedSchema | null;
 	try {
-		return JSON.parse(readFileSync(schemaPath(entry, dir), "utf8")) as RecordedSchema;
+		doc = JSON.parse(readFileSync(schemaPath(entry, dir), "utf8")) as RecordedSchema | null;
 	} catch {
 		return null;
 	}
+	return doc?.shape ? { ...doc, shape: foldKeys(doc.shape) } : doc;
 }
 
+/** Folds id and date keys on the way out too: whatever built the shape, none reaches the file. */
 export function writeSchema(entry: CatalogueEntry, doc: RecordedSchema, dir = API_DIR): void {
 	const file = schemaPath(entry, dir);
 	mkdirSync(dirname(file), { recursive: true });
-	writeFileSync(file, `${JSON.stringify(doc, null, "\t")}\n`);
+	writeFileSync(file, `${JSON.stringify({ ...doc, shape: foldKeys(doc.shape) }, null, "\t")}\n`);
 }
