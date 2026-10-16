@@ -22,7 +22,7 @@ const column = (text: string): Array<number | null> => text.split(",").map((v) =
 const zone = (zoneNumber: number, secsInZone: number, zoneLowBoundary: number) => ({ zoneNumber, secsInZone, zoneLowBoundary });
 
 /* ------------------------------------------------------------------ */
-/*  The pool swim: 24362982767                                         */
+/*  The pool swim: 90000000021                                         */
 /* ------------------------------------------------------------------ */
 
 const POOL_START = Date.parse("2026-09-14T20:50:17Z");
@@ -403,7 +403,7 @@ export function poolSwim(): ActivityDetail {
 }
 
 /* ------------------------------------------------------------------ */
-/*  The open-water swim: 20780627494                                   */
+/*  The open-water swim: 90000000002                                   */
 /* ------------------------------------------------------------------ */
 
 const OPEN_WATER_START = Date.parse("2025-10-24T05:30:20Z");

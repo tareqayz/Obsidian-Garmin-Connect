@@ -36,7 +36,7 @@ import { POWER_RAMP } from "./cycling-palette";
 
 /**
  * A ride's page (ref/activity-details/road-cycling/README.md; road cycling
- * 24706138262 with Rally power pedals, shots 1106–1147): the power-coloured
+ * 90000000033 with Rally power pedals, shots 1106–1147): the power-coloured
  * map, Distance over Total Time · Avg Speed · Total Ascent · Avg Power, the
  * sixteen Stats sections, Lap · Time · Distance · Avg Speed with a Total row,
  * and the twenty Charts cards (`cycling-metrics.ts`). Every cycling type

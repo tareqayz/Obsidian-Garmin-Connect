@@ -227,16 +227,16 @@ describe("events", () => {
 			{
 				events: [
 					{ name: "Later", date: "2026-12-01" },
-					{ name: "IRONMAN 70.3 Dhofar", date: "2026-10-24" },
+					{ name: "Coastal 70.3", date: "2026-10-24" },
 					{ name: "Past", date: "2026-01-01" },
 				],
 			},
 			"2026-09-24",
 		);
-		assert.deepEqual(events[0], { name: "IRONMAN 70.3 Dhofar", countdown: "IN 4 WEEKS, 2 DAYS", when: "Sat, Oct 24" });
+		assert.deepEqual(events[0], { name: "Coastal 70.3", countdown: "IN 4 WEEKS, 2 DAYS", when: "Sat, Oct 24" });
 		assert.deepEqual(
 			events.map((e) => e.name),
-			["IRONMAN 70.3 Dhofar", "Later"],
+			["Coastal 70.3", "Later"],
 		);
 	});
 });

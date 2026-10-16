@@ -13,7 +13,7 @@ import { roadRide, TODAY } from "./cycling-ride-fixture";
 /*
  * A ride's Overview, Stats, Laps and map against the road-cycling spec's
  * golden numbers (ref/activity-details/road-cycling/README.md, "Golden
- * numbers"; activity 24706138262 under a made-up id, `cycling-ride-fixture.ts`).
+ * numbers"; activity 90000000033 under a made-up id, `cycling-ride-fixture.ts`).
  */
 
 const RIDE = roadRide();

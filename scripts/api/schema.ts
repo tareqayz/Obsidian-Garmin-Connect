@@ -63,13 +63,45 @@ function sortFields(fields: Record<string, Shape>): Record<string, Shape> {
 	return out;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Keys that are values                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Garmin keys some maps by a value rather than a name: training status by
+ * device id (`latestTrainingStatusData.<deviceId>`), endurance and hill score
+ * periods by date (`groupMap.<date>`). Written down verbatim, those keys would
+ * put an account's device and activity ids into a public file, and make every
+ * new day read as a new field. So every id or date key of an object is
+ * recorded under one placeholder, whose shape is the union of their shapes.
+ */
+export const ID_KEY = "<id>";
+export const DATE_KEY = "<date>";
+
+const ID = /^\d+$/;
+const DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/** The name a key is recorded under: the key itself, or the placeholder for an id or a date. */
+export function fieldName(key: string): string {
+	if (ID.test(key)) return ID_KEY;
+	if (DATE.test(key)) return DATE_KEY;
+	return key;
+}
+
+/** Adds a field under its recorded name, merged into any field already there. */
+function addField(fields: Record<string, Shape>, key: string, shape: Shape): void {
+	const name = fieldName(key);
+	const seen = Object.prototype.hasOwnProperty.call(fields, name) ? fields[name] : undefined;
+	fields[name] = seen ? merge(seen, shape) : shape;
+}
+
 /** The shape of one value. */
 export function infer(value: unknown): Shape {
 	const type = typeOf(value);
 	if (type === "object") {
 		const fields: Record<string, Shape> = {};
 		for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-			fields[key] = infer(child);
+			addField(fields, key, infer(child));
 		}
 		return { type: [type], fields: sortFields(fields) };
 	}
@@ -123,6 +155,22 @@ export function inferAll(samples: readonly unknown[]): Shape {
 		shape = shape ? merge(shape, next) : next;
 	}
 	return shape ?? { type: [] };
+}
+
+/**
+ * A shape with its id and date keys folded the way `infer` folds them, for one
+ * recorded before it did. A node with nothing to fold keeps its layout, so
+ * folding a recorded file moves only the keys that were values.
+ */
+export function foldKeys(shape: Shape): Shape {
+	let out = shape;
+	if (shape.fields) {
+		const fields: Record<string, Shape> = {};
+		for (const [key, child] of Object.entries(shape.fields)) addField(fields, key, foldKeys(child));
+		out = { ...out, fields: sortFields(fields) };
+	}
+	if (shape.items) out = { ...out, items: foldKeys(shape.items) };
+	return out;
 }
 
 /* ------------------------------------------------------------------ */

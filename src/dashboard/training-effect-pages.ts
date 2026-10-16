@@ -65,7 +65,7 @@ export const TE_TICKS: readonly number[] = [5, 4, 3, 2, 1, 0];
 export interface TrainingEffectRoute {
 	range: PeriodRange;
 	offset: number;
-	/** "activity:24680971010": that activity's Training Effect page. */
+	/** "activity:90000000032": that activity's Training Effect page. */
 	sub?: string;
 }
 
@@ -223,7 +223,7 @@ export function teChart(rows: readonly ActivityRow[], span: Span, key: TeScaleKe
 	return { key, title: SCALE_TITLES[key], ticks: TE_TICKS, top: TE_MAX, bars, axis: dayAxis(days) };
 }
 
-/** The `sub` of an activity's Training Effect page: "activity:24680971010". */
+/** The `sub` of an activity's Training Effect page: "activity:90000000032". */
 export function activitySub(id: number): string {
 	return `activity:${id}`;
 }
@@ -306,7 +306,7 @@ export interface TeScale {
 /** RELATED ACTIVITY: the activity's row. */
 export interface TeRelated {
 	id: number;
-	/** "Dubai Running"; the sport's name for an activity without one (Inferred). */
+	/** "Morning Run"; the sport's name for an activity without one (Inferred). */
 	name: string;
 	/** "Oct 11 @ 8:21 AM", with the year when it is not this one's. */
 	when: string;

@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
 	diff,
+	foldKeys,
 	hasPath,
 	infer,
 	inferAll,
@@ -29,6 +30,60 @@ describe("infer", () => {
 
 	it("sorts fields so a recorded schema diffs cleanly", () => {
 		assert.deepEqual(Object.keys(infer({ b: 1, a: 2, c: 3 }).fields ?? {}), ["a", "b", "c"]);
+	});
+});
+
+describe("keys that are values", () => {
+	it("records a map keyed by device id as one <id> field, every entry merged into it", () => {
+		const shape = infer({ latestTrainingStatusData: { "1001": { trainingStatus: 4, primaryTrainingDevice: true }, "1002": { trainingStatus: null } } });
+		assert.deepEqual(shape.fields?.latestTrainingStatusData, {
+			type: ["object"],
+			fields: {
+				"<id>": {
+					type: ["object"],
+					fields: {
+						primaryTrainingDevice: { type: ["boolean"], optional: true },
+						trainingStatus: { type: ["null", "number"] },
+					},
+				},
+			},
+		});
+	});
+
+	it("records a map keyed by day as one <date> field", () => {
+		assert.deepEqual(infer({ "2026-10-05": 61, "2026-10-12": null }), {
+			type: ["object"],
+			fields: { "<date>": { type: ["null", "number"] } },
+		});
+	});
+
+	it("folds only the keys that are values", () => {
+		const shape = infer({ b: 1, "4242": 2, "2026-10-11T00:00:00.0": 3, a: 4, v2: 5 });
+		assert.deepEqual(Object.keys(shape.fields ?? {}), ["<date>", "<id>", "a", "b", "v2"]);
+	});
+
+	it("does not call tomorrow's date a new field", () => {
+		const recorded = inferAll([{ periodAvgScore: { "2026-10-05": 61 } }]);
+		assert.deepEqual(diff(recorded, inferAll([{ periodAvgScore: { "2026-10-12": 64 } }])), []);
+	});
+
+	it("folds a shape recorded before keys were folded the way infer folds them now", () => {
+		const old: Shape = {
+			type: ["object"],
+			fields: {
+				reportData: {
+					type: ["object"],
+					fields: { "1001": { type: ["array"], items: { type: ["object"], fields: { calendarDate: { type: ["string"] } } } } },
+				},
+			},
+		};
+		assert.deepEqual(foldKeys(old), infer({ reportData: { "1001": [{ calendarDate: "2026-10-11" }] } }));
+		assert.deepEqual(Object.keys(merge(foldKeys(old), infer({ reportData: { "1002": [] } })).fields?.reportData?.fields ?? {}), ["<id>"]);
+	});
+
+	it("leaves a shape with nothing to fold as it was", () => {
+		const shape = merge(infer({ a: { b: [1] } }), infer({ a: null }));
+		assert.equal(JSON.stringify(foldKeys(shape)), JSON.stringify(shape));
 	});
 });
 

@@ -317,13 +317,13 @@ describe("stat cards", () => {
 				...row("2026-09-23"),
 				workouts: [
 					{ name: "Morning Walk", type: "walking", start: "2026-09-23T07:00", minutes: 20, distance_km: 1.5 },
-					{ name: "Kuwait City Running", type: "running", start: "2026-09-23T18:00", minutes: 42, duration_s: 2533, distance_km: 7.46 },
+					{ name: "Evening Run", type: "running", start: "2026-09-23T18:00", minutes: 42, duration_s: 2533, distance_km: 7.46 },
 				],
 			},
 			row("2026-09-24"),
 		];
 		const a = lastActivityView(input(rows))!;
-		assert.equal(a.name, "Kuwait City Running");
+		assert.equal(a.name, "Evening Run");
 		assert.deepEqual(a.stats, [
 			{ value: "7.46 km", label: "Distance" },
 			{ value: "42:13", label: "Total Time" },

@@ -8,7 +8,7 @@ import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-d
 // The captured run's summary values (spec: ref/activity-details/outdoor-run), with a
 // made-up id and a made-up route: no one's GPS.
 const SUMMARY = {
-	activityName: "Dubai Running",
+	activityName: "Morning Run",
 	activityTypeDTO: { typeId: 1, typeKey: "running", parentTypeId: 17 },
 	accessControlRuleDTO: { typeKey: "private" },
 	summaryDTO: {
@@ -43,7 +43,7 @@ describe("overviewView", () => {
 
 	it("reads the date line, the name and the distance as the phone does", () => {
 		assert.equal(view.when, "Oct 10 @ 8:19 AM");
-		assert.equal(view.title, "Dubai Running");
+		assert.equal(view.title, "Morning Run");
 		assert.equal(view.private, true);
 		assert.equal(view.glyph, "run");
 		assert.deepEqual(view.distance, { value: "10.01", unit: "km" });

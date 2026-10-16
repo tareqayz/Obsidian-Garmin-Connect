@@ -91,7 +91,7 @@ const FACTOR_LABELS: Readonly<Record<string, string>> = {
 	ACTIVITY: "Activity",
 };
 
-/** A Factors row's label: "Sleep", "Low Stress", "Dubai Running". An unknown type reads as words: "Some Event". */
+/** A Factors row's label: "Sleep", "Low Stress", "Morning Run". An unknown type reads as words: "Some Event". */
 export function factorLabel(type: string, activity?: string): string {
 	const key = type.trim().toUpperCase();
 	if (key === "ACTIVITY" && activity?.trim()) return activity.trim();

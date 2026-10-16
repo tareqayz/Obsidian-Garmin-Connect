@@ -24,7 +24,7 @@ import {
  * Forerunner 970's; the Edge 840 never had a row and is made up below.
  */
 
-const WATCH = 3611994638;
+const WATCH = 3600000001;
 
 /** The capture day: MAINTAINING_2, acute 498 over chronic 393, OPTIMAL. */
 const OCT_11: TrainingStatusEntry = {
@@ -97,7 +97,7 @@ const AUG_9_2025: TrainingStatusEntry = {
 /** `trainingstatus/weekly` as it answers a span: the recorded devices and a list per device, oldest first. */
 function weekly(from: string, to: string, rows: TrainingStatusEntry[]): TrainingStatusHistory {
 	return {
-		userId: 136055941,
+		userId: 123456789,
 		fromCalendarDate: from,
 		toCalendarDate: to,
 		showSelector: false,

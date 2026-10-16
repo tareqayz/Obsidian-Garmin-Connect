@@ -158,7 +158,7 @@ const EVENTS = {
 	),
 	"2026-10-03": markers(
 		event("SLEEP", "2026-10-02T17:21:00.0", 715, 61, "NONE", "NONE"),
-		event("ACTIVITY", "2026-10-03T10:59:19.0", 44, -10, "EXERCISE_TRAINING_EFFECT_4", "HIGHLY_IMPROVING_LACTATE_THRESHOLD", ["Dubai Running", "running", 24589239622]),
+		event("ACTIVITY", "2026-10-03T10:59:19.0", 44, -10, "EXERCISE_TRAINING_EFFECT_4", "HIGHLY_IMPROVING_LACTATE_THRESHOLD", ["Morning Run", "running", 90000000030]),
 	),
 	"2026-10-04": markers(event("SLEEP", "2026-10-03T19:35:14.0", 501, 66, "NONE", "NONE"), event("STRESS", "2026-10-04T10:34:29.0", 34, -6, "STRESS", "STRESSFUL_PERIOD")),
 	"2026-10-05": markers(
@@ -384,14 +384,14 @@ describe("Factors", () => {
 		assert.deepEqual(phone("2026-10-06"), ["Low Stress · 36m · +2", "Low Stress · 47m · +1", "Sleep · 6h 33m · +48"]);
 		assert.deepEqual(phone("2026-10-05"), ["Nap · 1h 27m · +9", "Sleep · 8h 16m · +62"]);
 		assert.deepEqual(phone("2026-10-04"), ["High Stress · 34m · -6", "Sleep · 9h 44m · +66"]);
-		assert.deepEqual(phone("2026-10-03"), ["Dubai Running · 44m · -10", "Sleep · 6h 6m · +61"]);
+		assert.deepEqual(phone("2026-10-03"), ["Morning Run · 44m · -10", "Sleep · 6h 6m · +61"]);
 		assert.deepEqual(phone("2026-10-02"), ["Low Stress · 49m", "Sleep · 7h 30m · +68"]);
 		assert.deepEqual(phone("2026-10-01"), ["Sleep · 3h 35m · +73"]);
 	});
 
 	it("gives a Sleep row the night's sleep time, not the event's window, which it falls back on", () => {
 		// Oct 3: 9h 44m asleep in a 715-minute window; Oct 7: 9h 59m in 10h.
-		assert.deepEqual(rowsOf(factorsOf(EVENTS["2026-10-03"], SLEPT["2026-10-03"])), ["Dubai Running · 44m · -10", "Sleep · 9h 44m · +61"]);
+		assert.deepEqual(rowsOf(factorsOf(EVENTS["2026-10-03"], SLEPT["2026-10-03"])), ["Morning Run · 44m · -10", "Sleep · 9h 44m · +61"]);
 		assert.deepEqual(rowsOf(factorsOf(EVENTS["2026-10-07"])), ["Sleep · 10h · +55"]);
 	});
 
@@ -411,7 +411,7 @@ describe("Factors", () => {
 		const [run] = factorsOf(EVENTS["2026-10-03"]);
 		assert.deepEqual(run, {
 			type: "ACTIVITY",
-			label: "Dubai Running",
+			label: "Morning Run",
 			info: true,
 			duration: "44m",
 			impact: "-10",
@@ -419,7 +419,7 @@ describe("Factors", () => {
 			start: Date.parse("2026-10-03T10:59:19Z"),
 			minutes: 44,
 			feedback: "HIGHLY_IMPROVING_LACTATE_THRESHOLD",
-			activityId: 24589239622,
+			activityId: 90000000030,
 		});
 	});
 

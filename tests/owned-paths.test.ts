@@ -10,7 +10,7 @@ describe("what Delete synced data removes", () => {
 		const root = folder("Garmin/data", [
 			folder("Garmin/data/days", [file("Garmin/data/days/2025.json", 500), file("Garmin/data/days/2026.json", 900), file("Garmin/data/days/index.json", 50)]),
 			folder("Garmin/data/series", [file("Garmin/data/series/2026-10-14.json", 40), file("Garmin/data/series/2026-10-13 2.json", 40)]),
-			folder("Garmin/data/activity-details", [file("Garmin/data/activity-details/19938710621.json", 150), file("Garmin/data/activity-details/index.json", 10)]),
+			folder("Garmin/data/activity-details", [file("Garmin/data/activity-details/90000000001.json", 150), file("Garmin/data/activity-details/index.json", 10)]),
 			folder("Garmin/data/stress", [file("Garmin/data/stress/2026.json", 20), file("Garmin/data/stress/index.json", 1)]),
 			file("Garmin/data/account.json", 5),
 			file("Garmin/data/sync-state.json", 1),

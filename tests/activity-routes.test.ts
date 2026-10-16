@@ -72,7 +72,7 @@ describe("the All Activities route", () => {
 	});
 
 	it("trims the search and keeps 80 characters of it, emoji whole", () => {
-		assert.equal(all({ q: "  Dubai Running  " }).q, "Dubai Running");
+		assert.equal(all({ q: "  Morning Run  " }).q, "Morning Run");
 		assert.equal(all({ q: "x".repeat(100) }).q, "x".repeat(80));
 		assert.equal(all({ q: `${"🏃".repeat(79)}ab` }).q, `${"🏃".repeat(79)}a`);
 		assert.equal(all({ q: `${"a".repeat(79)} b` }).q, "a".repeat(79));
@@ -121,7 +121,7 @@ describe("the All Activities route", () => {
 	});
 
 	it("builds a filtered route that reads back as itself", () => {
-		const route = allRoute({ q: "Dubai", sort: "oldest", types: [26, 29], from: "2026-01-01", to: "2026-10-15", dmin: 0, dmax: 150000, tmin: 0, tmax: 86400, amin: 10, amax: 500, events: ["race"], fav: true, pr: true });
+		const route = allRoute({ q: "Morning", sort: "oldest", types: [26, 29], from: "2026-01-01", to: "2026-10-15", dmin: 0, dmax: 150000, tmin: 0, tmax: 86400, amin: 10, amax: 500, events: ["race"], fav: true, pr: true });
 		assert.deepEqual(readRoute(JSON.parse(JSON.stringify(route))), route);
 		assert.equal(routeKey(readRoute(JSON.parse(JSON.stringify(route)))!), routeKey(route));
 		// What allRoute is given is checked as a saved route would be.

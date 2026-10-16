@@ -16,9 +16,9 @@ import {
 const HOUR = 3_600_000;
 
 /** The run the phone showed on 2026-10-03, as the activity list sends it (trimmed). */
-const dubaiRun: Activity = {
+const morningRun: Activity = {
 	activityId: 20460000001,
-	activityName: "Dubai Running",
+	activityName: "Morning Run",
 	startTimeLocal: "2026-10-03 14:59:19",
 	startTimeGMT: "2026-10-03 10:59:19",
 	beginTimestamp: 1791025159000,
@@ -37,9 +37,9 @@ function row(id: number, begin: number, over: Partial<ActivityRow> = {}): Activi
 
 describe("rowOf", () => {
 	it("keeps Garmin's raw metres and seconds, and the local start", () => {
-		assert.deepEqual(rowOf(dubaiRun), {
+		assert.deepEqual(rowOf(morningRun), {
 			id: 20460000001,
-			name: "Dubai Running",
+			name: "Morning Run",
 			type: "running",
 			typeId: 1,
 			parentTypeId: 17,
@@ -68,20 +68,20 @@ describe("rowOf", () => {
 	});
 
 	it("falls back to the GMT start when there is no timestamp", () => {
-		const r = rowOf({ ...dubaiRun, beginTimestamp: undefined });
+		const r = rowOf({ ...morningRun, beginTimestamp: undefined });
 		assert.equal(r!.begin, Date.UTC(2026, 9, 3, 10, 59, 19));
 	});
 
 	it("skips an activity without an id or a start", () => {
-		assert.equal(rowOf({ ...dubaiRun, activityId: undefined }), null);
-		assert.equal(rowOf({ ...dubaiRun, startTimeLocal: undefined }), null);
+		assert.equal(rowOf({ ...morningRun, activityId: undefined }), null);
+		assert.equal(rowOf({ ...morningRun, startTimeLocal: undefined }), null);
 	});
 });
 
 describe("rowOf — Performance Stats fields", () => {
 	it("keeps training effect to a tenth, the benefit, its copy keys and the load", () => {
 		const r = rowOf({
-			...dubaiRun,
+			...morningRun,
 			aerobicTrainingEffect: 4.099999904632568,
 			anaerobicTrainingEffect: 0,
 			trainingEffectLabel: "LACTATE_THRESHOLD",
@@ -100,7 +100,7 @@ describe("rowOf — Performance Stats fields", () => {
 
 	it("keeps a ride's best powers by seconds, and its power-curve opt-out", () => {
 		const ride: Activity = {
-			...dubaiRun,
+			...morningRun,
 			activityType: { typeId: 10, typeKey: "road_biking", parentTypeId: 2 },
 			maxAvgPower_1: 523,
 			maxAvgPower_20: 376.4,
@@ -120,7 +120,7 @@ describe("rowOf — Performance Stats fields", () => {
 
 describe("rowOf — All Activities fields (index 3)", () => {
 	const swim: Activity = {
-		...dubaiRun,
+		...morningRun,
 		activityName: "Pool Swim",
 		activityType: { typeId: 27, typeKey: "lap_swimming", parentTypeId: 26 },
 		eventType: { typeId: 4, typeKey: "training", sortOrder: 7 },
@@ -139,12 +139,12 @@ describe("rowOf — All Activities fields (index 3)", () => {
 	});
 
 	it("leaves the defaults out: uncategorized, not starred, no record, no pool", () => {
-		const r = rowOf({ ...dubaiRun, eventType: { typeId: 9, typeKey: "uncategorized" }, favorite: false, isFavorite: false, pr: false, isPR: false, unitOfPoolLength: null })!;
+		const r = rowOf({ ...morningRun, eventType: { typeId: 9, typeKey: "uncategorized" }, favorite: false, isFavorite: false, pr: false, isPR: false, unitOfPoolLength: null })!;
 		for (const key of ["event", "favorite", "pr", "pool"]) assert.equal(key in r, false, key);
 	});
 
 	it("reads isFavorite and isPR alone, and a yard pool", () => {
-		const r = rowOf({ ...dubaiRun, isFavorite: true, isPR: true, unitOfPoolLength: { unitId: 2, unitKey: "yard", factor: 91.44 } })!;
+		const r = rowOf({ ...morningRun, isFavorite: true, isPR: true, unitOfPoolLength: { unitId: 2, unitKey: "yard", factor: 91.44 } })!;
 		assert.deepEqual([r.favorite, r.pr, r.pool], [true, true, "yd"]);
 	});
 
@@ -205,13 +205,13 @@ describe("year files", () => {
 	});
 
 	it("writes one row per line in a fixed order, and reads it back", () => {
-		const rows = [row(1, Date.UTC(2026, 8, 1)), rowOf(dubaiRun)!];
+		const rows = [row(1, Date.UTC(2026, 8, 1)), rowOf(morningRun)!];
 		const text = serializeYear("2026", rows);
 		assert.equal(text.split("\n")[0], "{");
-		assert.match(text, /^\t\t\{"id":20460000001,"name":"Dubai Running","type":"running",/m);
+		assert.match(text, /^\t\t\{"id":20460000001,"name":"Morning Run","type":"running",/m);
 		// Newest first.
 		assert.ok(text.indexOf("20460000001") < text.indexOf('"id":1,'));
-		assert.deepEqual(parseYear(text), [rowOf(dubaiRun), rows[0]]);
+		assert.deepEqual(parseYear(text), [rowOf(morningRun), rows[0]]);
 		assert.equal(serializeYear("2026", parseYear(text)), text);
 	});
 

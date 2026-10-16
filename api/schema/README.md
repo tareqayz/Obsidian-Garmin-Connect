@@ -31,9 +31,13 @@ account had a quiet day".
 - `optional` marks a field that was absent from at least one object that had
   siblings — so its absence is never reported as a removal.
 - `items` is every array element merged into one shape.
+- `<id>` and `<date>` stand for keys that are values: a map keyed by device id
+  (`latestTrainingStatusData`) or by day (`groupMap`) is recorded as one field,
+  every entry merged into it like array items.
 
-No response *values* are stored, only field names and types. These files are
-safe to read in a pull request and safe to paste into an issue.
+No response *values* are stored, only field names and types — not even the ids
+and dates Garmin uses as keys. These files are safe to read in a pull request
+and safe to paste into an issue.
 
 The shape language and the diff live in `scripts/api/schema.ts`, with tests in
 `tests/api-schema.test.ts`.

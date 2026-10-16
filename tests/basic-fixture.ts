@@ -2,7 +2,7 @@ import { buildActivityDetail, type ActivityDetail } from "../src/sync/activity-d
 
 /*
  * Garmin's Stair Stepper, the basic page's model (ref/activity-details/basic:
- * activity 24150511862), transcribed from its api-samples with a made-up id
+ * activity 90000000007), transcribed from its api-samples with a made-up id
  * and six of its 761 samples: the first two, the least heart rate (83 bpm at
  * 0:10), the most (162 at 21:53), one between and the last, on its 34:52
  * timer.

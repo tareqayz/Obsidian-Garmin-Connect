@@ -50,7 +50,7 @@ import { HEART_RATE_FIT } from "./basic";
 
 /**
  * The two swims' pages (ref/activity-details/pool-swim and open-water-swim:
- * activities 24362982767 and 20780627494, shots 1149–1162 and 1170–1181),
+ * activities 90000000021 and 90000000002, shots 1149–1162 and 1170–1181),
  * the run's five tabs with a swimmer's sections.
  *
  * - A pool swim has no map. Its laps are an "Int" table with every rest a

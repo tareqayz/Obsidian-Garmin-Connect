@@ -31,7 +31,7 @@ import { duration } from "./series";
 
 /**
  * A ride's Charts tab as data (ref/activity-details/road-cycling/README.md,
- * "Charts" and "Profile table"; activity 24706138262): its twenty cards in
+ * "Charts" and "Profile table"; activity 90000000033): its twenty cards in
  * the phone's order, the charts of samples the run doesn't have (Speed, bike
  * Cadence, L/R Balance, the power phases, the platform centre offsets,
  * Position), its pickers, its seven power zones, and its own cards: Position,
