@@ -214,7 +214,7 @@ recent days an older build saved without their full timelines.
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Sync speed | `syncSpeed` | `normal` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
+| Sync speed | `syncSpeed` | `gentle` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
 | Stop after empty days | `stopAfterEmptyDays` | `45` | **Sync a date range…** gives up after this many days in a row with nothing in them. `0` walks the whole range. Slider 0–120. The history download does without it: the scan found where your history starts. |
 | Save every diagnostics run to the vault | `autoSaveLog` | on | Writes each **Run diagnostics** log to a note. |
 | Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. |
@@ -223,15 +223,18 @@ The slider stops at 120. A value typed into `data.json` by hand may go up to
 365; anything beyond that is clamped on load.
 
 **Sync speed** paces every request to Garmin — syncs, the history download and
-pages loading on view — and sets how many days a sync fetches at once. Normal
-is about 20 requests a second, three days at a time, and syncs 30 days in about
-17 s; Fast about 32 and five days, 12 s; Gentle 8 and one day, 43 s. Garmin was
-measured allowing at least 47 a second; see
-[Request pace](garmin-api.md#request-pace). The history download also stays
-under an hourly budget: 5,000 requests at Gentle, 10,000 at Normal, 15,000 at
-Fast. If Garmin does answer 429, the sync pauses for as long as it asks,
-carries on at half the pace, and says so in its notice. **Gentle** is the first
-thing to try if long date ranges or the download still hit 429s. It replaced
+pages loading on view — and sets how many days a sync fetches at once. Gentle,
+the default, is about 8 requests a second, one day at a time, and syncs 30 days
+in about 43 s; Normal about 20 and three days, 17 s; Fast about 32 and five
+days, 12 s. Garmin was measured allowing at least 47 a second once, on one
+account; see [Request pace](garmin-api.md#request-pace). Every install looks
+alike to Garmin, which is why the default stays far below that.
+
+The history download also stays under an hourly budget on each device, counting
+every request this device made in the hour, manual syncs and retries included:
+2,500 at Gentle, 5,000 at Normal, 8,000 at Fast. The budget is kept across
+restarts. If Garmin does answer 429, the sync pauses for as long as it asks,
+carries on at half the pace, and says so in its notice. It replaced
 `pauseBetweenDays`: a saved pause of 0 reads as Fast, 1000 ms or more as
 Gentle, anything else as Normal.
 

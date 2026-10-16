@@ -45,7 +45,8 @@ groups you turn on:
 - **Once, for the history you choose in the setup:** about 150 a year of
   history for Charts & trends, 15 a day for Day details and 8 to 11 an activity
   for Activity details. It downloads in the background, paced by the **Sync
-  speed** setting and kept under an hourly budget: 10,000 requests at Normal.
+  speed** setting (Gentle unless you change it) and kept under an hourly
+  budget on each device, manual syncs included: 2,500 requests at Gentle.
 
 The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
 

@@ -63,9 +63,11 @@ Day details and Activity details, newest first. Nothing fetches your history unl
 you agreed to it, in the setup or in the update dialog below.
 
 - A sync, or a page loading what it needs, always goes first.
-- It stays under an hourly request budget: 5,000 at Gentle **Sync speed**,
-  10,000 at Normal, 15,000 at Fast.
-- A 429 pauses it for five minutes, doubling each time up to an hour. A session
+- It stays under an hourly request budget on each device, counting manual syncs
+  too: 2,500 at Gentle **Sync speed** (the default), 5,000 at Normal, 8,000 at
+  Fast.
+- A 429 pauses it for five minutes, doubling each time up to an hour; Garmin's
+  bot check refusing the device, half an hour, doubling up to twelve. A session
   that ended pauses it until you sign in again.
 - It carries on after a restart, from what the files say is still missing. On a
   phone it stops while Obsidian is in the background.
@@ -523,6 +525,8 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | **Set up Garmin Connect…** | Opens the setup: sign in, scan your account, choose what to keep |
 | **Sign in to Garmin Connect** | Signs in, asking for an MFA code if Garmin wants one |
+| **Stop syncing** | Stops the sync or history walk you started, after the day it is on, keeping what came in |
+| **Pause the history download** / **Resume the history download** | What the pill and Settings → Data do |
 | **Run diagnostics** | Four checks of sign-in and connectivity — see [Troubleshooting](troubleshooting.md#diagnostics) |
 
 ## How syncing behaves
@@ -531,9 +535,11 @@ All are in the command palette under **Garmin Connect:**.
   touched, which matters with Obsidian Sync.
 - **It syncs more than one day on purpose.** Garmin keeps revising a day after
   it ends; sleep is finalised late.
-- **It backs off rather than digging in.** A 429 or a dead session abandons the
-  whole run. One endpoint failing for one day is just a warning, and the rest of
-  that day still gets written.
+- **It backs off rather than digging in.** A 429, Garmin's bot check refusing
+  the device, or a dead session abandons the whole run. One endpoint failing for
+  one day is just a warning, and the rest of that day still gets written. A
+  request that goes unanswered for a minute counts as failed, so one stalled
+  connection can't hold the sync forever.
 - **It stops at the end of your history.** After 45 consecutive empty days
   (**Settings → Advanced → Stop after empty days**; 0 disables) **Sync a date
   range…** gives up and says so. The history download needs no such guard: the

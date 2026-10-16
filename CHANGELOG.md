@@ -163,6 +163,14 @@ GitHub release takes its notes from the matching section here — see
   down, a proxy's error page, a bot check — signed you out on every device that
   shared the session. Only Garmin saying the token is spent ends a session
   now; anything else keeps it, stops the sync, and the next one tries again.
+- **Gentler on Garmin by default.** A new install syncs at Gentle (about 8
+  requests a second), and the history download keeps to 2,500 requests an hour
+  at Gentle, 5,000 at Normal, 8,000 at Fast, down from 5,000–15,000. The hour
+  counts everything the device asked, manual syncs and retries included, and is
+  kept across restarts. Every install looks alike to Garmin, so the margin is
+  wide. A date range bigger than an hour's budget suggests the history download.
+- **Stop syncing**, **Pause the history download** and **Resume the history
+  download** commands.
 - **Run details is now Activity details**, for every sport, in the setup and
   Settings → Data. A Run details range chosen before keeps downloading runs
   without asking; the other sports, and the runs saved before, are offered once
@@ -227,6 +235,23 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- Garmin's bot check refusing the device (an HTML 403) didn't stop anything:
+  the history download carried on into it, chunk after chunk, at every launch.
+  A refusal now stops the sync and pauses the download half an hour, doubling
+  up to twelve.
+- A JSON 403 from one endpoint, or a day's summary marked privacy-protected,
+  read as a dead session: the sync stopped and the download waited for a
+  sign-in that changed nothing, on every device. Now that endpoint fails for
+  that day with a warning.
+- One payload in a shape the mappers didn't expect aborted the whole sync, and
+  wedged the history download, which retried the same piece every ten minutes
+  forever. That day now fails alone; a download piece that fails three times
+  running is left for the next session, with a notice.
+- A request that never answered held the sync's lock until Obsidian restarted
+  ("A Garmin sync is already running"). Requests now give up after a minute.
+- The history download booked today as fetched, so Home kept the morning's
+  numbers until you synced by hand. Today is never booked as whole; a later
+  session fetches it again.
 - A data file that couldn't be read — cut short by a crash, half-downloaded by
   a sync service, or full of git conflict markers — read as empty, and the
   next sync wrote over it with only the days it had fetched. Years of history

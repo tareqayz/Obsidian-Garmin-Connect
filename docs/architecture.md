@@ -886,9 +886,15 @@ then a backfill unit.
   wait and look again in five. Otherwise this device writes its own: an id kept
   in the vault's local storage, a label ("Mac", "iPhone") and a heartbeat it
   renews at the start of a unit, at most once a minute.
-- `RequestBudget` keeps the last hour's requests under `HOURLY_BUDGET`: 5,000,
-  10,000 or 15,000 by speed, well under the pace measured clean (8,800 requests
-  in half an hour; see [Request pace](garmin-api.md#request-pace)).
+- `RequestBudget` keeps the last hour's requests under `HOURLY_BUDGET`: 2,500,
+  5,000 or 8,000 by speed, far under the pace measured clean (8,800 requests
+  in half an hour; see [Request pace](garmin-api.md#request-pace)). It counts
+  every attempt the client recorded while the runner was held — syncs, units,
+  page loads, retries — and keeps its hour in local storage, so a restart
+  doesn't hand it a fresh one.
+- A unit that fails three times in a row for a reason the client doesn't know
+  is skipped for the session, with a notice, rather than retried every ten
+  minutes forever.
 
 Days and runs that failed, and walks whose request failed, are left for the
 next session. The backfill starts 8 s after the layout is ready, after every
@@ -937,11 +943,15 @@ Garmin's edge can refuse a request outright, and burying that under a generic
 | `GarminMfaCancelledError` | The person closed the code prompt | Sign-in only |
 
 The rule: a failure that would repeat identically on every later request
-abandons the whole range. A single endpoint failing for a single day is a
-warning, and the rest of that day still gets written.
+abandons the whole range — a 429, the edge's 403, a dead session, a refresh
+Garmin couldn't do, files a newer build wrote. A single endpoint failing for a
+single day is a warning, and the rest of that day still gets written. A day
+whose answers the mappers can't read fails alone and stays unfetched.
 
-**403 is triaged.** A JSON 403 is the API declining; a non-JSON 403 is the edge
-declining. Different problems, different errors.
+**403 is triaged.** A JSON 403 is the API declining that endpoint
+(`GarminApiError`, a warning); a non-JSON 403 is the edge declining the client
+(`GarminBlockedError`, which stops the run and pauses the history download half
+an hour, doubling up to twelve). Different problems, different errors.
 
 ## What the client does for you
 

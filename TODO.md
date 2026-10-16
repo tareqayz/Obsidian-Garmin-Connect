@@ -489,7 +489,11 @@ open:
     and make the rest fatal.
 - Check behaviour under sync load: hours of `connectapi` calls, now that the
   history download can fetch years of Day details under its hourly budget
-  (5,000 to 15,000 requests by sync speed).
+  (2,500 to 8,000 requests by sync speed; Gentle is the default).
+- **A scale or a second Garmin device moves the recent sync's mark.** The mark
+  is the last-used device's upload, so a watch that uploads days late after the
+  scale synced leaves those days to **Sync a date range…**. Fixing it needs
+  each device's last upload; find an endpoint that lists them.
 
 ## Platform and release
 

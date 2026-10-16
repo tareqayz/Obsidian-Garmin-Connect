@@ -150,8 +150,8 @@ failures**.
 - All Garmin traffic is HTTPS.
 - The display name is URL-encoded before being interpolated into request paths,
   so a hostile or corrupted profile response cannot inject path segments.
-- A `privacyProtected` daily summary is treated as an authorisation failure
-  rather than silently mapped as empty data.
+- A `privacyProtected` daily summary fails that day with a warning rather than
+  being silently mapped as empty data.
 - The plugin loads no external scripts. Charts are hand-drawn SVG precisely
   because an Obsidian plugin cannot and should not pull in a CDN. The activity
   maps' Leaflet is bundled, not fetched.

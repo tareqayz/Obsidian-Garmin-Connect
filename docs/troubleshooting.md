@@ -102,15 +102,18 @@ Wait 15–30 minutes. Then:
   share one daily summary request, so switching off some of the five saves
   nothing.
 - **Mind the history download.** What you chose in the setup downloads in the
-  background, under an hourly budget (5,000 to 15,000 requests by sync speed).
+  background, under an hourly budget (2,500 to 8,000 requests by sync speed).
   A 429 pauses it for five minutes, doubling up to an hour, and it carries on
   by itself with what it already fetched kept. See
   [The history download is paused](#the-history-download-is-paused).
 - **Nothing recent was lost.** The sync runs **newest day first**, so a run cut
   short by a rate limit already covered the days you care about most.
 
-A 429 or a dead session abandons the whole sync immediately, because every later
-request would fail the same way.
+A 429, Garmin's bot check refusing the client, or a dead session abandons the
+whole sync immediately, because every later request would fail the same way.
+**Stop syncing** stops one you started after the day it is on, keeping what came
+in; **Pause the history download** and **Resume the history download** do the
+same for the download.
 
 ## The history download is paused
 
@@ -121,7 +124,9 @@ computer in the status bar. What it says, and what to do:
 | --- | --- | --- |
 | Sign in to keep downloading | The Garmin session ended | Sign in, from the pill, **Settings → Data** or **Sign in to Garmin Connect**. It carries on by itself |
 | Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin |
-| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed and it tries again in ten minutes | Nothing |
+| Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device (an HTML 403) | Nothing. It waits half an hour, doubling up to twelve, because asking again soon keeps a block in place. Run diagnostics if it keeps happening |
+| Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device |
+| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed and it tries again in ten minutes. A piece that fails three times is left for the next session | Nothing |
 | Download paused | You paused it, on this device or another sharing the vault | **Resume** |
 | Downloading history on iPhone | Another device with this vault is downloading | Nothing. If that device stops, this one takes over once it has been quiet for ten minutes |
 
