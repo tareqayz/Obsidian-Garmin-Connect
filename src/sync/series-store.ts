@@ -723,10 +723,20 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				await this.forgetAfterAside(path);
 				return "written";
 			}
-			const was = versionOf(held);
 			const next = versionOf(body);
-			if (was !== undefined && next !== undefined && was > next) throw new NewerDataError(path);
-			await this.app.vault.process(existing, () => body);
+			const newer = (text: string) => {
+				const was = versionOf(text);
+				return was !== undefined && next !== undefined && was > next;
+			};
+			if (newer(held)) throw new NewerDataError(path);
+			await this.app.vault.process(existing, (now) => {
+				// What the write sees gets the same tests, should the file have changed since the read.
+				if (now !== held) {
+					if (newer(now)) throw new NewerDataError(path);
+					if (!isReadable(now)) throw new Error(`${path} changed while it was being written; the next sync tries again`);
+				}
+				return body;
+			});
 			return "written";
 		}
 		const dir = path.slice(0, path.lastIndexOf("/"));
@@ -774,11 +784,20 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		await this.put(this.dayCoveragePath, serializeDayCoverage({ spans: dropDays(held.spans, drop) }));
 	}
 
-	/** Whether this store set aside one of `folder`'s year files, and with it the rows it held. */
+	/**
+	 * Whether this store set aside one of `folder`'s year files since the last
+	 * ask, and with it the rows it held. Asked once per merge: a walk's later
+	 * segments, on the same store, mustn't reset the span again.
+	 */
 	private lostYears(folder: string): boolean {
 		const prefix = `${this.join(folder)}/`;
-		for (const path of this.aside) if (path.startsWith(prefix) && isYearFile(path.slice(prefix.length))) return true;
-		return false;
+		let lost = false;
+		for (const path of [...this.aside]) {
+			if (!path.startsWith(prefix) || !isYearFile(path.slice(prefix.length))) continue;
+			this.aside.delete(path);
+			lost = true;
+		}
+		return lost;
 	}
 
 	/** Notes a conflict copy beside the sync's files for the session; the first one found says so (see `seenConflictCopies`). */

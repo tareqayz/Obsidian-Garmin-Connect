@@ -125,9 +125,7 @@
 					.addOption("garmin.cn", "garmin.cn")
 					.setValue(s.domain)
 					.onChange(async (v) => {
-						s.domain = v as GarminDomain;
-						save();
-						await plugin.rebuildClient();
+						await plugin.setDomain(v as GarminDomain);
 						signedIn = plugin.garmin.session !== null;
 					}),
 			)}

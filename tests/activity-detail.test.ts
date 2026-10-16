@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { GarminApi } from "../src/garmin/endpoints";
-import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
+import { GarminApiError, GarminBlockedError, GarminRateLimitError } from "../src/garmin/errors";
+import { NewerDataError } from "../src/sync/file-health";
 import {
 	ACTIVITY_BLOCKS,
 	ACTIVITY_DETAIL_VERSION,
@@ -444,6 +445,25 @@ describe("loadActivity", () => {
 		assert.equal(load.reason, undefined);
 		assert.equal(load.detail?.version, ACTIVITY_DETAIL_VERSION);
 		assert.equal(parseActivityDetail(store.files.get(ID)!)?.version, ACTIVITY_DETAIL_VERSION);
+	});
+
+	it("stops at Garmin's edge refusing the client, as at a 429: no more blocks asked", async () => {
+		const blocked = fakeApi({ samples: new GarminBlockedError("Garmin's edge refused the request", 403) });
+		const load = await loadActivity(blocked.api, new MemoryStore(), ID, SIGNED_IN);
+		assert.ok(load.fatal instanceof GarminBlockedError);
+		assert.ok(!blocked.calls.includes("device") && !blocked.calls.includes("weight"));
+	});
+
+	it("stops when a newer build wrote the activity's file, rather than fetch it again at every plan", async () => {
+		class NewerStore extends MemoryStore {
+			override async writeActivityDetail(): Promise<"written" | "unchanged"> {
+				throw new NewerDataError("Garmin/data/activity-details/1.json");
+			}
+		}
+		const { api } = fakeApi({ summary: POWERED });
+		const load = await loadActivity(api, new NewerStore(), ID, SIGNED_IN);
+		assert.ok(load.fatal instanceof NewerDataError);
+		assert.equal(load.reason, "failed");
 	});
 
 	it("asks nothing after a 429, and nothing for the device without a firmware id", async () => {

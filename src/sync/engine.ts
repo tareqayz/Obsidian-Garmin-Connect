@@ -24,8 +24,9 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
+import { GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
+import { isFatal } from "./fatal";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
@@ -619,8 +620,9 @@ export async function syncRange(
 		let fresh: Record<string, unknown>;
 		try {
 			if (stats && fetched.summaryFetched) {
-				stats.dates.add(date);
+				// The row first: a date asked about with no row deletes what the index held for it.
 				const row = rowFromSummary(date, fetched.data.summary);
+				stats.dates.add(date);
 				if (row) stats.rows.push(row);
 			}
 			if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
@@ -662,6 +664,12 @@ export async function syncRange(
 			try {
 				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
 			} catch (err) {
+				// A newer build's file: stop, as for a 429, rather than fail it day after day.
+				if (err instanceof NewerDataError) {
+					if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
+					for (const run of runs) await feed(run, false);
+					return stop(report, err, log);
+				}
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
 			}
@@ -1632,20 +1640,6 @@ export async function fetchAllActivities(
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/**
- * Errors that make every remaining request pointless: a 429, Garmin's edge
- * refusing the client (asking on keeps a block in place), a dead session, a
- * session Garmin couldn't refresh just now, or files a newer build wrote.
- */
-function isFatal(err: unknown): boolean {
-	return (
-		err instanceof GarminRateLimitError ||
-		err instanceof GarminBlockedError ||
-		err instanceof GarminAuthError ||
-		err instanceof GarminRefreshError ||
-		err instanceof NewerDataError
-	);
-}
 
 function message(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);

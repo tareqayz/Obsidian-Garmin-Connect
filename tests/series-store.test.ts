@@ -104,6 +104,17 @@ describe("VaultSeriesStore: a chart index year that can't be read", () => {
 		assert.deepEqual(meta, { version: 1, complete: false });
 	});
 
+	it("resets the span once: a walk's later segments, on the same store, extend it again", async () => {
+		const { vault, store } = setup();
+		await store.mergeDailyStats({ rows: [{ date: "2025-06-01", steps: 5000 }], dates: ["2025-06-01"] }, { covered: { from: "2025-06-01", to: "2025-06-01" } });
+		vault.seed(`${DATA}/daily-stats/2025.json`, "{ cut short");
+		await store.mergeDailyStats({ rows: [{ date: "2026-10-16", steps: 8000 }], dates: ["2026-10-16"] }, { covered: { from: "2026-10-16", to: "2026-10-16" } });
+		assert.deepEqual(parseDailyMeta(vault.text(`${DATA}/daily-stats/index.json`)!), { version: 1, complete: false });
+		// The next segment, same store: its span stands.
+		await store.mergeDailyStats({ rows: [{ date: "2026-10-15", steps: 7000 }], dates: ["2026-10-15"] }, { covered: { from: "2026-10-15", to: "2026-10-15" } });
+		assert.deepEqual(parseDailyMeta(vault.text(`${DATA}/daily-stats/index.json`)!), { version: 1, complete: false, from: "2026-10-15", to: "2026-10-15" });
+	});
+
 	it("does the same for the activity index: the whole list is fetched again", async () => {
 		const { vault, store } = setup();
 		await store.mergeActivities([activity(1, "2026-10-01"), activity(2, "2025-03-01")], { complete: true, total: 2 });

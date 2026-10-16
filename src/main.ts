@@ -8,7 +8,7 @@ import { healthStatRoute, performanceStatRoute, sleepRoute, statsRoute } from ".
 import { commandTitle } from "./dashboard/stat-registry";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GarminApi, toIsoDate } from "./garmin/endpoints";
-import { SecretTokenStore, SESSION_SECRET } from "./garmin/secret-token-store";
+import { HAD_SESSION_KEY, SecretTokenStore, SESSION_SECRET } from "./garmin/secret-token-store";
 import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
@@ -50,6 +50,7 @@ function forgetThisDevice(app: App): void {
 	app.saveLocalStorage(DEVICE_KEY, null);
 	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
 	app.saveLocalStorage(BUDGET_KEY, null);
+	app.saveLocalStorage(HAD_SESSION_KEY, null);
 	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
@@ -521,9 +522,13 @@ export default class GarminPlugin extends Plugin {
 		}
 	}
 
-	/** A new region: every host changes, so the client is built again. */
+	/**
+	 * A new region: every host changes, so the client is built again, signed out
+	 * — a session belongs to the region that issued it.
+	 */
 	async setDomain(domain: GarminDomain): Promise<void> {
 		if (this.data.settings.domain === domain) return;
+		if (this.garmin.isAuthenticated) await this.garmin.logout();
 		this.data.settings.domain = domain;
 		await this.data.saveSettings();
 		await this.rebuildClient();

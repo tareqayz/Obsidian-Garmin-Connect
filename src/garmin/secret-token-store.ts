@@ -4,6 +4,9 @@ import type { PersistedAuth, TokenStore } from "./tokens";
 /** The SecretStorage id the Garmin session is kept under (Settings → Keychain). */
 export const SESSION_SECRET = "garmin-connect-session";
 
+/** Set in this device's local storage once a session was saved here: signed out since, not never signed in. */
+export const HAD_SESSION_KEY = "garmin-connect-had-session";
+
 /**
  * The Garmin session in Obsidian's SecretStorage instead of `data.json`.
  *
@@ -35,6 +38,12 @@ export class SecretTokenStore implements TokenStore {
 		const raw = JSON.stringify({ refreshToken: auth.refreshToken, diClientId: auth.diClientId, savedAt: auth.savedAt });
 		if (this.secrets) this.secrets.setSecret(SESSION_SECRET, raw);
 		else this.memory = raw;
+		this.app.saveLocalStorage?.(HAD_SESSION_KEY, "1");
+	}
+
+	/** Whether this device has held a session before: one that ended here, rather than a device that only reads. */
+	get hadSessionHere(): boolean {
+		return this.app.loadLocalStorage?.(HAD_SESSION_KEY) === "1";
 	}
 
 	/** SecretStorage has no delete: an empty secret reads as no session. */

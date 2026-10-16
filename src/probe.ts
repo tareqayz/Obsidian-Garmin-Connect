@@ -313,6 +313,8 @@ export async function runPersistenceProbe(
 
 		log.step("Step E — authenticated calls after the refresh");
 		const profile = await api.socialProfile();
+		log.hide(profile.displayName, "[display name]");
+		log.hide(profile.fullName, "[full name]");
 		log.ok(`socialProfile → displayName ${profile.displayName ? "present" : "absent"}`);
 
 		const today = toIsoDate();
@@ -407,6 +409,8 @@ export async function runFitnessProbe(
 
 	try {
 		log.step(`Fitness endpoints — ${from} → ${to}`);
+		log.hide(api.profile?.displayName, "[display name]");
+		log.hide(api.name, "[full name]");
 
 		const maxMetrics = await inspect(log, "maxMetrics", () => api.maxMetrics(from, to));
 		const races = await inspect(log, "racePredictions", () => api.racePredictions(from, to));

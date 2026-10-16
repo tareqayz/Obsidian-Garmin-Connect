@@ -1,7 +1,7 @@
 import { Notice, type App } from "obsidian";
 import type { GarminApi } from "../garmin/endpoints";
 import { toIsoDate } from "../garmin/endpoints";
-import { GarminAuthError, GarminBlockedError, GarminRateLimitError } from "../garmin/errors";
+import { GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
 import type { Log } from "../log";
 import type { DayIndexDef, IndexHistoryProgress } from "./day-index";
 import { DAY_INDEXES, dayIndex } from "./day-indexes";
@@ -167,6 +167,8 @@ export class SyncRunner {
 	private rateLimits = 0;
 	/** Refusals from Garmin's edge in a row, for their growing pause. */
 	private blocks = 0;
+	/** Token refreshes Garmin couldn't do in a row, for their growing pause. */
+	private refreshFailures = 0;
 	/** Units in a row that failed for some other reason: the third skips that unit for the session. */
 	private unitFailures = 0;
 	/** Set by Stop syncing: the sync or history walk in progress stops after the day or window it is on. */
@@ -1025,6 +1027,11 @@ export class SyncRunner {
 				} catch (err) {
 					day?.resolve({ series: null, missing: [...day.keys], reason: "failed", error: explain(err) });
 					activity?.resolve({ detail: null, reason: "failed", error: explain(err) });
+					// A download unit that threw anyway: wait, rather than ask for the next one at once.
+					if (!day && !activity) {
+						this.backfillPending = false;
+						this.backfillLater(10 * 60_000);
+					}
 				} finally {
 					release();
 				}
@@ -1090,6 +1097,8 @@ export class SyncRunner {
 		const state = await store.readBackfill();
 		if (state.paused) await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
 		this.rateLimits = 0;
+		this.blocks = 0;
+		this.refreshFailures = 0;
 		this.clearBackfillTimer();
 		this.kickBackfill();
 	}
@@ -1170,6 +1179,25 @@ export class SyncRunner {
 	 * backfill.json first: a pause, or another device's fresh lease, stops it.
 	 */
 	private async backfillUnit(): Promise<void> {
+		try {
+			await this.backfillStep();
+		} catch (err) {
+			// Reading the state, planning or writing the lease failed — outside any
+			// unit. Wait, rather than let the drain ask again at once, forever.
+			this.backfillPending = false;
+			const task = this.backfillState?.task ?? "days";
+			if (err instanceof NewerDataError) {
+				new Notice(`Garmin: ${err.message}`, 15000);
+				this.setBackfill({ status: "paused", reason: "update", task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+				return;
+			}
+			const until = new Date(Date.now() + 10 * 60_000).toISOString();
+			this.backfillLater(10 * 60_000);
+			this.setBackfill({ status: "paused", reason: "error", until, task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+		}
+	}
+
+	private async backfillStep(): Promise<void> {
 		const settings = this.settings();
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		const now = Date.now();
@@ -1251,6 +1279,16 @@ export class SyncRunner {
 			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
 			return;
 		}
+		if (fatal instanceof GarminRefreshError) {
+			// This device's session, not the account's: wait here, longer each time,
+			// and leave backfill.json alone so another device can carry on.
+			this.refreshFailures += 1;
+			const wait = rateLimitWait(this.refreshFailures);
+			const until = new Date(Date.now() + wait).toISOString();
+			this.backfillLater(wait);
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			return;
+		}
 		if (fatal instanceof NewerDataError) {
 			// Another device runs a newer build. Its files stay as they are, and the
 			// pause stays on this device: backfill.json would stop that one too.
@@ -1263,8 +1301,9 @@ export class SyncRunner {
 			// The same unit failed three times running for no reason the client
 			// knows: leave it for the next session rather than wedge the download.
 			this.unitFailures = 0;
+			const skipped = unitName(task, chunkDays(settings.groups, settings.syncSpeed));
 			this.skipUnit(task);
-			new Notice(`Garmin: the history download skipped ${unitName(task)} for now, after it failed ${MAX_UNIT_FAILURES} times: ${explain(fatal)}`, 15000);
+			new Notice(`Garmin: the history download skipped ${skipped} for now, after it failed ${MAX_UNIT_FAILURES} times: ${explain(fatal)}`, 15000);
 			this.backfillLater(1_000);
 			return;
 		}
@@ -1278,6 +1317,7 @@ export class SyncRunner {
 		}
 		this.rateLimits = 0;
 		this.blocks = 0;
+		this.refreshFailures = 0;
 		this.unitFailures = 0;
 		const left = this.backfillTasks;
 		const next = left[0];
@@ -1312,8 +1352,9 @@ export class SyncRunner {
 			if (!task.ids.length) tasks.shift();
 		} else if (task.kind === "walk") {
 			this.backfillSkip.walks.add(task.store);
-			tasks.splice(tasks.indexOf(task), 1);
-		} else tasks.shift();
+			const at = tasks.indexOf(task);
+			if (at >= 0) tasks.splice(at, 1);
+		} else if (tasks[0] === task) tasks.shift();
 	}
 
 	/** Requests a unit of `task` is about to spend, for the budget. */
@@ -1447,6 +1488,7 @@ export class SyncRunner {
 	/** Called on sign-out, so a second account does not inherit the first's units. */
 	reset(): void {
 		this.unitFailures = 0;
+		this.refreshFailures = 0;
 		this.unitsCache = null;
 		this.backfillTasks = null;
 		this.backfillPending = false;
@@ -1652,6 +1694,12 @@ async function syncDays(days: DayBuffer, run: () => Promise<SyncReport>): Promis
 			report.failed += 1;
 		}
 		report.warnings.push(`day files failed: ${error}`);
+		// A newer build's file: the sync's own stop, as a 429 is, so the history
+		// download pauses for an update rather than fetching those days again.
+		if (err instanceof NewerDataError) {
+			report.fatal = err;
+			report.stoppedEarly = err.message;
+		}
 	}
 	return report;
 }
@@ -1666,9 +1714,12 @@ function dailyStatsSink(store: VaultSeriesStore): DailyStatsSink {
 /** Times in a row a download unit may fail before it is left for the next session. */
 const MAX_UNIT_FAILURES = 3;
 
-/** What a download unit fetches, for a notice. */
-function unitName(task: Task): string {
-	if (task.kind === "days") return `the days up to ${task.to}`;
+/** What a download unit fetches, for a notice: `chunk` is the days a unit of days takes. */
+function unitName(task: Task, chunk: number): string {
+	if (task.kind === "days") {
+		const unit = nextChunk(task, chunk);
+		return unit.from === unit.to ? unit.from : `${unit.from} to ${unit.to}`;
+	}
 	if (task.kind === "details") return `activity ${task.ids[0] ?? ""}`.trim();
 	if (task.kind === "walk") return `the ${task.store.replace(/^index:/, "")} history`;
 	return "the activity list";

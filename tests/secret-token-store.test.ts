@@ -33,6 +33,19 @@ describe("SecretTokenStore", () => {
 		assert.equal(await store.load(), null);
 	});
 
+	it("remembers that this device held a session, so a session that ends here asks for a sign-in", async () => {
+		const local = new Map<string, unknown>();
+		const app = Object.assign(appWith(new Map()), {
+			loadLocalStorage: (key: string) => local.get(key) ?? null,
+			saveLocalStorage: (key: string, value: unknown) => void local.set(key, value),
+		});
+		const store = new SecretTokenStore(app);
+		assert.equal(store.hadSessionHere, false);
+		await store.save(AUTH);
+		await store.clear();
+		assert.equal(store.hadSessionHere, true);
+	});
+
 	it("holds the session in memory where Obsidian has no keychain", async () => {
 		const store = new SecretTokenStore(appWith(null));
 		await store.save(AUTH);

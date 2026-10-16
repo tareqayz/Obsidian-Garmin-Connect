@@ -53,6 +53,16 @@
 
 	let ready = $derived(email.trim().length > 0 && password.length > 0);
 
+	/** Signing in waits for the switch: the client is rebuilt for the new region. */
+	async function switchRegion() {
+		busy = true;
+		try {
+			await onDomainChange?.(domain);
+		} finally {
+			busy = false;
+		}
+	}
+
 	function requestMfaCode(next: MfaChallenge): Promise<string | null> {
 		challenge = next;
 		code = "";
@@ -160,7 +170,7 @@
 	{#if onDomainChange}
 		<div class="field">
 			<label for="gc-region">Region</label>
-			<select id="gc-region" class="dropdown" bind:value={domain} disabled={busy} onchange={() => void onDomainChange?.(domain)}>
+			<select id="gc-region" class="dropdown" bind:value={domain} disabled={busy} onchange={switchRegion}>
 				<option value="garmin.com">garmin.com — everywhere but mainland China</option>
 				<option value="garmin.cn">garmin.cn — mainland China</option>
 			</select>

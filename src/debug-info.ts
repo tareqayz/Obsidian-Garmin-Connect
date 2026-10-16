@@ -116,7 +116,8 @@ export async function copyDebugInfo(plugin: GarminPlugin, opts: { error?: unknow
 		const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 		const path = normalizePath(`${folder}/garmin-debug-${stamp}.md`);
 		if (folder && !plugin.app.vault.getFolderByPath(folder)) await plugin.app.vault.createFolder(folder);
-		await plugin.app.vault.create(path, ["```", text, "```", ""].join("\n"));
+		const fence = "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+		await plugin.app.vault.create(path, [fence, text, fence, ""].join("\n"));
 		return `No clipboard here: the debug info is in ${path}.`;
 	}
 }

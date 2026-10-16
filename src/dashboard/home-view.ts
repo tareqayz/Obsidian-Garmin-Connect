@@ -272,7 +272,9 @@ export class GarminHomeView extends ItemView {
 		if (!this.plugin.data.settings.setup) return "finish";
 		const store = this.store();
 		if (!this.plugin.garmin.isAuthenticated) {
-			if (!store.hasData()) return "signed-out";
+			// A session that ended here asks for a sign-in; a device that never had
+			// one reads what another syncs, and may put the card away.
+			if (!store.hasData() || this.plugin.tokens.hadSessionHere) return "signed-out";
 			return this.plugin.signInCardHidden ? null : "this-device";
 		}
 		if (!store.hasData()) {
