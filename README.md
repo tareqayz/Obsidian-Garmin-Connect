@@ -15,6 +15,15 @@ the vault and draws it as the phone app does:
 
 It runs on **desktop and mobile**.
 
+<p align="center">
+  <img src="docs/images/home-desktop.png" alt="Home in a wide pane: Sleep Score, Body Battery, the week's activities and At a Glance" width="800">
+</p>
+<p align="center">
+  <img src="docs/images/sleep-phone.png" alt="Sleep on a phone" width="240">
+  <img src="docs/images/body-battery-phone.png" alt="Body Battery on a phone" width="240">
+  <img src="docs/images/pool-swim-phone.png" alt="A pool swim's page on a phone" width="240">
+</p>
+
 Everything stays in your vault as ordinary JSON files in one data folder
 (`Garmin/data` by default). The sync writes no notes, so your own notes are
 never touched. How much room it takes depends on how much history you keep:
