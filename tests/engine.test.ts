@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../src/garmin/errors";
+import { GarminApiError, GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../src/garmin/errors";
 import {
 	RANGE_CHUNK_DAYS,
 	chunkRange,
@@ -386,6 +386,51 @@ describe("syncRange", () => {
 
 		const report = await syncRange(source, target, options());
 		assert.match(report.stoppedEarly!, /token rejected/);
+	});
+
+	it("abandons the range when Garmin's edge refuses the client: asking on keeps a block in place", async () => {
+		const source = new FakeSource();
+		source.failWith.dailySummary = new GarminBlockedError("Garmin's edge refused the request", 403);
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+
+		const report = await syncRange(source, target, options());
+		assert.match(report.stoppedEarly!, /edge refused/);
+		assert.ok(report.fatal instanceof GarminBlockedError);
+		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 1);
+	});
+
+	it("abandons the range when Garmin can't refresh the session just now", async () => {
+		const source = new FakeSource();
+		source.failWith.dailySummary = new GarminRefreshError("Garmin couldn't refresh the session (HTTP 502)", 502);
+		const report = await syncRange(source, new FakeTarget(new Set(["2026-09-12", "2026-09-11"])), options());
+		assert.ok(report.fatal instanceof GarminRefreshError);
+	});
+
+	it("fails a day whose answer can't be read, and goes on to the next", async () => {
+		const source = new FakeSource();
+		const original = source.dailySummary.bind(source);
+		source.dailySummary = async (date: string) => {
+			const summary = await original(date);
+			if (date !== "2026-09-11") return summary;
+			// A shape the mappers don't expect: reading it throws.
+			return Object.defineProperty({ ...summary }, "totalSteps", {
+				enumerable: true,
+				get() {
+					throw new TypeError("summary.metrics is not iterable");
+				},
+			});
+		};
+		const target = new FakeTarget(new Set(["2026-09-12", "2026-09-11", "2026-09-10"]));
+
+		const report = await syncRange(source, target, options());
+
+		assert.equal(report.stoppedEarly, undefined);
+		const failed = report.days.find((d) => d.date === "2026-09-11")!;
+		assert.equal(failed.status, "failed");
+		assert.match(failed.error!, /couldn't be read: summary\.metrics is not iterable/);
+		assert.equal(failed.full, undefined, "left for the next sync");
+		assert.ok(target.written.has("2026-09-12"));
+		assert.ok(target.written.has("2026-09-10"));
 	});
 
 	it("records a write failure without abandoning the range", async () => {
@@ -1303,7 +1348,8 @@ describe("syncRange — health, hill score, running tolerance", () => {
 		assert.ok(!("hill_score" in target.written.get("2026-09-11")!));
 		// One call each for the three range metrics, whatever the day count.
 		assert.equal(source.calls.filter((c) => /^(hillScores|runningTolerance|healthSnapshots):/.test(c)).length, 3);
-		assert.equal(report.warnings.length > 0, true, "maxMetrics has no rows in this fake");
+		// maxMetrics has no rows in this fake: that is an account without VO2 Max, not a warning.
+		assert.deepEqual(report.warnings, []);
 	});
 
 	it("asks running tolerance a year a request, inside the route's 366-day cap", async () => {
@@ -1504,11 +1550,11 @@ describe("syncRange — range endpoints that come back empty", () => {
 		}
 	});
 
-	it("says so when a range endpoint returns nothing", async () => {
+	it("keeps quiet when a range endpoint returns nothing: an account without that data isn't a problem", async () => {
 		const source = new FakeSource();
 		source.maxMetricsRows = [];
 		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
-		assert.match(report.warnings.join(" "), /VO2 Max: Garmin returned no rows/);
+		assert.doesNotMatch(report.warnings.join(" "), /VO2 Max/);
 	});
 
 	it("says so when a range endpoint fails, without losing the rest of the sync", async () => {

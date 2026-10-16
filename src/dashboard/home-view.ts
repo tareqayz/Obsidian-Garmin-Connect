@@ -106,6 +106,31 @@ export class GarminHomeView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
+		try {
+			await this.openHome();
+		} catch (err) {
+			// Building Home's first view threw on data it didn't expect: say so, and
+			// open on Home next time rather than on whatever page was saved.
+			console.error("Garmin: Home couldn't open", err);
+			this.stack = [HOME];
+			this.app.workspace.requestSaveLayout();
+			this.showOpenError(err);
+		}
+	}
+
+	/** What a pane shows when Home couldn't be built at all: the error, Copy debug info and Try again. */
+	private showOpenError(err: unknown): void {
+		this.contentEl.empty();
+		const card = this.contentEl.createDiv({ cls: "gch-open-error" });
+		card.createEl("strong", { text: "Garmin Home couldn't open" });
+		card.createEl("p", { text: "Something in your Garmin data didn't look the way Home expected. Nothing was lost." });
+		card.createEl("code", { text: err instanceof Error ? err.message : String(err) });
+		const actions = card.createDiv({ cls: "gch-open-error-actions" });
+		actions.createEl("button", { text: "Copy debug info", cls: "mod-cta" }).addEventListener("click", () => void this.plugin.copyDebugInfo(err));
+		actions.createEl("button", { text: "Try again" }).addEventListener("click", () => void this.onOpen());
+	}
+
+	private async openHome(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("gch-view");
 		const today = toIsoDate();
@@ -133,6 +158,14 @@ export class GarminHomeView extends ItemView {
 				initialBackfill: this.plugin.sync.backfillProgress,
 				onSetUp: () => this.plugin.openSetup(),
 				onSignIn: () => this.plugin.openLogin(),
+				onHideSignIn: () => this.plugin.hideSignInCard(),
+				onPageError: (error: unknown) => {
+					console.error("Garmin: a page couldn't be drawn", error);
+					// Home on the next launch, not the page that just threw.
+					this.stack = [HOME];
+					this.app.workspace.requestSaveLayout();
+				},
+				onCopyDebugInfo: (error: unknown) => void this.plugin.copyDebugInfo(error),
 				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
 				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
@@ -167,6 +200,18 @@ export class GarminHomeView extends ItemView {
 		this.bindRunner();
 		// The first Garmin view after an update asks about what it offers, once.
 		void this.plugin.askForUpdates();
+
+		// Left open past midnight, Home moves to the new day: every page's
+		// "Today", "Yesterday" and offsets count from it.
+		let shownDay = today;
+		this.registerInterval(
+			window.setInterval(() => {
+				const now = toIsoDate();
+				if (now === shownDay) return;
+				shownDay = now;
+				this.scheduleRefresh();
+			}, 60_000),
+		);
 
 		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {
@@ -219,12 +264,19 @@ export class GarminHomeView extends ItemView {
 	/**
 	 * The card Home shows above everything else, if any: the setup to finish,
 	 * a sign-in, or — set up, signed in, and still nothing here — data that
-	 * another device has but this one never received.
+	 * another device has but this one never received. Signed out with data
+	 * here, the device reads what another one syncs: it says so, once, until
+	 * put away.
 	 */
 	private async setupCard(): Promise<SetupCardKind | null> {
 		if (!this.plugin.data.settings.setup) return "finish";
-		if (!this.plugin.garmin.isAuthenticated) return "signed-out";
 		const store = this.store();
+		if (!this.plugin.garmin.isAuthenticated) {
+			// A session that ended here asks for a sign-in; a device that never had
+			// one reads what another syncs, and may put the card away.
+			if (!store.hasData() || this.plugin.tokens.hadSessionHere) return "signed-out";
+			return this.plugin.signInCardHidden ? null : "this-device";
+		}
 		if (!store.hasData()) {
 			// An account with nothing on Garmin yet is not missing anything here.
 			const scan = await store.readScan();
@@ -409,7 +461,7 @@ export class GarminHomeView extends ItemView {
 				this.component?.setActivities(activities);
 				this.component?.setStats(stats);
 				this.component?.setSleep(sleep);
-			});
+			}).catch((err) => console.error("Garmin: Home couldn't refresh", err));
 		}, wait);
 	}
 }

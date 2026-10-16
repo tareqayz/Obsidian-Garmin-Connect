@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Notice } from "obsidian";
+	import { Notice, normalizePath } from "obsidian";
+	import { folderProblem } from "../../sync/vault-paths";
 	import type { GarminDomain } from "../../garmin/constants";
 	import type GarminPlugin from "../../main";
 	import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "../../sync/metrics";
@@ -124,9 +125,7 @@
 					.addOption("garmin.cn", "garmin.cn")
 					.setValue(s.domain)
 					.onChange(async (v) => {
-						s.domain = v as GarminDomain;
-						save();
-						await plugin.rebuildClient();
+						await plugin.setDomain(v as GarminDomain);
 						signedIn = plugin.garmin.session !== null;
 					}),
 			)}
@@ -264,15 +263,27 @@
 		setting
 			.setName("Log folder")
 			.setDesc("Where saved diagnostics runs go.")
-			.addText((t) =>
-				t
-					.setPlaceholder(DEFAULT_SETTINGS.logFolder)
-					.setValue(s.logFolder)
-					.onChange((v) => {
-						s.logFolder = v.trim() || DEFAULT_SETTINGS.logFolder;
-						save();
-					}),
-			)}
+			.addText((t) => {
+				t.setPlaceholder(DEFAULT_SETTINGS.logFolder).setValue(s.logFolder);
+				// Saved once, on Enter or leaving the field, as the data folder is.
+				const commit = () => {
+					const next = normalizePath(t.getValue().trim() || DEFAULT_SETTINGS.logFolder);
+					const problem = folderProblem(next, plugin.app.vault.configDir);
+					if (problem) {
+						new Notice(problem);
+						t.setValue(s.logFolder);
+						return;
+					}
+					if (next === s.logFolder) return;
+					s.logFolder = next;
+					t.setValue(next);
+					save();
+				};
+				t.inputEl.addEventListener("blur", commit);
+				t.inputEl.addEventListener("keydown", (e) => {
+					if (e.key === "Enter") t.inputEl.blur();
+				});
+			})}
 ></div>
 
 <div use:obsidianSetting={(setting) => setting.setName("Danger zone").setHeading()}></div>

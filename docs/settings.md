@@ -7,23 +7,28 @@ actually does. Defaults come from `DEFAULT_SETTINGS` in `src/settings-data.ts`.
 ## Where settings live
 
 Everything is saved to `data.json` in the plugin's folder
-(`.obsidian/plugins/garmin-connect/`), in three blocks:
+(`.obsidian/plugins/garmin-connect/`), in two blocks:
 
 | Block | Holds |
 | --- | --- |
 | `settings` | Every setting on this page, plus `settingsVersion` (see [upgrades](#upgrades)), `setup` and the consent ledger (see [Data](#data)). |
-| `auth` | The session: a refresh token, the DI client ID it belongs to, and when it was saved (`savedAt`). No password and no access token. |
 | `home` | Home's own state — see [Home's state](#homes-state). |
+
+The Garmin session is not in it. It is kept in Obsidian's keychain on each
+device (**Settings → Keychain**, the secret `garmin-connect-session`): a refresh
+token, the DI client ID it belongs to, and when it was saved. No password and
+no access token. A session an older build left in `data.json` moves there on
+load and drops out of the file.
 
 The file is read by allowlist. A key this version does not know, such as one
 left by an older build, is dropped at the next save. A value out of range is
 pulled back into it. Read [security](SECURITY.md) before you put that file
 anywhere public.
 
-`data.json` sits in the vault's configuration folder. A sync tool that copies
-plugin settings between devices therefore copies the session along with them.
-When another device's copy arrives, a running plugin takes its `setup` and
-`data` from it and nothing else.
+`data.json` sits in the vault's configuration folder, so a sync tool that copies
+plugin settings copies these between devices. When another device's copy
+arrives, a running plugin takes its `setup` and `data` from it and nothing else.
+The session never travels: each device signs in on its own.
 
 ## Connection
 
@@ -34,7 +39,8 @@ When another device's copy arrives, a running plugin takes its `setup` and
 | Region | `domain` | `garmin.com` | `garmin.cn` for mainland China accounts. Changes every host the plugin talks to, so the client is rebuilt on the spot. |
 
 Your **password is never stored**. It is used for one sign-in request and then
-dropped. Only the refresh token and the DI client ID it belongs to are written.
+dropped. Only the refresh token and the DI client ID it belongs to are kept, in
+this device's keychain.
 
 If the account has multi-factor authentication on, the sign-in dialog asks for
 the verification code as a second step. The code is not stored either.
@@ -208,24 +214,27 @@ recent days an older build saved without their full timelines.
 
 | Setting | Key | Default | Effect |
 | --- | --- | --- | --- |
-| Sync speed | `syncSpeed` | `normal` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
+| Sync speed | `syncSpeed` | `gentle` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
 | Stop after empty days | `stopAfterEmptyDays` | `45` | **Sync a date range…** gives up after this many days in a row with nothing in them. `0` walks the whole range. Slider 0–120. The history download does without it: the scan found where your history starts. |
-| Save every diagnostics run to the vault | `autoSaveLog` | on | Writes each **Run diagnostics** log to a note. |
+| Save every diagnostics run to the vault | `autoSaveLog` | off | Writes each **Run diagnostics** log to a note. Off by default: a log is about your account, and the vault syncs. |
 | Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. |
 
 The slider stops at 120. A value typed into `data.json` by hand may go up to
 365; anything beyond that is clamped on load.
 
 **Sync speed** paces every request to Garmin — syncs, the history download and
-pages loading on view — and sets how many days a sync fetches at once. Normal
-is about 20 requests a second, three days at a time, and syncs 30 days in about
-17 s; Fast about 32 and five days, 12 s; Gentle 8 and one day, 43 s. Garmin was
-measured allowing at least 47 a second; see
-[Request pace](garmin-api.md#request-pace). The history download also stays
-under an hourly budget: 5,000 requests at Gentle, 10,000 at Normal, 15,000 at
-Fast. If Garmin does answer 429, the sync pauses for as long as it asks,
-carries on at half the pace, and says so in its notice. **Gentle** is the first
-thing to try if long date ranges or the download still hit 429s. It replaced
+pages loading on view — and sets how many days a sync fetches at once. Gentle,
+the default, is about 8 requests a second, one day at a time, and syncs 30 days
+in about 43 s; Normal about 20 and three days, 17 s; Fast about 32 and five
+days, 12 s. Garmin was measured allowing at least 47 a second once, on one
+account; see [Request pace](garmin-api.md#request-pace). Every install looks
+alike to Garmin, which is why the default stays far below that.
+
+The history download also stays under an hourly budget on each device, counting
+every request this device made in the hour, manual syncs and retries included:
+2,500 at Gentle, 5,000 at Normal, 8,000 at Fast. The budget is kept across
+restarts. If Garmin does answer 429, the sync pauses for as long as it asks,
+carries on at half the pace, and says so in its notice. It replaced
 `pauseBetweenDays`: a saved pause of 0 reads as Fast, 1000 ms or more as
 Gentle, anything else as Normal.
 

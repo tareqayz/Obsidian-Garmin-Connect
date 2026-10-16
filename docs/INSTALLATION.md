@@ -4,7 +4,7 @@ The plugin is not in Obsidian's [community plugin
 directory](https://community.obsidian.md/search?type=plugin) yet. Until it is,
 releases are betas: GitHub pre-releases you install with BRAT, or by hand.
 
-It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**.
+It works on **desktop and mobile**, and needs **Obsidian 1.11.4 or later**.
 
 ## With BRAT (recommended)
 
@@ -15,6 +15,16 @@ It works on **desktop and mobile**, and needs **Obsidian 1.9.10 or later**.
 
 BRAT installs the newest release, pre-releases included, and keeps you on the
 newest one when it checks for updates.
+
+### Going back to an earlier beta
+
+If a beta breaks something for you, BRAT can install a given release and stay
+on it: remove the plugin from BRAT's list, then **Add a beta plugin** again
+with the same repository and the version you want (the release's tag, such as
+`1.0.0-beta.1`) under **Frozen version**. Your data folder is untouched either
+way. A newer version may have written files in a newer format; an older one
+then stops and says so rather than writing over them, so go back only as far
+as you need.
 
 ## By hand
 
@@ -40,11 +50,10 @@ There is no separate mobile download. The plugin folder reaches the phone throug
 your vault sync like any other folder; then enable the plugin in **Settings →
 Community plugins** there too.
 
-Your Garmin session is the refresh token in the plugin's `data.json`, in that
-same folder, so whether you sign in again depends on your sync:
-- **It copies `data.json`:** the other device has the same session and
-  settings, and is signed in already.
-- **It does not:** sign in on that device as well.
+Your Garmin session is not part of that folder. It is kept in Obsidian's
+keychain on each device, so a second device asks you to sign in only if you
+want to sync from it too. Without signing in there, it shows what your other
+devices sync.
 
 ## From source
 

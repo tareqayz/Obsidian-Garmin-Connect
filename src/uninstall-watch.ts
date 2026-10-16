@@ -7,8 +7,9 @@
  * still there, which is worth a question.
  *
  * Plain timers, not the plugin's registered ones, which unloading clears.
- * Each check is one `exists`; the watch ends at the first answer either way,
- * and within ten seconds at most.
+ * Each check is one `exists`. The folder has to be gone at two looks in a row
+ * — one miss could be a sync service rewriting it — and the watch ends within
+ * fifteen seconds; a folder gone only at the last look isn't asked about.
  *
  * Pure: the checks and the timer are handed in.
  */
@@ -24,21 +25,28 @@ export interface UninstallWatch {
 	setTimer?: (run: () => void, ms: number) => unknown;
 }
 
-export const UNINSTALL_CHECKS: readonly number[] = [1500, 4000, 10000];
+export const UNINSTALL_CHECKS: readonly number[] = [1500, 4000, 10000, 15000];
+
+/** Looks in a row that must find the folder gone. */
+const MISSES_IN_A_ROW = 2;
 
 export function watchForUninstall(watch: UninstallWatch): void {
 	const delays = watch.delays ?? UNINSTALL_CHECKS;
 	const setTimer = watch.setTimer ?? ((run, ms) => window.setTimeout(run, ms));
-	const check = (index: number) => {
+	const check = (index: number, missed: number) => {
 		if (index >= delays.length) return;
 		const wait = delays[index]! - (index ? delays[index - 1]! : 0);
 		setTimer(() => {
 			watch.exists().then(
-				(there) => (there ? check(index + 1) : watch.onGone()),
+				(there) => {
+					const misses = there ? 0 : missed + 1;
+					if (misses >= MISSES_IN_A_ROW) watch.onGone();
+					else check(index + 1, misses);
+				},
 				// A vault that cannot answer is not one to prompt over.
 				() => undefined,
 			);
 		}, wait);
 	};
-	check(0);
+	check(0, 0);
 }

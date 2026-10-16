@@ -1,5 +1,5 @@
 import type { DailyStress, GarminApi, HeartRateData } from "../garmin/endpoints";
-import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { isFatal } from "./fatal";
 import { epochOf, mapSeries, type DaySeries } from "./intraday";
 import type { DayData, MetricGroup } from "./metrics";
 
@@ -444,10 +444,6 @@ function dayStartOf(payload: unknown): number | undefined {
 	return payload && typeof payload === "object" ? epochOf((payload as Record<string, unknown>).startTimestampGMT) : undefined;
 }
 
-/** Errors that make every later request pointless. */
-function isFatal(err: unknown): boolean {
-	return err instanceof GarminRateLimitError || err instanceof GarminAuthError;
-}
 
 function message(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);

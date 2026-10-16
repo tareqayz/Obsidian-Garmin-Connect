@@ -130,10 +130,6 @@ items, to check on the phone:
 
 ## Home
 
-- Home's "today" is fixed when the view opens. A Home view left open past
-  midnight keeps yesterday's date until it is reopened or the plugin reloads,
-  so every page's offsets and "Yesterday"/"Today" labels are a day behind (seen
-  2026-10-08 01:30). Recompute today on a timer or on focus.
 - **Health Status's onboarding prompt.**
   - Home's Health Status card shows only its onboarding prompt ("Wear your
     device while sleeping for about 3 weeks") while any metric is still
@@ -212,9 +208,6 @@ items, to check on the phone:
 - After an index's version moves (the activity index's to 3), its pages say
   "<X> history isn't synced" while they still show its rows, until the history
   is listed again. Words such as "needs updating" would fit better.
-- A plugin reload (an update) leaves open the update dialog the old instance
-  opened; its Download would agree through the old instance's settings. Close
-  it in `onunload`.
 
 ## Activity details
 
@@ -489,12 +482,11 @@ open:
     and make the rest fatal.
 - Check behaviour under sync load: hours of `connectapi` calls, now that the
   history download can fetch years of Day details under its hourly budget
-  (5,000 to 15,000 requests by sync speed).
-- **One session for every device.**
-  - The refresh token lives in `data.json`, which travels with the vault when
-    its sync copies plugin settings, so every device shares one session.
-  - Find out whether two devices refreshing the same token conflict.
-  - If they do, decide whether the session should stay per device.
+  (2,500 to 8,000 requests by sync speed; Gentle is the default).
+- **A scale or a second Garmin device moves the recent sync's mark.** The mark
+  is the last-used device's upload, so a watch that uploads days late after the
+  scale synced leaves those days to **Sync a date range…**. Fixing it needs
+  each device's last upload; find an endpoint that lists them.
 
 ## Platform and release
 

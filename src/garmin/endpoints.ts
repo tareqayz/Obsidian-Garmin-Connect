@@ -1,5 +1,5 @@
 import { GarminClient, type LoginOptions } from "./client";
-import { GarminApiError, GarminAuthError } from "./errors";
+import { GarminApiError } from "./errors";
 
 /* ------------------------------------------------------------------ */
 /*  Response shapes                                                    */
@@ -1430,9 +1430,13 @@ export class GarminApi extends GarminClient {
 		const profile = await this.request<SocialProfile>("/userprofile-service/socialProfile");
 		if (typeof profile?.displayName === "string" && profile.displayName.trim()) {
 			this.displayName = profile.displayName;
+			this.hideInLogs(profile.displayName, ":displayName");
 		}
 		if (typeof profile?.fullName === "string") this.fullName = profile.fullName;
-		if (profile && typeof profile === "object") this.lastProfile = profile;
+		if (profile && typeof profile === "object") {
+			this.lastProfile = profile;
+			this.hideInLogs(profile.profileId, ":profileId");
+		}
 		return profile;
 	}
 
@@ -1484,9 +1488,10 @@ export class GarminApi extends GarminClient {
 			{ query: { calendarDate: date } },
 		);
 		if (summary?.privacyProtected === true) {
-			throw new GarminAuthError(
-				"Garmin returned a privacy-protected summary — the session is not fully authorised",
-			);
+			// Read as empty it would pass for a day without data. Not a dead session
+			// either: signing in again would get the same answer, so the day fails
+			// alone and the sync says why.
+			throw new GarminApiError("Garmin returned this day's summary as privacy-protected", 403, "");
 		}
 		return summary;
 	}

@@ -8,6 +8,7 @@ import {
 	GarminRateLimitError,
 } from "../garmin/errors";
 import type GarminPlugin from "../main";
+import type { GarminDomain } from "../garmin/constants";
 import LoginForm from "./svelte/LoginForm.svelte";
 
 /** Sign-in. The password lives in the component and nowhere else. */
@@ -27,6 +28,8 @@ export class LoginModal extends Modal {
 			target: this.contentEl,
 			props: {
 				initialEmail: this.plugin.data.settings.email,
+				initialDomain: this.plugin.data.settings.domain,
+				onDomainChange: (domain: GarminDomain) => this.plugin.setDomain(domain),
 				onEmailChange: (email: string) => {
 					this.plugin.data.settings.email = email;
 					void this.plugin.data.saveSettings();
@@ -72,7 +75,7 @@ export function explainSignIn(err: unknown): string {
 		return "Garmin is rate limiting this network. Wait 15–30 minutes before trying again.";
 	}
 	if (err instanceof GarminBlockedError) {
-		return "Garmin's edge refused the request — a bot challenge, not your password. Run the probe's fingerprint check.";
+		return "Garmin's edge refused the request — a bot challenge, not your password. Wait an hour, then try again; Run diagnostics says more.";
 	}
 	return err instanceof Error ? err.message : String(err);
 }

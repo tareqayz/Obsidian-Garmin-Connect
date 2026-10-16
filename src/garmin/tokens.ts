@@ -1,7 +1,7 @@
 import { parseJson, type HttpClient } from "../http";
 import { redactToken, silentLog, type Log } from "../log";
 import { basicAuth, endpoints, nativeHeaders, type GarminDomain } from "./constants";
-import { GarminAuthError, GarminNetworkError, GarminRateLimitError } from "./errors";
+import { GarminAuthError, GarminBlockedError, GarminNetworkError, GarminRateLimitError, GarminRefreshError } from "./errors";
 
 /**
  * What survives a restart.
@@ -102,23 +102,36 @@ export async function refreshAccessToken(
 	if (res.status === 429) {
 		throw new GarminRateLimitError("Token refresh was rate limited", retryAfter(res.headers));
 	}
-	if (res.status === 400 || res.status === 401 || res.status === 403) {
-		// The refresh token is spent, revoked, or was issued to a client ID
-		// Garmin has since retired. Either way the user must log in again.
-		throw new GarminAuthError(`Refresh token rejected (HTTP ${res.status}). Log in again.`);
-	}
-	if (res.status < 200 || res.status >= 300) {
-		throw new GarminAuthError(`Token refresh failed with HTTP ${res.status}`);
-	}
 
 	const data = parseJson<{
 		access_token?: string;
 		refresh_token?: string;
 		expires_in?: number;
+		error?: unknown;
 	}>(res.text);
 
+	if (res.status < 200 || res.status >= 300) {
+		// Only an OAuth error in Garmin's own words says the refresh token is
+		// spent, revoked, or issued to a client ID Garmin has since retired. A
+		// bot check's page, a proxy's 5xx or an empty body says nothing about the
+		// token, and signing out on one costs a sign-in (and an MFA code) for
+		// nothing, on every device that shared the session.
+		if (res.status >= 400 && res.status < 500 && typeof data?.error === "string") {
+			throw new GarminAuthError(`Garmin ended the session (${data.error}). Sign in again.`);
+		}
+		if (res.status === 403) {
+			throw new GarminBlockedError("Garmin's edge refused the token refresh (HTTP 403). The session is kept.", 403);
+		}
+		throw new GarminRefreshError(
+			res.status === 400 || res.status === 401
+				? `Garmin refused the token refresh (HTTP ${res.status}) without saying why. The session is kept; if this keeps happening, sign in again.`
+				: `Garmin couldn't refresh the session (HTTP ${res.status}). It's kept, and the next sync tries again.`,
+			res.status,
+		);
+	}
+
 	if (!data?.access_token) {
-		throw new GarminAuthError("Token refresh returned no access_token");
+		throw new GarminRefreshError("Garmin's token refresh came back without a token. The session is kept, and the next sync tries again.", res.status);
 	}
 
 	const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 3600;

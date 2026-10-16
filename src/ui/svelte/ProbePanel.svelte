@@ -99,6 +99,8 @@
 			log.fail(`probe threw: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
 			busy = false;
+			// Used for one check: the field doesn't hold it for the next.
+			password = "";
 		}
 	}
 
@@ -125,7 +127,7 @@
 <div class="field">
 	<label for="gcp-password">Password</label>
 	<input id="gcp-password" type="password" bind:value={password} />
-	<div class="hint">Used for this sign-in only. Never written to disk.</div>
+	<div class="hint">Used for one check, then cleared. Never written to disk.</div>
 </div>
 
 <div class="actions">

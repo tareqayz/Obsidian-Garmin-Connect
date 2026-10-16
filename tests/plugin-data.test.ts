@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { Plugin } from "obsidian";
+import type { PersistedAuth } from "../src/garmin/tokens";
 import { PluginData } from "../src/plugin-data";
 import { DEFAULT_SETTINGS, SETTINGS_VERSION } from "../src/settings-data";
 
@@ -16,11 +17,22 @@ function fakePlugin(raw: unknown) {
 	return { plugin, saved };
 }
 
-async function load(raw: unknown) {
+/** This device's keychain: the session SecretTokenStore would hold. */
+class FakeTokens {
+	constructor(public auth: PersistedAuth | null = null) {}
+	read(): PersistedAuth | null {
+		return this.auth;
+	}
+	async save(auth: PersistedAuth): Promise<void> {
+		this.auth = auth;
+	}
+}
+
+async function load(raw: unknown, tokens = new FakeTokens()) {
 	const { plugin, saved } = fakePlugin(raw);
-	const data = new PluginData(plugin);
+	const data = new PluginData(plugin, tokens);
 	await data.init();
-	return { data, saved };
+	return { data, saved, tokens };
 }
 
 const AUTH = { refreshToken: "refresh", diClientId: "client", savedAt: 1 };
@@ -34,11 +46,32 @@ describe("PluginData", () => {
 	});
 
 	it("reads a current file without rewriting it", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH, home: { preset: "be-healthy", hidden: [] } });
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, home: { preset: "be-healthy", hidden: [] } }, new FakeTokens(AUTH));
 		assert.equal(data.settings.stopAfterEmptyDays, 7);
 		assert.equal(data.hasSession, true);
-		assert.deepEqual(await data.load(), AUTH);
 		assert.equal(saved.length, 0);
+	});
+
+	it("moves the session an older build kept in data.json to this device's keychain, and saves without it", async () => {
+		const { data, saved, tokens } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: { ...AUTH, extra: "dropped" }, home: { preset: "be-healthy", hidden: [] } });
+		assert.deepEqual(tokens.auth, AUTH);
+		assert.equal(data.hasSession, true);
+		assert.equal(saved.length, 1);
+		assert.deepEqual(Object.keys(saved[0]!).sort(), ["home", "settings"]);
+	});
+
+	it("keeps this device's own session over one data.json still carries", async () => {
+		const mine = { refreshToken: "mine", diClientId: "client", savedAt: 2 };
+		const { saved, tokens } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: AUTH }, new FakeTokens(mine));
+		assert.deepEqual(tokens.auth, mine);
+		assert.equal("auth" in saved[0]!, false);
+	});
+
+	it("never writes a session into data.json", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS } }, new FakeTokens(AUTH));
+		await data.saveSettings();
+		await data.saveHome({ preset: "be-healthy", hidden: [] });
+		assert.equal(JSON.stringify(saved).includes("refresh"), false);
 	});
 
 	it("carries nothing it does not read into the next save", async () => {
@@ -48,17 +81,17 @@ describe("PluginData", () => {
 			somethingElse: { password: "hunter2" },
 		});
 		await data.saveSettings();
-		assert.equal(saved.length, 1);
-		assert.deepEqual(Object.keys(saved[0]!.settings as object).sort(), Object.keys(DEFAULT_SETTINGS).sort());
-		assert.equal(JSON.stringify(saved[0]).includes("hunter2"), false);
-		assert.equal("somethingElse" in saved[0]!, false);
+		const last = saved.at(-1)!;
+		assert.deepEqual(Object.keys(last.settings as object).sort(), Object.keys(DEFAULT_SETTINGS).sort());
+		assert.equal(JSON.stringify(saved).includes("hunter2"), false);
+		assert.equal("somethingElse" in last, false);
 	});
 
 	it("drops the retired classic dashboard's layouts on the next save", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: AUTH, layouts: { version: 1, active: "default", layouts: [] } });
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS }, layouts: { version: 1, active: "default", layouts: [] } });
 		assert.equal(saved.length, 0);
 		await data.saveHome({ preset: "be-healthy", hidden: [] });
-		assert.deepEqual(Object.keys(saved[0]!).sort(), ["auth", "home", "settings"]);
+		assert.deepEqual(Object.keys(saved[0]!).sort(), ["home", "settings"]);
 	});
 
 	it("keeps map tiles on unless they were turned off, and only for a real boolean", async () => {
@@ -123,7 +156,7 @@ describe("PluginData", () => {
 	it("takes another device's choices, and nothing else, when data.json changes underneath", async () => {
 		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH };
 		const plugin = { loadData: async () => raw, saveData: async () => undefined } as unknown as Plugin;
-		const data = new PluginData(plugin);
+		const data = new PluginData(plugin, new FakeTokens());
 		await data.init();
 		raw = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 30, setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
 		await data.reloadChoices();
@@ -136,7 +169,7 @@ describe("PluginData", () => {
 	it("keeps values a slider can show", async () => {
 		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.stopAfterEmptyDays, 365);
-		assert.equal(data.settings.syncSpeed, "normal");
+		assert.equal(data.settings.syncSpeed, "gentle");
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
 	});
@@ -150,7 +183,8 @@ describe("PluginData", () => {
 		assert.equal(await speedFor(250), "normal");
 		assert.equal(await speedFor(0), "fast");
 		assert.equal(await speedFor(2000), "gentle");
-		assert.equal(await speedFor(undefined), "normal");
+		// No pause saved at all: the default, Gentle.
+		assert.equal(await speedFor(undefined), "gentle");
 	});
 
 	it("drops the Days to sync setting a build before smart sync saved", async () => {
@@ -180,8 +214,8 @@ describe("PluginData", () => {
 	});
 
 	it("treats an auth entry without a refresh token as no session", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: { diClientId: "client", savedAt: 1 } });
+		const { data, tokens } = await load({ settings: { ...DEFAULT_SETTINGS }, auth: { diClientId: "client", savedAt: 1 } });
 		assert.equal(data.hasSession, false);
-		assert.equal(await data.load(), null);
+		assert.equal(tokens.auth, null);
 	});
 });

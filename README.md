@@ -15,6 +15,15 @@ the vault and draws it as the phone app does:
 
 It runs on **desktop and mobile**.
 
+<p align="center">
+  <img src="docs/images/home-desktop.png" alt="Home in a wide pane: Sleep Score, Body Battery, the week's activities and At a Glance" width="800">
+</p>
+<p align="center">
+  <img src="docs/images/sleep-phone.png" alt="Sleep on a phone" width="240">
+  <img src="docs/images/body-battery-phone.png" alt="Body Battery on a phone" width="240">
+  <img src="docs/images/pool-swim-phone.png" alt="A pool swim's page on a phone" width="240">
+</p>
+
 Everything stays in your vault as ordinary JSON files in one data folder
 (`Garmin/data` by default). The sync writes no notes, so your own notes are
 never touched. How much room it takes depends on how much history you keep:
@@ -32,7 +41,8 @@ other devices.
 
 - **You need a Garmin Connect account.** The plugin signs in to it the way
   Garmin's mobile app does. Your password is used for the sign-in and never
-  stored.
+  stored. The session stays on the device, in Obsidian's keychain, never in
+  the vault.
 - **Network use.**
   - The plugin talks only to Garmin's own servers: `sso.garmin.com`,
     `diauth.garmin.com` and `connectapi.garmin.com`, or their `garmin.cn`
@@ -47,10 +57,47 @@ other devices.
     with no request at all.
   - There is no telemetry or analytics.
 - **It is in beta.** Install it with BRAT. See [Installation](docs/INSTALLATION.md).
-- **Obsidian 1.9.10 or later.**
+- **Obsidian 1.11.4 or later.**
 
 Not affiliated with or endorsed by Garmin. Garmin, Garmin Connect, Body Battery
 and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
+
+## The beta
+
+The plugin is in beta: it has met one Garmin account in depth, and yours will
+differ. It is careful with your data — it never writes over a file it can't
+read, and it asks before downloading history — and gentle with Garmin, but
+expect rough edges.
+
+**Known limitations**
+- English only, and times on a 12-hour clock whatever your account says.
+- Imperial units are drawn but unverified; a UK account (statute_uk) shows
+  pounds and °F.
+- Weeks follow fixed starts (Monday for steps, Sunday for some performance
+  charts), not your account's first day of the week.
+- Multisport activities get the generic page, without their legs
+  ([#23](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/23)).
+- Untested: Android, garmin.cn accounts, and multi-factor sign-in against a
+  live challenge.
+- With a scale or a second Garmin device, data a watch uploads days late may
+  need **Sync a date range…**.
+- Data refreshes when you sync (Home's ↻, or **Sync on startup**); there is no
+  background interval.
+
+**Sign in on one device** if you can — usually the computer — and let your
+other devices show what it syncs. Each device holds its own session, and two
+devices syncing the same files at once is how sync services make conflict
+copies.
+
+**Worth testing:** signing in with multi-factor authentication; Android;
+imperial and UK accounts; accounts whose week starts on Monday; five to ten
+years of history; sports other than running; phones and tablets.
+
+**Reporting:** run **Copy debug info** and paste it into the
+[bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
+It needs no password, makes no request and removes your email, tokens, IP
+address and Garmin names. Don't paste screenshots of maps that show where you
+live.
 
 ## Setting up
 

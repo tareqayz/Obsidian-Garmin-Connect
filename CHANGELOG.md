@@ -152,6 +152,59 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **Sync speed** (Settings → Advanced): Gentle, Normal or Fast. A sync fetches
+  several days at once and paces every request through one throttle, which
+  slows down by itself when Garmin answers 429; it replaced the fixed pause
+  between days. A 30-day sync took 34 s before and takes 43 s at Gentle, 17 s
+  at Normal, 12 s at Fast.
+- **Sync recent days covers what changed since the last sync**, not a fixed
+  number of days: from the day before the watch's last upload, as Garmin
+  reported it at the last good sync, through today — at least yesterday and
+  today, at most 30 days. The **Days to sync** setting is gone.
+- **The Garmin session stays on the device.** It is kept in Obsidian's
+  keychain (**Settings → Keychain**), never in `data.json`, so a vault backup,
+  a shared folder or a public repository of your vault holds no token. Each
+  device signs in once and refreshes its own session; one that only reads what
+  another syncs says "Not signed in on this device" on Home, with **Not now**
+  to put that away. Updating moves the session out of `data.json` on the first
+  device to start; the others ask you to sign in once. Needs Obsidian 1.11.4.
+- A token refresh that failed for a reason other than the token — Garmin
+  down, a proxy's error page, a bot check — signed you out on every device that
+  shared the session. Only Garmin saying the token is spent ends a session
+  now; anything else keeps it, stops the sync, and the next one tries again.
+- **Gentler on Garmin by default.** A new install syncs at Gentle (about 8
+  requests a second), and the history download keeps to 2,500 requests an hour
+  at Gentle, 5,000 at Normal, 8,000 at Fast, down from 5,000–15,000. The hour
+  counts everything the device asked, manual syncs and retries included, and is
+  kept across restarts. Every install looks alike to Garmin, so the margin is
+  wide. A date range bigger than an hour's budget suggests the history download.
+- **Stop syncing**, **Pause the history download** and **Resume the history
+  download** commands.
+- **Copy debug info**: what a bug report needs — versions, platform, settings
+  without your email, the history download, the last sync and its warnings,
+  request counts, the data folder — redacted, with no request and no sign-in.
+- **Diagnostics are safe to paste.** Every line is scrubbed of emails, tokens
+  and IP addresses (now masked whole); the display name and account id become
+  placeholders in paths and errors; the fitness check shows field types, not
+  values; service tickets and unknown sign-in answers aren't repeated. Runs are
+  saved to the vault only when you ask (**Save every diagnostics run** is off
+  by default), the password is cleared after each check, and the checks that
+  use the plugin's session wait for a running sync instead of logging its
+  requests.
+- **Region on the sign-in step.** The setup and the sign-in dialog ask for
+  garmin.com or garmin.cn before you sign in, so a China account no longer
+  fails against garmin.com first and risks a lockout.
+- **A generic icon.** The ribbon and tabs use Lucide's watch instead of a trace
+  of Garmin Connect's logo, which is Garmin's trademark.
+- The data and log folder settings save when you press Enter or leave the
+  field, not on every keystroke, and refuse the vault's root, hidden folders
+  and the settings folder.
+- After an uninstall, the "Garmin Connect was removed" prompt waits for the
+  plugin's folder to be gone at two looks in a row, can take the diagnostics
+  notes too, and says that the trash reaches every synced device.
+- A sign-in Garmin answers in a way the plugin doesn't know now names Garmin's
+  status and suggests signing in on the website first (a locked account, a
+  password reset or new terms), instead of "Unexpected login response".
 - **Run details is now Activity details**, for every sport, in the setup and
   Settings → Data. A Run details range chosen before keeps downloading runs
   without asking; the other sports, and the runs saved before, are offered once
@@ -216,6 +269,50 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- An activity file in the vault could put HTML into a lap marker on the map;
+  lap numbers are now drawn as text.
+- Every sync's notice said "VO2 Max / race predictions: Garmin returned no
+  rows" for accounts without them — a scale, a bike computer, no runs. Those
+  stay in the log.
+- A Home tab left open past midnight kept yesterday's date. It moves to the new
+  day within a minute.
+- Updating the plugin left the update or setup dialog the old version opened
+  on screen, acting through the old version. Unloading closes them.
+- A page that threw on data it didn't expect blanked the whole of Home, and came
+  back blank after a restart. It now shows a card with **Copy debug info** and
+  **Back to Home**, and the next launch opens on Home.
+- Garmin's bot check refusing the device (an HTML 403) didn't stop anything:
+  the history download carried on into it, chunk after chunk, at every launch.
+  A refusal now stops the sync and pauses the download half an hour, doubling
+  up to twelve.
+- A JSON 403 from one endpoint, or a day's summary marked privacy-protected,
+  read as a dead session: the sync stopped and the download waited for a
+  sign-in that changed nothing, on every device. Now that endpoint fails for
+  that day with a warning.
+- One payload in a shape the mappers didn't expect aborted the whole sync, and
+  wedged the history download, which retried the same piece every ten minutes
+  forever. That day now fails alone; a download piece that fails three times
+  running is left for the next session, with a notice.
+- A request that never answered held the sync's lock until Obsidian restarted
+  ("A Garmin sync is already running"). Requests now give up after a minute.
+- The history download booked today as fetched, so Home kept the morning's
+  numbers until you synced by hand. Today is never booked as whole; a later
+  session fetches it again.
+- A data file that couldn't be read — cut short by a crash, half-downloaded by
+  a sync service, or full of git conflict markers — read as empty, and the
+  next sync wrote over it with only the days it had fetched. Years of history
+  could go in one sync, and nothing fetched them again. The sync now renames
+  such a file aside (`2026.unreadable-….json`), never writes over it, and
+  fetches what it held again.
+- A device on an older version of the plugin wrote its older format over the
+  files a newer version wrote on another device, and the two kept undoing each
+  other's work. The older one now stops and asks to be updated.
+- A short page partway down the activity list read as its end, and the
+  activity index was replaced by that much of it. A listing now replaces the
+  index only when it is about as long as Garmin's count.
+- Conflict copies a sync service leaves beside a data file (`2026 2.json`,
+  Syncthing's and Dropbox's names too) went unnoticed. The first one found
+  gets a notice, and **Delete synced data…** removes them.
 - Perceived Effort's dot followed the run's slider colours, so a 5 was green
   where the app draws it yellow. The colours now go in pairs: 1–2 blue, 3–4
   green, 5–6 yellow, 7–8 orange, 9–10 red.

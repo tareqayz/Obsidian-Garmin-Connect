@@ -32,7 +32,8 @@
 <div class="gch-delete">
 	<div class="body">
 		This moves the plugin’s files in {folder} to the trash: {formatBytes(bytes)} in {count.format(files)}
-		{files === 1 ? "file" : "files"}. Anything else in that folder stays, and your Garmin account is not affected.
+		{files === 1 ? "file" : "files"}. Anything else in that folder stays, and your Garmin account is not affected. Your vault
+		sync removes them from your other devices too.
 	</div>
 	{#if notes}
 		<label class="check">

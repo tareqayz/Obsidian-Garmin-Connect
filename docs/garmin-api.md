@@ -97,9 +97,10 @@ requests at all.
 feedback phrase. The Endurance Score history comes from the range form with
 `aggregation=daily` (see [History index endpoints](#history-index-endpoints)).
 
-`dailySummary` throws `GarminAuthError` if the response comes back
-`privacyProtected: true`. That means the session is not fully authorised, which
-is a different problem from a 401.
+`dailySummary` throws `GarminApiError` (status 403) if the response comes back
+`privacyProtected: true`: read as empty it would pass for a day without data.
+The day fails with a warning; it is not a dead session, since signing in again
+gets the same answer.
 
 ### GraphQL
 
@@ -411,10 +412,12 @@ starts one only when no sync or page load waits:
 - one activity of Activity details, up to eleven requests, two seconds or more
   after the last.
 
-It stays under an hourly budget of 5,000 requests at Gentle, 10,000 at Normal
-and 15,000 at Fast, well under the 8,800 in half an hour measured clean (see
-[Request pace](#request-pace)): a quota Garmin counts over hours would not show
-in a test that short. A 429 that outlasts the client's own pauses stops it for
+It stays under an hourly budget of 2,500 requests at Gentle, 5,000 at Normal
+and 8,000 at Fast, counting everything the device asked in the hour, far under
+the 8,800 in half an hour measured clean (see [Request pace](#request-pace)): a
+quota Garmin counts over hours would not show in a test that short, and every
+install sends the same client headers. A refusal from Garmin's edge (an HTML
+403) pauses it for half an hour, doubling up to twelve. A 429 that outlasts the client's own pauses stops it for
 5 minutes, then 10, 20 and so on up to an hour; a dead session stops it until a
 sign-in.
 
@@ -488,8 +491,8 @@ is why the speeds stay well under it:
 
 | Sync speed | Pace | Days at once | 30-day sync, measured |
 | --- | --- | --- | --- |
-| Gentle | 8 requests/s | 1 | 43 s |
-| Normal (default) | 20 requests/s | 3 | 17 s |
+| Gentle (default) | 8 requests/s | 1 | 43 s |
+| Normal | 20 requests/s | 3 | 17 s |
 | Fast | 32 requests/s | 5 | 12 s |
 
 The old fixed 250 ms pause between days took 34 s for the same 30 days (344

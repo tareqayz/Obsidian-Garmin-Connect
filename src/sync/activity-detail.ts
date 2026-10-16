@@ -1,4 +1,6 @@
 import { DEVICE_NAMES } from "../garmin/device-names";
+import { isFatal } from "./fatal";
+import { NewerDataError } from "./file-health";
 import type {
 	ActivityBadgeDTO,
 	ActivityDetails,
@@ -13,7 +15,7 @@ import type {
 	GarminApi,
 	WeighIn,
 } from "../garmin/endpoints";
-import { GarminApiError, GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { GarminApiError } from "../garmin/errors";
 import type { IntradayMiss } from "./intraday-registry";
 import type { MetricGroup } from "./metrics";
 
@@ -610,6 +612,9 @@ export async function loadActivity(
 	try {
 		await store.writeActivityDetail(id, detail);
 	} catch (err) {
+		// A newer build's file: stop, as for a 429. Read as a success it would be
+		// fetched again at every plan, and saved never.
+		if (err instanceof NewerDataError) return { detail: before, reason: "failed", error: message(err), fatal: err };
 		if (error === undefined) error = `detail file: ${message(err)}`;
 	}
 	if (!blocksToFetch(detail, opts.row).length) return { detail };
@@ -986,10 +991,6 @@ function round(value: number, places: number): number {
 	return Math.round(value * factor) / factor;
 }
 
-/** Errors that make every later request pointless. */
-function isFatal(err: unknown): boolean {
-	return err instanceof GarminRateLimitError || err instanceof GarminAuthError;
-}
 
 function message(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);

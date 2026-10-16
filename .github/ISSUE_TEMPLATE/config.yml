@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting
+    url: https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/troubleshooting.md
+    about: Sign-in failures, rate limits, a paused download, files set aside — most have an answer here.
+  - name: FAQ
+    url: https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/FAQ.md
+    about: What it stores, what leaves your device, multiple devices, uninstalling.
+  - name: Report a security problem privately
+    url: https://github.com/tareqayz/Obsidian-Garmin-Connect/security/advisories/new
+    about: Please don't open a public issue for a vulnerability.

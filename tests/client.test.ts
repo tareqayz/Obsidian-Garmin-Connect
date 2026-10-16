@@ -18,6 +18,7 @@ import {
 	GarminMfaRequiredError,
 	GarminNetworkError,
 	GarminRateLimitError,
+	GarminRefreshError,
 } from "../src/garmin/errors";
 import { MFA_MAX_ATTEMPTS } from "../src/garmin/auth";
 import { MemoryTokenStore } from "../src/garmin/tokens";
@@ -87,6 +88,20 @@ describe("login", () => {
 			{ url: "/mobile/api/login", json: { responseStatus: { type: "INVALID_USERNAME_PASSWORD" } } },
 		]);
 		await assert.rejects(() => client.login("u", "p"), GarminAuthError);
+	});
+
+	it("names an answer it doesn't know, and says what to try, without repeating Garmin's body", async () => {
+		const { client } = clientWith([
+			{ url: "/mobile/api/login", json: { responseStatus: { type: "ACCOUNT_LOCKED" }, customerInfo: { email: "someone@example.com" } } },
+		]);
+		await assert.rejects(
+			() => client.login("u", "p"),
+			(err: unknown) =>
+				err instanceof GarminApiError &&
+				/responseStatus\.type ACCOUNT_LOCKED/.test(err.message) &&
+				/connect\.garmin\.com/.test(err.message) &&
+				!err.message.includes("someone@example.com"),
+		);
 	});
 
 	it("distinguishes an edge block from a credential problem", async () => {
@@ -311,11 +326,22 @@ describe("request", () => {
 		assert.equal(client.isAuthenticated, false);
 	});
 
-	it("reads a JSON 403 as the API declining", async () => {
+	it("keeps the session when Garmin can't refresh it just now", async () => {
+		const { client, store } = await signedIn([
+			{ url: "/userprofile-service", status: 401, json: {} },
+			{ url: "diauth", status: 503, text: "<html>Service unavailable</html>" },
+		]);
+		await assert.rejects(() => client.request("/userprofile-service/socialProfile"), GarminRefreshError);
+		assert.equal((await store.load())!.refreshToken, "refresh-1");
+		assert.equal(client.isAuthenticated, true);
+	});
+
+	it("reads a JSON 403 as the API declining that endpoint, not as a dead session", async () => {
 		const { client } = await signedIn([
 			{ url: "/wellness-service", status: 403, json: { message: "forbidden" } },
 		]);
-		await assert.rejects(() => client.request("/wellness-service/x"), GarminAuthError);
+		await assert.rejects(() => client.request("/wellness-service/x"), (err: unknown) => err instanceof GarminApiError && err.status === 403);
+		assert.equal(client.isAuthenticated, true);
 	});
 
 	it("reads a non-JSON 403 as the edge declining", async () => {

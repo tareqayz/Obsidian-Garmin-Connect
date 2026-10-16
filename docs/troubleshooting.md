@@ -3,21 +3,30 @@
 Keyed by symptom. If your problem is signing in, run the diagnostics first: they
 tell you which of four layers broke, which is most of the diagnosis.
 
+**Reporting a bug?** Run **Copy debug info** and paste it into the
+[bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
+It needs no password and makes no request: versions, platform, settings without
+your email, the last sync and its warnings, and what the data folder holds,
+redacted. Where there is no clipboard it saves a note in the **Log folder**
+instead. A page that couldn't be drawn has the same button on its error card.
+
 ## Diagnostics
 
 **Run diagnostics** from the command palette opens a modal with four checks.
-While **Save every diagnostics run to the vault** is on (the default), every run
-is saved as a note in the **Log folder**, because **on a phone there is no
-console**. That is `Garmin/diagnostics` in vaults set up since 0.2; older vaults
-keep the folder they had, usually `garmin-probe-logs`. The note syncs back to
-your desktop like any other.
+**Save to vault** keeps a run as a note in the **Log folder**, because **on a
+phone there is no console**; **Save every diagnostics run to the vault** keeps
+them all (off by default). That is `Garmin/diagnostics` in vaults set up since
+0.2; older vaults keep the folder they had, usually `garmin-probe-logs`. The
+note syncs back to your desktop like any other. The password is cleared after
+each check, and the checks that use the plugin's own session wait for a running
+sync to finish.
 
 | Check | What it proves |
 | --- | --- |
 | **1. Network fingerprint** | What this platform looks like on the wire. Asks `tls.peet.ws` for the User-Agent the server actually saw, JA3/JA4 and the HTTP version. If `requestUrl` dropped your UA override, nothing below matters. |
 | **2. Test login** | Reachability without credentials, then the login POST, then MFA if demanded, then the ticket exchange, then a live API call. |
-| **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from `data.json`, mints a new access token from it alone, then makes two real calls. |
-| **4. Inspect fitness endpoints** | Prints the raw keys `maxMetrics`, `racePredictions` and `enduranceScore` return, then what the mapper makes of them. |
+| **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from this device's keychain, mints a new access token from it alone, then makes two real calls. |
+| **4. Inspect fitness endpoints** | Prints the keys and value types `maxMetrics`, `racePredictions` and `enduranceScore` return, then which properties the mapper makes of them. |
 
 Checks 1 and 4 need no password. Check 2 costs a login attempt — see the lockout
 warning below.
@@ -86,8 +95,10 @@ client saves the new token straight away, so if this happens, diagnostics check
 If check 3 fails while check 2 passes, Garmin has probably rotated its client
 IDs. They rotate roughly quarterly; open an issue with the saved run.
 
-The session lives in the plugin's `data.json`. If your vault sync copies that
-file between devices, they share one session.
+A refresh that fails for a reason other than the token — a Garmin outage, a bot
+check — keeps the session, and the next sync tries again. Only Garmin saying the
+token is spent ends it. The session lives in this device's keychain, so another
+device signing in or out never touches it.
 
 ## Rate limited (429)
 
@@ -100,15 +111,18 @@ Wait 15–30 minutes. Then:
   share one daily summary request, so switching off some of the five saves
   nothing.
 - **Mind the history download.** What you chose in the setup downloads in the
-  background, under an hourly budget (5,000 to 15,000 requests by sync speed).
+  background, under an hourly budget (2,500 to 8,000 requests by sync speed).
   A 429 pauses it for five minutes, doubling up to an hour, and it carries on
   by itself with what it already fetched kept. See
   [The history download is paused](#the-history-download-is-paused).
 - **Nothing recent was lost.** The sync runs **newest day first**, so a run cut
   short by a rate limit already covered the days you care about most.
 
-A 429 or a dead session abandons the whole sync immediately, because every later
-request would fail the same way.
+A 429, Garmin's bot check refusing the client, or a dead session abandons the
+whole sync immediately, because every later request would fail the same way.
+**Stop syncing** stops one you started after the day it is on, keeping what came
+in; **Pause the history download** and **Resume the history download** do the
+same for the download.
 
 ## The history download is paused
 
@@ -119,7 +133,9 @@ computer in the status bar. What it says, and what to do:
 | --- | --- | --- |
 | Sign in to keep downloading | The Garmin session ended | Sign in, from the pill, **Settings → Data** or **Sign in to Garmin Connect**. It carries on by itself |
 | Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin |
-| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed and it tries again in ten minutes | Nothing |
+| Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device (an HTML 403) | Nothing. It waits half an hour, doubling up to twelve, because asking again soon keeps a block in place. Run diagnostics if it keeps happening |
+| Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device |
+| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed and it tries again in ten minutes. A piece that fails three times is left for the next session | Nothing |
 | Download paused | You paused it, on this device or another sharing the vault | **Resume** |
 | Downloading history on iPhone | Another device with this vault is downloading | Nothing. If that device stops, this one takes over once it has been quiet for ten minutes |
 
@@ -141,10 +157,9 @@ and download the history on this device.
 
 ## Home still shows yesterday after midnight
 
-Home works out "today" when it opens, and again whenever one of its own data
-files changes. A Home tab left open past midnight, with nothing changing, keeps
-yesterday's date, labels, offsets and all. Run **Sync recent days** (Home's ↻),
-or close Home and run **Open home**.
+An open Home moves to the new day within a minute of midnight. If today's
+numbers aren't there yet, Home says "Today isn't synced yet" and shows the last
+day it has: run **Sync recent days** (Home's ↻).
 
 ## Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 
@@ -246,6 +261,47 @@ If files *are* being rewritten every run, a value is changing. Garmin revising a
 recent day is the usual reason, and is why a recent sync always covers
 yesterday too.
 
+## A data file "couldn't be read" and was kept as …unreadable…
+
+The sync never writes over a file it can't read. A save cut short by a crash, a
+half-downloaded copy from a sync service, or git's `<<<<<<<` conflict markers
+make a file unreadable, and replacing it would have lost everything it held. So
+the plugin renames it beside where it was, for example
+`days/2026.unreadable-20261016-113005.json`, writes what the sync fetched into
+a fresh `2026.json`, and fetches the rest again:
+
+- **A day file:** its days drop out of the history download's coverage, so the
+  download fetches them again, within the **Day details** range you chose.
+  Older days come back with **Sync a date range…**.
+- **A chart index file** (activities, sleep, steps and the rest): the index is
+  walked again from the start, which costs a few requests a year.
+
+The renamed file is yours to open or delete; nothing reads it. **Delete synced
+data…** removes it with the rest.
+
+## Conflict copies ("2026 2.json")
+
+When two devices change one file before they sync, iCloud and Obsidian Sync
+keep both and name one `2026 2.json`. Syncthing names it
+`2026.sync-conflict-….json` and Dropbox `2026 (… conflicted copy …).json`. The
+plugin reads only `2026.json`, so a day only the copy holds goes unseen. The
+first copy found in a session gets a notice.
+
+- **The history download runs on one device at a time** already: the others
+  say which device has it.
+- **Sync from one device when you can**, and let the others read what it
+  syncs. Two devices changing a file before their vault sync catches up is
+  what makes a copy.
+- If days are missing, **Sync a date range…** fetches them again. Then delete
+  the copy.
+
+## "Written by a newer version of Garmin Connect"
+
+Another device updated the plugin and wrote its files in a newer format. This
+device stops rather than writing its older format over them, which would make
+the two devices undo each other's work. Update the plugin here (BRAT: **Check
+for updates**), and the sync and the history download carry on.
+
 ## It works on desktop but breaks on mobile
 
 Almost always a node or electron import that leaked into the bundle. `npm run
@@ -256,8 +312,9 @@ is hardest to debug.
 If you are not building from source, run diagnostics check 1 on the phone. If
 `requestUrl` dropped the User-Agent override there, that is the difference.
 
-A phone signed out while the desktop works usually just has no session: sign in
-there. Its vault sync may not be copying the plugin's `data.json`.
+A phone that says "Not signed in on this device" while the desktop works has no
+session of its own: each device signs in on its own. It still shows what the
+desktop syncs; sign in there only to sync from the phone too.
 
 ## Reading a diagnostics log on a phone
 

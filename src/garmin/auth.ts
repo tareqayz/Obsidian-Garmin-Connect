@@ -213,7 +213,7 @@ export async function mobileLogin(
 		return { kind: "mfa", method };
 	}
 	if (type === "SUCCESSFUL" && body.serviceTicketId) {
-		ctx.log.ok(`service ticket issued: ${body.serviceTicketId.slice(0, 8)}…`);
+		ctx.log.ok("service ticket issued");
 		return { kind: "ticket", ticket: body.serviceTicketId };
 	}
 	if (type === "INVALID_USERNAME_PASSWORD") {
@@ -229,8 +229,10 @@ export async function mobileLogin(
 		return { kind: "captcha" };
 	}
 
-	ctx.log.warn(`unhandled response: ${snippet(res.text, 200)}`);
-	return { kind: "unexpected", status: res.status, detail: snippet(res.text, 200) };
+	// The body may carry a ticket or the account's details: only its shape goes in the log.
+	const detail = type ? `responseStatus.type ${type}` : `HTTP ${res.status}`;
+	ctx.log.warn(`unhandled response: ${detail}; fields ${Object.keys(body).join(", ") || "(none)"}`);
+	return { kind: "unexpected", status: res.status, detail };
 }
 
 /* ------------------------------------------------------------------ */
@@ -298,7 +300,7 @@ export async function verifyMfa(
 	ctx.log.detail("responseStatus.type", type ?? "(missing)");
 
 	if (type === "SUCCESSFUL" && body.serviceTicketId) {
-		ctx.log.ok(`service ticket issued: ${body.serviceTicketId.slice(0, 8)}…`);
+		ctx.log.ok("service ticket issued");
 		return { kind: "ticket", ticket: body.serviceTicketId };
 	}
 
@@ -520,7 +522,7 @@ export async function verifyToken(ctx: AuthContext, accessToken: string): Promis
 
 	const profile = parseJson<{ displayName?: string; userName?: string; fullName?: string }>(res.text);
 	ctx.log.ok("API tier accepted the token");
-	ctx.log.detail("displayName", profile?.displayName ?? "(absent)");
+	ctx.log.detail("displayName", profile?.displayName ? "(present)" : "(absent)");
 	ctx.log.detail("fullName", profile?.fullName ? "(present)" : "(absent)");
 	return true;
 }

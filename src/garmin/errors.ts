@@ -49,6 +49,19 @@ export class GarminApiError extends GarminError {
 export class GarminNetworkError extends GarminError {}
 
 /**
+ * A token refresh that failed for a reason other than the token: a 5xx, a
+ * proxy's page, an answer without a token. The session is kept, and the next
+ * sync tries again; nothing about it says the user must sign in.
+ */
+export class GarminRefreshError extends GarminError {
+	readonly status: number;
+	constructor(message: string, status: number) {
+		super(message);
+		this.status = status;
+	}
+}
+
+/**
  * Garmin demanded a verification code and the caller passed no way to ask for
  * one. Interactive sign-in hands `login()` a prompt and never sees this; it is
  * the honest answer for a caller that has nobody to ask.

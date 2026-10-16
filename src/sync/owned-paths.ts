@@ -34,8 +34,13 @@ export const OWNED_FOLDERS: readonly string[] = ["days", "series", "activities",
 /** Files the sync writes at the data folder's top. */
 export const OWNED_FILES: readonly string[] = ["account.json", "sync-state.json", "scan.json", "backfill.json"];
 
-/** An iCloud or Obsidian Sync conflict copy keeps the name and adds " 2". */
-const COPY = "(?: \\d+)?";
+/**
+ * What a sync service adds to a name in a conflict — iCloud's and Obsidian
+ * Sync's " 2", Syncthing's ".sync-conflict-…", Dropbox's " (… conflicted
+ * copy …)" — or the store to a file it set aside (".unreadable-…", see
+ * `file-health.ts`).
+ */
+const COPY = "(?: \\d+| \\(.+\\)|\\.sync-conflict-[\\w-]+|\\.unreadable-[\\d-]+)?";
 
 /** The names the sync gives what it writes inside its folders. */
 const OWNED_NAMES = [
@@ -84,8 +89,8 @@ export function planDelete(root: PathEntry | null, indexFolders: readonly string
 	return plan;
 }
 
-/** The diagnostics notes in the log folder: what "Also delete diagnostics notes" adds. */
+/** The diagnostics and debug info notes in the log folder: what "Also delete diagnostics notes" adds. */
 export function diagnosticsNotes(folder: PathEntry | null): PathEntry[] {
 	if (!folder || !isFolder(folder)) return [];
-	return folder.children!.filter((child) => !isFolder(child) && /^garmin-probe-.*\.md$/.test(child.name));
+	return folder.children!.filter((child) => !isFolder(child) && /^garmin-(?:probe|debug)-.*\.md$/.test(child.name));
 }

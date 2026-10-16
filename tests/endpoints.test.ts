@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, type FixtureRule } from "./support/fixture-http";
 import { GarminApi, assertIsoDate, toIsoDate } from "../src/garmin/endpoints";
-import { GarminApiError, GarminAuthError } from "../src/garmin/errors";
+import { GarminApiError } from "../src/garmin/errors";
 import { MemoryTokenStore } from "../src/garmin/tokens";
 
 const profile: FixtureRule = {
@@ -560,12 +560,25 @@ describe("activity details", () => {
 	});
 });
 
+describe("what errors say about the account", () => {
+	it("name an endpoint with a placeholder for the display name, never the name itself", async () => {
+		const { client } = await api([
+			{ url: "/userprofile-service/socialProfile", json: { displayName: "Ana Runner 42", fullName: "Ana Example", profileId: 123456789 } },
+			{ url: "/usersummary-service", status: 404, text: "nope" },
+		]);
+		await assert.rejects(
+			() => client.dailySummary("2026-09-12"),
+			(err: unknown) => err instanceof GarminApiError && err.message.includes("/:displayName") && !err.message.includes("Ana") && !err.message.includes("calendarDate"),
+		);
+	});
+});
+
 describe("privacy-protected summaries", () => {
-	it("are reported as an auth problem, not as empty data", async () => {
+	it("fail the day, not as empty data and not as a dead session", async () => {
 		const { client } = await api([
 			profile,
 			{ url: "/usersummary-service", json: { privacyProtected: true } },
 		]);
-		await assert.rejects(() => client.dailySummary("2026-09-12"), GarminAuthError);
+		await assert.rejects(() => client.dailySummary("2026-09-12"), (err: unknown) => err instanceof GarminApiError && err.status === 403);
 	});
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
-	import type { Setting } from "obsidian";
+	import { Notice, normalizePath, type Setting } from "obsidian";
+	import { folderProblem } from "../../../sync/vault-paths";
 	import type GarminPlugin from "../../../main";
 	import { DEFAULT_SETTINGS } from "../../../settings-data";
 	import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, rangeStart, isActivityDetailsRange, isDayDetailsRange } from "../../../sync/datasets";
@@ -132,6 +133,8 @@
 		if (p.status === "paused" && p.reason === "user") return `Download paused · ${percent}% · ${what}${reached}`;
 		if (p.status === "paused" && p.reason === "sign-in") return "Your Garmin session ended. Sign in to keep downloading.";
 		if (p.status === "paused" && p.reason === "rate-limit") return `Garmin asked us to slow down · resumes at ${until}`;
+		if (p.status === "paused" && p.reason === "blocked") return `Garmin's bot check refused this device · trying again at ${until}`;
+		if (p.status === "paused" && p.reason === "update") return "Another device runs a newer version of the plugin. Update it here to keep downloading.";
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
 		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;
 		if (p.status === "elsewhere") return `Downloading on ${p.device ?? "another device"}. This device leaves it to that one.`;
@@ -148,15 +151,28 @@
 		setting
 			.setName("Data folder")
 			.setDesc("Where the synced JSON files live. Moving it does not move files already written.")
-			.addText((t) =>
-				t
-					.setPlaceholder(DEFAULT_SETTINGS.dataFolder)
-					.setValue(s.dataFolder)
-					.onChange((v) => {
-						s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder;
-						save();
-					}),
-			)}
+			.addText((t) => {
+				t.setPlaceholder(DEFAULT_SETTINGS.dataFolder).setValue(s.dataFolder);
+				// Saved once, on Enter or leaving the field: a folder taken a keystroke
+				// at a time would scatter half-typed folders through the vault.
+				const commit = () => {
+					const next = normalizePath(t.getValue().trim() || DEFAULT_SETTINGS.dataFolder);
+					const problem = folderProblem(next, plugin.app.vault.configDir);
+					if (problem) {
+						new Notice(problem);
+						t.setValue(s.dataFolder);
+						return;
+					}
+					if (next === s.dataFolder) return;
+					s.dataFolder = next;
+					t.setValue(next);
+					save();
+				};
+				t.inputEl.addEventListener("blur", commit);
+				t.inputEl.addEventListener("keydown", (e) => {
+					if (e.key === "Enter") t.inputEl.blur();
+				});
+			})}
 ></div>
 
 {#key usage}
@@ -215,7 +231,8 @@
 				<button onclick={() => void plugin.sync.pauseBackfill()}>Pause</button>
 			{:else if progress.status === "paused" && progress.reason === "sign-in"}
 				<button class="mod-cta" onclick={() => plugin.openLogin()}>Sign in</button>
-			{:else if progress.status === "paused"}
+			{:else if progress.status === "paused" && progress.reason !== "update"}
+				<!-- Nothing to resume until the plugin here is updated. -->
 				<button class="mod-cta" onclick={() => void plugin.sync.resumeBackfill()}>Resume</button>
 			{/if}
 		</div>

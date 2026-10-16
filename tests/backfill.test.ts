@@ -6,6 +6,7 @@ import {
 	nextChunk,
 	parseBackfill,
 	planBackfill,
+	blockedWait,
 	rateLimitWait,
 	RequestBudget,
 	serializeBackfill,
@@ -176,6 +177,9 @@ describe("backfill.json", () => {
 		assert.deepEqual(parseBackfill(serializeBackfill(state)), state);
 		assert.deepEqual(parseBackfill("nope"), {});
 		assert.deepEqual(parseBackfill(JSON.stringify({ version: 1, paused: { reason: "bored" } })), {});
+		// A bot check's pause is kept like a 429's, so a restart doesn't knock again at once.
+		const blocked = { paused: { reason: "blocked" as const, until: "2026-10-14T06:30:00.000Z" } };
+		assert.deepEqual(parseBackfill(serializeBackfill(blocked)), blocked);
 	});
 
 	it("leaves the backfill to another device while its lease is fresh, and takes over a stale one", () => {
@@ -195,6 +199,49 @@ describe("backfill.json", () => {
 
 	it("waits longer after each 429 in a row, up to an hour", () => {
 		assert.deepEqual([1, 2, 3, 4, 5, 9].map((n) => rateLimitWait(n) / 60_000), [5, 10, 20, 40, 60, 60]);
+	});
+});
+
+describe("hourly budget, kept across restarts", () => {
+	/** Local storage as Obsidian keeps it: a value per key, JSON round-tripped. */
+	function memoryStore(initial?: unknown) {
+		let held: unknown = initial === undefined ? null : JSON.parse(JSON.stringify(initial));
+		return {
+			load: () => held,
+			save: (entries: unknown) => {
+				held = JSON.parse(JSON.stringify(entries));
+			},
+			get held() {
+				return held;
+			},
+		};
+	}
+
+	it("picks up what the last session spent in the hour", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const store = memoryStore();
+		new RequestBudget(() => 100, store).add(80, t0);
+		const restarted = new RequestBudget(() => 100, store);
+		assert.equal(restarted.used(t0 + 60_000), 80);
+		assert.equal(restarted.waitFor(30, t0 + 60_000), 3_600_000 - 60_000);
+	});
+
+	it("drops what the hour no longer holds, entries from the future, and anything malformed", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const store = memoryStore([
+			{ at: t0 - 3_700_000, requests: 50 },
+			{ at: t0 + 3_600_000, requests: 50 },
+			{ at: "soon", requests: 50 },
+			{ at: t0, requests: -5 },
+			{ at: t0, requests: 10 },
+		]);
+		const budget = new RequestBudget(() => 100, store);
+		assert.equal(budget.used(t0 + 1_000), 10);
+		assert.deepEqual(store.held, [{ at: t0, requests: 10 }]);
+	});
+
+	it("waits half an hour after the edge's first refusal, doubling to twelve hours", () => {
+		assert.deepEqual([1, 2, 3, 4, 5, 6, 9].map((n) => blockedWait(n) / 60_000), [30, 60, 120, 240, 480, 720, 720]);
 	});
 });
 

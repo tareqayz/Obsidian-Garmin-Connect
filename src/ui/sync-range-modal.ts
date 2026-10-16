@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
 import { FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
-import { requestsPerDay } from "../sync/estimate";
+import { HOURLY_BUDGET, requestsPerDay } from "../sync/estimate";
 import { secondsPerDay, SYNC_SPEEDS } from "../sync/speed";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
 
@@ -34,6 +34,7 @@ export class SyncRangeModal extends Modal {
 				today: toIsoDate(),
 				secondsPerDay: secondsPerDay(perDay, SYNC_SPEEDS[settings.syncSpeed]),
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
+				hourly: HOURLY_BUDGET[settings.syncSpeed],
 				onRun: (start: string, end: string) => {
 					this.close();
 					void this.plugin.sync.run(start, end);

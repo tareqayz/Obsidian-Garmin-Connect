@@ -1,7 +1,8 @@
 import type { Plugin } from "obsidian";
 import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
-import type { PersistedAuth, TokenStore } from "./garmin/tokens";
+import type { SecretTokenStore } from "./garmin/secret-token-store";
+import type { PersistedAuth } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, defaultData, SETTINGS_VERSION, type DataChoices, type GarminSettings, type SetupState } from "./settings-data";
 import { chartKeys, isActivityDetailsRange, isDayDetailsRange, LEGACY_RUNS_KEY, parseConsentKey } from "./sync/datasets";
 import type { LegacyNotes } from "./sync/import-notes";
@@ -52,8 +53,14 @@ function dataOf(v: unknown): DataChoices {
 
 interface Persisted {
 	settings: GarminSettings;
-	auth: PersistedAuth | null;
 	home: HomeState;
+}
+
+/** The session a build before SecretStorage kept in data.json, by its three fields. */
+function legacyAuth(v: unknown): PersistedAuth | null {
+	const raw = v as Partial<PersistedAuth> | null | undefined;
+	if (!raw || typeof raw !== "object" || typeof raw.refreshToken !== "string" || !raw.refreshToken || typeof raw.diClientId !== "string") return null;
+	return { refreshToken: raw.refreshToken, diClientId: raw.diClientId, savedAt: typeof raw.savedAt === "number" ? raw.savedAt : 0 };
 }
 
 export interface HomeState {
@@ -71,17 +78,15 @@ export interface HomeState {
 const MORE_IDS: readonly MoreId[] = ["events", "coachPlans", "challenges"];
 
 /**
- * Owns `data.json`.
+ * Owns `data.json`: settings and Home's state, which both go through here so
+ * one save cannot clobber the other.
  *
- * Settings, the session and Home's state share one file, so all three go
- * through here — otherwise saving settings would clobber a token written
- * moments earlier.
- *
- * It is also the only `TokenStore` the plugin uses, and what it stores is
- * deliberately narrow: a refresh token and the DI client it belongs to. No
- * password, no access token.
+ * The session is not in it. It lives in this device's keychain
+ * (`SecretTokenStore`), so the refresh token never travels with the vault. A
+ * session an older build left in `data.json` moves there on load, and the next
+ * save leaves it out.
  */
-export class PluginData implements TokenStore {
+export class PluginData {
 	settings: GarminSettings = { ...DEFAULT_SETTINGS, data: defaultData() };
 	/**
 	 * The Home screen's own state. Kept beside settings rather than inside them:
@@ -97,10 +102,11 @@ export class PluginData implements TokenStore {
 	legacyNotes: LegacyNotes = { dataFolder: DEFAULT_SETTINGS.dataFolder, dataFolderPrefix: "", prefix: "garmin_" };
 
 	private plugin: Plugin;
-	private auth: PersistedAuth | null = null;
+	private tokens: Pick<SecretTokenStore, "read" | "save">;
 
-	constructor(plugin: Plugin) {
+	constructor(plugin: Plugin, tokens: Pick<SecretTokenStore, "read" | "save">) {
 		this.plugin = plugin;
+		this.tokens = tokens;
 	}
 
 	async init(): Promise<void> {
@@ -129,16 +135,18 @@ export class PluginData implements TokenStore {
 			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
 			// An older build saved a pause in ms; the speed nearest it stands in.
-			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : speedFromPause(source.pauseBetweenDays),
+			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : source.pauseBetweenDays !== undefined ? speedFromPause(source.pauseBetweenDays) : d.syncSpeed,
 			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
 		};
-		const auth = raw.auth as PersistedAuth | null | undefined;
-		this.auth = auth && typeof auth.refreshToken === "string" ? auth : null;
+		// An older build kept the session here. It moves to this device's keychain
+		// unless this device already has one, and the save below leaves it out.
+		const legacy = legacyAuth(raw.auth);
+		if (legacy && !this.tokens.read()) await this.tokens.save(legacy);
 
-		const migrated = this.migrate(source.downloadRuns === true);
+		const migrated = this.migrate(source.downloadRuns === true, legacy !== null || this.hasSession);
 		this.legacyNotes = {
 			dataFolder: this.settings.dataFolder,
 			dataFolderPrefix: text(source.dataFolderPrefix, ""),
@@ -157,13 +165,13 @@ export class PluginData implements TokenStore {
 			...(glance ? { glance } : {}),
 		};
 
-		if (migrated) await this.flush();
+		if (migrated || raw.auth !== undefined) await this.flush();
 	}
 
 	/**
 	 * The setup and the data choices again from `data.json`, after another
-	 * device changed them (`onExternalSettingsChange`). Nothing else: the
-	 * session and the rest stay as this device has them.
+	 * device changed them (`onExternalSettingsChange`). Nothing else: Home and
+	 * the other settings stay as this device has them.
 	 */
 	async reloadChoices(): Promise<void> {
 		const raw = (await this.plugin.loadData()) as Record<string, unknown> | null;
@@ -182,7 +190,7 @@ export class PluginData implements TokenStore {
 	 * Versioned rather than "add anything missing", so a group you deliberately
 	 * turned off stays off.
 	 */
-	private migrate(downloadRuns: boolean): boolean {
+	private migrate(downloadRuns: boolean, signedIn: boolean): boolean {
 		if (this.settings.settingsVersion >= SETTINGS_VERSION) return false;
 		if (this.settings.groups.length > 0) {
 			const from = this.settings.settingsVersion;
@@ -204,7 +212,7 @@ export class PluginData implements TokenStore {
 			// were walked already; its runs were if Download runs was on. Its day
 			// details are left for the first update dialog, which offers the
 			// recent days an older build saved without timelines.
-			if (this.auth) {
+			if (signedIn) {
 				this.settings.setup = { completedAt: new Date().toISOString(), migrated: true };
 				this.settings.data.dayDetails = "30d";
 				// Download runs agreed to runs: the legacy key keeps them coming, and the other sports are asked about.
@@ -213,22 +221,6 @@ export class PluginData implements TokenStore {
 		}
 		this.settings.settingsVersion = SETTINGS_VERSION;
 		return true;
-	}
-
-	/* TokenStore ----------------------------------------------------- */
-
-	async load(): Promise<PersistedAuth | null> {
-		return this.auth;
-	}
-
-	async save(auth: PersistedAuth): Promise<void> {
-		this.auth = auth;
-		await this.flush();
-	}
-
-	async clear(): Promise<void> {
-		this.auth = null;
-		await this.flush();
 	}
 
 	/* Settings ------------------------------------------------------- */
@@ -244,14 +236,14 @@ export class PluginData implements TokenStore {
 		await this.flush();
 	}
 
+	/** Whether this device holds a Garmin session. */
 	get hasSession(): boolean {
-		return this.auth !== null;
+		return this.tokens.read() !== null;
 	}
 
 	private async flush(): Promise<void> {
 		const payload: Persisted = {
 			settings: this.settings,
-			auth: this.auth,
 			home: this.home,
 		};
 		await this.plugin.saveData(payload);

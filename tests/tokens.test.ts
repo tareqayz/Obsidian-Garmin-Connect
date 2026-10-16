@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, fakeJwt } from "./support/fixture-http";
-import { GarminAuthError, GarminNetworkError, GarminRateLimitError } from "../src/garmin/errors";
+import { GarminAuthError, GarminBlockedError, GarminNetworkError, GarminRateLimitError, GarminRefreshError } from "../src/garmin/errors";
 import {
 	MemoryTokenStore,
 	REFRESH_MARGIN_MS,
@@ -79,14 +79,35 @@ describe("refreshAccessToken", () => {
 	});
 
 	for (const status of [400, 401, 403]) {
-		it(`treats HTTP ${status} as a dead session`, async () => {
-			const http = new FixtureHttpClient([{ url: "diauth", status, json: { error: "no" } }]);
+		it(`treats an OAuth error at HTTP ${status} as a dead session`, async () => {
+			const http = new FixtureHttpClient([{ url: "diauth", status, json: { error: "invalid_grant" } }]);
 			await assert.rejects(
 				() => refreshAccessToken(http, "garmin.com", auth),
-				GarminAuthError,
+				(err: unknown) => err instanceof GarminAuthError && /invalid_grant/.test(err.message),
 			);
 		});
 	}
+
+	it("keeps the session through a 5xx: nothing says the token is spent", async () => {
+		const http = new FixtureHttpClient([{ url: "diauth", status: 502, text: "<html>Bad gateway</html>" }]);
+		await assert.rejects(
+			() => refreshAccessToken(http, "garmin.com", auth),
+			(err: unknown) => err instanceof GarminRefreshError && err.status === 502,
+		);
+	});
+
+	it("reads an HTML 403 as Garmin's edge, not the session", async () => {
+		const http = new FixtureHttpClient([{ url: "diauth", status: 403, text: "<html>Attention required</html>" }]);
+		await assert.rejects(() => refreshAccessToken(http, "garmin.com", auth), GarminBlockedError);
+	});
+
+	it("keeps the session through a 401 that says nothing, and says how to get out of it", async () => {
+		const http = new FixtureHttpClient([{ url: "diauth", status: 401, text: "" }]);
+		await assert.rejects(
+			() => refreshAccessToken(http, "garmin.com", auth),
+			(err: unknown) => err instanceof GarminRefreshError && /sign in again/.test(err.message),
+		);
+	});
 
 	it("reports rate limiting separately, with Retry-After", async () => {
 		const http = new FixtureHttpClient([
@@ -106,9 +127,9 @@ describe("refreshAccessToken", () => {
 		);
 	});
 
-	it("rejects a 200 with no access_token", async () => {
+	it("rejects a 200 with no access_token, keeping the session", async () => {
 		const http = new FixtureHttpClient([{ url: "diauth", json: { token_type: "Bearer" } }]);
-		await assert.rejects(() => refreshAccessToken(http, "garmin.com", auth), GarminAuthError);
+		await assert.rejects(() => refreshAccessToken(http, "garmin.com", auth), GarminRefreshError);
 	});
 });
 

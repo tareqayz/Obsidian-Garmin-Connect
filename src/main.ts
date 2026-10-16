@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, type App, type WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
 import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -8,19 +8,22 @@ import { healthStatRoute, performanceStatRoute, sleepRoute, statsRoute } from ".
 import { commandTitle } from "./dashboard/stat-registry";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GarminApi, toIsoDate } from "./garmin/endpoints";
+import { HAD_SESSION_KEY, SecretTokenStore, SESSION_SECRET } from "./garmin/secret-token-store";
+import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { DAY_INDEXES } from "./sync/day-indexes";
 import { importDayNotes } from "./sync/import-notes";
-import { SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
+import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
-import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
+import { GARMIN_ICON } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
 import { removeLeafletStyles } from "./ui/map/leaflet";
+import { copyDebugInfo } from "./debug-info";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 import { SetupModal } from "./ui/setup-modal";
@@ -37,7 +40,7 @@ import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
-/** What an uninstalled plugin leaves on this device besides the vault: the map tiles and the device's id. */
+/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id, its request budget and its Garmin session. */
 function forgetThisDevice(app: App): void {
 	try {
 		window.indexedDB.deleteDatabase(TILE_DB);
@@ -45,25 +48,33 @@ function forgetThisDevice(app: App): void {
 		// Nothing to clear.
 	}
 	app.saveLocalStorage(DEVICE_KEY, null);
+	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
+	app.saveLocalStorage(BUDGET_KEY, null);
+	app.saveLocalStorage(HAD_SESSION_KEY, null);
+	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
 /** The backfill carries on after the startup sync has had its turn. */
 const STARTUP_BACKFILL_DELAY_MS = 8000;
 /** Where this device keeps its id, for the backfill's lease. Per vault and device, never synced. */
 const DEVICE_KEY = "garmin-connect-device";
+/** Set when Home's "Not signed in on this device" card was put away here: a device that only reads what another syncs. */
+const SIGN_IN_CARD_KEY = "garmin-connect-hide-sign-in";
 
 export default class GarminPlugin extends Plugin {
 	data!: PluginData;
 	garmin!: GarminApi;
 	sync!: SyncRunner;
+	/** This device's Garmin session, in Obsidian's keychain rather than data.json. */
+	tokens!: SecretTokenStore;
 
 	async onload(): Promise<void> {
-		registerGarminIcon();
 		registerSportIcons();
 		// The activity maps add Leaflet's stylesheet when they first draw.
 		this.register(removeLeafletStyles);
 
-		this.data = new PluginData(this);
+		this.tokens = new SecretTokenStore(this.app);
+		this.data = new PluginData(this, this.tokens);
 		await this.data.init();
 
 		this.buildClient();
@@ -171,6 +182,26 @@ export default class GarminPlugin extends Plugin {
 			callback: () => this.openSetup(),
 		});
 		this.addCommand({
+			id: "stop-sync",
+			name: "Stop syncing",
+			callback: () => new Notice(this.sync.stopForeground() ? "Garmin: stopping after the day in progress." : "No Garmin sync is running."),
+		});
+		this.addCommand({
+			id: "pause-download",
+			name: "Pause the history download",
+			callback: () => void this.sync.pauseBackfill(),
+		});
+		this.addCommand({
+			id: "resume-download",
+			name: "Resume the history download",
+			callback: () => void this.sync.resumeBackfill(),
+		});
+		this.addCommand({
+			id: "copy-debug-info",
+			name: "Copy debug info",
+			callback: () => void this.copyDebugInfo(),
+		});
+		this.addCommand({
 			id: "run-probe",
 			name: "Run diagnostics",
 			callback: () => new ProbeModal(this.app, this).open(),
@@ -195,16 +226,19 @@ export default class GarminPlugin extends Plugin {
 
 	onunload(): void {
 		this.sync.stop();
+		// A dialog this instance opened would act through it after a reload (an update): close it.
+		for (const dialog of this.dialogs) dialog.close();
 		// Uninstalled rather than disabled or updated: offer to remove the synced data (see uninstall-watch.ts).
 		const app = this.app;
 		const dir = this.manifest.dir;
 		const dataFolder = this.data.settings.dataFolder;
+		const logFolder = this.data.settings.logFolder;
 		if (!dir) return;
 		watchForUninstall({
 			exists: () => app.vault.adapter.exists(dir),
 			onGone: () => {
 				forgetThisDevice(app);
-				if (deletePlan(app, dataFolder).files) new RemovedDataModal(app, dataFolder).open();
+				if (deletePlan(app, dataFolder).files) new RemovedDataModal(app, dataFolder, logFolder).open();
 			},
 		});
 	}
@@ -221,8 +255,21 @@ export default class GarminPlugin extends Plugin {
 		});
 	}
 
+	/** The setup and update dialogs this instance has open, closed when it unloads. */
+	private dialogs = new Set<Modal>();
+
+	private track(dialog: Modal): void {
+		this.dialogs.add(dialog);
+		const close = dialog.onClose.bind(dialog);
+		dialog.onClose = () => {
+			this.dialogs.delete(dialog);
+			close();
+		};
+		dialog.open();
+	}
+
 	openSetup(): void {
-		new SetupModal(this.app, this).open();
+		this.track(new SetupModal(this.app, this));
 	}
 
 	/**
@@ -272,6 +319,10 @@ export default class GarminPlugin extends Plugin {
 						? `Garmin · downloading on ${progress.device ?? "another device"}`
 						: progress.reason === "sign-in"
 							? "Garmin · sign in to continue"
+							: progress.reason === "update"
+								? "Garmin · update the plugin to continue"
+							: progress.reason === "blocked"
+								? "Garmin · refused by Garmin, resting"
 							: progress.reason === "user"
 								? "Garmin · download paused"
 								: "Garmin · download resting";
@@ -326,7 +377,7 @@ export default class GarminPlugin extends Plugin {
 		const lines = await this.updateLines("pending");
 		if (!lines.length || this.askedForUpdates) return;
 		this.askedForUpdates = true;
-		new DataUpdateModal(this.app, this, lines).open();
+		this.track(new DataUpdateModal(this.app, this, lines));
 	}
 
 	/** Yes to `keys`, later to `later`: the ledger keeps both, and the backfill starts on the yeses. */
@@ -347,7 +398,21 @@ export default class GarminPlugin extends Plugin {
 
 	/** Signed in or out: open views redraw what depends on it, and a backfill waiting for the sign-in carries on. */
 	authChanged(): void {
-		if (this.garmin.isAuthenticated) void this.sync.signedIn();
+		if (this.garmin.isAuthenticated) {
+			this.app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
+			void this.sync.signedIn();
+		}
+		this.refreshViews();
+	}
+
+	/** Whether Home's "Not signed in on this device" card was put away on this device. */
+	get signInCardHidden(): boolean {
+		return this.app.loadLocalStorage(SIGN_IN_CARD_KEY) === "1";
+	}
+
+	/** Puts that card away on this device, for one that only reads what another syncs. */
+	hideSignInCard(): void {
+		this.app.saveLocalStorage(SIGN_IN_CARD_KEY, "1");
 		this.refreshViews();
 	}
 
@@ -418,7 +483,7 @@ export default class GarminPlugin extends Plugin {
 	buildClient(): void {
 		this.garmin = new GarminApi({
 			http: new ObsidianHttpClient(),
-			store: this.data,
+			store: this.tokens,
 			domain: this.data.settings.domain,
 		});
 		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());
@@ -446,6 +511,27 @@ export default class GarminPlugin extends Plugin {
 			if (view instanceof GarminHomeView) view.rebindRunner();
 		}
 		this.authChanged();
+	}
+
+	/** For a bug report: versions, settings without the email, the last sync and its warnings — see `debug-info.ts`. */
+	async copyDebugInfo(error?: unknown): Promise<void> {
+		try {
+			new Notice(await copyDebugInfo(this, error === undefined ? {} : { error }), 8000);
+		} catch (err) {
+			new Notice(`Couldn't gather the debug info: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	/**
+	 * A new region: every host changes, so the client is built again, signed out
+	 * — a session belongs to the region that issued it.
+	 */
+	async setDomain(domain: GarminDomain): Promise<void> {
+		if (this.data.settings.domain === domain) return;
+		if (this.garmin.isAuthenticated) await this.garmin.logout();
+		this.data.settings.domain = domain;
+		await this.data.saveSettings();
+		await this.rebuildClient();
 	}
 
 	openLogin(onDone?: () => void): void {

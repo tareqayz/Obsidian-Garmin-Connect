@@ -40,6 +40,13 @@ export function addDays(spans: readonly Span[], dates: readonly string[], versio
 	return spansOf(byDate);
 }
 
+/** The spans without the dates `drop` picks: days to fetch again. */
+export function dropDays(spans: readonly Span[], drop: (date: string) => boolean): Span[] {
+	const byDate = new Map<string, number>();
+	for (const [from, to, v] of spans) for (const date of daysOf(from, to)) if (!drop(date)) byDate.set(date, v);
+	return spansOf(byDate);
+}
+
 /** The version a date was fetched at, or undefined when it wasn't. */
 export function versionOn(spans: readonly Span[], date: string): number | undefined {
 	for (const [from, to, v] of spans) if (date >= from && date <= to) return v;

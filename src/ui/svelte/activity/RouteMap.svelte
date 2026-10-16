@@ -189,7 +189,10 @@
 		}
 		if (laps) {
 			for (const lap of lapMarkers(detail)) {
-				const icon = leaflet.divIcon({ className: "gc-map-lap", html: String(lap.n), iconSize: LAP_SIZE, iconAnchor: LAP_ANCHOR });
+				// An element with the number as text, never HTML: the file this comes
+				// from is in the vault, and Leaflet sets a string as innerHTML.
+				const label = createSpan({ text: Number.isFinite(Number(lap.n)) ? String(Math.trunc(Number(lap.n))) : "" });
+				const icon = leaflet.divIcon({ className: "gc-map-lap", html: label, iconSize: LAP_SIZE, iconAnchor: LAP_ANCHOR });
 				leaflet.marker(lap.at, { icon, interactive: false, keyboard: false, zIndexOffset: lapZ(lap.n) }).addTo(group);
 			}
 		}

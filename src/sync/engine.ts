@@ -24,7 +24,9 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { GarminRateLimitError } from "../garmin/errors";
+import { NewerDataError } from "./file-health";
+import { isFatal } from "./fatal";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
@@ -511,9 +513,9 @@ export async function syncRange(
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
-		else if (maxMetricsByDate.size === 0) {
-			note(report, log, "VO2 Max: Garmin returned no rows for this range");
-		}
+		// No rows is an account without VO2 Max (a scale, a bike computer, no
+		// runs yet), not a problem: the log says so, the sync's notice doesn't.
+		else if (maxMetricsByDate.size === 0) log.detail("VO2 Max", "Garmin returned no rows for this range");
 		log.detail("VO2 Max days", maxMetricsByDate.size);
 	}
 
@@ -527,9 +529,7 @@ export async function syncRange(
 		// A window holding any prediction sends every day, null where there is none: count the days with a time.
 		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
 		if (got.error) note(report, log, `race predictions: ${got.error}`);
-		else if (predicted === 0) {
-			note(report, log, "race predictions: Garmin returned no rows for this range");
-		}
+		else if (predicted === 0) log.detail("race predictions", "Garmin returned no rows for this range");
 		log.detail("race prediction days", predicted);
 	}
 
@@ -611,41 +611,65 @@ export async function syncRange(
 			for (const run of runs) await feed(run, false);
 			return stop(report, fetched.fatal, log);
 		}
-		if (stats && fetched.summaryFetched) {
-			stats.dates.add(date);
-			const row = rowFromSummary(date, fetched.data.summary);
-			if (row) stats.rows.push(row);
+		// Reading Garmin's answers: a payload in a shape the mappers don't expect
+		// fails this day alone, which stays unfetched for the next sync, rather
+		// than the whole run (and a backfill unit retried forever).
+		let series: DaySeries | null;
+		let data: DayData;
+		let properties: Properties;
+		let fresh: Record<string, unknown>;
+		try {
+			if (stats && fetched.summaryFetched) {
+				// The row first: a date asked about with no row deletes what the index held for it.
+				const row = rowFromSummary(date, fetched.data.summary);
+				stats.dates.add(date);
+				if (row) stats.rows.push(row);
+			}
+			if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
+
+			// The hypnogram rides in the sleep payload, so every day with sleep gets
+			// a series file, not only the newest few that paid for the rest.
+			series = withSeries ? mapSeries({ ...fetched.intraday, sleep: fetched.data.sleep }) : null;
+
+			data = {
+				...fetched.data,
+				workouts: workoutsByDate.get(date) ?? [],
+				maxMetrics: maxMetricsByDate.get(date) ?? null,
+				races: racesByDate.get(date) ?? null,
+				hillScore: hillByDate.get(date) ?? null,
+				runningTolerance: toleranceByDate.get(date) ?? null,
+				healthSnapshots: snapshotsByDate.get(date) ?? null,
+				series,
+			};
+			for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
+			properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
+			// Every synced day, not only the newest few: what Garmin may drop later is kept now.
+			fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
+		} catch (err) {
+			const error = `Garmin's answer for this day couldn't be read: ${message(err)}`;
+			report.days.push({ date, status: "failed", properties: 0, error });
+			report.failed += 1;
+			log.fail(`${date}: ${error}`);
+			done += 1;
+			opts.onProgress?.(done, due.length, date);
+			continue;
 		}
-		if (fetched.summaryFetched) for (const run of runs) takeSummary(run, date, fetched.data.summary);
-
-		// The hypnogram rides in the sleep payload, so every day with sleep gets
-		// a series file, not only the newest few that paid for the rest.
-		const series = withSeries ? mapSeries({ ...fetched.intraday, sleep: fetched.data.sleep }) : null;
-
-		const data: DayData = {
-			...fetched.data,
-			workouts: workoutsByDate.get(date) ?? [],
-			maxMetrics: maxMetricsByDate.get(date) ?? null,
-			races: racesByDate.get(date) ?? null,
-			hillScore: hillByDate.get(date) ?? null,
-			runningTolerance: toleranceByDate.get(date) ?? null,
-			healthSnapshots: snapshotsByDate.get(date) ?? null,
-			series,
-		};
-		for (const run of runs) takeDay(run, date, data, (part) => fetched.ok.has(part) || rangeOk.has(part));
-		const properties = mapDay(data, { groups: opts.groups, units: opts.units, date });
 		const count = Object.keys(properties).length;
 
 		const result: DayResult = { date, status: "no-data", properties: count };
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
-		// Every synced day, not only the newest few: what Garmin may drop later is kept now.
-		const fresh = extras.length ? blocksFromDay(extras, data, date, opts.groups) : {};
 		const writing = series && !isEmptySeries(series) ? series : null;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
 				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
 			} catch (err) {
+				// A newer build's file: stop, as for a 429, rather than fail it day after day.
+				if (err instanceof NewerDataError) {
+					if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
+					for (const run of runs) await feed(run, false);
+					return stop(report, err, log);
+				}
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
 			}
@@ -1616,10 +1640,6 @@ export async function fetchAllActivities(
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Errors that make every remaining request pointless. */
-function isFatal(err: unknown): boolean {
-	return err instanceof GarminRateLimitError || err instanceof GarminAuthError;
-}
 
 function message(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
