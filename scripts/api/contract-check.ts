@@ -24,6 +24,7 @@
 import { writeFileSync } from "node:fs";
 
 import { GarminRateLimitError } from "../../src/garmin/errors";
+import { scrub } from "../../src/log";
 import {
 	checkedEndpoints,
 	loadCatalogue,
@@ -89,6 +90,14 @@ async function main(): Promise<number> {
 	const window = buildWindow(positive(option("days"), 3), positive(option("range"), 14));
 	const store = new EnvTokenStore(authFromEnv());
 	const api = await connect(store);
+	// The report lands in a public Actions log, step summary and issue: no
+	// email, token or IP, and none of the account's names, whatever an error
+	// message carried.
+	const redact = (text: string): string => {
+		let out = scrub(text);
+		for (const value of [api.profile?.displayName, api.name]) if (value && value.length >= 3) out = out.split(value).join("[name]");
+		return out;
+	};
 	// Before the sweep, not only after it. Signing in can rotate the token on
 	// its own, and a rate limit part-way through would otherwise throw away the
 	// only copy of the credential the next run needs.
@@ -110,7 +119,7 @@ async function main(): Promise<number> {
 				changes: [],
 				critical: [],
 				reads: [],
-				error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+				error: redact(err instanceof Error ? `${err.name}: ${err.message}` : String(err)),
 			});
 		}
 		await sleep(PAUSE_MS);
@@ -118,7 +127,7 @@ async function main(): Promise<number> {
 
 	if (update) for (const result of results) record(result.entry, result, rerecord);
 
-	const text = report(results, window, isoDay(0));
+	const text = redact(report(results, window, isoDay(0)));
 	console.log(text);
 	const out = option("report");
 	if (out) writeFileSync(out, `${text}\n`);

@@ -152,6 +152,15 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **Sync speed** (Settings → Advanced): Gentle, Normal or Fast. A sync fetches
+  several days at once and paces every request through one throttle, which
+  slows down by itself when Garmin answers 429; it replaced the fixed pause
+  between days. A 30-day sync took 34 s before and takes 43 s at Gentle, 17 s
+  at Normal, 12 s at Fast.
+- **Sync recent days covers what changed since the last sync**, not a fixed
+  number of days: from the day before the watch's last upload, as Garmin
+  reported it at the last good sync, through today — at least yesterday and
+  today, at most 30 days. The **Days to sync** setting is gone.
 - **The Garmin session stays on the device.** It is kept in Obsidian's
   keychain (**Settings → Keychain**), never in `data.json`, so a vault backup,
   a shared folder or a public repository of your vault holds no token. Each

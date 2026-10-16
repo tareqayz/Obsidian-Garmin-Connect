@@ -1,0 +1,16 @@
+name: Feature request
+description: A Garmin Connect page or behaviour you'd like in Obsidian.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you'd like
+      description: Which page or feature, and what you'd use it for. If it is a page from the Garmin Connect app, say where it lives in the app.
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots of the app help (crop anything personal). This is a public page.

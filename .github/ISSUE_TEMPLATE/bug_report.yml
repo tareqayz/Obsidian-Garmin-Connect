@@ -1,0 +1,63 @@
+name: Bug report
+description: Something is broken, wrong, or different from Garmin Connect.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Two things make a report easy to act on: the debug info, and the steps.
+
+        **Before you paste anything:** this is a public page. Don't paste your email, password, tokens, or screenshots that show where you live (activity maps start at home). **Copy debug info** already removes the email, tokens, IP addresses and your Garmin names.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        1. Opened Home → Sleep → 4w
+        2. The chart showed …
+        Expected …
+    validations:
+      required: true
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug info
+      description: Run **Copy debug info** from the command palette and paste it here. Read it first; it is about your account.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - iPhone
+        - iPad
+        - Android
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Garmin device(s)
+      description: The watch, and any scale, bike computer or second watch on the account.
+      placeholder: Forerunner 965, Index S2
+  - type: dropdown
+    id: units
+    attributes:
+      label: Units on your Garmin account
+      options:
+        - Metric
+        - Statute (US)
+        - Statute (UK)
+        - Not sure
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: How the same page looks in the Garmin Connect app (a screenshot of the app is fine, cropped), the sync speed, whether several devices sync this vault.

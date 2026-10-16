@@ -16,6 +16,16 @@ It works on **desktop and mobile**, and needs **Obsidian 1.11.4 or later**.
 BRAT installs the newest release, pre-releases included, and keeps you on the
 newest one when it checks for updates.
 
+### Going back to an earlier beta
+
+If a beta breaks something for you, BRAT can install a given release and stay
+on it: remove the plugin from BRAT's list, then **Add a beta plugin** again
+with the same repository and the version you want (the release's tag, such as
+`1.0.0-beta.1`) under **Frozen version**. Your data folder is untouched either
+way. A newer version may have written files in a newer format; an older one
+then stops and says so rather than writing over them, so go back only as far
+as you need.
+
 ## By hand
 
 1. Open the [Releases](https://github.com/tareqayz/Obsidian-Garmin-Connect/releases)

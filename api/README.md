@@ -162,7 +162,15 @@ retired. Re-run `npm run api:token` if that happens.
 
 Email and password work too — `GARMIN_EMAIL` and `GARMIN_PASSWORD` — but a
 non-interactive run cannot answer an MFA challenge, and repeated sign-ins are
-what Garmin rate-limits and locks accounts over. Prefer the token.
+what Garmin rate-limits and locks accounts over. Use the token, and don't store
+the password as a secret at all.
+
+The report goes to the run's log and step summary, which are public on a public
+repository, and into an issue when a contract breaks. Field names and types
+only; error messages are scrubbed of emails, tokens and IP addresses, and the
+account's display and full names become `[name]`. The job that gets the secrets
+installs with `npm ci --ignore-scripts`, so no package's install script runs
+next to them, and the actions are pinned to commit SHAs.
 
 With no secret at all the live job skips rather than fails, so a fork stays
 green.

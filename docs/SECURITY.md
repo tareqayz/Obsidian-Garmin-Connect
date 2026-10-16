@@ -177,7 +177,8 @@ committed, printed or pasted:
 - **The contract check's CI secrets**, set on the repository:
   - `GARMIN_TOKENS`: the token file's contents.
   - `GARMIN_EMAIL` and `GARMIN_PASSWORD`: a fallback sign-in when there is no
-    token.
+    token. Don't set them: a stored password is the one secret worth not
+    having, and a non-interactive sign-in can't answer MFA anyway.
   - `GH_SECRETS_TOKEN`: a fine-grained token with "Secrets: write", so the
     workflow can save a rotated refresh token back to `GARMIN_TOKENS`.
 

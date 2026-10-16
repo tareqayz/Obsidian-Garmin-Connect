@@ -53,6 +53,43 @@ other devices.
 Not affiliated with or endorsed by Garmin. Garmin, Garmin Connect, Body Battery
 and the other Garmin names are trademarks of Garmin Ltd. or its subsidiaries.
 
+## The beta
+
+The plugin is in beta: it has met one Garmin account in depth, and yours will
+differ. It is careful with your data — it never writes over a file it can't
+read, and it asks before downloading history — and gentle with Garmin, but
+expect rough edges.
+
+**Known limitations**
+- English only, and times on a 12-hour clock whatever your account says.
+- Imperial units are drawn but unverified; a UK account (statute_uk) shows
+  pounds and °F.
+- Weeks follow fixed starts (Monday for steps, Sunday for some performance
+  charts), not your account's first day of the week.
+- Multisport activities get the generic page, without their legs
+  ([#23](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/23)).
+- Untested: Android, garmin.cn accounts, and multi-factor sign-in against a
+  live challenge.
+- With a scale or a second Garmin device, data a watch uploads days late may
+  need **Sync a date range…**.
+- Data refreshes when you sync (Home's ↻, or **Sync on startup**); there is no
+  background interval.
+
+**Sign in on one device** if you can — usually the computer — and let your
+other devices show what it syncs. Each device holds its own session, and two
+devices syncing the same files at once is how sync services make conflict
+copies.
+
+**Worth testing:** signing in with multi-factor authentication; Android;
+imperial and UK accounts; accounts whose week starts on Monday; five to ten
+years of history; sports other than running; phones and tablets.
+
+**Reporting:** run **Copy debug info** and paste it into the
+[bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
+It needs no password, makes no request and removes your email, tokens, IP
+address and Garmin names. Don't paste screenshots of maps that show where you
+live.
+
 ## Setting up
 
 Enabling the plugin opens a setup over Home:
