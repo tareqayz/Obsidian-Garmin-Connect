@@ -3,21 +3,30 @@
 Keyed by symptom. If your problem is signing in, run the diagnostics first: they
 tell you which of four layers broke, which is most of the diagnosis.
 
+**Reporting a bug?** Run **Copy debug info** and paste it into the
+[bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
+It needs no password and makes no request: versions, platform, settings without
+your email, the last sync and its warnings, and what the data folder holds,
+redacted. Where there is no clipboard it saves a note in the **Log folder**
+instead. A page that couldn't be drawn has the same button on its error card.
+
 ## Diagnostics
 
 **Run diagnostics** from the command palette opens a modal with four checks.
-While **Save every diagnostics run to the vault** is on (the default), every run
-is saved as a note in the **Log folder**, because **on a phone there is no
-console**. That is `Garmin/diagnostics` in vaults set up since 0.2; older vaults
-keep the folder they had, usually `garmin-probe-logs`. The note syncs back to
-your desktop like any other.
+**Save to vault** keeps a run as a note in the **Log folder**, because **on a
+phone there is no console**; **Save every diagnostics run to the vault** keeps
+them all (off by default). That is `Garmin/diagnostics` in vaults set up since
+0.2; older vaults keep the folder they had, usually `garmin-probe-logs`. The
+note syncs back to your desktop like any other. The password is cleared after
+each check, and the checks that use the plugin's own session wait for a running
+sync to finish.
 
 | Check | What it proves |
 | --- | --- |
 | **1. Network fingerprint** | What this platform looks like on the wire. Asks `tls.peet.ws` for the User-Agent the server actually saw, JA3/JA4 and the HTTP version. If `requestUrl` dropped your UA override, nothing below matters. |
 | **2. Test login** | Reachability without credentials, then the login POST, then MFA if demanded, then the ticket exchange, then a live API call. |
 | **3. Test session persistence** | Simulates a cold start: drops the in-memory access token, reloads the refresh token from this device's keychain, mints a new access token from it alone, then makes two real calls. |
-| **4. Inspect fitness endpoints** | Prints the raw keys `maxMetrics`, `racePredictions` and `enduranceScore` return, then what the mapper makes of them. |
+| **4. Inspect fitness endpoints** | Prints the keys and value types `maxMetrics`, `racePredictions` and `enduranceScore` return, then which properties the mapper makes of them. |
 
 Checks 1 and 4 need no password. Check 2 costs a login attempt — see the lockout
 warning below.

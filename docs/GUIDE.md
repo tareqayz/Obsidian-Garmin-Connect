@@ -525,6 +525,7 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | **Set up Garmin Connect…** | Opens the setup: sign in, scan your account, choose what to keep |
 | **Sign in to Garmin Connect** | Signs in, asking for an MFA code if Garmin wants one |
+| **Copy debug info** | What a bug report needs, redacted, to paste into an issue — no password, no request |
 | **Stop syncing** | Stops the sync or history walk you started, after the day it is on, keeping what came in |
 | **Pause the history download** / **Resume the history download** | What the pill and Settings → Data do |
 | **Run diagnostics** | Four checks of sign-in and connectivity — see [Troubleshooting](troubleshooting.md#diagnostics) |

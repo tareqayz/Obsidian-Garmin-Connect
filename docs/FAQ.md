@@ -238,12 +238,15 @@ with no request at all; that is also what you see offline.
 
 ## What are the diagnostics logs in my vault?
 
-Each **Run diagnostics** run, saved as a note, because a phone has no console.
-They are saved while **Save every diagnostics run to the vault** is on.
+**Run diagnostics** runs you saved as notes, because a phone has no console:
+with **Save to vault**, or every run while **Save every diagnostics run to the
+vault** is on (it's off by default).
 - **Where:** the **Log folder** setting, `Garmin/diagnostics` in vaults set up
   since 0.2. Older vaults keep the folder they had, usually
   `garmin-probe-logs`.
-- **Redacted:** the email is masked, tokens truncated and the IP address
-  shortened before anything is written.
+- **Redacted:** emails are masked, tokens truncated, IP addresses masked and
+  your display name replaced before anything is written. See
+  [Security](SECURITY.md#diagnostics-logs).
 
-Turn the setting off if you'd rather not keep them.
+For a bug report, **Copy debug info** is usually what's wanted: it needs no
+password and makes no request.

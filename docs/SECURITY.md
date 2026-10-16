@@ -116,22 +116,31 @@ when you click them.
 
 ## Diagnostics logs
 
-**Run diagnostics** can save each run as a note in your vault, because a phone has
-no console and a file syncs back to your desktop. The folder is **Log folder** in
-the Advanced settings (`Garmin/diagnostics` in a new vault). **Save every
-diagnostics run to the vault** saves each run as it finishes; with it off, only
-the runs you save with the panel's **Save to vault** button are kept.
+**Run diagnostics** can save a run as a note in your vault, because a phone has no
+console and a file syncs back to your desktop. The folder is **Log folder** in
+the Advanced settings (`Garmin/diagnostics` in a new vault). Runs are saved only
+when you press the panel's **Save to vault**, unless you turn on **Save every
+diagnostics run to the vault** (off by default: a vault syncs).
 
-Logs are **redacted before they are written**:
+**Copy debug info** gathers what a bug report needs — versions, platform,
+settings without the email, the history download's state, the last sync this
+session with its warnings, request counts, what the data folder holds — with no
+network request and no sign-in.
 
-- The account email is masked to its first three characters and its domain.
+Both are **redacted before anything is written or copied**:
+
+- Email addresses are masked to their first three characters and their domain.
 - Tokens keep their first 10 characters and length — enough to correlate across
-  runs, not enough to use.
-- The public IP keeps only its first three parts; an IPv6 address is masked
-  whole.
+  runs, not enough to use. Service tickets aren't logged at all.
+- IP addresses are masked whole.
+- Your display name and account id are replaced with placeholders in request
+  paths and error messages.
+- The fitness check prints field names and types, not values; the session check
+  says whether steps and resting heart rate came back, not what they were.
+- A sign-in answer the plugin doesn't know is described by its status, not
+  repeated.
 
-They are still diagnostic output about your account. Read one before pasting it
-into an issue.
+They are still about your account. Read one before pasting it into an issue.
 
 ## Account lockout
 

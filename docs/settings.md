@@ -216,7 +216,7 @@ recent days an older build saved without their full timelines.
 | --- | --- | --- | --- |
 | Sync speed | `syncSpeed` | `gentle` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
 | Stop after empty days | `stopAfterEmptyDays` | `45` | **Sync a date range…** gives up after this many days in a row with nothing in them. `0` walks the whole range. Slider 0–120. The history download does without it: the scan found where your history starts. |
-| Save every diagnostics run to the vault | `autoSaveLog` | on | Writes each **Run diagnostics** log to a note. |
+| Save every diagnostics run to the vault | `autoSaveLog` | off | Writes each **Run diagnostics** log to a note. Off by default: a log is about your account, and the vault syncs. |
 | Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. |
 
 The slider stops at 120. A value typed into `data.json` by hand may go up to

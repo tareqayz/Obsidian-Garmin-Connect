@@ -171,6 +171,20 @@ GitHub release takes its notes from the matching section here — see
   wide. A date range bigger than an hour's budget suggests the history download.
 - **Stop syncing**, **Pause the history download** and **Resume the history
   download** commands.
+- **Copy debug info**: what a bug report needs — versions, platform, settings
+  without your email, the history download, the last sync and its warnings,
+  request counts, the data folder — redacted, with no request and no sign-in.
+- **Diagnostics are safe to paste.** Every line is scrubbed of emails, tokens
+  and IP addresses (now masked whole); the display name and account id become
+  placeholders in paths and errors; the fitness check shows field types, not
+  values; service tickets and unknown sign-in answers aren't repeated. Runs are
+  saved to the vault only when you ask (**Save every diagnostics run** is off
+  by default), the password is cleared after each check, and the checks that
+  use the plugin's session wait for a running sync instead of logging its
+  requests.
+- A sign-in Garmin answers in a way the plugin doesn't know now names Garmin's
+  status and suggests signing in on the website first (a locked account, a
+  password reset or new terms), instead of "Unexpected login response".
 - **Run details is now Activity details**, for every sport, in the setup and
   Settings → Data. A Run details range chosen before keeps downloading runs
   without asking; the other sports, and the runs saved before, are offered once
@@ -235,6 +249,9 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- A page that threw on data it didn't expect blanked the whole of Home, and came
+  back blank after a restart. It now shows a card with **Copy debug info** and
+  **Back to Home**, and the next launch opens on Home.
 - Garmin's bot check refusing the device (an HTML 403) didn't stop anything:
   the history download carried on into it, chunk after chunk, at every launch.
   A refusal now stops the sync and pauses the download half an hour, doubling
