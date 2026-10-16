@@ -157,10 +157,9 @@ and download the history on this device.
 
 ## Home still shows yesterday after midnight
 
-Home works out "today" when it opens, and again whenever one of its own data
-files changes. A Home tab left open past midnight, with nothing changing, keeps
-yesterday's date, labels, offsets and all. Run **Sync recent days** (Home's ↻),
-or close Home and run **Open home**.
+An open Home moves to the new day within a minute of midnight. If today's
+numbers aren't there yet, Home says "Today isn't synced yet" and shows the last
+day it has: run **Sync recent days** (Home's ↻).
 
 ## Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 

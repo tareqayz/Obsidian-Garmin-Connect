@@ -182,6 +182,17 @@ GitHub release takes its notes from the matching section here — see
   by default), the password is cleared after each check, and the checks that
   use the plugin's session wait for a running sync instead of logging its
   requests.
+- **Region on the sign-in step.** The setup and the sign-in dialog ask for
+  garmin.com or garmin.cn before you sign in, so a China account no longer
+  fails against garmin.com first and risks a lockout.
+- **A generic icon.** The ribbon and tabs use Lucide's watch instead of a trace
+  of Garmin Connect's logo, which is Garmin's trademark.
+- The data and log folder settings save when you press Enter or leave the
+  field, not on every keystroke, and refuse the vault's root, hidden folders
+  and the settings folder.
+- After an uninstall, the "Garmin Connect was removed" prompt waits for the
+  plugin's folder to be gone at two looks in a row, can take the diagnostics
+  notes too, and says that the trash reaches every synced device.
 - A sign-in Garmin answers in a way the plugin doesn't know now names Garmin's
   status and suggests signing in on the website first (a locked account, a
   password reset or new terms), instead of "Unexpected login response".
@@ -249,6 +260,15 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- An activity file in the vault could put HTML into a lap marker on the map;
+  lap numbers are now drawn as text.
+- Every sync's notice said "VO2 Max / race predictions: Garmin returned no
+  rows" for accounts without them — a scale, a bike computer, no runs. Those
+  stay in the log.
+- A Home tab left open past midnight kept yesterday's date. It moves to the new
+  day within a minute.
+- Updating the plugin left the update or setup dialog the old version opened
+  on screen, acting through the old version. Unloading closes them.
 - A page that threw on data it didn't expect blanked the whole of Home, and came
   back blank after a restart. It now shows a card with **Copy debug info** and
   **Back to Home**, and the next launch opens on Home.

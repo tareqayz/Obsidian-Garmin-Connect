@@ -22,9 +22,8 @@ has four steps:
 4. **Start download** fetches it in the background. **Keep new days only**
    fetches no history at all; **Settings → Data** can add it later.
 
-Accounts on Garmin's China service close the setup, set **Region** to
-`garmin.cn` in **Settings → Connection**, and run it again from **Settings →
-Data**.
+Accounts on Garmin's China service choose **garmin.cn** under **Region** on
+the sign-in step, before signing in.
 
 To sign in again later without the rest, run **Sign in to Garmin Connect**, or
 use the button in **Settings → Connection**.

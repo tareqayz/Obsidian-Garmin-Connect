@@ -216,8 +216,9 @@ so a script or another plugin that reads JSON can use them. See the
 
 ## Does it work with a Garmin China account?
 
-Set **Settings → Connection → Region** to `garmin.cn`; every host changes
-accordingly.
+Choose **garmin.cn** under **Region** when you sign in (or in **Settings →
+Connection**); every host changes accordingly. It is untested: nobody with a
+China account has tried it yet, so a report either way helps.
 
 ## Why no chart library?
 
