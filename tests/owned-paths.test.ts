@@ -49,6 +49,19 @@ describe("what Delete synced data removes", () => {
 		assert.equal(plan.emptyAfter, false);
 	});
 
+	it("counts other sync services' conflict copies and the files the store set aside as the plugin's", () => {
+		const days = folder("d/days", [
+			file("d/days/2026.json"),
+			file("d/days/2026.sync-conflict-20261016-113005-ABCDEFG.json"),
+			file("d/days/2025 (Ana's conflicted copy 2026-10-16).json"),
+			file("d/days/2024.unreadable-20261016-113005.json"),
+		]);
+		const plan = planDelete(folder("d", [days, file("d/backfill.unreadable-20261016-113005.json")]), []);
+		assert.deepEqual(plan.trash, ["d/days", "d/backfill.unreadable-20261016-113005.json"]);
+		assert.equal(plan.files, 5);
+		assert.equal(plan.emptyAfter, true);
+	});
+
 	it("has nothing to do without a data folder", () => {
 		assert.deepEqual(planDelete(null, []), { trash: [], files: 0, bytes: 0, emptyAfter: true });
 		assert.deepEqual(planDelete(file("Garmin/data"), []).trash, []);

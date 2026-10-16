@@ -34,8 +34,13 @@ export const OWNED_FOLDERS: readonly string[] = ["days", "series", "activities",
 /** Files the sync writes at the data folder's top. */
 export const OWNED_FILES: readonly string[] = ["account.json", "sync-state.json", "scan.json", "backfill.json"];
 
-/** An iCloud or Obsidian Sync conflict copy keeps the name and adds " 2". */
-const COPY = "(?: \\d+)?";
+/**
+ * What a sync service adds to a name in a conflict — iCloud's and Obsidian
+ * Sync's " 2", Syncthing's ".sync-conflict-…", Dropbox's " (… conflicted
+ * copy …)" — or the store to a file it set aside (".unreadable-…", see
+ * `file-health.ts`).
+ */
+const COPY = "(?: \\d+| \\(.+\\)|\\.sync-conflict-[\\w-]+|\\.unreadable-[\\d-]+)?";
 
 /** The names the sync gives what it writes inside its folders. */
 const OWNED_NAMES = [

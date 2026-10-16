@@ -28,6 +28,7 @@ import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
+import { NewerDataError } from "./file-health";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
@@ -62,12 +63,14 @@ export interface DeviceIdentity {
 export interface BackfillProgress {
 	/**
 	 * - `running`: fetching, or between units.
-	 * - `paused`: by the user, for a sign-in, or after a 429 until `until`.
+	 * - `paused`: by the user, for a sign-in, after a 429 until `until`, or
+	 *   (`update`, this device only) until the plugin is updated because
+	 *   another device's newer build wrote the files.
 	 * - `waiting`: inside the hourly budget, until `until`.
 	 * - `elsewhere`: another device runs it (`device`).
 	 */
 	status: "running" | "paused" | "waiting" | "elsewhere";
-	reason?: PauseReason;
+	reason?: PauseReason | "update";
 	/** ISO: when a 429's pause or the budget's wait ends. */
 	until?: string;
 	device?: string;
@@ -1174,6 +1177,14 @@ export class SyncRunner {
 			await store.writeBackfill({ paused: { reason: "rate-limit", until } });
 			this.backfillLater(rateLimitWait(this.rateLimits));
 			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			return;
+		}
+		if (fatal instanceof NewerDataError) {
+			// Another device runs a newer build. Its files stay as they are, and the
+			// pause stays on this device: backfill.json would stop that one too.
+			this.backfillPending = false;
+			new Notice(`Garmin: ${fatal.message}`, 15000);
+			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
 			return;
 		}
 		if (fatal !== undefined) {

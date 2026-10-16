@@ -49,6 +49,8 @@
 	</div>
 {:else if progress?.status === "paused" && progress.reason === "sign-in"}
 	<button class="pill warn" onclick={onSignIn}><span class="icon" use:lucide={"circle-alert"}></span>Sign in to keep downloading</button>
+{:else if progress?.status === "paused" && progress.reason === "update"}
+	<div class="pill warn" role="status"><span class="icon" use:lucide={"circle-alert"}></span>Update the plugin to keep downloading</div>
 {:else if progress?.status === "paused" && progress.reason === "user"}
 	<div class="pill" role="status">
 		<span class="icon" use:lucide={"pause"}></span>

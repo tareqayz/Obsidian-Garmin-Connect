@@ -272,6 +272,8 @@ export default class GarminPlugin extends Plugin {
 						? `Garmin · downloading on ${progress.device ?? "another device"}`
 						: progress.reason === "sign-in"
 							? "Garmin · sign in to continue"
+							: progress.reason === "update"
+								? "Garmin · update the plugin to continue"
 							: progress.reason === "user"
 								? "Garmin · download paused"
 								: "Garmin · download resting";
