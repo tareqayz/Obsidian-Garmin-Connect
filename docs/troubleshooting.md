@@ -246,6 +246,47 @@ If files *are* being rewritten every run, a value is changing. Garmin revising a
 recent day is the usual reason, and is why a recent sync always covers
 yesterday too.
 
+## A data file "couldn't be read" and was kept as …unreadable…
+
+The sync never writes over a file it can't read. A save cut short by a crash, a
+half-downloaded copy from a sync service, or git's `<<<<<<<` conflict markers
+make a file unreadable, and replacing it would have lost everything it held. So
+the plugin renames it beside where it was, for example
+`days/2026.unreadable-20261016-113005.json`, writes what the sync fetched into
+a fresh `2026.json`, and fetches the rest again:
+
+- **A day file:** its days drop out of the history download's coverage, so the
+  download fetches them again, within the **Day details** range you chose.
+  Older days come back with **Sync a date range…**.
+- **A chart index file** (activities, sleep, steps and the rest): the index is
+  walked again from the start, which costs a few requests a year.
+
+The renamed file is yours to open or delete; nothing reads it. **Delete synced
+data…** removes it with the rest.
+
+## Conflict copies ("2026 2.json")
+
+When two devices change one file before they sync, iCloud and Obsidian Sync
+keep both and name one `2026 2.json`. Syncthing names it
+`2026.sync-conflict-….json` and Dropbox `2026 (… conflicted copy …).json`. The
+plugin reads only `2026.json`, so a day only the copy holds goes unseen. The
+first copy found in a session gets a notice.
+
+- **The history download runs on one device at a time** already: the others
+  say which device has it.
+- **Sync from one device when you can**, and let the others read what it
+  syncs. Two devices changing a file before their vault sync catches up is
+  what makes a copy.
+- If days are missing, **Sync a date range…** fetches them again. Then delete
+  the copy.
+
+## "Written by a newer version of Garmin Connect"
+
+Another device updated the plugin and wrote its files in a newer format. This
+device stops rather than writing its older format over them, which would make
+the two devices undo each other's work. Update the plugin here (BRAT: **Check
+for updates**), and the sync and the history download carry on.
+
 ## It works on desktop but breaks on mobile
 
 Almost always a node or electron import that leaked into the bundle. `npm run

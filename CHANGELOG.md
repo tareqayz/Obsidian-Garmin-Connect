@@ -216,6 +216,21 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- A data file that couldn't be read — cut short by a crash, half-downloaded by
+  a sync service, or full of git conflict markers — read as empty, and the
+  next sync wrote over it with only the days it had fetched. Years of history
+  could go in one sync, and nothing fetched them again. The sync now renames
+  such a file aside (`2026.unreadable-….json`), never writes over it, and
+  fetches what it held again.
+- A device on an older version of the plugin wrote its older format over the
+  files a newer version wrote on another device, and the two kept undoing each
+  other's work. The older one now stops and asks to be updated.
+- A short page partway down the activity list read as its end, and the
+  activity index was replaced by that much of it. A listing now replaces the
+  index only when it is about as long as Garmin's count.
+- Conflict copies a sync service leaves beside a data file (`2026 2.json`,
+  Syncthing's and Dropbox's names too) went unnoticed. The first one found
+  gets a notice, and **Delete synced data…** removes them.
 - Perceived Effort's dot followed the run's slider colours, so a 5 was green
   where the app draws it yellow. The colours now go in pairs: 1–2 blue, 3–4
   green, 5–6 yellow, 7–8 orange, 9–10 red.
