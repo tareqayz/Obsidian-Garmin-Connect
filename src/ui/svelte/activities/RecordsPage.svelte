@@ -7,8 +7,8 @@
 
 	/**
 	 * Personal Records, a tab per sport. Every slot Garmin keeps for that sport
-	 * is listed, so a distance never run still shows its title. A running
-	 * record opens the run that set it; other sports have no activity page yet.
+	 * is listed, so a distance never run still shows its title. A record
+	 * opens the activity that set it.
 	 */
 	interface Props {
 		route: Extract<Route, { page: "records" }>;
@@ -51,7 +51,7 @@
 
 <div class="records">
 	{#each items as record (record.typeId)}
-		{#if tab.id === "running" && record.activityId}
+		{#if record.activityId}
 			{@const id = record.activityId}
 			<button class="record" onclick={() => go(activityRoute(id))}>{@render body(record)}</button>
 		{:else}

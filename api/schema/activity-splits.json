@@ -3,8 +3,8 @@
 	"path": "/activity-service/activity/{activityId}/splits",
 	"plugin": "GarminApi.activitySplits",
 	"firstRecorded": "2026-10-10T16:41:42.155Z",
-	"updatedAt": "2026-10-10T16:41:42.155Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:06.469Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"object"
@@ -24,6 +24,12 @@
 						"object"
 					],
 					"fields": {
+						"riderPosition": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
 						"sectionTypeDTO": {
 							"type": [
 								"object"
@@ -68,6 +74,12 @@
 						"object"
 					],
 					"fields": {
+						"averageBikeCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
 						"averageHR": {
 							"type": [
 								"number"
@@ -76,22 +88,79 @@
 						"averageMovingSpeed": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"averagePower": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"averageRunCadence": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"averageSWOLF": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageSeatedCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageSeatedPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"averageSpeed": {
 							"type": [
 								"number"
 							]
+						},
+						"averageStandingCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageStandingPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageStrokeDistance": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageStrokes": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageSwimCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"averageTemperature": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"avgGradeAdjustedSpeed": {
 							"type": [
@@ -123,7 +192,8 @@
 						"directWorkoutComplianceScore": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"distance": {
 							"type": [
@@ -173,22 +243,158 @@
 						"groundContactTime": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"intensityType": {
 							"type": [
 								"string"
-							]
+							],
+							"optional": true
 						},
 						"lapIndex": {
 							"type": [
 								"number"
 							]
 						},
+						"leftBalance": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPlatformCenterOffset": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhaseArcCenter": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhaseArcLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhaseEnd": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhasePeakArcCenter": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhasePeakArcLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhasePeakEnd": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhasePeakStart": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"leftPowerPhaseStart": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
 						"lengthDTOs": {
 							"type": [
 								"array"
-							]
+							],
+							"items": {
+								"type": [
+									"object"
+								],
+								"fields": {
+									"averageHR": {
+										"type": [
+											"number"
+										]
+									},
+									"averageSWOLF": {
+										"type": [
+											"number"
+										],
+										"optional": true
+									},
+									"averageSpeed": {
+										"type": [
+											"number"
+										],
+										"optional": true
+									},
+									"distance": {
+										"type": [
+											"number"
+										],
+										"optional": true
+									},
+									"duration": {
+										"type": [
+											"number"
+										]
+									},
+									"lengthIndex": {
+										"type": [
+											"number"
+										]
+									},
+									"maxHR": {
+										"type": [
+											"number"
+										]
+									},
+									"maxSpeed": {
+										"type": [
+											"number"
+										],
+										"optional": true
+									},
+									"startTimeGMT": {
+										"type": [
+											"string"
+										]
+									},
+									"swimStroke": {
+										"type": [
+											"string"
+										],
+										"optional": true
+									},
+									"totalNumberOfStrokes": {
+										"type": [
+											"number"
+										],
+										"optional": true
+									}
+								}
+							}
+						},
+						"maxBikeCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"maxElevation": {
 							"type": [
@@ -204,7 +410,8 @@
 						"maxPower": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"maxRespirationRate": {
 							"type": [
@@ -215,12 +422,50 @@
 						"maxRunCadence": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"maxSeatedCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxSeatedPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"maxSpeed": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"maxStandingCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxStandingPower": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxSwimCadence": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"maxTemperature": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"maxVerticalSpeed": {
 							"type": [
@@ -242,7 +487,14 @@
 						"minPower": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"minTemperature": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"movingDuration": {
 							"type": [
@@ -252,7 +504,92 @@
 						"normalizedPower": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"numberOfActiveLengths": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightBalance": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPlatformCenterOffset": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhaseArcCenter": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhaseArcLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhaseEnd": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhasePeakArcCenter": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhasePeakArcLength": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhasePeakEnd": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhasePeakStart": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"rightPowerPhaseStart": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"seatedTime": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"standingCount": {
+							"type": [
+								"number"
+							],
+							"optional": true
+						},
+						"standingTime": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"startLatitude": {
 							"type": [
@@ -286,22 +623,38 @@
 						"strideLength": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
+						},
+						"swimStroke": {
+							"type": [
+								"string"
+							],
+							"optional": true
+						},
+						"totalNumberOfStrokes": {
+							"type": [
+								"number"
+							],
+							"optional": true
 						},
 						"totalWork": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"verticalOscillation": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						},
 						"verticalRatio": {
 							"type": [
 								"number"
-							]
+							],
+							"optional": true
 						}
 					}
 				}

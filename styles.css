@@ -158,3 +158,21 @@ button.gch-danger:not(.clickable-icon):hover { background-color: rgba(var(--colo
 		opacity: 0.5;
 	}
 }
+
+/* A ride's chart colours, the Obsidian twin's variables (Figma 886:5): data
+   colours both themes keep; only the Power Curve's Record, a backdrop, follows
+   the theme. The activity page's charts draw with them. */
+body {
+	--gc-power-zone-6: #e02c2c;
+	--gc-power-zone-7: #5a30d7;
+	--gc-pedal-left: #72ea24;
+	--gc-pedal-right: #11a9ed;
+	--gc-peak-left: #50b012;
+	--gc-peak-right: #0c7cad;
+	--gc-curve-area: #4c7fb2;
+	--gc-curve-line: #54a9fe;
+	--gc-record-area: #dcdcdc;
+}
+.theme-dark {
+	--gc-record-area: #414141;
+}

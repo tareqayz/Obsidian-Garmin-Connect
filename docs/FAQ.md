@@ -36,9 +36,9 @@ groups you turn on:
   range…**): six more, for the day's curves.
 - **Each sync:** about fifteen more, for your profile and the range calls.
 - **Once, for the history you choose in the setup:** about 150 a year of
-  history for Charts & trends, 15 a day for Day details and 10 a run for Run
-  details. It downloads in the background, paced by the **Sync speed** setting
-  and kept under an hourly budget: 10,000 requests at Normal.
+  history for Charts & trends, 15 a day for Day details and 8 to 11 an activity
+  for Activity details. It downloads in the background, paced by the **Sync
+  speed** setting and kept under an hourly budget: 10,000 requests at Normal.
 
 The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
 
@@ -81,7 +81,7 @@ All of them JSON under `Garmin/data/` (the default):
   - `series/<date>.json` for a day's curves;
   - `account.json` for your profile;
   - `activities/`, `daily-stats/` and `sleep/`;
-  - `activity-details/<id>.json`, a run's page;
+  - `activity-details/<id>.json`, an activity's page;
   - one folder per Health Stats and Performance Stats history.
 - **Bookkeeping:** `sync-state.json`, `scan.json`, `backfill.json`,
   `days/index.json` and `activity-details/index.json`, which say how far the
@@ -94,7 +94,7 @@ that fills it.
 
 ## Can I backfill years of data?
 
-Yes. Choose **All history** for Day details and **All runs** for Run details,
+Yes. Choose **All history** for Day details and **All activities** for Activity details,
 in the setup or **Settings → Data**, and the history download fetches them in
 the background; the setup says how long that takes. Charts & trends always
 cover your whole history.
@@ -123,8 +123,10 @@ its size and time. **Download now** fetches the ticked ones in the background;
 **Later** leaves them in **Settings → Data**, and nothing asks again.
 
 What you already agreed to carries on without a question: new days, and gaps in
-your Day details and Run details ranges, keep filling. Only what an older
-version saved is asked about again.
+your Day details and Activity details ranges, keep filling. Only what an older
+version saved is asked about again. If you had chosen a Run details range before
+every sport had a page, your runs keep downloading, and the other sports wait for
+one Yes.
 
 ## How do I uninstall it and remove the data?
 

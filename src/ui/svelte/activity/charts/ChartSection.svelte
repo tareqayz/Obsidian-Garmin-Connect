@@ -3,6 +3,7 @@
 	import type { ChartLayout } from "../../../../dashboard/activity-charts";
 	import { lucide } from "../../home/lucide";
 	import ChartFigures from "./ChartFigures.svelte";
+	import { CARD_PLOTS } from "./kinds";
 	import RunWalkPlot from "./RunWalkPlot.svelte";
 	import SeriesPlot from "./SeriesPlot.svelte";
 	import TrainingEffectScales from "./TrainingEffectScales.svelte";
@@ -12,7 +13,8 @@
 	 * One chart of the Charts tab: on the phone a section under a 14 pt band
 	 * (the twin's `section · …`), in a pane a bordered card of the grid. The
 	 * title opens the picker when the chart has one; the "?" icons are left
-	 * out until their sheets' copy is captured, as in the twin.
+	 * out until their sheets' copy is captured, as in the twin. A sport's own
+	 * card draws with the plot its `plot` names (`CARD_PLOTS`).
 	 */
 	interface Props {
 		card: ChartCard;
@@ -24,7 +26,7 @@
 	let { card, layout, onPick }: Props = $props();
 </script>
 
-<section class="chart-section" class:zones={card.kind === "zones"}>
+<section class="chart-section" class:zones={card.kind === "zones" || (card.kind === "custom" && card.head === "zones")} class:foot={card.kind === "zones" || card.kind === "training-effect"}>
 	<div class="head">
 		{#if card.picker}
 			<button class="title picker" onclick={onPick}>
@@ -44,8 +46,11 @@
 		<RunWalkPlot chart={card} {layout} />
 	{:else if card.kind === "training-effect"}
 		<TrainingEffectScales chart={card} />
-	{:else}
+	{:else if card.kind === "zones"}
 		<ZoneRows chart={card} />
+	{:else}
+		{@const Plot = CARD_PLOTS[card.plot]}
+		{#if Plot}<Plot {card} {layout} />{/if}
 	{/if}
 </section>
 
@@ -116,6 +121,10 @@
 		}
 		.zones .head {
 			margin-top: 28.16px;
+		}
+		/* The zone tables and Training Effect end 3 pt lower in a card (phone section − 4, 415:3254). */
+		.foot {
+			padding-bottom: 3px;
 		}
 	}
 </style>

@@ -49,17 +49,17 @@ sizes were measured on a real vault, with every metric group on:
 | --- | --- | --- | --- |
 | **Charts & trends** | Every stat's 7d, 4w and 1y charts, the activity list and the sleep scores: the history indexes | All history, always | 0.9 MB and 150 requests a year of history |
 | **Day details** | Each day's file and its timelines: heart rate, stress, Body Battery, steps, floors and sleep stages through the day | **New days only**, **Last 30 days**, **Last 90 days** (the default), **Last year** or **All history** | 44 KB and 15 requests a day |
-| **Run details** | A run's page: map, charts, splits and laps | **Only runs I open** (the default), **Last 90 days**, **Last year** or **All runs** | 150 KB and 10 requests a run |
+| **Activity details** | An activity's page, every sport: map, charts, splits and laps | **Only activities I open** (the default), **Last 90 days**, **Last year** or **All activities** | up to 150 KB and 8 to 11 requests an activity |
 
 A range only says how far back the download goes. Every new day is kept with
-its timelines whatever the range (timelines need the **intraday** group), and a
-run's page downloads the first time you open it.
+its timelines whatever the range (timelines need the **intraday** group), and an
+activity's page downloads the first time you open it.
 
 ### The history download
 
 What you agreed to downloads in the background, about ten seconds of work at a
 time: the activity list first, then the chart histories a year at a time, then
-Day details and Run details, newest first. Nothing fetches your history unless
+Day details and Activity details, newest first. Nothing fetches your history unless
 you agreed to it, in the setup or in the update dialog below.
 
 - A sync, or a page loading what it needs, always goes first.
@@ -92,8 +92,10 @@ the background; **Later** puts them off. Either way it doesn't ask again, and
 **Settings → Data** lists what is still on offer, with a **Download** button.
 
 What you already agreed to needs no question: new days, and gaps in your Day
-details and Run details ranges, keep filling. Only what an older version saved
-is asked about again.
+details and Activity details ranges, keep filling. Only what an older version saved
+is asked about again. A **Run details** range chosen before every sport had a page
+keeps your runs coming; the other sports, and the runs saved before, wait for one
+**Download now**.
 
 ## Where the data goes
 
@@ -131,7 +133,7 @@ The pages need more than a day's summary can hold. These files sit beside
 | `series/<date>.json` | A day's curves: heart rate, stress, Body Battery, steps, floors, intensity, the sleep hypnogram | `intraday` |
 | `account.json` | Facts that belong to no day: the watch, personal records, lactate threshold, training plan | `profile` |
 | `activities/` | Every activity on the account | `workouts` |
-| `activity-details/` | One file per run whose page you opened, and each run in the **Run details** range: its samples, laps, zones, weather and GPS route | `workouts`, when the page opens or by the history download |
+| `activity-details/` | One file per activity whose page you opened, and each activity in the **Activity details** range: its samples, laps, zones, weather, sensors, badges and GPS route | `workouts`, when the page opens or by the history download |
 | `daily-stats/` | Steps, floors and intensity minutes | `activity` |
 | `sleep/` | A row per night | `sleep` |
 | `stress/`, `body-battery/` | Stress and Body Battery | `stress` |
@@ -164,7 +166,7 @@ A few small files keep the sync's own bookkeeping:
 | `scan.json` | Where your Garmin history starts and ends, as the scan found it | the setup |
 | `backfill.json` | Whether the history download is paused, and which device runs it | the history download |
 | `days/index.json` | Which days' details were fetched whole, and by which version of Day details | every sync and the history download |
-| `activity-details/index.json` | The version of each run's file | each run's page as it is saved |
+| `activity-details/index.json` | The version of each activity's file | each activity's page as it is saved |
 
 They are plain JSON written through Obsidian, so they sync like any other file.
 With Obsidian Sync that needs **Sync all other types**, which is off by default.
@@ -193,9 +195,9 @@ hill score), training two (running tolerance by day and by week) and health one
 (Health Snapshots). The settings screen shows each group's cost beside its switch.
 
 With everything on, a day costs nine requests. On top of that come the intraday
-and per-sync requests, the history download described above, and ten requests
-the first time you open a run's page, or for each run in the **Run details**
-range (see [Activities](#activities)).
+and per-sync requests, the history download described above, and eight to
+eleven requests the first time you open an activity's page, or for each activity
+in the **Activity details** range (see [Activities](#activities)).
 
 ## Home
 
@@ -267,9 +269,61 @@ activities**.
   the activities — or, over a year, one row a month, which opens that month.
 - **View Personal Records** opens the records for that sport: Steps, Running,
   Cycling, Swimming and Strength, with every distance Garmin keeps a record for,
-  whether you have one or not.
-- **A run opens its page**: from its sport's page, a month, All Activities, a
-  running record or Home's Today's Activity. It has the app's five tabs:
+  whether you have one or not. A record opens the activity that set it.
+- The pages read the activity index (`activities/`). Filling it costs about one
+  request per hundred activities; after that, routine syncs keep it current with
+  the request they already make.
+- Panes from 1000px wide put the controls on one row, the totals beside the chart
+  and the lists three across.
+
+### All Activities
+
+Garmin's list of every activity, from the hub or Home's All Activities card.
+
+- **Search** stays at the top while the list scrolls. It finds what you type
+  anywhere in an activity's name, whatever the case and accents: "cafe" finds
+  "Café". An activity without a name goes by its sport's.
+- The filter button beside the title opens **Filters**, and shows a dot while a
+  filter is on. Each filter in force is a chip under the search, whose × removes
+  that filter alone.
+- Then the count, exact ("341 ACTIVITIES"), and **Sort**: Newest First, Oldest
+  First, A to Z or Z to A.
+- Each card has the sport's coloured disc and figure, the name, the date, and
+  the distance, or the time for an activity without one. A swim's distance is in
+  whole metres, or yards for a yard pool. The cards run one, two or three across
+  as the pane widens, and load sixty at a time as you scroll.
+- **Filters** has:
+  - **Activities**: Garmin's groups in its order, the first five and then
+    **Show All**; tick **All <Group>** or any of its sub-types;
+  - **Date Range**: a start and an end, picked on a calendar whose title opens
+    month and year pickers;
+  - **Distance** and **Time**: a slider each, or a typed minimum and maximum;
+    the slider's end, 150+ km or 24h+, sets no limit;
+  - **Total Ascent**: a minimum and a maximum;
+  - **Event Type**: Race, Training, Transportation and Garmin's other types,
+    several at once if you like;
+  - **Favorite Activities** and **Personal Records**.
+
+  Its footer counts what the choices would list as you make them ("Show 28
+  Activities"), and **Clear All** empties them. The search and the sort stay as
+  they are.
+- It filters the activity index, so it sends no request. The search, sort and
+  filters belong to the page: Back from an activity, or a restart, keeps them.
+- Favourites and records are as of the last listing: a sync refreshes the
+  newest activities, **Sync activity history** the rest. Garmin's own count can
+  be one higher than the plugin's, when it counts a multisport leg the index
+  leaves out.
+
+### An activity's page
+
+Every activity opens its page, whatever the sport: from All Activities, a
+sport's page or a month, Personal Records, Home's Today's Activity, Load's
+Exercise Load list, Training Effect's related activity and the Cycling Power
+Curve's record dates. Each page has the app's five tabs, **Overview**,
+**Stats**, **Laps**, **Charts** and **Gear**, filled as the app fills them for
+that sport:
+
+- **A run**:
   - **Overview**: the route map and the weather, the headline figures,
     Evaluation (Primary Benefit, Feel, Perceived Effort), links to running
     records and all running activities, and the watch it was recorded on;
@@ -279,31 +333,60 @@ activities**.
     condition, running dynamics, training effect, run/walk and time in zones,
     against **Time** or **Distance**;
   - **Gear**.
+- **A ride** colours its route by power zone, from Less Power to More Power.
+  Under the map come Distance, Total Time, Avg Speed, Total Ascent and Avg
+  Power, and under Devices & Apps the sensors it used ("Rally 100/200", with
+  their firmware and battery). Stats has sixteen sections, among them Power
+  (normalized power, Intensity Factor, Training Stress Score, FTP, work) and
+  Cycling Dynamics (time and power seated and standing, the power phases, the
+  platform centre offset). Laps gives Avg Speed rather than pace, and a Total
+  row. Charts has twenty cards, among them Position, Time in Position, the Power
+  Phase and Balance dials, Platform Offset, the seven power zones, and the Power
+  Curve against your record in W or W/kg. Full size, a chart offers up to
+  fifteen others to lay over it.
+- **A pool swim** has no map. Laps is Garmin's interval table, **Int**, rests
+  included, with a Total. Charts draws each length as a bar, for pace per 100 m,
+  strokes and Swolf, against **Time** or **Distance**, then heart rate, Training
+  Effect and the zones.
+- **An open-water swim** draws its route in red, with the weather. Its charts
+  are pace, strokes a minute and temperature, then heart rate, Training Effect
+  and the zones.
+- **Every other sport** gets the sections the sports share, as the app draws a
+  Stair Stepper session, each only with data: pace and speed, timing, heart
+  rate, Training Effect, Nutrition & Hydration and the rest; laps with a Total;
+  and charts of heart rate, Training Effect and the zones, with pace and
+  elevation for an activity that moved. Without a distance the big figure is
+  Total Time, and Charts has no **Time** / **Distance** switch. Garmin's own
+  placeholders show as the app shows them: "0:00 /km" for a pace that never
+  moved, "-- m" for an ascent not measured.
 
-  A chart icon beside a figure opens its chart full size, where the chips lay a
-  second measure over it. Tapped, the map opens full screen: it pans and zooms,
-  and its layers button colours the route by another measure or hides the lap
-  numbers. Other sports' rows don't open anything yet.
-- The first time a run's page opens it costs ten requests, made between syncs,
-  never during one. The answer is kept in `activity-details/`, so the page opens
-  again without asking. It needs a session and the `workouts` group.
-- **Run details**, in the setup or **Settings → Data**, fetches the pages of the
-  runs in its range ahead, so they open without a connection: in the history
-  download, newest first, at least two seconds apart. A run is about 150 KB in
-  the vault and ten requests, so 230 runs come to about 35 MB and 2,300
-  requests. A page you open goes first, and a sync waits only for the run in
-  hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile policy rules
-  out bulk downloads): offline, a map draws the tiles that device viewed in the
-  last week or so, and the route alone elsewhere.
-- The map's tiles come from OpenStreetMap, which sees roughly where the run was.
-  **Map tiles** under **Settings → Maps** turns them off, and the route is drawn
-  on its own, as it is offline. A treadmill run has no map.
-- The pages read the activity index (`activities/`). Filling it costs about one
-  request per hundred activities; after that, routine syncs keep it current with
-  the request they already make.
-- Panes from 1000px wide put the controls on one row, the totals beside the chart
-  and the lists three across. A run's page puts its map beside the figures, and
-  its stats and charts three across.
+Every Overview shows the badges the activity earned and the sensors it recorded
+with, when it has any. A chart icon beside a figure opens its chart full size,
+where the chips lay a second measure over it. Tapped, the map opens full screen:
+it pans and zooms, and its layers button colours the route by another measure or
+hides the lap numbers. **All <Group> Activities**, under Navigation, opens the
+hub's page for the activity's group, or All Activities filtered to the group
+where the hub has none: "All Walking Activities" under a walk.
+
+- The first time an activity's page opens it costs eight to eleven requests
+  (a run with power or a ride eleven, a pool swim or yoga eight), made between
+  syncs, never during one. The answer is kept in `activity-details/`, so the page
+  opens again without asking. It needs a session and the `workouts` group. A
+  run's page saved before every sport had one asks two requests more, once.
+- **Activity details**, in the setup or **Settings → Data**, fetches the pages
+  of the activities in its range ahead, so they open without a connection: in
+  the history download, newest first, at least two seconds apart. A run is about
+  150 KB in the vault and eleven requests, so 230 runs come to about 35 MB and
+  2,500 requests. A page you open goes first, and a sync waits only for the
+  activity in hand. The map's tiles aren't fetched ahead (OpenStreetMap's tile
+  policy rules out bulk downloads): offline, a map draws the tiles that device
+  viewed in the last week or so, and the route alone elsewhere.
+- The map's tiles come from OpenStreetMap, which sees roughly where the
+  activity was. **Map tiles** under **Settings → Maps** turns them off, and the
+  route is drawn on its own, as it is offline. An activity without GPS, such as
+  a treadmill run or a pool swim, has no map.
+- Panes from 1000px wide put an activity's map beside its figures, and its stats
+  and charts three across.
 
 ## Steps, Floors and Intensity Minutes
 

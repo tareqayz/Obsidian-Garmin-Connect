@@ -2,13 +2,17 @@
 	import { CHART_COLOURS, DIM_OPACITY, type ExpandedChartView } from "../../../../dashboard/activity-chart-pages";
 	import { TE_FRAME, type ExpandedPlot } from "../../../../dashboard/activity-charts";
 	import ChartAxis from "./ChartAxis.svelte";
+	import ChartKeys from "./ChartKeys.svelte";
 	import ChartMarks from "./ChartMarks.svelte";
 
 	/**
 	 * The expanded chart's SVG (the twin's 411:1340 and 416:86199): the primary
 	 * on the left axis, dimmed under an overlay, the overlay on its own axis
 	 * with labels in its colour on the right, and the x axis under both.
-	 * Run/Walk draws its lanes and Training Effect its scales across the plot.
+	 * Run/Walk (and a ride's Position as the base) draws its lanes and Training
+	 * Effect its scales across the plot. A ride's overlays may bring lanes along
+	 * the plot's bottom (Position) and a key under the axis title (the ride's
+	 * twin 956:1067, 956:1172).
 	 */
 	let { view, plot }: { view: ExpandedChartView; plot: ExpandedPlot } = $props();
 
@@ -17,6 +21,7 @@
 	let overlayColour = $derived(view.secondary ? CHART_COLOURS[view.secondary.colour] : undefined);
 </script>
 
+<div class="expanded-box" style:height="{plot.height}px">
 <svg class="expanded-plot" width={plot.width} height={plot.height} aria-hidden="true">
 	{#if primary.kind === "series"}
 		<ChartMarks marks={plot.primary} plot={plot.plot} uid="ex-{uid}-1" fill={primary.fill} dim={plot.dim} />
@@ -44,16 +49,36 @@
 	{#if plot.secondary && view.secondary}
 		<ChartMarks marks={plot.secondary} plot={plot.plot} uid="ex-{uid}-2" colour={view.secondary.colour} overlay />
 	{/if}
+	{#if plot.overlayBars}
+		{#each plot.overlayBars as bar, i (i)}
+			<rect x={bar.x} y={bar.y} width={bar.width} height={bar.height} fill={CHART_COLOURS[bar.colour]} />
+		{/each}
+	{/if}
 	<ChartAxis labelRight={plot.leftLabelRight} yLabels={plot.leftLabels} dots={plot.dots} xLabels={plot.xLabels} xTitle={plot.xTitle} />
 	{#each plot.rightLabels as label, i (i)}
 		<text class="right-label" x={plot.rightLabelLeft} y={label.y} dominant-baseline="central" fill={overlayColour}>{label.text}</text>
 	{/each}
 </svg>
+{#if plot.keys && plot.keyY !== undefined && plot.keyLeft !== undefined && plot.keyRight !== undefined}
+	<!-- The overlay's key, centred on the plot. -->
+	<div class="key-row" style:left="{plot.keyLeft}px" style:width="{plot.keyRight - plot.keyLeft}px">
+		<ChartKeys keys={plot.keys} y={plot.keyY} />
+	</div>
+{/if}
+</div>
 
 <style>
+	.expanded-box {
+		position: relative;
+	}
 	.expanded-plot {
 		display: block;
 		overflow: visible;
+	}
+	.key-row {
+		position: absolute;
+		top: 0;
+		height: 0;
 	}
 	.lane {
 		stroke: var(--background-modifier-border);

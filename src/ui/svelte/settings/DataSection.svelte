@@ -3,7 +3,7 @@
 	import type { Setting } from "obsidian";
 	import type GarminPlugin from "../../../main";
 	import { DEFAULT_SETTINGS } from "../../../settings-data";
-	import { DAY_DETAILS_KEY, DAY_DETAILS_RANGES, rangeStart, RUN_DETAILS_KEY, RUN_DETAILS_RANGES, isDayDetailsRange, isRunDetailsRange } from "../../../sync/datasets";
+	import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, rangeStart, isActivityDetailsRange, isDayDetailsRange } from "../../../sync/datasets";
 	import { estimate, formatBytes, formatDuration, withBudget, type Estimate } from "../../../sync/estimate";
 	import type { BackfillProgress } from "../../../sync/runner";
 	import { historyStart } from "../../../sync/scan";
@@ -31,7 +31,7 @@
 	let progress = $state<BackfillProgress | null>(plugin.sync.backfillProgress);
 	let updates = $state<UpdateLine[]>([]);
 	let daySetting: Setting | undefined;
-	let runSetting: Setting | undefined;
+	let detailSetting: Setting | undefined;
 
 	const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 	const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
@@ -49,10 +49,10 @@
 			describe();
 			return;
 		}
-		const [index, coverage, runFiles, charts] = await Promise.all([
+		const [index, coverage, detailFiles, charts] = await Promise.all([
 			store.readActivities(),
 			store.readDayCoverage(s.groups.includes("intraday")),
-			store.readRunCoverage(),
+			store.readDetailCoverage(),
 			store.readChartMetas(),
 		]);
 		start = historyStart(scan);
@@ -62,11 +62,11 @@
 			speed: s.syncSpeed,
 			scan,
 			dayDetails: s.data.dayDetails,
-			runDetails: s.data.runDetails,
-			runs: index.rows.filter((row) => plugin.isRun(row)).map((row) => ({ id: row.id, date: row.start.slice(0, 10) })),
+			activityDetails: s.data.activityDetails,
+			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: plugin.isRun(row) })),
 			held: {
 				daySpans: coverage.spans,
-				runs: runFiles,
+				details: detailFiles,
 				charts: new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null)),
 			},
 		});
@@ -79,7 +79,7 @@
 
 	function describe(): void {
 		const days = est?.sets.find((x) => x.id === "day-details");
-		const runs = est?.sets.find((x) => x.id === "run-details");
+		const details = est?.sets.find((x) => x.id === "activity-details");
 		const from = s.data.dayDetails === "new" ? null : rangeStart(s.data.dayDetails, new Date().toISOString().slice(0, 10), start);
 		let dayText = "Keeps every new day.";
 		if (s.data.dayDetails === "new") dayText = "Keeps every new day from the setup on.";
@@ -87,9 +87,12 @@
 		else if (est) dayText += ` Everything back to ${day(from)} is in this vault.`;
 		daySetting?.setDesc(dayText);
 
-		let runText = "A run downloads when you open it.";
-		if (s.data.runDetails !== "opened") runText = runs?.units ? `Every run is saved. ${count.format(runs.units)} ${runs.units === 1 ? "run" : "runs"} left to download.` : "Every run is saved.";
-		runSetting?.setDesc(runText);
+		let detailText = "An activity downloads when you open it.";
+		if (s.data.activityDetails !== "opened")
+			detailText = details?.units
+				? `Every activity is saved. ${count.format(details.units)} ${details.units === 1 ? "activity" : "activities"} left to download.`
+				: "Every activity is saved.";
+		detailSetting?.setDesc(detailText);
 	}
 
 	const unsubscribe: Array<() => void> = [];
@@ -123,7 +126,7 @@
 	let percent = $derived(progress && progress.done + progress.remaining > 0 ? Math.min(99, Math.round((progress.done / (progress.done + progress.remaining)) * 100)) : 0);
 
 	function progressLine(p: BackfillProgress): string {
-		const what = p.task === "runs" ? "Run details" : p.task === "days" ? "Day details" : "Charts & trends";
+		const what = p.task === "details" ? "Activity details" : p.task === "days" ? "Day details" : "Charts & trends";
 		const reached = p.reached ? ` · back to ${monthFormat.format(new Date(`${p.reached}T12:00:00`))}` : "";
 		const until = p.until ? timeFormat.format(new Date(p.until)) : "";
 		if (p.status === "paused" && p.reason === "user") return `Download paused · ${percent}% · ${what}${reached}`;
@@ -162,7 +165,7 @@
 			setting
 				.setName("On disk")
 				.setDesc(
-					`${formatBytes(usage.total)} — Charts & trends ${formatBytes(usage.charts)} · Day details ${formatBytes(usage.days)} · Run details ${formatBytes(usage.runs)} · Other ${formatBytes(usage.other)}`,
+					`${formatBytes(usage.total)} — Charts & trends ${formatBytes(usage.charts)} · Day details ${formatBytes(usage.days)} · Activity details ${formatBytes(usage.details)} · Other ${formatBytes(usage.other)}`,
 				)}
 	></div>
 {/key}
@@ -186,16 +189,16 @@
 
 <div
 	use:obsidianSetting={(setting) => {
-		runSetting = setting;
+		detailSetting = setting;
 		setting
-			.setName("Run details")
-			.setDesc("A run downloads when you open it.")
+			.setName("Activity details")
+			.setDesc("An activity downloads when you open it.")
 			.addDropdown((d) => {
-				for (const range of RUN_DETAILS_RANGES) d.addOption(range.id, range.label);
-				d.setValue(s.data.runDetails).onChange((v) => {
-					if (!isRunDetailsRange(v)) return;
-					s.data.runDetails = v;
-					choose(RUN_DETAILS_KEY);
+				for (const range of ACTIVITY_DETAILS_RANGES) d.addOption(range.id, range.label);
+				d.setValue(s.data.activityDetails).onChange((v) => {
+					if (!isActivityDetailsRange(v)) return;
+					s.data.activityDetails = v;
+					choose(ACTIVITY_DETAILS_KEY);
 				});
 			});
 	}}

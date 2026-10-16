@@ -6,9 +6,9 @@ import {
 	detailVersionOf,
 	gaps,
 	parseDayCoverage,
-	parseRunCoverage,
+	parseDetailCoverage,
 	serializeDayCoverage,
-	serializeRunCoverage,
+	serializeDetailCoverage,
 	seriesVersion,
 	stale,
 	versionOn,
@@ -94,17 +94,22 @@ describe("a series file's version, for the first build of the coverage", () => {
 	});
 });
 
-describe("run coverage", () => {
-	it("round-trips by id, in id order", () => {
-		const runs = new Map([
+describe("activity details coverage", () => {
+	it("round-trips by id, in id order, under activities", () => {
+		const files = new Map([
 			[24589239622, 1],
 			[19938710621, 5],
 		]);
-		const text = serializeRunCoverage(runs);
+		const text = serializeDetailCoverage(files);
 		assert.ok(text.indexOf("19938710621") < text.indexOf("24589239622"));
-		assert.deepEqual(parseRunCoverage(text), runs);
-		assert.deepEqual(parseRunCoverage(JSON.stringify({ version: 1, runs: { "12": 5, x: 5, "13": "5" } })), new Map([[12, 5]]));
-		assert.equal(parseRunCoverage(JSON.stringify({ version: 1, runs: [] })), null);
+		assert.match(text, /"activities": \{/);
+		assert.deepEqual(parseDetailCoverage(text), files);
+		assert.deepEqual(parseDetailCoverage(JSON.stringify({ version: 1, activities: { "12": 5, x: 5, "13": "5" } })), new Map([[12, 5]]));
+		assert.equal(parseDetailCoverage(JSON.stringify({ version: 1, activities: [] })), null);
+	});
+
+	it("reads the file an older build wrote, when only runs had a page", () => {
+		assert.deepEqual(parseDetailCoverage(JSON.stringify({ version: 1, runs: { "12": 5 } })), new Map([[12, 5]]));
 	});
 
 	it("reads a run file's version from the start of its text", () => {

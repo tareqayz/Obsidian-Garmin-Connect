@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { GarminRateLimitError } from "../src/garmin/errors";
-import { chartKeys } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_KEY, chartKeys } from "../src/sync/datasets";
 import type { AccountScan } from "../src/sync/scan";
 import { afterScan, agreement, back, newDaysOnly, next, startFlow, stepState } from "../src/ui/setup-flow";
 
@@ -42,16 +42,16 @@ describe("setup flow", () => {
 describe("what the setup agrees to", () => {
 	const groups = ["activity", "sleep", "workouts", "intraday"] as const;
 
-	it("starting the download agrees to every chart index and to Day and Run details", () => {
+	it("starting the download agrees to every chart index and to Day and Activity details", () => {
 		const keys = agreement(groups);
-		assert.deepEqual(keys.accepted, [...chartKeys(groups), "days@1", "runs@5"]);
+		assert.deepEqual(keys.accepted, [...chartKeys(groups), "days@1", ACTIVITY_DETAILS_KEY]);
 		assert.deepEqual(keys.deferred, []);
 	});
 
 	it("keeping new days only fetches no history, and puts the charts off rather than leaving them to ask", () => {
 		const only = newDaysOnly(groups);
-		assert.deepEqual(only.choices, { dayDetails: "new", runDetails: "opened" });
-		assert.deepEqual(only.accepted, ["days@1", "runs@5"]);
+		assert.deepEqual(only.choices, { dayDetails: "new", activityDetails: "opened" });
+		assert.deepEqual(only.accepted, ["days@1", ACTIVITY_DETAILS_KEY]);
 		assert.deepEqual(only.deferred, chartKeys(groups));
 	});
 });

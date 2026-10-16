@@ -3,8 +3,8 @@
 	"path": "/activity-service/activity/{activityId}/typedsplits",
 	"plugin": "GarminApi.activityTypedSplits",
 	"firstRecorded": "2026-10-10T16:41:42.300Z",
-	"updatedAt": "2026-10-10T16:41:42.300Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:06.614Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"object"

@@ -4,7 +4,10 @@ Garmin Connect, rebuilt inside Obsidian. The plugin syncs your Garmin data into
 the vault and draws it as the phone app does:
 
 - **Home**: Garmin's three presets, In Focus and At a Glance.
-- **Activities**: per sport, with personal records.
+- **Activities**: per sport, with personal records, and All Activities with
+  Garmin's search, sort and filters.
+- **A page for every activity**, whatever the sport: a run's or a ride's map,
+  stats, laps and charts, a pool swim's intervals and lengths, and the rest.
 - **Steps, Floors and Intensity Minutes.**
 - **Sleep**, including the Sleep Coach.
 - **Health Stats**: Health Status, Heart Rate, Stress, Body Battery,
@@ -19,8 +22,8 @@ never touched. How much room it takes depends on how much history you keep:
   1 MB a year of history, always all of it.
 - **Day details**, each day's numbers and its timelines: about 44 KB a day,
   16 MB a year.
-- **Run details**, a run's map, charts and laps: about 150 KB a run. By
-  default only the runs you open.
+- **Activity details**, an activity's map, charts and laps, every sport: about
+  150 KB a run, less for most others. By default only the activities you open.
 
 With Obsidian Sync, turn on **Sync all other types** so the JSON reaches your
 other devices.
@@ -37,7 +40,7 @@ other devices.
   - The one exception is the **Run diagnostics** network check, which asks
     `tls.peet.ws` what your connection looks like. It runs only when you
     press it.
-  - **Activity maps** draw OpenStreetMap's map under a run's route, from
+  - **Activity maps** draw OpenStreetMap's map under an activity's route, from
     `tile.openstreetmap.org`. That server sees which part of the map you open
     — roughly where the activity was — and each request names this plugin.
     Turn **Map tiles** off in the settings and the route is drawn on its own,

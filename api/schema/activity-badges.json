@@ -1,0 +1,70 @@
+{
+	"endpoint": "activity-badges",
+	"path": "/badge-service/badge/{displayName}/earned/activity/{activityId}",
+	"plugin": "GarminApi.activityBadges",
+	"firstRecorded": "2026-10-15T08:17:05.697Z",
+	"updatedAt": "2026-10-15T08:17:05.697Z",
+	"samples": 1,
+	"shape": {
+		"type": [
+			"array"
+		],
+		"items": {
+			"type": [
+				"object"
+			],
+			"fields": {
+				"badgeCategoryId": {
+					"type": [
+						"number"
+					]
+				},
+				"badgeDifficultyId": {
+					"type": [
+						"number"
+					]
+				},
+				"badgeId": {
+					"type": [
+						"number"
+					]
+				},
+				"badgeKey": {
+					"type": [
+						"string"
+					]
+				},
+				"badgeName": {
+					"type": [
+						"string"
+					]
+				},
+				"badgePoints": {
+					"type": [
+						"number"
+					]
+				},
+				"badgeTypeIds": {
+					"type": [
+						"array"
+					],
+					"items": {
+						"type": [
+							"number"
+						]
+					}
+				},
+				"badgeUuid": {
+					"type": [
+						"null"
+					]
+				},
+				"earnedByMe": {
+					"type": [
+						"boolean"
+					]
+				}
+			}
+		}
+	}
+}

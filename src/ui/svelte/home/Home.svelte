@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from "svelte";
-	import { runIdFor, type ActivitiesData } from "../../../dashboard/activities";
+	import { activityIdFor, type ActivitiesData } from "../../../dashboard/activities";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
@@ -509,7 +509,7 @@
 	{:else if current.page === "records"}
 		<RecordsPage route={current} data={activities} onBack={back} {go} {swap} />
 	{:else if current.page === "all"}
-		<AllActivitiesPage data={activities} onBack={back} {go} />
+		<AllActivitiesPage route={current} data={activities} {today} {history} {canSync} {openSheet} onBack={back} {go} {swap} {onSyncHistory} />
 	{:else if current.page === "activity"}
 		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {go} {swap} {reach} />
 	{:else if current.page === "activity-map"}
@@ -620,7 +620,7 @@
 											.join(" • ")}
 									/>
 								{:else}
-									{@const run = runIdFor(activities.rows, item.start, item.name)}
+									{@const opens = activityIdFor(activities.rows, item.start, item.name)}
 									{#snippet card()}
 										<RowCard
 											kicker={item.name}
@@ -630,8 +630,8 @@
 											detail={item.calories !== undefined ? `${item.calories} kcal` : undefined}
 										/>
 									{/snippet}
-									{#if run !== null}
-										{@const open = opener(activityRoute(run))}
+									{#if opens !== null}
+										{@const open = opener(activityRoute(opens))}
 										<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>{@render card()}</div>
 									{:else}
 										{@render card()}

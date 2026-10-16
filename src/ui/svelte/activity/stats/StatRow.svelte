@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHART_TITLES } from "../../../../dashboard/activity-chart-pages";
+	import { chartTitle } from "../../../../dashboard/activity-chart-pages";
 	import type { StatsChartId, StatsRow } from "../../../../dashboard/activity-stats-pages";
 	import ChartBadge from "./ChartBadge.svelte";
 
@@ -22,7 +22,7 @@
 		<span class="text">{row.label}</span>
 		{#if row.chart}
 			{@const chart = row.chart}
-			<button class="badge" aria-label={`${CHART_TITLES[chart]} chart`} onclick={() => onChart(chart)}><ChartBadge /></button>
+			<button class="badge" aria-label={`${chartTitle(chart) ?? row.label} chart`} onclick={() => onChart(chart)}><ChartBadge /></button>
 		{/if}
 	</div>
 	<div class="value">

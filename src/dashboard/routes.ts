@@ -22,7 +22,7 @@ export type Route =
 	| { page: "category"; category: CategoryId; sub: number | null; range: RangeId; offset: number; metric: MetricId }
 	| { page: "month"; category: CategoryId; sub: number | null; month: string; metric: MetricId }
 	| { page: "records"; tab: RecordTab }
-	| { page: "all" }
+	| AllRoute
 	| { page: "stats"; stat: StatId; range: StatRange; offset: number; totals: StatTotals }
 	| { page: "health" }
 	| { page: "sleep"; range: SleepRange; offset: number; tab: SleepTab }
@@ -39,7 +39,9 @@ export type Route =
 	/**
 	 * One activity's page, by its Garmin id. `sub` is an expanded chart
 	 * (`chart:<metric>[:<overlay>]`), so a reload reopens it. The Charts tab's
-	 * picker choices ride along, which also lets a check open any of them.
+	 * picker choices ride along in `picks`, by the picker's key (the run's
+	 * `pace`, `heart` and `power`; a sport's own), which also lets a check open
+	 * any of them.
 	 */
 	| {
 			page: "activity";
@@ -47,12 +49,50 @@ export type Route =
 			tab: ActivityTab;
 			axis: ActivityAxis;
 			sub?: string;
-			pace?: PaceChart;
-			heart?: HeartChart;
-			power?: PowerChart;
+			picks?: Record<string, string>;
 	  }
-	/** The activity's full-screen map, with its Map Settings choices. */
-	| { page: "activity-map"; id: number; overlay: MapOverlay; laps: boolean };
+	/**
+	 * The activity's full-screen map, with its Map Settings choices. The
+	 * overlay is a token: which ones an activity offers is its sport's (the
+	 * page falls back to none for one it doesn't).
+	 */
+	| { page: "activity-map"; id: number; overlay: string; laps: boolean };
+
+/** All Activities' sort: newest first is the default, and has no value. */
+export const ALL_SORTS = ["oldest", "az", "za"] as const;
+export type AllSort = (typeof ALL_SORTS)[number];
+
+/**
+ * All Activities with its search, sort and filters. Every field is optional:
+ * a bare `{ page: "all" }` is everything, newest first. Values are in metres
+ * and seconds whatever the units; `types` are Garmin's activity type ids, a
+ * group's ("All Cycling" is 2) or a sub-type's (Road Cycling is 10).
+ */
+export interface AllRoute {
+	page: "all";
+	/** The search, trimmed, at most 80 characters. */
+	q?: string;
+	sort?: AllSort;
+	types?: number[];
+	/** Local days, `YYYY-MM-DD`, inclusive. */
+	from?: string;
+	to?: string;
+	/** Distance, metres. */
+	dmin?: number;
+	dmax?: number;
+	/** Time, seconds. */
+	tmin?: number;
+	tmax?: number;
+	/** Total ascent, metres. */
+	amin?: number;
+	amax?: number;
+	/** Garmin's event type keys (`race`, `training` …). */
+	events?: string[];
+	/** Favorites only. */
+	fav?: true;
+	/** Personal Records only. */
+	pr?: true;
+}
 
 export type HealthStatRoute = Extract<Route, { page: "health-stat" }>;
 export type PerformanceStatRoute = Extract<Route, { page: "performance-stat" }>;
@@ -64,14 +104,18 @@ export type ActivityMapRoute = Extract<Route, { page: "activity-map" }>;
 export const ACTIVITY_TABS = ["overview", "stats", "laps", "charts", "gear"] as const;
 export type ActivityTab = (typeof ACTIVITY_TABS)[number];
 export type ActivityAxis = "time" | "distance";
-/** The Charts tab's three pickers: pace, heart rate, power. */
+/**
+ * The run's three Charts pickers (pace, heart rate, power) and their values:
+ * the `picks` a run's route holds, and the fields a route saved before
+ * `picks` kept them in (`pace`, `heart`, `power`), which `readRoute` folds in.
+ */
 export const PACE_CHARTS = ["pace", "gap", "lap-pace"] as const;
 export type PaceChart = (typeof PACE_CHARTS)[number];
 export const HEART_CHARTS = ["heart-rate", "zones"] as const;
 export type HeartChart = (typeof HEART_CHARTS)[number];
 export const POWER_CHARTS = ["watts", "per-kg"] as const;
 export type PowerChart = (typeof POWER_CHARTS)[number];
-/** What colours the route: the Map Settings sheet's Data Overlay. */
+/** What colours a run's route: the Map Settings sheet's Data Overlay. Other sports list theirs in their map spec. */
 export const MAP_OVERLAYS = ["none", "pace", "gap", "heart-rate", "power", "elevation", "run-walk"] as const;
 export type MapOverlay = (typeof MAP_OVERLAYS)[number];
 
@@ -102,9 +146,25 @@ export function pushOrReturn(stack: readonly Route[], route: Route): Route[] {
 	return at >= 0 ? stack.slice(0, at + 1) : push(stack, route);
 }
 
-/** A route's identity: its keys in a fixed order, whatever order they were written in. */
-function routeKey(route: Route): string {
-	return JSON.stringify(route, Object.keys(route).sort());
+/**
+ * A route's identity: its keys in a fixed order at every level, whatever order
+ * they were written in. (A replacer array would also drop the nested keys it
+ * doesn't list, so two activity routes differing only in `picks` would read
+ * as one.) Arrays keep their order.
+ */
+export function routeKey(route: Route): string {
+	return JSON.stringify(sortedKeys(route));
+}
+
+function sortedKeys(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(sortedKeys);
+	if (!value || typeof value !== "object") return value;
+	const object = value as Record<string, unknown>;
+	return Object.fromEntries(
+		Object.keys(object)
+			.sort()
+			.map((key) => [key, sortedKeys(object[key])]),
+	);
 }
 
 /** Changes the page on top without adding a step, for a filter or a tab. */
@@ -135,10 +195,11 @@ export function readRoute(value: unknown): Route | null {
 		case "glance":
 		case "more":
 		case "activities":
-		case "all":
 		case "health":
 		case "performance":
 			return { page: raw.page };
+		case "all":
+			return allOf(raw);
 		case "records": {
 			const tab = RECORD_TABS.find((t) => t.id === raw.tab)?.id;
 			return tab ? { page: "records", tab } : null;
@@ -191,7 +252,7 @@ export function readRoute(value: unknown): Route | null {
 			return {
 				page: "activity-map",
 				id,
-				overlay: MAP_OVERLAYS.find((o) => o === raw.overlay) ?? "pace",
+				overlay: typeof raw.overlay === "string" && TOKEN.test(raw.overlay) ? raw.overlay : "pace",
 				laps: raw.laps !== false,
 			};
 		}
@@ -259,13 +320,105 @@ function activityOf(raw: Record<string, unknown>): ActivityRoute | null {
 		axis: raw.axis === "distance" ? "distance" : "time",
 	};
 	if (typeof raw.sub === "string" && TOKEN.test(raw.sub)) route.sub = raw.sub;
-	const pace = PACE_CHARTS.find((c) => c === raw.pace);
-	if (pace) route.pace = pace;
-	const heart = HEART_CHARTS.find((c) => c === raw.heart);
-	if (heart) route.heart = heart;
-	const power = POWER_CHARTS.find((c) => c === raw.power);
-	if (power) route.power = power;
+	const picks = picksOf(raw);
+	if (picks) route.picks = picks;
 	return route;
+}
+
+/** The fields a route saved before `picks` kept the run's picker choices in, and the values each took. */
+const LEGACY_PICKS: ReadonlyArray<readonly [field: string, values: readonly string[]]> = [
+	["pace", PACE_CHARTS],
+	["heart", HEART_CHARTS],
+	["power", POWER_CHARTS],
+];
+/** More pickers than any sport's Charts tab has. */
+const MAX_PICKS = 8;
+/** A picker's key: a short word, which never reaches an object's prototype (`__proto__`). */
+const PICK_KEY = /^[A-Za-z][\w-]{0,31}$/;
+
+/**
+ * The Charts tab's choices as the page accepts them: the legacy `pace`,
+ * `heart` and `power` folded in (only the values the run had), then `picks`,
+ * whose keys and values must be tokens. At most eight; none is no `picks`.
+ */
+function picksOf(raw: Record<string, unknown>): Record<string, string> | undefined {
+	const picks = new Map<string, string>();
+	for (const [field, values] of LEGACY_PICKS) {
+		const value = raw[field];
+		if (typeof value === "string" && values.includes(value)) picks.set(field, value);
+	}
+	if (raw.picks && typeof raw.picks === "object" && !Array.isArray(raw.picks)) {
+		for (const [key, value] of Object.entries(raw.picks as Record<string, unknown>)) {
+			if (PICK_KEY.test(key) && typeof value === "string" && TOKEN.test(value)) picks.set(key, value);
+		}
+	}
+	return picks.size ? Object.fromEntries([...picks].slice(0, MAX_PICKS)) : undefined;
+}
+
+/** The longest search kept, in characters. */
+const MAX_QUERY = 80;
+/** More type filters than Garmin's tree has groups and sub-types worth picking at once. */
+const MAX_TYPES = 64;
+/** More event types than Garmin has. */
+const MAX_EVENTS = 16;
+
+/**
+ * All Activities as the page accepts it: every field checked and repaired on
+ * its own, so one bad value never costs the others. The search is trimmed and
+ * cut to 80 characters; types are positive whole ids, each once; dates are
+ * real days, put in order; ranges are finite and at least 0, put in order;
+ * events are tokens; the two flags are only ever `true`.
+ */
+function allOf(raw: Record<string, unknown>): AllRoute {
+	const route: AllRoute = { page: "all" };
+	if (typeof raw.q === "string") {
+		const q = [...raw.q.trim()].slice(0, MAX_QUERY).join("").trim();
+		if (q) route.q = q;
+	}
+	const sort = ALL_SORTS.find((s) => s === raw.sort);
+	if (sort) route.sort = sort;
+	const types = uniqueOf(raw.types, (v): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0, MAX_TYPES);
+	if (types) route.types = types;
+	let from = isoDay(raw.from);
+	let to = isoDay(raw.to);
+	if (from && to && from > to) [from, to] = [to, from];
+	if (from) route.from = from;
+	if (to) route.to = to;
+	rangeOf(raw, route, "dmin", "dmax");
+	rangeOf(raw, route, "tmin", "tmax");
+	rangeOf(raw, route, "amin", "amax");
+	const events = uniqueOf(raw.events, (v): v is string => typeof v === "string" && TOKEN.test(v), MAX_EVENTS);
+	if (events) route.events = events;
+	if (raw.fav === true) route.fav = true;
+	if (raw.pr === true) route.pr = true;
+	return route;
+}
+
+/** The distinct items of an array that pass `ok`, in order, at most `max`; none is undefined. */
+function uniqueOf<T>(value: unknown, ok: (v: unknown) => v is T, max: number): T[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const out = [...new Set(value.filter(ok))].slice(0, max);
+	return out.length ? out : undefined;
+}
+
+/** A real calendar day, `YYYY-MM-DD`: 2026-02-30 is none. */
+function isoDay(value: unknown): string | undefined {
+	if (typeof value !== "string" || !DATE.test(value)) return undefined;
+	const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+	const date = new Date(Date.UTC(y, m - 1, d));
+	return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d ? value : undefined;
+}
+
+type RangeKey = "dmin" | "dmax" | "tmin" | "tmax" | "amin" | "amax";
+
+/** A filter's two ends: each finite and at least 0, the pair put in order. */
+function rangeOf(raw: Record<string, unknown>, route: AllRoute, minKey: RangeKey, maxKey: RangeKey): void {
+	const end = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined);
+	let min = end(raw[minKey]);
+	let max = end(raw[maxKey]);
+	if (min !== undefined && max !== undefined && min > max) [min, max] = [max, min];
+	if (min !== undefined) route[minKey] = min;
+	if (max !== undefined) route[maxKey] = max;
 }
 
 /** Garmin's activity ids: positive integers, about 2e10 now. */
@@ -377,9 +530,21 @@ export function activityRoute(id: number): ActivityRoute {
 	return { page: "activity", id, tab: "overview", axis: "time" };
 }
 
-/** The activity's full-screen map as the Overview map opens it: coloured by pace, laps marked. */
-export function activityMapRoute(id: number): ActivityMapRoute {
-	return { page: "activity-map", id, overlay: "pace", laps: true };
+/**
+ * The activity's full-screen map as the Overview map opens it: in the
+ * Overview's overlay (a run's is pace), laps marked.
+ */
+export function activityMapRoute(id: number, overlay = "pace"): ActivityMapRoute {
+	return { page: "activity-map", id, overlay, laps: true };
+}
+
+/**
+ * All Activities searched, sorted or filtered: a link that opens it on a
+ * group ("All Walking Activities"), say. `opts` is checked as a saved route
+ * would be; none is everything, newest first.
+ */
+export function allRoute(opts: Omit<AllRoute, "page"> = {}): AllRoute {
+	return allOf({ ...opts });
 }
 
 /** A category page as the hub opens it: everything, this week, the first tab. */

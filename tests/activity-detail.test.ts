@@ -87,6 +87,14 @@ const NO_WEATHER = { temp: null, apparentTemp: null, windSpeed: null, weatherTyp
 const GEAR = [{ displayName: "Daily trainers", gearTypeName: "Shoes" }, { gearMakeName: "Brand", gearModelName: "Model" }, { uuid: "x" }];
 const APP_INFO = { productDisplayName: "Forerunner 970", versionMajorMinor: "18.32", versionString: "18.32.0.0", imageUrl: "https://example.invalid/not-kept.png" };
 const WEIGH_IN = { weight: 68040, calendarDate: "2026-03-10" };
+const BADGES = [{ badgeId: 15, badgeKey: "cycle_climb_500ft", badgeName: "Climber 1", badgePoints: 1 }, { badgeId: 16, badgeName: "  " }];
+
+/** The run with power and its time in power zones: every block applies. */
+const POWERED = {
+	...SUMMARY,
+	metadataDTO: { ...SUMMARY.metadataDTO, hasPowerTimeInZones: true },
+	summaryDTO: { ...SUMMARY.summaryDTO, averagePower: 250 },
+};
 
 const ALL = {
 	summary: SUMMARY,
@@ -99,6 +107,7 @@ const ALL = {
 	gear: GEAR,
 	device: APP_INFO,
 	weight: WEIGH_IN,
+	badges: BADGES,
 };
 
 describe("buildActivityDetail", () => {
@@ -188,6 +197,120 @@ describe("buildActivityDetail", () => {
 		assert.deepEqual(next.laps, detail.laps);
 		assert.deepEqual(next.checked, [...ACTIVITY_BLOCKS]);
 	});
+
+	it("knows whether there is a route and power zones, and keeps the badges by name and key", () => {
+		assert.equal(detail.hasPolyline, true);
+		assert.equal("hasPowerZones" in detail, false);
+		assert.deepEqual(detail.badges, [{ name: "Climber 1", key: "cycle_climb_500ft" }]);
+		assert.equal("badges" in buildActivityDetail(ID, { ...ALL, badges: [] }, null)!, false);
+	});
+});
+
+describe("buildActivityDetail — every sport (version 6)", () => {
+	const RIDE_SUMMARY = {
+		...POWERED,
+		activityTypeDTO: { typeId: 10, typeKey: "road_biking", parentTypeId: 2 },
+		metadataDTO: {
+			...POWERED.metadataDTO,
+			sensors: [
+				{ fitProductNumber: 3578, sku: "006-B3578-00", sourceType: "ANTPLUS", softwareVersion: 4.1, batteryStatus: "OK", antplusDeviceType: "BIKE_POWER", serialNumber: 8_808_808 },
+				{ fitProductNumber: 999_999, antplusDeviceType: "HEART_RATE", batteryLevel: 73.4, serialNumber: 9_909_909 },
+				{ batteryStatus: "LOW" },
+			],
+		},
+		summaryDTO: { ...POWERED.summaryDTO, averageBikeCadence: 81, intensityFactor: 0.609000027, trainingStressScore: 35.0999985, totalWork: 125.536, leftBalance: 49.27, seatedTime: 3405.44 },
+	};
+	const RIDE_DETAILS = {
+		metricDescriptors: [
+			{ metricsIndex: 0, key: "directTimestamp" },
+			{ metricsIndex: 1, key: "directBikeCadence" },
+			{ metricsIndex: 2, key: "directRightBalance" },
+			{ metricsIndex: 3, key: "directLeftPowerPhaseStart" },
+			{ metricsIndex: 4, key: "directRightPlatformCenterOffset" },
+			{ metricsIndex: 5, key: "directFractionalCadence" },
+		],
+		activityDetailMetrics: [
+			{ metrics: [START, 80, 50.73, 11.25, -9, 0] },
+			{ metrics: [START + 1000, 82, 49.9, 12.04, -8, 0] },
+		],
+	};
+	const RIDE_SPLITS = {
+		lapDTOs: [{ lapIndex: 1, startTimeGMT: "2026-03-12T05:12:00.0", duration: 633.3, distance: 5000, averageSpeed: 7.9, averageBikeCadence: 80, maxPower: 398, normalizedPower: 167 }],
+		eventDTOs: [
+			{ startTimeGMT: "2026-03-12T05:12:00.0", startTimeGMTDoubleValue: START, sectionTypeDTO: { id: 1, key: "timerTrigger" } },
+			{ startTimeGMT: "2026-03-12T05:12:45.0", startTimeGMTDoubleValue: START + 45_000, riderPosition: 3, sectionTypeDTO: { id: 7000, key: "riderPosition", sectionTypeKey: "RIDER_POSITION" } },
+			{ startTimeGMT: "2026-03-12T05:12:30.0", startTimeGMTDoubleValue: START + 30_000, riderPosition: 0, sectionTypeDTO: { id: 7000, key: "riderPosition" } },
+		],
+	};
+	const ride = buildActivityDetail(ID, { ...ALL, summary: RIDE_SUMMARY, samples: RIDE_DETAILS, laps: RIDE_SPLITS }, null)!;
+
+	it("keeps a ride's cadence, balance, power phase and platform offset columns, and its new summary keys", () => {
+		assert.deepEqual(ride.samples, { bikeCadence: [80, 82], balanceRight: [50.7, 49.9], ppStartL: [11.3, 12], pcoR: [-9, -8], clock: [0, 1] });
+		assert.equal(ride.summary.averageBikeCadence, 81);
+		assert.equal(ride.summary.intensityFactor, 0.609000027);
+		assert.equal(ride.summary.totalWork, 125.536);
+		assert.equal(ride.summary.leftBalance, 49.27);
+		assert.equal(ride.summary.seatedTime, 3405.44);
+	});
+
+	it("keeps a ride's laps' cadence and power, and its rider positions on the clock in order", () => {
+		assert.deepEqual(ride.laps[0], { n: 1, start: 0, duration: 633.3, distance: 5000, speed: 7.9, bikeCadence: 80, maxPower: 398, normalizedPower: 167 });
+		assert.deepEqual(ride.positions, [
+			{ at: 30, position: 0 },
+			{ at: 45, position: 3 },
+		]);
+		assert.equal("positions" in detail(), false);
+	});
+
+	it("names the sensors from the product table, keeps their firmware and battery, and never a serial", () => {
+		assert.deepEqual(ride.sensors, [
+			{ name: "Rally 100/200", product: 3578, type: "BIKE_POWER", firmware: "4.1", battery: "OK" },
+			{ name: "Heart Rate Monitor", product: 999_999, type: "HEART_RATE", battery: "73%" },
+			{ name: "Sensor", battery: "Low" },
+		]);
+		const text = serializeActivityDetail(ride);
+		assert.ok(!text.includes("8808808") && !text.includes("9909909"));
+	});
+
+	it("keeps a pool's length in its unit, and a pool lap's lengths and strokes, a rest without", () => {
+		const POOL_SUMMARY = {
+			...SUMMARY,
+			activityTypeDTO: { typeId: 27, typeKey: "lap_swimming", parentTypeId: 26 },
+			metadataDTO: { hasPolyline: false, hasPowerTimeInZones: false, lapCount: 2 },
+			summaryDTO: { ...SUMMARY.summaryDTO, poolLength: 25, unitOfPoolLength: { unitId: 1, unitKey: "meter", factor: 100 }, averageSWOLF: 37, totalNumberOfStrokes: 470, numberOfActiveLengths: 44 },
+		};
+		const POOL_SPLITS = {
+			lapDTOs: [
+				{
+					lapIndex: 1, startTimeGMT: "2026-03-12T05:12:00.0", duration: 36.248, distance: 25, averageSpeed: 0.69, averageSWOLF: 48, totalNumberOfStrokes: 12, averageSwimCadence: 20, averageStrokes: 12, averageStrokeDistance: 2.08, numberOfActiveLengths: 1, swimStroke: "FREESTYLE",
+					lengthDTOs: [{ startTimeGMT: "2026-03-12T05:12:00.0", distance: 25, duration: 36.248, averageSpeed: 0.69, averageHR: 88, totalNumberOfStrokes: 12, averageSWOLF: 48, lengthIndex: 1, swimStroke: "FREESTYLE" }],
+				},
+				{ lapIndex: 2, startTimeGMT: "2026-03-12T05:12:36.0", duration: 23.75, distance: 0, numberOfActiveLengths: 0, averageSWOLF: 0, totalNumberOfStrokes: 0, swimStroke: null, lengthDTOs: [{ startTimeGMT: "2026-03-12T05:12:36.0", distance: 0, duration: 23.75, swimStroke: null }] },
+			],
+		};
+		const pool = buildActivityDetail(ID, { ...ALL, summary: POOL_SUMMARY, laps: POOL_SPLITS }, null)!;
+		assert.deepEqual(pool.pool, { length: 25, unit: "m" });
+		assert.equal(pool.hasPolyline, false);
+		assert.equal(pool.hasPowerZones, false);
+		assert.equal(pool.summary.averageSWOLF, 37);
+		assert.deepEqual(pool.laps[0], {
+			n: 1, start: 0, duration: 36.248, distance: 25, speed: 0.69, strokes: 12, swolf: 48, strokeRate: 20, strokesPerLength: 12, strokeDistance: 2.08, activeLengths: 1, stroke: "FREESTYLE",
+			lengths: [{ n: 1, start: 0, duration: 36.248, distance: 25, speed: 0.69, strokes: 12, swolf: 48, hr: 88, stroke: "FREESTYLE" }],
+		});
+		assert.deepEqual(pool.laps[1], { n: 2, start: 36, duration: 23.75, distance: 0, strokes: 0, swolf: 0, activeLengths: 0, lengths: [{ start: 36, duration: 23.75, distance: 0 }], rest: true });
+		const yards = buildActivityDetail(ID, { ...ALL, summary: { ...POOL_SUMMARY, summaryDTO: { ...POOL_SUMMARY.summaryDTO, poolLength: 25, unitOfPoolLength: { unitId: 2, unitKey: "yard", factor: 91.44 } } } }, null)!;
+		assert.deepEqual(yards.pool, { length: 25, unit: "yd" });
+	});
+
+	it("keeps an open-water swim's stroke rate and temperature", () => {
+		const columns = { metricDescriptors: [{ metricsIndex: 0, key: "directTimestamp" }, { metricsIndex: 1, key: "directSwimCadence" }, { metricsIndex: 2, key: "directAirTemperature" }], activityDetailMetrics: [{ metrics: [START, 29, 28.04] }] };
+		const swim = buildActivityDetail(ID, { ...ALL, samples: columns }, null)!;
+		assert.deepEqual(swim.samples, { strokeRate: [29], temperature: [28], clock: [0] });
+	});
+
+	function detail(): ActivityDetail {
+		return buildActivityDetail(ID, ALL, null)!;
+	}
 });
 
 describe("a detail file", () => {
@@ -198,6 +321,17 @@ describe("a detail file", () => {
 		assert.equal(parseActivityDetail(serializeActivityDetail({ ...detail, version: 0 })), null);
 		assert.equal(parseActivityDetail("{"), null);
 		assert.equal(parseActivityDetail("[]"), null);
+	});
+
+	it("keeps a run's version 5 file, only its summary and badges left to fetch; any other sport's is fetched again", () => {
+		const v5: ActivityDetail = { ...detail, version: 5, checked: detail.checked.filter((b) => b !== "badges") };
+		const upgraded = parseActivityDetail(serializeActivityDetail(v5))!;
+		assert.equal(upgraded.version, ACTIVITY_DETAIL_VERSION);
+		assert.deepEqual(blocksToFetch(upgraded), ["summary", "badges"]);
+		assert.deepEqual(upgraded.laps, detail.laps);
+		const treadmill = parseActivityDetail(serializeActivityDetail({ ...v5, type: "treadmill_running", typeId: 18, parentTypeId: 1 }));
+		assert.equal(treadmill?.version, ACTIVITY_DETAIL_VERSION);
+		assert.equal(parseActivityDetail(serializeActivityDetail({ ...v5, type: "road_biking", typeId: 10, parentTypeId: 2 })), null);
 	});
 
 	it("is out of date once the activity is renamed or trimmed", () => {
@@ -245,6 +379,7 @@ const METHOD: Record<ActivityBlock, string> = {
 	gear: "activityGear",
 	device: "deviceAppInfo",
 	weight: "weightLatest",
+	badges: "activityBadges",
 };
 
 /** An API that answers each block from `answers`: a payload, or an error to throw. */
@@ -269,7 +404,7 @@ const SIGNED_IN = { signedIn: true, groups: ["workouts" as const] };
 describe("loadActivity", () => {
 	it("fetches every block once, writes the file, and is answered from it next time", async () => {
 		const store = new MemoryStore();
-		const { api, calls } = fakeApi({});
+		const { api, calls } = fakeApi({ summary: POWERED });
 		const first = await loadActivity(api, store, ID, SIGNED_IN);
 		assert.equal(first.reason, undefined);
 		assert.equal(first.detail?.name, "Morning Run");
@@ -281,12 +416,34 @@ describe("loadActivity", () => {
 		assert.equal(calls.length, ACTIVITY_BLOCKS.length);
 	});
 
-	it("asks for the device and the weight once the summary gives the firmware id and the day", async () => {
-		const { api, calls, args } = fakeApi({});
+	it("asks for power zones, weather, the device and the weight once the summary says they apply", async () => {
+		const { api, calls, args } = fakeApi({ summary: POWERED });
 		await loadActivity(api, new MemoryStore(), ID, SIGNED_IN);
-		assert.deepEqual(calls.slice(-2).sort(), ["device", "weight"]);
+		assert.deepEqual(calls.slice(-4).sort(), ["device", "powerZones", "weather", "weight"]);
 		assert.equal(args.device, 2);
 		assert.equal(args.weight, "2026-03-12");
+	});
+
+	it("asks nothing the summary says doesn't apply: no route, no power zones, no power", async () => {
+		const plain = { ...SUMMARY, metadataDTO: { ...SUMMARY.metadataDTO, hasPolyline: false, hasPowerTimeInZones: false } };
+		const { api, calls } = fakeApi({ summary: plain });
+		const load = await loadActivity(api, new MemoryStore(), ID, SIGNED_IN);
+		assert.deepEqual(calls.filter((c) => ["powerZones", "weather", "weight"].includes(c)), []);
+		assert.equal(calls.length, ACTIVITY_BLOCKS.length - 3);
+		assert.deepEqual([load.detail?.powerZones, load.detail?.weather, load.detail?.weightKg], [[], null, null]);
+		assert.deepEqual(load.detail?.checked, [...ACTIVITY_BLOCKS]);
+	});
+
+	it("upgrades a run saved at version 5 with two requests: the summary and the badges", async () => {
+		const store = new MemoryStore();
+		const saved = buildActivityDetail(ID, ALL, null)!;
+		store.files.set(ID, serializeActivityDetail({ ...saved, version: 5, checked: saved.checked.filter((b) => b !== "badges") }));
+		const { api, calls } = fakeApi({});
+		const load = await loadActivity(api, store, ID, SIGNED_IN);
+		assert.deepEqual(calls.sort(), ["badges", "summary"]);
+		assert.equal(load.reason, undefined);
+		assert.equal(load.detail?.version, ACTIVITY_DETAIL_VERSION);
+		assert.equal(parseActivityDetail(store.files.get(ID)!)?.version, ACTIVITY_DETAIL_VERSION);
 	});
 
 	it("asks nothing after a 429, and nothing for the device without a firmware id", async () => {
@@ -326,8 +483,8 @@ describe("loadActivity", () => {
 
 	it("fetches everything again once the index shows the activity renamed", async () => {
 		const store = new MemoryStore();
-		await loadActivity(fakeApi({}).api, store, ID, SIGNED_IN);
-		const { api, calls } = fakeApi({ summary: { ...SUMMARY, activityName: "Renamed Run" } });
+		await loadActivity(fakeApi({ summary: POWERED }).api, store, ID, SIGNED_IN);
+		const { api, calls } = fakeApi({ summary: { ...POWERED, activityName: "Renamed Run" } });
 		const load = await loadActivity(api, store, ID, { ...SIGNED_IN, row: { name: "Renamed Run" } });
 		assert.equal(load.detail?.name, "Renamed Run");
 		assert.equal(calls.length, ACTIVITY_BLOCKS.length);

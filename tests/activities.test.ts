@@ -1,8 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-	allActivities,
-	runIdFor,
+	activityIdFor,
 	axisTicks,
 	categoryOf,
 	categoryView,
@@ -241,21 +240,6 @@ describe("monthView", () => {
 	});
 });
 
-describe("allActivities", () => {
-	it("lists everything newest first, with the time and a two-decimal distance", () => {
-		const rows = [
-			run("2026-09-14T23:50:00", 1.1, 1900, { name: "Pool Swim", type: "lap_swimming", typeId: 27, parentTypeId: 26 }),
-			run("2026-10-03T14:59:19", 8.00875, 2493.64),
-			activity("2026-09-30T06:10:00", { name: "Yoga", type: "yoga", typeId: 163, parentTypeId: 29, duration: 1800 }),
-		];
-		assert.deepEqual(allActivities(rows, "metric"), [
-			{ id: rows[1]!.id, name: "Morning Run", when: "2026-10-03, 2:59 PM", glyph: "run", time: "41:34", distance: "8.01 km", opens: true },
-			{ id: rows[2]!.id, name: "Yoga", when: "2026-09-30, 6:10 AM", glyph: "yoga", time: "30:00" },
-			{ id: rows[0]!.id, name: "Pool Swim", when: "2026-09-14, 11:50 PM", glyph: "swimming", time: "31:40", distance: "1.10 km" },
-		]);
-	});
-});
-
 describe("recordsView", () => {
 	const records = [
 		{ type: "run_1k", typeId: 1, value: 162.502, date: "2026-03-09", activityId: 12345678901 },
@@ -295,21 +279,22 @@ describe("recordsView", () => {
 	});
 });
 
-describe("runIdFor", () => {
+describe("activityIdFor", () => {
 	const rows = [
 		run("2026-10-10T08:19:48", 10.009, 3360.82, { name: "Dubai Running" }),
 		activity("2026-10-10T08:19:10", { name: "Yoga", type: "yoga", typeId: 163, parentTypeId: 29 }),
 		run("2026-10-10T18:05:02", 5, 1800, { name: "Evening Run" }),
 	];
 
-	it("finds the run a day note's workout is, by its start to the minute and its name", () => {
-		assert.equal(runIdFor(rows, "2026-10-10T08:19", "Dubai Running"), rows[0]!.id);
-		assert.equal(runIdFor(rows, "2026-10-10T18:05", "Renamed since"), rows[2]!.id);
+	it("finds the activity a day note's workout is, by its start to the minute and its name, any sport", () => {
+		assert.equal(activityIdFor(rows, "2026-10-10T08:19", "Dubai Running"), rows[0]!.id);
+		assert.equal(activityIdFor(rows, "2026-10-10T08:19", "Yoga"), rows[1]!.id);
+		assert.equal(activityIdFor(rows, "2026-10-10T18:05", "Renamed since"), rows[2]!.id);
 	});
 
-	it("matches nothing that isn't a run, or a minute with no run", () => {
-		assert.equal(runIdFor(rows, "2026-10-10T07:00", "Dubai Running"), null);
-		assert.equal(runIdFor(rows, undefined, "Dubai Running"), null);
-		assert.equal(runIdFor([rows[1]!], "2026-10-10T08:19", "Yoga"), null);
+	it("matches nothing in a minute with no activity, or two activities and neither name", () => {
+		assert.equal(activityIdFor(rows, "2026-10-10T07:00", "Dubai Running"), null);
+		assert.equal(activityIdFor(rows, undefined, "Dubai Running"), null);
+		assert.equal(activityIdFor(rows, "2026-10-10T08:19", "Renamed since"), null);
 	});
 });

@@ -34,7 +34,7 @@ default). The sync writes no notes:
 | --- | --- | --- |
 | Day files | `<data folder>/days/<year>.json` | each day's numbers, keyed by date |
 | Series files | `<data folder>/series/<date>.json` | the day's heart rate, stress, Body Battery and other curves, sleep stages, and what the pages loaded on view |
-| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, and each run in the **Run details** range: its samples, laps, zones and weather, and its GPS route — where you ran |
+| Activity details | `<data folder>/activity-details/<id>.json` | one file per activity whose page you opened, and each activity in the **Activity details** range: its samples, laps, zones and weather, the sensors it used (by name, never a serial number), its badges, and its GPS route — where you ran, rode or swam |
 | Indexes | `<data folder>/activities/`, `daily-stats/`, `sleep/`, and one folder per Health Stats index (`stress/`, `heart-rate/`, `weight/`, `blood-pressure/` and the rest) | your activities, and a row a day of each metric's history |
 | Account file | `<data folder>/account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP, running economy, cycling ability, training plans, upcoming events and personal records |
 | Bookkeeping | `<data folder>/scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, how many days of each week hold data, your activity count, the oldest activity's day and the watch's last upload; which device runs the history download (a random id, a name such as "Mac" or "iPhone", and when it last checked in); which days and runs the vault holds |

@@ -20,7 +20,7 @@
 		"tier": "Which host the path hangs off.",
 		"plugin": "The method in src/garmin/endpoints.ts that calls it, or absent if the plugin does not.",
 		"groups": "Metric groups (src/sync/metrics.ts) whose sync needs this endpoint.",
-		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through, view = when a page opens, then cached in the vault.",
+		"cadence": "session = once per sign-in, day = one call per synced day, range = one call per window, paged = paged through, view = when a page opens, then cached in the vault, check = never at runtime: the plugin bundles the answer (a lookup table) and the daily check watches it for drift.",
 		"check": "Covered by the daily contract check (.github/workflows/api-contract.yml).",
 		"critical": "Response paths the plugin reads. `[]` descends into array items. Losing one fails the check.",
 		"schema": "Recorded response shape, relative to api/.",
@@ -101,7 +101,13 @@
 				"[].maxAvgPower_1800",
 				"[].maxAvgPower_3600",
 				"[].maxAvgPower_7200",
-				"[].excludeFromPowerCurveReports"
+				"[].excludeFromPowerCurveReports",
+				"[].eventType.typeKey",
+				"[].favorite",
+				"[].isFavorite",
+				"[].pr",
+				"[].isPR",
+				"[].unitOfPoolLength.unitKey"
 			]
 		},
 		{
@@ -251,10 +257,56 @@
 				"splitSummaries[].duration",
 				"splitSummaries[].distance",
 				"metadataDTO.runPowerWindDataEnabled",
-				"metadataDTO.deviceMetaDataDTO.deviceVersionPk"
+				"metadataDTO.deviceMetaDataDTO.deviceVersionPk",
+				"summaryDTO.averageBikeCadence",
+				"summaryDTO.maxBikeCadence",
+				"summaryDTO.maxPowerTwentyMinutes",
+				"summaryDTO.leftBalance",
+				"summaryDTO.rightBalance",
+				"summaryDTO.intensityFactor",
+				"summaryDTO.trainingStressScore",
+				"summaryDTO.functionalThresholdPower",
+				"summaryDTO.totalWork",
+				"summaryDTO.seatedTime",
+				"summaryDTO.standingTime",
+				"summaryDTO.averageSeatedPower",
+				"summaryDTO.maxSeatedPower",
+				"summaryDTO.averageStandingPower",
+				"summaryDTO.maxStandingPower",
+				"summaryDTO.leftPowerPhaseStart",
+				"summaryDTO.leftPowerPhaseEnd",
+				"summaryDTO.leftPowerPhaseArcLength",
+				"summaryDTO.leftPowerPhasePeakStart",
+				"summaryDTO.leftPowerPhasePeakEnd",
+				"summaryDTO.leftPowerPhasePeakArcLength",
+				"summaryDTO.rightPowerPhaseStart",
+				"summaryDTO.rightPowerPhaseEnd",
+				"summaryDTO.rightPowerPhaseArcLength",
+				"summaryDTO.rightPowerPhasePeakStart",
+				"summaryDTO.rightPowerPhasePeakEnd",
+				"summaryDTO.rightPowerPhasePeakArcLength",
+				"summaryDTO.leftPlatformCenterOffset",
+				"summaryDTO.rightPlatformCenterOffset",
+				"summaryDTO.totalNumberOfStrokes",
+				"summaryDTO.averageSWOLF",
+				"summaryDTO.averageStrokeDistance",
+				"summaryDTO.averageStrokes",
+				"summaryDTO.averageSwimCadence",
+				"summaryDTO.maxSwimCadence",
+				"summaryDTO.numberOfActiveLengths",
+				"summaryDTO.averageTemperature",
+				"summaryDTO.minTemperature",
+				"summaryDTO.maxTemperature",
+				"summaryDTO.poolLength",
+				"summaryDTO.unitOfPoolLength.unitKey",
+				"metadataDTO.hasPowerTimeInZones",
+				"metadataDTO.sensors[].fitProductNumber",
+				"metadataDTO.sensors[].antplusDeviceType",
+				"metadataDTO.sensors[].softwareVersion",
+				"metadataDTO.sensors[].batteryStatus"
 			],
 			"schema": "schema/activity.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. summaryDTO carries the Overview and Stats totals; its keys vary by sport and sensors (a treadmill run has no elevation, GAP or impact load). description holds the user's notes when there are any."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. summaryDTO carries the Overview and Stats totals; its keys vary by sport and sensors (a treadmill run has no elevation, GAP or impact load). description holds the user's notes when there are any."
 		},
 		{
 			"id": "activity-details",
@@ -298,7 +350,7 @@
 				"geoPolylineDTO"
 			],
 			"schema": "schema/activity-details.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Rows hold one value per metricDescriptors entry: sumDuration/sumDistance (axes), directHeartRate, directSpeed, directGradeAdjustedSpeed, directDoubleCadence (spm), directStrideLength (cm), directVerticalOscillation, directVerticalRatio, directGroundContactTime, directElevation, directPower, directAvailableStamina/directPotentialStamina, directPerformanceCondition, directImpactLoadFactor, directLatitude/directLongitude. maxChartSize=2000 thins a 56-minute run recorded every second (3,363 samples) to 1,694 with the same extremes and averages; the web asks for 10000 and gets every sample. No GPS columns or geoPolylineDTO without GPS."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. Rows hold one value per metricDescriptors entry: sumDuration/sumDistance (axes), directHeartRate, directSpeed, directGradeAdjustedSpeed, directDoubleCadence (spm), directStrideLength (cm), directVerticalOscillation, directVerticalRatio, directGroundContactTime, directElevation, directPower, directAvailableStamina/directPotentialStamina, directPerformanceCondition, directImpactLoadFactor, directLatitude/directLongitude. maxChartSize=2000 thins a 56-minute run recorded every second (3,363 samples) to 1,694 with the same extremes and averages; the web asks for 10000 and gets every sample. No GPS columns or geoPolylineDTO without GPS."
 		},
 		{
 			"id": "activity-exercise-sets",
@@ -350,7 +402,7 @@
 			"critical": [],
 			"reads": [],
 			"schema": "schema/activity-gear.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Gear tab. Empty when no gear is linked (both sampled runs); item shape not seen yet."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. The Gear tab. Empty when no gear is linked (both sampled runs); item shape not seen yet."
 		},
 		{
 			"id": "activity-hr-in-timezones",
@@ -386,7 +438,7 @@
 				"[].zoneLowBoundary"
 			],
 			"schema": "schema/activity-hr-in-timezones.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Heart Rate Zones; zoneLowBoundary is each zone's floor in bpm."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Heart Rate Zones; zoneLowBoundary is each zone's floor in bpm."
 		},
 		{
 			"id": "activity-power-in-timezones",
@@ -421,7 +473,7 @@
 				"[].zoneLowBoundary"
 			],
 			"schema": "schema/activity-power-in-timezones.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Power Zones; floors in watts. Empty without a power source."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. Time in Power Zones; floors in watts. Empty without a power source."
 		},
 		{
 			"id": "activity-split-summaries",
@@ -479,10 +531,35 @@
 				"lapDTOs[].averageSpeed",
 				"lapDTOs[].averageHR",
 				"lapDTOs[].endLatitude",
-				"lapDTOs[].endLongitude"
+				"lapDTOs[].endLongitude",
+				"lapDTOs[].averageBikeCadence",
+				"lapDTOs[].maxPower",
+				"lapDTOs[].normalizedPower",
+				"lapDTOs[].totalNumberOfStrokes",
+				"lapDTOs[].averageSWOLF",
+				"lapDTOs[].averageSwimCadence",
+				"lapDTOs[].averageStrokes",
+				"lapDTOs[].averageStrokeDistance",
+				"lapDTOs[].numberOfActiveLengths",
+				"lapDTOs[].averageTemperature",
+				"lapDTOs[].swimStroke",
+				"lapDTOs[].lengthDTOs[].duration",
+				"lapDTOs[].lengthDTOs[].distance",
+				"lapDTOs[].lengthDTOs[].averageSpeed",
+				"lapDTOs[].lengthDTOs[].totalNumberOfStrokes",
+				"lapDTOs[].lengthDTOs[].averageSWOLF",
+				"lapDTOs[].lengthDTOs[].swimStroke",
+				"lapDTOs[].lengthDTOs[].startTimeGMT",
+				"eventDTOs[].riderPosition",
+				"eventDTOs[].startTimeGMTDoubleValue",
+				"eventDTOs[].sectionTypeDTO.key",
+				"lapDTOs[].maxSwimCadence",
+				"lapDTOs[].lengthDTOs[].maxHR",
+				"lapDTOs[].lengthDTOs[].averageHR",
+				"lapDTOs[].lengthDTOs[].lengthIndex"
 			],
 			"schema": "schema/activity-splits.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Laps tab and the map's lap markers (each lap's end coordinates)."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. The Laps tab and the map's lap markers (each lap's end coordinates)."
 		},
 		{
 			"id": "activity-typed-splits",
@@ -520,7 +597,7 @@
 				"splits[].endTimeGMT"
 			],
 			"schema": "schema/activity-typed-splits.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. RWD_RUN / RWD_WALK / RWD_STAND segments drive the Run/Walk chart; INTERVAL_ACTIVE the Workout Intervals stats."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. RWD_RUN / RWD_WALK / RWD_STAND segments drive the Run/Walk chart; INTERVAL_ACTIVE the Workout Intervals stats."
 		},
 		{
 			"id": "activity-types",
@@ -537,7 +614,56 @@
 				"summary": "",
 				"args": [],
 				"line": 2760
-			}
+			},
+			"plugin": "GarminApi.activityTypes",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "check",
+			"check": true,
+			"critical": [
+				"[].typeId",
+				"[].typeKey",
+				"[].parentTypeId"
+			],
+			"reads": [
+				"[].isHidden"
+			],
+			"schema": "schema/activity-types.json",
+			"notes": "Garmin's activity type tree: 154 types under the root all (17); the 16 top-level groups (running 1, cycling 2, hiking 3, other 4, walking 9, swimming 26, fitness_equipment 29, multi_sport 89, steps 108, diving 144, safety 157, winter_sports 165, para_sports 199, team_sports 206, racket_sports 219, water_sports 228) hang off it. No names: the app's words live in src/dashboard/activity-types.ts, and the check flags a tree that has moved from it."
+		},
+		{
+			"id": "event-types",
+			"method": "GET",
+			"path": "/activity-service/activity/eventTypes",
+			"service": "activity-service",
+			"tier": "connectapi",
+			"pathParams": [],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-10 (ref/activity-details/outdoor-run/web/endpoints.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.eventTypes",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "check",
+			"check": true,
+			"critical": [
+				"[].typeId",
+				"[].typeKey"
+			],
+			"reads": [
+				"[].sortOrder"
+			],
+			"schema": "schema/event-types.json",
+			"notes": "The nine event types an activity can carry (race, training, \u2026, uncategorized), for All Activities' Event Type filter. Same for every account; the plugin bundles them."
 		},
 		{
 			"id": "activity-weather",
@@ -573,7 +699,7 @@
 				"weatherTypeDTO.desc"
 			],
 			"schema": "schema/activity-weather.json",
-			"notes": "Activity details page: fetched when a run's page opens, cached in <dataFolder>/activity-details/<id>.json. The Overview map's weather chip. temp in \u00b0F. Indoors every field is null. The station's name and coordinates are not used."
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. The Overview map's weather chip. temp in \u00b0F. Indoors every field is null. The station's name and coordinates are not used."
 		},
 		{
 			"id": "adaptive-training-plan-by-id",
@@ -1786,6 +1912,42 @@
 			"notes": "Activity details page: the recording device's name and the firmware it ran (Devices & Apps, \"Forerunner 970 18.32\"), by the summary's metadataDTO.deviceMetaDataDTO.deviceVersionPk. The device list's currentFirmwareVersion is today's, so an older activity would show the wrong version."
 		},
 		{
+			"id": "activity-badges",
+			"method": "GET",
+			"path": "/badge-service/badge/{displayName}/earned/activity/{activityId}",
+			"service": "badge-service",
+			"tier": "connectapi",
+			"pathParams": [
+				"displayName",
+				"activityId"
+			],
+			"query": [],
+			"requestBody": false,
+			"returns": "json",
+			"source": "plugin",
+			"upstream": {
+				"method": null,
+				"summary": "Observed in connect.garmin.com web traffic, 2026-10-10 (ref/activity-details/outdoor-run/web/endpoints.md).",
+				"args": [],
+				"line": null
+			},
+			"plugin": "GarminApi.activityBadges",
+			"groups": [
+				"workouts"
+			],
+			"cadence": "view",
+			"check": true,
+			"critical": [
+				"[].badgeName"
+			],
+			"reads": [
+				"[].badgeKey",
+				"[].badgeId"
+			],
+			"schema": "schema/activity-badges.json",
+			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. The badges the activity earned (\"Climber 1\"), shown under Evaluation; [] for most activities. No description in the row."
+		},
+		{
 			"id": "device-last-used",
 			"method": "GET",
 			"path": "/device-service/deviceservice/mylastused",
@@ -2424,7 +2586,13 @@
 				"[].maxAvgPower_1800",
 				"[].maxAvgPower_3600",
 				"[].maxAvgPower_7200",
-				"[].excludeFromPowerCurveReports"
+				"[].excludeFromPowerCurveReports",
+				"[].eventType.typeKey",
+				"[].favorite",
+				"[].isFavorite",
+				"[].pr",
+				"[].isPR",
+				"[].unitOfPoolLength.unitKey"
 			],
 			"notes": "Paged newest first. Fills the day notes' workouts and the activity index (<dataFolder>/activities/), which the Activities pages read; a history sync pages it to the end, 100 at a time. Its training effect, benefit and load feed the Performance Stats pages through the index (Training Effect, Load's Exercise Load). Rides' maxAvgPower_* (integer W) and excludeFromPowerCurveReports feed the Cycling Power Curve page through the index."
 		},

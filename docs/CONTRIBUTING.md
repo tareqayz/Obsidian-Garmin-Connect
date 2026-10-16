@@ -115,7 +115,7 @@ already holds has to fetch those days again, and ask first. Such a change:
 
 1. Bumps the data set's version: `DAY_DETAILS_VERSION` in `src/sync/datasets.ts` for the
    day files and timelines, `ACTIVITY_DETAIL_VERSION` in `src/sync/activity-detail.ts`
-   (which `RUN_DETAILS_VERSION` follows) for a run's page, or the index's own `version`
+   (which `ACTIVITY_DETAILS_VERSION` follows) for an activity's page, or the index's own `version`
    for a chart history.
 2. Adds a line to the set's `changes` in `src/sync/datasets.ts`, keyed by the new
    version. For Day details its summary is what the update dialog says about the days
@@ -128,9 +128,15 @@ so the first Garmin view after the update asks once, in "New data for your histo
 Without the bump, only the days synced from then on get the new data.
 
 `tests/dataset-shapes.test.ts` snapshots what each store keeps beside its version — the
-endpoints and series blocks of Day details, the blocks of a run's page, each index's
+endpoints and series blocks of Day details, the blocks of an activity's page, each index's
 columns — and fails when one moves without a bump. It cannot see a new property mapped
 from an endpoint already called: bump by hand when the days already held should get it.
+
+A bump need not throw away what a file holds. An activity file of the previous version
+can be read as the new one with only the blocks the bump changed marked unfetched
+(`upgradeRun` and `CHANGED_IN_6` in `src/sync/activity-detail.ts`): its next view, or the
+backfill once the new key is agreed to, fetches those blocks alone. The coverage keeps
+the file at its old version until it is written, so the update dialog still counts it.
 
 ## Before the first directory submission
 

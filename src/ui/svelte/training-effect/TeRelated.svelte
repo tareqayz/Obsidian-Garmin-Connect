@@ -9,14 +9,14 @@
 	 * RELATED ACTIVITY (twin 683:319): the sport's disc with the plugin's
 	 * sport figure, the activity's name, when it started and the card's
 	 * subtitle, no chevron. On a phone a bordered card 16 pt in under the
-	 * header band; from 640 pt the section's own card frames it. A run opens
-	 * its activity page; other sports have none yet, so theirs opens nothing.
+	 * header band; from 640 pt the section's own card frames it. It opens
+	 * the activity's page.
 	 */
 	let { related, open }: { related: TeRelated; open: (route: Route) => void } = $props();
 
 	const D = TE_DETAIL;
 
-	let disc = $derived(discColour(related.category));
+	let disc = $derived(discColour(related.disc));
 </script>
 
 {#snippet content()}

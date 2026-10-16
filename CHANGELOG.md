@@ -77,6 +77,42 @@ GitHub release takes its notes from the matching section here — see
   adjusted pace, heart rate, power, elevation or run/walk), with lap markers.
   The full-screen map pans and pinches. **Settings → Maps → Map tiles** turns
   the tiles off and draws the route alone.
+- **A page for every activity.** Every activity opens its page, whatever its
+  sport: from All Activities, a sport's page and its months, Personal Records
+  on every tab, Home's Today's Activity, Load's Exercise Load list, Training
+  Effect's related activity and the Cycling Power Curve's record dates. Each is
+  drawn as the app draws that sport:
+  - **Rides**: the route coloured by power zone, from Less Power to More Power;
+    sixteen Stats sections, Power (NP, IF, TSS, FTP, work) and Cycling Dynamics
+    among them; laps with Avg Speed and a Total row; and twenty charts, among
+    them Position, Time in Position, the Power Phase and Balance dials, Platform
+    Offset, seven power zones and the Power Curve against your record in W or
+    W/kg, with fifteen measures to lay over a chart full size.
+  - **Pool swims**: no map; Garmin's interval table with its rests and a Total;
+    a bar a length for pace per 100 m, strokes and Swolf, against time or
+    distance; heart rate, Training Effect and the zones.
+  - **Open-water swims**: the route in red with the weather, and pace, strokes a
+    minute and temperature charts.
+  - **Every other sport**: the sections the sports share, as the app draws a
+    Stair Stepper session, with Total Time as the big figure when there is no
+    distance.
+- **Sensors and badges.** Every activity's Overview, a run's too, shows the
+  badges it earned and the sensors it recorded with, named as the app names
+  them: "Rally 100/200 · 4.1 • Battery: OK".
+- **"All <Group> Activities"** under an activity opens the hub's page for its
+  group, or All Activities filtered to the group where the hub has none: "All
+  Walking Activities" under a walk.
+- **All Activities, as Garmin's new page.** A search over activity names that
+  stays at the top and ignores case and accents; a filter button with a dot
+  while a filter is on; a chip per filter to remove it; the exact count; and
+  Sort: Newest First, Oldest First, A to Z, Z to A. Cards show the sport's
+  coloured disc and figure, the date and the distance (a pool swim's in its
+  pool's unit) or the time, one to three across as the pane widens. The
+  **Filters** sheet has the activity groups in Garmin's order, a date range on a
+  calendar, distance and time sliders with typed values, total ascent, event
+  type, favourites and personal records, and counts what it would show as you
+  choose ("Show 28 Activities"). It filters the activity index with no request,
+  and a pane keeps its filters.
 - **A setup.** Enabling the plugin opens it over Home: sign in, scan your
   account, choose what to keep, start. The scan finds where your Garmin
   history starts in a few requests. You choose from three data sets, each
@@ -116,6 +152,19 @@ GitHub release takes its notes from the matching section here — see
 
 ### Changed
 
+- **Run details is now Activity details**, for every sport, in the setup and
+  Settings → Data. A Run details range chosen before keeps downloading runs
+  without asking; the other sports, and the runs saved before, are offered once
+  in **New data for your history**.
+- **The activity index is version 3**: it keeps each activity's event type, its
+  favourite and personal-record flags, and a pool swim's unit, for All
+  Activities. It is listed again once you agree, about a request per hundred
+  activities. **An activity's file is version 6**, with what every sport's page
+  shows; a run saved by the version before is kept and asks only its summary
+  and badges again, two requests.
+- **Sport names are the app's.** Page titles and the sub-type picker name each
+  type from a table of Garmin's 154 activity types: "Stair Stepper", "Obstacle
+  Course Racing", "Gravel/Unpaved Cycling".
 - **Hill score syncs a year at a time** (Garmin takes up to 401 days), not 28
   days, and Garmin's class 4 reads "Skilled", as the app's help names it.
 - **Running tolerance syncs a year at a time** too (Garmin takes up to 366
@@ -167,6 +216,11 @@ GitHub release takes its notes from the matching section here — see
 
 ### Fixed
 
+- Perceived Effort's dot followed the run's slider colours, so a 5 was green
+  where the app draws it yellow. The colours now go in pairs: 1–2 blue, 3–4
+  green, 5–6 yellow, 7–8 orange, 9–10 red.
+- A pool swim's page said "Loading the map…" for good. An activity without a
+  GPS track now has no map, as a treadmill run has none.
 - Sleep History showed two close buttons on Obsidian 1.14, which renamed the
   modal's own.
 - On a phone with Obsidian's floating navigation bar, the end of every page

@@ -1,7 +1,9 @@
 import type {
 	ChartColour,
+	ChartKey,
 	ChartPoints,
 	ExpandedChartView,
+	LaneSet,
 	OverlaySeries,
 	RunWalkChart,
 	SeriesChart,
@@ -10,7 +12,7 @@ import type {
 	YAxis,
 	ZonesChart,
 } from "./activity-chart-pages";
-import { TE_CAP, TE_MAX, TE_SEGMENTS } from "./activity-chart-pages";
+import { isRunMetric, TE_CAP, TE_MAX, TE_SEGMENTS } from "./activity-chart-pages";
 import { linePath, r2 } from "./stat-charts";
 
 /**
@@ -75,12 +77,40 @@ const PHONE_CHART: ChartFrame = {
 const PANE_CHART: ChartFrame = { ...PHONE_CHART, left: 46.83, inset: 25, labelRight: 39.83, foot: 52.9, keyFoot: 44.66 };
 
 /**
+ * A ride's frames (the twin's Charts · Time 953:180931 and its other picks
+ * 953:182282), boxes as the run's: L/R Balance's labels ("100% L") end 5.64
+ * pt further right and its plot starts at 54.83. The Power Phase charts have
+ * no figures, a 100 pt plot (45° to 25 pt) and their key under the axis
+ * title; the peak phases' tick dots sit 5 pt under the plot where the phase
+ * charts' sit 10, as the phone draws them; the End charts' labels ("BDC
+ * 180") end at 44.8. The platform centre offsets plot 150 pt (±30 mm), the
+ * dots 5 pt under it.
+ */
+const PHASE_CHART: ChartFrame = { ...PHONE_CHART, top: 18.15, height: 100, labelRight: 34.8, dotGap: 10, labelGap: 12.98, titleGap: 30.04, keyGap: 52.84, keyFoot: 42.16 };
+const PEAK_CHART: ChartFrame = { ...PHASE_CHART, dotGap: 5, titleGap: 33.04, keyGap: 57.84 };
+const WIDE_LABELS = { left: 49.83, labelRight: 44.8 } as const;
+const RIDE_PHONE = {
+	balance: { ...PHONE_CHART, left: 54.83, labelRight: 38.47 },
+	phase: PHASE_CHART,
+	"phase-wide": { ...PHASE_CHART, ...WIDE_LABELS },
+	peak: PEAK_CHART,
+	"peak-wide": { ...PEAK_CHART, ...WIDE_LABELS },
+	offset: { ...PHONE_CHART, top: 18.15, height: 150, dotGap: 5, labelGap: 12.98, titleGap: 33.04, foot: 50 },
+} as const satisfies Record<string, ChartFrame>;
+
+/** A phone frame in a pane's card, by the run's rule: 7 pt further in on the left, 2.83 on the right, 3 pt more under the axis. */
+function inPane(f: ChartFrame): ChartFrame {
+	return { ...f, left: f.left + 7, inset: f.inset + 2.83, labelRight: f.labelRight + 7, foot: f.foot + 3.07, keyFoot: f.keyFoot + 3 };
+}
+
+/**
  * Each layout's frames. Pace's plot starts 5 pt further right (406:1801; the
  * twin keeps Grade-Adjusted and Lap Average Pace at the usual 39.83), the
  * forced labels (Vertical Ratio, Ground Contact Time) end 2 pt further right,
  * Power's plot sits 19.7 pt higher with the room under its axis instead
  * (406:1426, as the phone draws it), Stamina's plot is 89.33 pt, and Run/Walk's
- * three lanes are 30.22 pt apart from 46.83 pt (406:1667, 415:3749).
+ * three lanes are 30.22 pt apart from 46.83 pt (406:1667, 415:3749). A ride's
+ * are above.
  */
 export const FRAMES = {
 	phone: {
@@ -90,6 +120,7 @@ export const FRAMES = {
 		power: { ...PHONE_CHART, top: 5.5, foot: 69.86 },
 		stamina: { ...PHONE_CHART, height: 89.33, dotGap: 9.57 },
 		runWalk: { ...PHONE_CHART, left: 46.83, inset: 18.92, top: 23.86, height: 90.67, labelRight: 40.5, dotGap: 9.84, labelGap: 12.9, titleGap: 32.77, keyGap: 57.83 },
+		...RIDE_PHONE,
 	},
 	pane: {
 		chart: PANE_CHART,
@@ -98,6 +129,12 @@ export const FRAMES = {
 		power: { ...PANE_CHART, top: 5.5, foot: 72.93 },
 		stamina: { ...PANE_CHART, height: 89.33, dotGap: 9.57 },
 		runWalk: { ...PANE_CHART, left: 53.85, inset: 24.94, top: 23.86, height: 90.67, labelRight: 47.5, dotGap: 9.84, labelGap: 12.9, titleGap: 32.77, keyGap: 57.83 },
+		balance: inPane(RIDE_PHONE.balance),
+		phase: inPane(RIDE_PHONE.phase),
+		"phase-wide": inPane(RIDE_PHONE["phase-wide"]),
+		peak: inPane(RIDE_PHONE.peak),
+		"peak-wide": inPane(RIDE_PHONE["peak-wide"]),
+		offset: inPane(RIDE_PHONE.offset),
 	},
 } as const satisfies Record<ChartLayout, Record<string, ChartFrame>>;
 
@@ -129,17 +166,29 @@ export interface ExpandedFrame {
 	chipsGap: number;
 	chips: number;
 	bottom: number;
+	/** An overlay's key (a ride's Left · Right): centred this far under the axis title, the plot that much shorter. */
+	keyGap: number;
+	keyRoom: number;
+	/** A lanes overlay's lane (a ride's Position along the plot's bottom): Seated one high, Standing two. */
+	lane: number;
+	/** Lanes as the base (a ride's Position): the plot's left and the lane names' right edge, room for "Standing". */
+	lanesLeft: number;
+	lanesLabelRight: number;
 }
 
 /**
  * The twin's expanded chart (page state): phone 411:1340 (402 × 874), pane
  * 416:86199 (1190 × 664). The twin draws the tick row past the plot's right
  * end, as Garmin's landscape chart does; here the ticks stay on the plot, so a
- * label sits over the sample it names.
+ * label sits over the sample it names. An overlay with a key (the ride's twin,
+ * 956:1067 / 956:1172, 962:8257) takes 27 pt off the plot for it, the key
+ * centred 25.3 under the axis title and the chips where they were; Position's
+ * lanes are 18.67 pt a lane. Position as the base (Inferred: not shot) keeps
+ * its card's left on the phone, 73.83, so "Standing" fits beside the plot.
  */
 export const EXPANDED = {
-	phone: { left: 46.76, inset: 40.86, leftLabelRight: 38, rightLabelInset: 1.14, top: 62.14, dotGap: 25.35, labelGap: 11.63, titleGap: 31.13, chipsGap: 40.4, chips: 36, bottom: 32 },
-	pane: { left: 85.19, inset: 58.92, leftLabelRight: 70, rightLabelInset: 11.08, top: 64.95, dotGap: 24.58, labelGap: 11.63, titleGap: 31.13, chipsGap: 52.4, chips: 36, bottom: 32 },
+	phone: { left: 46.76, inset: 40.86, leftLabelRight: 38, rightLabelInset: 1.14, top: 62.14, dotGap: 25.35, labelGap: 11.63, titleGap: 31.13, chipsGap: 40.4, chips: 36, bottom: 32, keyGap: 25.3, keyRoom: 27, lane: 18.67, lanesLeft: 73.83, lanesLabelRight: 66.33 },
+	pane: { left: 85.19, inset: 58.92, leftLabelRight: 70, rightLabelInset: 11.08, top: 64.95, dotGap: 24.58, labelGap: 11.63, titleGap: 31.13, chipsGap: 52.4, chips: 36, bottom: 32, keyGap: 25.3, keyRoom: 27, lane: 18.67, lanesLeft: 85.19, lanesLabelRight: 70 },
 } as const satisfies Record<ChartLayout, ExpandedFrame>;
 
 /** The expanded plot's least height, on a short view. */
@@ -174,9 +223,15 @@ export interface ChartMarks {
 	scatterR?: number;
 	/** Lap Average Pace's blocks. */
 	blocks?: Array<{ x: number; y: number; width: number; height: number }>;
+	/**
+	 * A sport's blocks as one outline per run of touching ones (a pool swim's
+	 * lengths), drawn in place of `blocks` so no anti-aliased hairline shows
+	 * where two meet. The run's blocks stay rects.
+	 */
+	blockRuns?: string[];
 	/** Stamina's Potential, white over the area. */
 	potential?: string;
-	average?: { y: number; dashed: boolean };
+	average?: { y: number; dashed: boolean; strong?: boolean };
 	/** A white line: Performance Condition's 0, Impact Load Factor's 1.0. */
 	reference?: { y: number };
 	/** The fill's vertical gradient, over the plot rectangle (`gradientUnits="userSpaceOnUse"`). */
@@ -219,8 +274,13 @@ export function seriesPlot(chart: SeriesChart, width: number, layout: ChartLayou
 	return out;
 }
 
-/** The chart's frame in a layout: Pace's, Power's, Stamina's, the forced labels' (Vertical Ratio, GCT), or the usual one. */
+/**
+ * The chart's frame in a layout: the one a sport's chart names (its
+ * `MetricDef.frame`), else by the run's metric: Pace's, Power's, Stamina's, the
+ * forced labels' (Vertical Ratio, GCT), or the usual one.
+ */
 function frameOf(frames: (typeof FRAMES)[ChartLayout], chart: SeriesChart): ChartFrame {
+	if (chart.frame) return frames[chart.frame];
 	switch (chart.metric) {
 		case "pace":
 			return frames.pace;
@@ -288,6 +348,7 @@ export function marksOf(chart: SeriesChart, plot: PlotRect, markR: number): Char
 				const y = yOf(b.value);
 				return { x: r2(xOf(b.from)), y: r2(y), width: r2(xOf(b.to) - xOf(b.from)), height: r2(plot.bottom - y) };
 			});
+			if (!isRunMetric(chart.metric)) marks.blockRuns = blockRuns(marks.blocks, plot.bottom);
 			break;
 		case "dots":
 			marks.scatter = dotPaths(chart.points, chart.colours, chart.colour ?? "blue", xOf, yOf);
@@ -296,10 +357,13 @@ export function marksOf(chart: SeriesChart, plot: PlotRect, markR: number): Char
 		case "line":
 			marks.line = linePath(chart.points.x.map((x, i) => [xOf(x), nullable(chart.points.y[i], yOf)]));
 			break;
+		case "lanes":
+			// A sport's lanes (a ride's Position) are drawn by its own plot, not here.
+			break;
 	}
 	if (chart.stops?.length) marks.zones = zoneGradient(chart.stops, rawY(chart.y, plot));
 	if (chart.line) marks.potential = linePath(chart.line.x.map((x, i) => [xOf(x), nullable(chart.line!.y[i], yOf)]));
-	if (chart.average) marks.average = { y: r2(yOf(chart.average.value)), dashed: chart.average.dashed };
+	if (chart.average) marks.average = { y: r2(yOf(chart.average.value)), dashed: chart.average.dashed, ...(chart.average.strong ? { strong: true } : {}) };
 	if (chart.reference !== undefined) marks.reference = { y: r2(yOf(chart.reference)) };
 	return marks;
 }
@@ -319,6 +383,23 @@ function zoneGradient(stops: NonNullable<SeriesChart["stops"]>, y: (v: number) =
 
 function nullable(v: number | null | undefined, f: (v: number) => number): number | null {
 	return v === null || v === undefined ? null : f(v);
+}
+
+/** Blocks rising from `bottom` as one outline per run of touching ones: each block's top held across its width. */
+export function blockRuns(blocks: NonNullable<ChartMarks["blocks"]>, bottom: number): string[] {
+	const runs: string[] = [];
+	let d = "";
+	let end = NaN;
+	for (const b of blocks) {
+		if (d && Math.abs(b.x - end) > 0.02) {
+			runs.push(`${d} V${r2(bottom)} Z`);
+			d = "";
+		}
+		end = r2(b.x + b.width);
+		d += d ? ` V${b.y} H${end}` : `M${b.x} ${r2(bottom)} V${b.y} H${end}`;
+	}
+	if (d) runs.push(`${d} V${r2(bottom)} Z`);
+	return runs;
 }
 
 /** An area through the points, closed on `base`, one shape per run of values. */
@@ -519,6 +600,13 @@ export interface ExpandedPlot extends Omit<AxisMarks, "labelRight" | "yLabels" |
 	secondary: (ChartMarks & { colour: ChartColour }) | null;
 	rightLabelLeft: number;
 	rightLabels: Array<{ y: number; text: string }>;
+	/** A lanes overlay (a ride's Position): bars along the plot's bottom, Seated first, Standing over it. */
+	overlayBars?: Array<{ x: number; y: number; width: number; height: number; colour: ChartColour }>;
+	/** An overlay's key, centred on the plot at `keyY` (`keyLeft` … `keyRight`) under the axis title. */
+	keys?: ChartKey[];
+	keyY?: number;
+	keyLeft?: number;
+	keyRight?: number;
 }
 
 /**
@@ -529,9 +617,14 @@ export interface ExpandedPlot extends Omit<AxisMarks, "labelRight" | "yLabels" |
 export function expandedPlot(view: ExpandedChartView, width: number, height: number): ExpandedPlot {
 	const layout: ChartLayout = width >= PANE_WIDTH ? "pane" : "phone";
 	const E = EXPANDED[layout];
-	const below = E.dotGap + E.titleGap + E.chipsGap + E.chips + E.bottom;
+	// A sport's overlay with a key (the run's have none) gives up 27 pt of plot for its row.
+	const keys = view.secondary?.legend?.length ? view.secondary.legend : null;
+	const below = E.dotGap + E.titleGap + E.chipsGap + E.chips + E.bottom + (keys ? E.keyRoom : 0);
 	const plotHeight = Math.max(MIN_EXPANDED_PLOT, height - E.top - below);
-	const plot: PlotRect = { left: E.left, right: r2(Math.max(E.left + 120, width - E.inset)), top: E.top, bottom: r2(E.top + plotHeight) };
+	const primary = view.primary;
+	const lanesBase = primary.kind === "series" && primary.mark === "lanes" && primary.lanes !== undefined;
+	const left = lanesBase ? E.lanesLeft : E.left;
+	const plot: PlotRect = { left, right: r2(Math.max(left + 120, width - E.inset)), top: E.top, bottom: r2(E.top + plotHeight) };
 	const xOf = (at: number) => r2(plot.left + at * (plot.right - plot.left));
 	const ticks = view.x?.ticks ?? [];
 	const dotY = r2(plot.bottom + E.dotGap);
@@ -542,7 +635,7 @@ export function expandedPlot(view: ExpandedChartView, width: number, height: num
 		height: r2(titleY + 8),
 		chipsTop: r2(titleY + E.chipsGap),
 		plot,
-		leftLabelRight: E.leftLabelRight,
+		leftLabelRight: lanesBase ? E.lanesLabelRight : E.leftLabelRight,
 		leftLabels: [],
 		dots: ticks.map((t) => ({ x: xOf(t.at), y: dotY, r: AXIS_DOT_R })),
 		xLabels: ticks.map((t) => ({ x: xOf(t.at), y: r2(dotY + E.labelGap), text: t.text })),
@@ -553,8 +646,13 @@ export function expandedPlot(view: ExpandedChartView, width: number, height: num
 		rightLabelLeft: r2(plot.right - E.rightLabelInset),
 		rightLabels: [],
 	};
-	const primary = view.primary;
-	if (primary.kind === "series") {
+	if (primary.kind === "series" && primary.mark === "lanes" && primary.lanes) {
+		// Lanes as the base (a ride's Position, Inferred: not shot): as on its card, its lanes evenly down the plot.
+		const { lanes, bars } = laneSetIn(primary.lanes, plot);
+		out.lanes = lanes;
+		out.bars = bars;
+		out.leftLabels = lanes.map((l) => ({ y: l.y, text: l.label }));
+	} else if (primary.kind === "series") {
 		const left = rawY(primary.y, plot);
 		out.leftLabels = primary.y.labels.map((l) => ({ y: r2(left(l.value)), text: l.text }));
 		out.primary = marksOf(primary, plot, EXPANDED_MARK_R);
@@ -571,8 +669,56 @@ export function expandedPlot(view: ExpandedChartView, width: number, height: num
 		const right = rawY(view.secondary.y, plot);
 		out.secondary = { ...overlayMarks(view.secondary, plot), colour: view.secondary.colour };
 		out.rightLabels = view.secondary.y.labels.map((l) => ({ y: r2(right(l.value)), text: l.text }));
+		if (view.secondary.mark === "lanes" && view.secondary.lanes) out.overlayBars = laneBars(view.secondary.lanes, plot, E.lane);
+	}
+	if (keys) {
+		const keyY = r2(titleY + E.keyGap);
+		out.height = r2(keyY + 8);
+		out.chipsTop = r2(titleY + E.chipsGap + E.keyRoom);
+		out.keys = keys;
+		out.keyY = keyY;
+		out.keyLeft = plot.left;
+		out.keyRight = plot.right;
 	}
 	return out;
+}
+
+/**
+ * Lanes evenly down a plot, as on a card (and the Run/Walk lanes): the first
+ * on the top line; each bar rises from the bottom to its lane's line.
+ */
+function laneSetIn(set: LaneSet, plot: PlotRect): Pick<RunWalkPlot, "lanes" | "bars"> {
+	const pitch = (plot.bottom - plot.top) / Math.max(1, set.lanes.length);
+	const xOf = (at: number) => plot.left + at * (plot.right - plot.left);
+	const laneOf = (id: string) => Math.max(0, set.lanes.findIndex((l) => l.id === id));
+	const lanes = set.lanes.map((l, i) => ({ y: r2(plot.top + i * pitch), label: l.label, colour: l.colour }));
+	const bars = [...set.bars]
+		.sort((a, b) => laneOf(b.lane) - laneOf(a.lane) || a.from - b.from)
+		.map((bar) => {
+			const i = laneOf(bar.lane);
+			const top = plot.top + i * pitch;
+			const x = xOf(bar.from);
+			return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(plot.bottom - top), colour: set.lanes[i]!.colour };
+		});
+	return { lanes, bars };
+}
+
+/**
+ * Lanes along a plot's bottom, as an overlay: the last lane one `lane` high,
+ * each lane above it one more (a ride's Seated 18.67 pt, Standing 37.34),
+ * the lower lanes drawn first.
+ */
+function laneBars(set: LaneSet, plot: PlotRect, lane: number): NonNullable<ExpandedPlot["overlayBars"]> {
+	const xOf = (at: number) => plot.left + at * (plot.right - plot.left);
+	const laneOf = (id: string) => Math.max(0, set.lanes.findIndex((l) => l.id === id));
+	return [...set.bars]
+		.sort((a, b) => laneOf(b.lane) - laneOf(a.lane) || a.from - b.from)
+		.map((bar) => {
+			const i = laneOf(bar.lane);
+			const height = (set.lanes.length - i) * lane;
+			const x = xOf(bar.from);
+			return { x: r2(x), y: r2(plot.bottom - height), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(height), colour: set.lanes[i]!.colour };
+		});
 }
 
 /** An overlay's marks on its own axis: a line in its colour, its banded dots, its steps, or the zones line. */
@@ -591,6 +737,9 @@ function overlayMarks(series: OverlaySeries, plot: PlotRect): ChartMarks {
 		}
 		case "line":
 			return { line: linePath(series.points.x.map((x, i) => [xOf(x), nullable(series.points.y[i], yOf)])) };
+		case "lanes":
+			// Lanes along the plot's bottom have no line or dots to place here (a ride's Position).
+			return {};
 	}
 }
 

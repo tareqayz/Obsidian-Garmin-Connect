@@ -3,8 +3,8 @@
 
 	/**
 	 * A rounded card in a category's list: an activity (name, when, value) or,
-	 * over a year, a month (month, how many, total) that opens the month. A
-	 * run opens its activity page; like Garmin's cards it has no chevron.
+	 * over a year, a month (month, how many, total) that opens the month. An
+	 * activity opens its page; like Garmin's cards it has no chevron.
 	 */
 	interface Props {
 		title: string;

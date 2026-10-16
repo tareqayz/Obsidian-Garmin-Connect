@@ -3,8 +3,8 @@
 	"path": "/activity-service/activity/{activityId}/hrTimeInZones",
 	"plugin": "GarminApi.activityHrZones",
 	"firstRecorded": "2026-10-10T16:41:42.444Z",
-	"updatedAt": "2026-10-10T16:41:42.444Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:06.760Z",
+	"samples": 6,
 	"shape": {
 		"type": [
 			"array"

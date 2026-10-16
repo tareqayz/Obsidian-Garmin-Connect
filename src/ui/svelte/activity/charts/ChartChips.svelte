@@ -3,7 +3,8 @@
 	 * The expanded chart's overlay chips: the twin's Sleep Chip (202:463) in one
 	 * row that scrolls sideways at every width ("overlay chips (scroll
 	 * sideways)", 411:1390 and 416:86237), so the chart keeps the room it was
-	 * sized for. One on at a time; the selected chip is filled.
+	 * sized for. One on at a time; the selected chip is filled, and the row
+	 * scrolls to show it (the ride's twin, 956:1067), centred where it can be.
 	 */
 	interface Props {
 		chips: Array<{ id: string; label: string }>;
@@ -12,9 +13,20 @@
 	}
 
 	let { chips, selected, onSelect }: Props = $props();
+
+	let row = $state<HTMLElement | null>(null);
+
+	$effect(() => {
+		// Track the choice and the chips: a chosen chip far along the row would be out of sight.
+		const on = selected;
+		const count = chips.length;
+		const chip = on && count ? row?.querySelector<HTMLElement>(".chip.on") : null;
+		if (!row || !chip) return;
+		row.scrollLeft = Math.max(0, chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2);
+	});
 </script>
 
-<div class="chart-chips">
+<div class="chart-chips" bind:this={row}>
 	{#each chips as chip (chip.id)}
 		<button class="chip" class:on={chip.id === selected} aria-pressed={chip.id === selected} onclick={() => onSelect(chip.id)}>{chip.label}</button>
 	{/each}
@@ -22,6 +34,7 @@
 
 <style>
 	.chart-chips {
+		position: relative;
 		display: flex;
 		gap: 8px;
 		overflow-x: auto;

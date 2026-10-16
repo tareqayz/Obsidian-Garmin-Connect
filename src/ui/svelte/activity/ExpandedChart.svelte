@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { expandedChartView } from "../../../dashboard/activity-chart-pages";
 	import { expandedPlot } from "../../../dashboard/activity-charts";
+	import { toIsoDate } from "../../../garmin/endpoints";
 	import PageBar from "../home/PageBar.svelte";
 	import { lucide } from "../home/lucide";
 	import ChartChips from "./charts/ChartChips.svelte";
@@ -12,11 +13,12 @@
 	 * 416:86199): Close, the "A & B" title and the swap button in the bar; the
 	 * chart sized to what the view shows under it; the overlay chips below.
 	 * Opened from a chart badge (`route.sub = "chart:<metric>[:<overlay>[:swap]]"`);
-	 * a chip or the swap button replaces the route's `sub`.
+	 * a chip or the swap button replaces the route's `sub`. The chips are the
+	 * sport's charts (its profile's `charts.chips`).
 	 */
-	let { detail, route, units, swap, onClose }: ActivityTabProps & { onClose: () => void } = $props();
+	let { detail, route, units, profile, rows, swap, onClose }: ActivityTabProps & { onClose: () => void } = $props();
 
-	let view = $derived(expandedChartView(detail, route, units));
+	let view = $derived(expandedChartView(detail, route, units, profile.charts, { rows, today: toIsoDate() }));
 
 	/* The chart fills what the pane shows below the bar, whatever its padding (as ActivityMapPage). */
 	let host = $state<HTMLElement | null>(null);

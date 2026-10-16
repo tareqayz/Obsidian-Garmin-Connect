@@ -8,7 +8,7 @@
 	 *
 	 * - "records": Cycling Power Records, Peak · Watts (centred) · Date, the
 	 *   date a link to its ride, or muted text where the row opens nothing
-	 *   (rides have no page yet, twin 779:131507); rows alternate from the
+	 *   (a duration no ride reached, twin 779:131507); rows alternate from the
 	 *   card colour.
 	 * - "based-on": FTP's Based On, three plain columns on the page.
 	 * - "results": Critical Swim Speed's Pace (over its unit) · Date.

@@ -1,8 +1,7 @@
 <script lang="ts">
 	import type * as L from "leaflet";
 	import type { Snippet } from "svelte";
-	import { PACE_RAMP, ROUTE_BASE, RUN_WALK_RAMP, lapMarkers, routeBounds, routeEnds, routePoints, routeRuns } from "../../../dashboard/activity-map";
-	import type { MapOverlay } from "../../../dashboard/routes";
+	import { baseOf, lapMarkers, rampOf, routeBounds, routeEnds, routePoints, routeRuns, type MapSpec } from "../../../dashboard/activity-map";
 	import type { ActivityDetail } from "../../../sync/activity-detail";
 	import { loadLeaflet, type Leaflet } from "../../map/leaflet";
 	import type { TileSource } from "../../map/tile-source";
@@ -25,12 +24,17 @@
 	 * Leaflet waits for the map to have a size, and every resize after. A resize
 	 * fits the route again: always on a static map, which can't be moved, and on
 	 * the full-screen one until someone moves it.
+	 *
+	 * The overlay's colours and the plain route's are the sport's (`map`, its
+	 * profile's map spec), the run's without one.
 	 */
 	interface Props {
 		detail: ActivityDetail;
 		tiles: TileSource | null;
 		interactive: boolean;
-		overlay?: MapOverlay;
+		overlay?: string;
+		/** The sport's map: its ramps and its plain route's colour. */
+		map?: MapSpec;
 		/** Lap numbers on the route. */
 		laps?: boolean;
 		/** A static map's tap. */
@@ -39,7 +43,7 @@
 		children?: Snippet;
 	}
 
-	let { detail, tiles, interactive, overlay = "pace", laps = true, onOpen, children }: Props = $props();
+	let { detail, tiles, interactive, overlay = "pace", map: spec, laps = true, onOpen, children }: Props = $props();
 
 	let el = $state<HTMLDivElement | null>(null);
 	let lib = $state.raw<Leaflet | null>(null);
@@ -161,7 +165,8 @@
 		const m = map;
 		const leaflet = lib;
 		if (!m || !leaflet) return;
-		const ramp = overlay === "run-walk" ? RUN_WALK_RAMP : PACE_RAMP;
+		const ramp = rampOf(overlay, spec);
+		const base = baseOf(spec);
 		const group = leaflet.layerGroup();
 		// A thin dark outline under the whole route, as Garmin draws it.
 		leaflet
@@ -170,10 +175,10 @@
 				{ color: "#1a1a1a", weight: 6, opacity: 0.55, lineCap: "round", lineJoin: "round", interactive: false },
 			)
 			.addTo(group);
-		for (const run of routeRuns(detail, overlay)) {
+		for (const run of routeRuns(detail, overlay, spec)) {
 			leaflet
 				.polyline(run.points, {
-					color: run.bucket === null ? ROUTE_BASE : ramp[run.bucket]!,
+					color: run.bucket === null ? base : (ramp[run.bucket] ?? base),
 					weight: 4,
 					opacity: 1,
 					lineCap: "round",

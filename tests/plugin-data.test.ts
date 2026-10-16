@@ -70,11 +70,11 @@ describe("PluginData", () => {
 		assert.equal((saved[0]!.settings as { mapTiles: boolean }).mapTiles, false);
 	});
 
-	it("turns an older build's Download runs into the Run details range", async () => {
+	it("turns an older build's Download runs into the Activity details range", async () => {
 		const v4 = (over: Record<string, unknown>) => ({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4, ...over } });
-		assert.equal((await load(v4({ downloadRuns: true }))).data.settings.data.runDetails, "all");
-		assert.equal((await load(v4({ downloadRuns: false }))).data.settings.data.runDetails, "opened");
-		assert.equal((await load(v4({ downloadRuns: "yes" }))).data.settings.data.runDetails, "opened");
+		assert.equal((await load(v4({ downloadRuns: true }))).data.settings.data.activityDetails, "all");
+		assert.equal((await load(v4({ downloadRuns: false }))).data.settings.data.activityDetails, "opened");
+		assert.equal((await load(v4({ downloadRuns: "yes" }))).data.settings.data.activityDetails, "opened");
 		const { saved } = await load(v4({ downloadRuns: true }));
 		assert.equal("downloadRuns" in (saved[0]!.settings as object), false);
 	});
@@ -82,7 +82,7 @@ describe("PluginData", () => {
 	it("starts a fresh install without a setup, so the wizard runs", async () => {
 		const { data } = await load(null);
 		assert.equal(data.settings.setup, null);
-		assert.deepEqual(data.settings.data, { dayDetails: "90d", runDetails: "opened", accepted: [], deferred: [] });
+		assert.deepEqual(data.settings.data, { dayDetails: "90d", activityDetails: "opened", accepted: [], deferred: [] });
 		// Each instance has its own ledger.
 		data.settings.data.accepted.push("days@1");
 		assert.deepEqual((await load(null)).data.settings.data.accepted, []);
@@ -94,8 +94,8 @@ describe("PluginData", () => {
 		assert.ok(!Number.isNaN(Date.parse(data.settings.setup!.completedAt)));
 		assert.deepEqual(data.settings.data, {
 			dayDetails: "30d",
-			runDetails: "all",
-			accepted: ["activities@2", "daily-stats@1", "sleep@1", "index:critical-swim-speed@1", "runs@5"],
+			activityDetails: "all",
+			accepted: ["activities@3", "daily-stats@1", "sleep@1", "index:critical-swim-speed@1", "runs@5"],
 			deferred: [],
 		});
 		assert.equal(saved.length, 1);
@@ -115,7 +115,8 @@ describe("PluginData", () => {
 			},
 		});
 		assert.deepEqual(data.settings.setup, { completedAt: "2026-10-14T06:00:00.000Z" });
-		assert.deepEqual(data.settings.data, { dayDetails: "90d", runDetails: "1y", accepted: ["days@1"], deferred: [] });
+		// `runDetails` is read as the Activity details range it became.
+		assert.deepEqual(data.settings.data, { dayDetails: "90d", activityDetails: "1y", accepted: ["days@1"], deferred: [] });
 		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, setup: { completedAt: "soon" } } })).data.settings.setup, null);
 	});
 

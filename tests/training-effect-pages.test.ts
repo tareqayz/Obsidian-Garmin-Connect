@@ -296,6 +296,7 @@ describe("the Training Effect page — the Oct 11 run", () => {
 			when: "Oct 11 @ 8:21 AM",
 			subtitle: "Threshold (High Aerobic) • 4.5 • 0.2",
 			glyph: "run",
+			disc: "orange",
 			category: "running",
 			route: activityRoute(id),
 		});
@@ -462,7 +463,7 @@ describe("edges", () => {
 				["No Anaerobic Benefit", "grey", "You did not gain any anaerobic benefit from this activity."],
 			],
 		);
-		assert.deepEqual([d.related.name, d.related.glyph, d.related.route], ["Yoga", "yoga", undefined]);
+		assert.deepEqual([d.related.name, d.related.glyph, d.related.route], ["Yoga", "yoga", activityRoute(d.related.id)]);
 	});
 
 	it("leaves out an activity without a training effect", () => {
@@ -504,10 +505,10 @@ describe("edges", () => {
 		);
 		assert.deepEqual(knobs(d).map((k) => k.x), [386, 178.8]);
 		// Another year's date line carries the year.
-		assert.deepEqual([d.related.name, d.related.when, d.related.glyph, d.related.category, d.related.route], ["Multisport", "Oct 25, 2025 @ 6:36 AM", "medal", "multisport", undefined]);
+		assert.deepEqual([d.related.name, d.related.when, d.related.glyph, d.related.category, d.related.route], ["Multisport", "Oct 25, 2025 @ 6:36 AM", "link", "multisport", activityRoute(d.related.id)]);
 	});
 
-	it("opens the swim's page too, its related row naming the sport and opening nothing (Inferred)", () => {
+	it("opens the swim's page too, its related row naming the sport and opening the swim", () => {
 		const d = detail(idAt("2026-09-14T23:50"));
 		assert.deepEqual(d.benefit, { label: "Recovery (Low Aerobic)", group: "Low Aerobic" });
 		assert.deepEqual(
@@ -517,8 +518,8 @@ describe("edges", () => {
 				["1.5", "Some Anaerobic Benefit", "grey"],
 			],
 		);
-		assert.deepEqual([d.related.name, d.related.when, d.related.subtitle, d.related.glyph, d.related.route], ["Pool Swimming", "Sep 14 @ 11:50 PM", "Recovery (Low Aerobic) • 2.4 • 1.5", "swimming", undefined]);
-		// The treadmill run is a run: its row opens it.
+		assert.deepEqual([d.related.name, d.related.when, d.related.subtitle, d.related.glyph, d.related.route], ["Pool Swimming", "Sep 14 @ 11:50 PM", "Recovery (Low Aerobic) • 2.4 • 1.5", "swimming", activityRoute(d.related.id)]);
+		// The treadmill run's row opens it, as every sport's does.
 		const treadmill = idAt("2026-09-22T14:06");
 		assert.deepEqual(detail(treadmill).related.route, activityRoute(treadmill));
 	});

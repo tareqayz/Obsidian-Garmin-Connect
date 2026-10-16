@@ -61,6 +61,8 @@ src/garmin/
   tokens.ts              TokenStore, expiry, refresh
   client.ts              authenticated transport: refresh, 401 retry
   endpoints.ts           typed API wrappers (extends client), the GraphQL gateway included
+  device-names.ts        sensor names by FIT product number, generated from Garmin's product
+                         catalogue (scripts/api/device-names.mjs) — pure
 src/sync/
   metrics.ts             Garmin payloads → properties; groups and the request budget — pure
   numbers.ts             num / isFiniteNumber, for Garmin's nulls and stray strings — pure
@@ -105,13 +107,26 @@ src/dashboard/
   home.ts                Home presets and the In Focus / Today numbers — pure
   glance.ts              At a Glance: the 36 stats, the list, each card's view — pure
   activities.ts          the Activities pages: categories, periods, totals, records — pure
+  activity-types.ts      Garmin's activity types: the app's names, All Activities' filter groups,
+                         the card discs — pure
+  all-activities.ts      All Activities: the search, the sorts, the cards, the chips and the
+                         Filters sheet — pure
+  activity-sports.ts     sportOf and profileFor: the sport profile an activity's page is drawn
+                         with — pure
+  sports/                the profiles, running.ts, cycling.ts, swimming.ts and basic.ts, and the
+                         palettes their charts use — pure
   activity-map.ts        an activity's map as data: route points, overlay runs, lap markers — pure
   activity-labels.ts     the words the activity tabs share: sport, date, benefit, feel, effort — pure
   activity-overview.ts   the Overview tab's view model — pure
   activity-stats-pages.ts the Stats, Laps and Gear tabs' view models — pure
   activity-chart-pages.ts the Charts tab and the expanded chart's view models — pure
   activity-charts.ts     their geometry, measured off the phone and the twin — pure
-  activity-copy.ts       the benefit sheet's wording, from the app — pure
+  cycling-metrics.ts     a ride's Charts tab as data: its metrics, pickers, power zones and own
+                         cards — pure
+  cycling-activity-charts.ts where a ride's own cards draw — pure
+  swim-metrics.ts        a swim's charts as data: per-length bars, stroke rate, temperature, and
+                         where a pool's samples sit on the Distance axis — pure
+  activity-copy.ts       the benefit sheet's and the badges' wording, from the app — pure
   totals-chart.ts        a "<Metric> Totals" chart's geometry, measured off the app — pure
   stats-pages.ts         Steps, Floors, Intensity Minutes: periods, Garmin's rounding, rings, lists — pure
   stats-charts.ts        their charts' geometry, measured off the app — pure
@@ -147,8 +162,10 @@ src/ui/
                          (tiles.ts); the TileSource the pages see (tile-source.ts, pure)
 src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel, SyncRangeForm, DeleteData,
                          DataUpdate and RemovedData, and one folder per area below. Obsidian comes
-                         in through actions (obsidian-setting.ts, home/lucide.ts), apart from
-                         SettingsPanel's Notice and the Activities sub-type Menu
+                         in through actions (obsidian-setting.ts, home/lucide.ts,
+                         activity/map/toggle.ts), apart from SettingsPanel's Notice and the
+                         Menus: the Activities sub-type picker, All Activities' Sort and the
+                         Charts pickers
   settings/              DataSection.svelte: Settings → Data
   setup/                 Setup.svelte: the setup's four steps
   home/                  the Home screen, one component per Garmin card; SeeAll.svelte is
@@ -156,13 +173,16 @@ src/ui/svelte/           SettingsPanel, LoginForm, ProbePanel, SyncRangeForm, De
                          back / title / action bar every page inside the view shares;
                          BackfillPill.svelte and SetupCard.svelte, the plugin's own, above it all
   activities/            More, the Activities hub, a sport's page, a month, Personal Records
-                         and All Activities, with their parts; HistoryBanner.svelte
+                         and All Activities, with their parts; HistoryBanner.svelte; all/
+                         (All Activities' search, chips, cards and Filters sheet)
   activity/              an activity's page (ActivityPage.svelte: bar, tabs, the expanded chart
                          in place of the page) and a component per tab, the full-screen map
                          (ActivityMapPage.svelte) and RouteMap.svelte; overview/ (weather chip,
-                         figures, Evaluation, the benefit sheet), map/ (legend, Map Settings,
-                         pins and lap markers), stats/ (sections, rows, the chart badge) and
-                         charts/ (sections, axes, marks, zones, the expanded plot and its chips)
+                         figures, Evaluation, the benefit sheet, Badges), map/ (legend, Map
+                         Settings, pins and lap markers), stats/ (sections, rows, the chart
+                         badge), charts/ (sections, axes, marks, zones, the expanded plot and
+                         its chips) and a folder per sport for the plots it draws itself
+                         (cycling/, swim/)
   stats/                 the Steps, Floors and Intensity Minutes page (StatsPage.svelte) and its
                          parts: the ring, the chart, the day cards
   sleep/                 the Sleep pages: the night, the factor pages, the Sleep Coach, the periods
@@ -281,10 +301,112 @@ Activities, a sport, a month, Personal Records, All Activities, an activity and
 its full-screen map, Steps, Floors or Intensity Minutes, Health Stats, Sleep, or
 any other Health Stats page. Back pops one; a filter or a tab replaces the top
 rather than adding a step; a link to a page already on the stack goes back down
-to it (`pushOrReturn`). The
-stack is the view's state (`getState` / `setState`), so a reload comes back to
-the same page, and every **Open …** command (Open activities, Open sleep, Open
-stress and the rest) opens the view through the same `setState`.
+to it (`pushOrReturn`, comparing routes by `routeKey`, their keys sorted at
+every level). The stack is the view's state (`getState` / `setState`), so a
+reload comes back to the same page, and every **Open …** command (Open
+activities, Open sleep, Open stress and the rest) opens the view through the
+same `setState`. A route carries what its page shows: All Activities its search,
+sort and filters (`AllRoute`), an activity its tab, axis, expanded chart and
+picker choices (`picks`, by the picker's key; a run's route saved before them
+kept `pace`, `heart` and `power`, which `readRoute` folds in).
+
+## Activity pages
+
+Every activity opens the same page (`src/ui/svelte/activity/ActivityPage.svelte`),
+with the run's five tabs; what fills them is its sport's. What the page reads,
+and how it loads, is under [Activity details on view](#activity-details-on-view).
+
+### Sport profiles
+
+`sportOf` (`src/dashboard/activity-sports.ts`) reads an activity's place in
+Garmin's type tree, its type or the one above it, as the hub's categories do
+(`categoryOf`): the running family is `running`, the cycling family `cycling`,
+`lap_swimming` is `pool-swim`, `open_water_swimming` is `open-water-swim`, and
+every other sport is `basic`. `profileFor` hands the page that sport's
+`SportProfile`, from `src/dashboard/sports/`:
+
+| Profile | File | Draws |
+| --- | --- | --- |
+| `RUNNING` | `running.ts` | every run, outdoor, trail, track or treadmill: the run page as it was built |
+| `CYCLING` | `cycling.ts` | every cycling type: the power-zone map, Power and Cycling Dynamics, twenty chart cards (`cycling-metrics.ts`; its own cards placed by `cycling-activity-charts.ts`) |
+| `POOL_SWIM`, `OPEN_WATER_SWIM` | `swimming.ts` | the pool's intervals and a bar a length (`swim-metrics.ts`); open water's red route |
+| `BASIC` | `basic.ts` | every other sport, modelled on Garmin's Stair Stepper: the sections the sports share, each only with data |
+
+A profile has five optional parts, and the shared view model of each tab takes
+its part as an argument:
+
+| Part | Says | Read by |
+| --- | --- | --- |
+| `overview` (`OverviewSpec`) | the big figure, the figures under it, the Navigation links | `overviewView` |
+| `stats` (`StatsSpec`) | the sections in order, and which have a HELP link | `statsView` |
+| `laps` (`LapsSpec`) | the columns and the rows, a rest or a Total among them | `lapsView` |
+| `charts` (`ChartsSpec`) | the cards, the landscape chips, the pickers, the charts and cards the run doesn't have, the zones' names and colours | `chartsTabView`, `expandedChartView` |
+| `map` (`MapSpec`) | Map Settings' overlays, the Overview's, their colours and legend words, the plain route's colour | `activity-map.ts` |
+
+A part left out is the run's. The view models' defaults are the run page as it
+was built before there were profiles, so `RUNNING` is only `{ id: "running" }`
+and a run is drawn by the code that drew it then.
+`tests/run-page-baseline.test.ts` holds every view the run page draws, for an
+outdoor and a treadmill run in both units, so nothing another sport needs can
+move the run.
+
+- The sport modules import the shared view models, never the other way round.
+  `activity-chart-pages.ts` reads only their data-only palettes
+  (`sports/*-palette.ts`).
+- What a sport draws that the run doesn't comes through `ChartsSpec`, every
+  hook opt-in: `metrics` (a ride's speed, power phases and pedal offsets),
+  `custom` (cards the sport draws itself), `runOverrides` (one of the run's
+  charts drawn its own way: a ride's Power), `zoneTotal` (a zone's share of the
+  zones' sum, or of the activity's time), `places` and `distanceAxis` (samples
+  that carry no distance: a pool swim's lengths).
+- A custom card names its plot (`CustomChart.plot`). Each sport keeps its plots
+  in its own folder (`activity/cycling/plots.ts`), which
+  `activity/charts/kinds.ts` spreads into `CARD_PLOTS`.
+- A map overlay can bin by the activity's own zones (`MapOverlayDef.zones`): a
+  ride's route takes a colour a power zone.
+
+### The type table
+
+`src/dashboard/activity-types.ts` lists Garmin's 154 activity types, each with
+the app's English name, the filter group All Activities' sheet files it under,
+its place in that group and its card's disc colour. It was generated from the
+spec's table (the phone's names, else the web's type select) and is edited by
+hand since; `api:check` on `activity-types` reports when Garmin's tree moves
+from it.
+
+- `FILTER_GROUPS`: the sheet's fifteen groups in its order, the first
+  `SHOWN_GROUPS` (five) before Show All.
+- `typeName` names a type wherever a page does: titles, the sub-type picker,
+  the cards. `groupOf`, `groupName`, `subTypes` and `discOf` read the rest.
+- A type the table lacks, one Garmin adds later, is named from its key and
+  filed under its parent's group, else Other.
+- "All <Group> Activities" under an activity (`groupLink` in
+  `activity-overview.ts`) follows the group: the hub's page where it has one
+  (`hubOfGroup`), else All Activities filtered to the group.
+
+### All Activities
+
+`src/dashboard/all-activities.ts` searches, sorts and filters the activity
+index, so the page sends no request. The route holds all of it (`AllRoute` in
+`routes.ts`): the search `q`, the `sort`, and the sheet's `types`,
+`from`/`to`, `dmin`/`dmax`, `tmin`/`tmax`, `amin`/`amax`, `events`, `fav`
+and `pr`, in metres and seconds whatever the units. Read back, or built by
+`allRoute`, each field is checked and repaired on its own (`allOf`), so one bad
+value never costs the others.
+
+- `allView(rows, route, units, today)` gives the matching rows as cards in the
+  route's order, the exact count, a chip per filter whose `remove` is the same
+  route without it, and the empty state.
+- `matcherOf`: the search is a substring of the card's name folded (`fold`:
+  decomposed, accents dropped, lower case); types are OR'd, by a row's own type
+  or its group; a distance, time or ascent a row lacks counts as 0.
+- Newest First goes by the local start, then the GMT start, then the id:
+  Garmin's own order. A to Z and Z to A compare folded names, ties newest first.
+- The Filters sheet edits a draft (`draftOf`, then `toggleType`, `setDates`,
+  `setRange` and the rest), counted live by `footerOf`; `applyDraft` makes the
+  route, keeping the search and the sort. `filterTree`, `rangeScales`,
+  `monthGrid`, `monthOptions` and `yearOptions` feed its sections.
+- The page draws sixty cards and adds sixty as the list scrolls.
 
 ## Health and Performance Stats foundation
 
@@ -504,26 +626,36 @@ An activity's page is never synced: `loadActivity(id)` fetches it the first time
 the page opens and keeps it in `<dataFolder>/activity-details/<id>.json`
 (`activity-detail.ts`), outside `activities/` so the write does not rebuild Home.
 
-- Ten blocks, one request each: the summary, the samples (`details`, kept as
-  named columns — `time`, `distance`, `hr`, `speed`, `lat`, `lon` and the rest —
-  plus `clock`, seconds since the start), the laps, the typed splits (run/walk),
-  heart rate and power zones, weather and gear go together; then the device as
-  it was (its firmware id is in the summary) and the weight on the activity's
-  day, for Power (W/kg). Each costs a request once.
+- Eleven blocks, one request each. The summary, the samples (`details`, kept as
+  named columns — `time`, `distance`, `hr`, `speed`, `lat`, `lon`, a ride's power
+  phases, a swim's stroke rate and the rest — plus `clock`, seconds since the
+  start), the laps (a pool swim's lengths among them), the typed splits
+  (run/walk), heart rate zones, gear and badges go together. Then what the
+  summary says applies (`AFTER_SUMMARY`): power zones when it has time in them,
+  weather with a GPS track, the device as it was (its firmware id is in the
+  summary) and the weight on the activity's day, with power, for W/kg. A block
+  that doesn't apply is marked checked without a request: 11 for a run with power
+  or a ride, 9 for an open-water swim, 8 for a pool swim or yoga.
+- The sensors are named from the summary's FIT product numbers
+  (`src/garmin/device-names.ts`), never with a request, and keep no serial.
 - `checked` lists the blocks fetched, data or not: a block whose request failed
   is asked for again on the next view; one Garmin had nothing for is not. A file
   whose activity the index shows renamed or trimmed is fetched afresh, and a file
-  of another `version` reads as missing.
+  of another `version` reads as missing — except a running file of version 5,
+  which reads as 6 with the blocks version 6 changed (`CHANGED_IN_6`: the summary
+  and the badges) left to fetch, two requests instead of eleven.
 - The loads queue with the intraday ones, in the same runner: never beside a
   sync, paced by the client's throttle, and a 429 or a dead session answers every
   waiting load without asking again. Gated on the `workouts` group.
-- **Run details** (`data.runDetails`) past `opened` loads the rest the same way,
-  as the backfill's `runs` task: the index's runs in the range (the rows that
-  open a page, `categoryOf(row) === "running"`, `isRun` in `main.ts`) without a
-  file of today's version, newest first, one a unit and at least two seconds
-  apart. A sync waits only for the run in hand; a 429 pauses the backfill, and a
-  run that failed is not asked for again until the next session. Every write of
-  a run's file books its version in `activity-details/index.json`.
+- **Activity details** (`data.activityDetails`, read from the older
+  `data.runDetails`) past `opened` loads the rest the same way, as the
+  backfill's `details` task: the index's activities in the range without a file
+  of today's version, newest first, one a unit and at least two seconds apart.
+  Until `activity-details@<version>` is agreed to, an older Run details
+  agreement (`runs@5`) keeps fetching the runs alone (`isRun` in `main.ts`). A
+  sync waits only for the activity in hand; a 429 pauses the backfill, and one
+  that failed is not asked for again until the next session. Every write of an
+  activity's file books its version in `activity-details/index.json`.
 - The view keeps the last few details in memory, so a page coming back (Back
   from the map) draws at once and its scroll position holds.
 
@@ -642,7 +774,7 @@ carries on after a restart, a 429 or another device's turn.
 | --- | --- | --- | --- |
 | Charts & trends | the chart indexes: `activities/`, `daily-stats/`, `sleep/` and every `DAY_INDEXES` folder | always the whole history | each index's own |
 | Day details | the day files and each day's full timelines (`series/`) | `dayDetails`: `new`, `30d`, `90d` (default), `1y`, `all` | `DAY_DETAILS_VERSION` |
-| Run details | a run's page (`activity-details/`) | `runDetails`: `opened` (default), `90d`, `1y`, `all` | `RUN_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` |
+| Activity details | an activity's page, every sport (`activity-details/`) | `activityDetails`: `opened` (default), `90d`, `1y`, `all` | `ACTIVITY_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` |
 
 A range only says how far back the backfill goes (`rangeStart`, held to where
 the account's history starts). Every new day is kept whatever it is, because a
@@ -654,7 +786,7 @@ update dialog; bumping a version is the rule in
 `estimate.ts` turns a scan and a choice into bytes, requests and time per set,
 and what keeping new data adds a year, for the setup and Settings → Data. The
 sizes were measured on a vault of 439 days and 233 runs: a day file 3.7 KB, its
-timelines 40 KB, a run 154 KB. Times follow the sync speed, the ten-second
+timelines 40 KB, an activity's page 154 KB (a run's; other sports' are smaller). Times follow the sync speed, the ten-second
 units and the hourly budget below.
 
 ### Coverage
@@ -668,31 +800,34 @@ keep a file beside their data (`coverage.ts`, read and written by
   (`DayResult.full`) when every request the run's groups ask of it came back,
   data or not, intraday included when its group is on, and nothing failed to
   write. Every sync books its full days after the run.
-- `activity-details/index.json`: each run file's version, by activity id,
-  updated by every write of a run's file.
+- `activity-details/index.json`: each activity file's version, by activity id,
+  updated by every write of a file (written under `activities`; one written
+  before every sport had a page, under `runs`, is read the same).
 
 Both are built the first time from the files already there. A series file of
 today's shape, with the day's start (`dayStart`) and the night's detail beside
 its hypnogram, counts as version 1; intraday blocks from before those as version
-0; a night alone is not covered. A run file's version is read from the start of
-its text. A copy another device overwrote can only have lost entries, never
+0; a night alone is not covered. An activity file's version is read from the
+start of its text. A copy another device overwrote can only have lost entries, never
 claim one it did not fetch. Home ignores both files.
 
 ### The consent ledger
 
 `data.accepted` and `data.deferred` in the settings hold consent keys: a store
-at a version, `<store>@<version>` — `days@1`, `runs@5`, `activities@…`,
-`daily-stats@…`, `sleep@…`, `index:<kind>@<version>`. A new index, or a version
+at a version, `<store>@<version>` — `days@1`, `activity-details@6`,
+`activities@…`, `daily-stats@…`, `sleep@…`, `index:<kind>@<version>`, and
+`runs@5`, Run details' from when only runs had a page. A new index, or a version
 bump, is a key the ledger has not seen.
 
 - `planBackfill` (`backfill.ts`) walks a chart index once its key at today's
   version is agreed to: a bump reads as no index at all, a whole history to
-  fetch again. Missing days and runs are fetched under any version of their key
-  agreed to, since they come back in today's shape; those held at an older
-  version only once today's key is.
+  fetch again. Missing days and activities are fetched under any version of
+  their key agreed to, since they come back in today's shape; those held at an
+  older version only once today's key is. `runs@5` counts for runs only.
 - `debtItems` (`debt.ts`) lists what has something to fetch and is not agreed to
-  at today's version: a chart index never walked, days or runs an older version
-  saved, and, for a set never agreed to, the gaps in its range. The first Garmin
+  at today's version: a chart index never walked, days or activities an older
+  version saved, and, for a set never agreed to, the gaps in its range (less the
+  runs an older Run details agreement fills). The first Garmin
   view of a session, signed in, shows those not put off in **New data for your
   history** (`askForUpdates` in `main.ts`); Settings → Data lists them all.
 - The setup's **Start download** agrees to every chart key and both details
@@ -700,7 +835,7 @@ bump, is a key the ledger has not seen.
   details keys with the ranges `new` and `opened`, and puts the chart keys off.
   Choosing a range in Settings → Data agrees to its set's key.
 - Settings v5 (`migrate` in `plugin-data.ts`) takes a vault with a saved session
-  as set up: Day details `30d`, Run details from `downloadRuns`, the chart keys
+  as set up: Day details `30d`, Activity details from `downloadRuns`, the chart keys
   agreed to, and `runs@5` when Download runs was on. `days@1` is left out, so
   the first update dialog offers the recent days an older build saved without
   timelines.
@@ -719,7 +854,7 @@ earlier of its first day and the oldest activity (`notBefore`).
 ### The backfill
 
 The runner works through `planBackfill`'s tasks in order — the activity list,
-the chart walks, Day details newest first, Run details newest first — a unit at
+the chart walks, Day details newest first, Activity details newest first — a unit at
 a time, each about ten seconds of work:
 
 | Task | One unit |
@@ -727,7 +862,7 @@ a time, each about ten seconds of work:
 | `activities` | the whole list (`activityWalk`), a request per hundred |
 | `walk` | a segment (a year of windows, `segments.ts`) of as many walks side by side as the speed's `parallelDays`, each merged into its index as it lands. The empty-window streak carries from one segment to the next, so a walk in segments asks what one long walk would |
 | `days` | a chunk sized to about `CHUNK_SECONDS` at the speed (`chunkDays`): each day's file and full timelines, the activities listed by date (`activitiesByDate`), no chart index fed, the day files written a year file at a time, the full days booked in the coverage |
-| `runs` | one run (`loadActivityFor`), at least two seconds after the last |
+| `details` | one activity (`loadActivityFor`), at least two seconds after the last |
 
 **The runner lock** (`runner-lock.ts`) gives the runner to one piece of work at
 a time:

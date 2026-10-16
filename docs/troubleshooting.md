@@ -127,7 +127,7 @@ Settings → Data says the same in longer words, and the status bar in shorter
 ones ("Garmin · sign in to continue").
 
 If nothing downloads at all, there may be nothing to fetch: **Settings → Data**
-shows what is missing from your Day details and Run details ranges, and **Keep
+shows what is missing from your Day details and Activity details ranges, and **Keep
 new days only** in the setup fetches no history. The download also waits for
 the setup to have run and for a session.
 

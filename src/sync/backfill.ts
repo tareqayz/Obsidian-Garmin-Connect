@@ -1,13 +1,15 @@
 import { gaps, stale, type DateRange, type Span } from "./coverage";
 import {
+	ACTIVITY_DETAILS_STORE,
+	ACTIVITY_DETAILS_VERSION,
 	chartKeys,
 	DAY_DETAILS_VERSION,
+	LEGACY_RUNS_STORE,
 	parseConsentKey,
 	rangeStart,
-	RUN_DETAILS_VERSION,
+	type ActivityDetailsRange,
 	type ConsentKey,
 	type DayDetailsRange,
-	type RunDetailsRange,
 } from "./datasets";
 import { shiftDate } from "./day-index";
 import type { MetricGroup } from "./metrics";
@@ -29,14 +31,23 @@ import { historyStart, type AccountScan } from "./scan";
 
 /** A piece of the backfill, newest first within its kind. */
 export type Task =
-	/** The activity list, whole: first, since the walks and the runs read it. */
+	/** The activity list, whole: first, since the walks and the activity details read it. */
 	| { kind: "activities" }
 	/** A chart index's history walk (`daily-stats`, `sleep` or `index:<kind>`). */
 	| { kind: "walk"; store: string }
 	/** Days whose details are missing, or were fetched at an older version. */
 	| { kind: "days"; from: string; to: string }
-	/** Runs whose page is missing, or of an older version, newest first. */
-	| { kind: "runs"; ids: number[] };
+	/** Activities whose page is missing, or of an older version, newest first. */
+	| { kind: "details"; ids: number[] };
+
+/** An activity on the index, as the plan reads it. */
+export interface DetailCandidate {
+	id: number;
+	/** Its local start day. */
+	date: string;
+	/** A run: all an older Run details agreement downloads. */
+	run: boolean;
+}
 
 /** A chart index as the vault holds it. */
 export interface ChartMeta {
@@ -49,33 +60,35 @@ export interface PlanInput {
 	groups: readonly MetricGroup[];
 	accepted: readonly ConsentKey[];
 	dayDetails: DayDetailsRange;
-	runDetails: RunDetailsRange;
+	activityDetails: ActivityDetailsRange;
 	scan: AccountScan | null;
 	/** The day coverage's spans. */
 	daySpans: readonly Span[];
 	/** The chart indexes' metas, by store (`activities`, `daily-stats`, `sleep`, `index:<kind>`); absent when the index has none. */
 	charts: ReadonlyMap<string, ChartMeta | null>;
-	/** The runs on the activity index, newest first. */
-	runs: ReadonlyArray<{ id: number; date: string }>;
-	/** Each downloaded run's file version. */
-	runFiles: ReadonlyMap<number, number>;
+	/** Every activity on the index, newest first. */
+	activities: readonly DetailCandidate[];
+	/** Each downloaded activity's file version. */
+	detailFiles: ReadonlyMap<number, number>;
 	/** The day the setup finished: where "New days only" starts. */
 	since?: string;
-	/** Days and runs that failed this session, left for the next. */
-	skip?: { days?: ReadonlySet<string>; runs?: ReadonlySet<number> };
+	/** Days and activities that failed this session, left for the next. */
+	skip?: { days?: ReadonlySet<string>; details?: ReadonlySet<number> };
 }
 
 /**
  * Everything left to fetch, in the order it is fetched: the activity list,
- * the chart walks, then Day details newest first, then Run details newest
- * first — only what was agreed to.
+ * the chart walks, then Day details newest first, then Activity details
+ * newest first — only what was agreed to.
  *
  * - A chart index is walked once its key at today's version is agreed to: a
  *   version bump reads as no index at all, a whole history to fetch again.
- * - Missing days and runs are fetched under any version of their key agreed
- *   to — they come back in today's shape — and those held at an older
+ * - Missing days and activities are fetched under any version of their key
+ *   agreed to — they come back in today's shape — and those held at an older
  *   version only once today's key is agreed to. Gaps under an agreed key
  *   are never asked about.
+ * - Run details, the set before every sport had a page: agreed to and
+ *   Activity details not, it keeps fetching the runs of the range, as before.
  */
 export function planBackfill(input: PlanInput): Task[] {
 	const tasks: Task[] = [];
@@ -101,16 +114,20 @@ export function planBackfill(input: PlanInput): Task[] {
 		}
 	}
 
-	const runsAt = agreedVersion(input.accepted, "runs");
-	if (runsAt !== undefined) {
-		const from = rangeStart(input.runDetails, input.today, start);
+	const detailsAt = agreedVersion(input.accepted, ACTIVITY_DETAILS_STORE);
+	const runsOnly = detailsAt === undefined;
+	const agreedAt = detailsAt ?? agreedVersion(input.accepted, LEGACY_RUNS_STORE);
+	if (agreedAt !== undefined) {
+		const from = rangeStart(input.activityDetails, input.today, start);
 		if (from) {
 			const due = (id: number) => {
-				const held = input.runFiles.get(id);
-				return held === undefined || (runsAt >= RUN_DETAILS_VERSION && held !== RUN_DETAILS_VERSION);
+				const held = input.detailFiles.get(id);
+				return held === undefined || (agreedAt >= ACTIVITY_DETAILS_VERSION && held !== ACTIVITY_DETAILS_VERSION);
 			};
-			const ids = input.runs.filter((run) => run.date >= from && due(run.id) && !input.skip?.runs?.has(run.id)).map((run) => run.id);
-			if (ids.length) tasks.push({ kind: "runs", ids });
+			const ids = input.activities
+				.filter((a) => a.date >= from && (a.run || !runsOnly) && due(a.id) && !input.skip?.details?.has(a.id))
+				.map((a) => a.id);
+			if (ids.length) tasks.push({ kind: "details", ids });
 		}
 	}
 	return tasks;

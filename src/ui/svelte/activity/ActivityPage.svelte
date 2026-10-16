@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ActivitiesData } from "../../../dashboard/activities";
 	import { sportTitle } from "../../../dashboard/activity-labels";
+	import { profileFor } from "../../../dashboard/activity-sports";
 	import { ACTIVITY_TABS, type ActivityRoute, type ActivityTab, type Route } from "../../../dashboard/routes";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
@@ -20,9 +21,11 @@
 	 * vault when it has been opened before, from Garmin the first time — and a
 	 * page coming back (Back from the map) draws at once from what it had.
 	 *
-	 * Each tab is its own component with the same props (`ActivityTabProps`).
-	 * A chart badge opens the expanded chart in place of the page (`route.sub`
-	 * "chart:…"): the phone turns sideways for it, the view gives it the pane.
+	 * Each tab is its own component with the same props (`ActivityTabProps`),
+	 * the activity's sport profile among them: what the tab tells its view model
+	 * about the sport. A chart badge opens the expanded chart in place of the
+	 * page (`route.sub` "chart:…"): the phone turns sideways for it, the view
+	 * gives it the pane.
 	 */
 	interface Props {
 		route: ActivityRoute;
@@ -67,7 +70,10 @@
 	});
 
 	let detail = $derived(load?.detail ?? null);
-	let tabProps = $derived<ActivityTabProps | null>(detail ? { detail, route, units: data.units, tiles, go, swap, reach, openSheet } : null);
+	let profile = $derived(detail ? profileFor(detail) : null);
+	let tabProps = $derived<ActivityTabProps | null>(
+		detail && profile ? { detail, route, units: data.units, profile, rows: data.rows, tiles, go, swap, reach, openSheet } : null,
+	);
 	let title = $derived(detail ? sportTitle(detail.type) : "Activity");
 
 	/** Why there is nothing, or not everything, to show. */

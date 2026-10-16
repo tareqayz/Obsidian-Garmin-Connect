@@ -358,11 +358,11 @@ describe("activity routes", () => {
 	});
 
 	it("read back what the page accepts, repairing the rest", () => {
-		const full = { page: "activity", id: ID, tab: "charts", axis: "distance", sub: "chart:heart-rate:cadence", pace: "gap", heart: "zones", power: "per-kg" };
+		const full = { page: "activity", id: ID, tab: "charts", axis: "distance", sub: "chart:heart-rate:cadence", picks: { pace: "gap", heart: "zones", power: "per-kg" } };
 		assert.deepEqual(readRoute(full), full);
 		assert.deepEqual(readRoute({ page: "activity", id: ID, tab: "maps", axis: "speed", sub: "<b>", pace: "fast" }), activityRoute(ID));
 		assert.deepEqual(readRoute({ page: "activity-map", id: ID, overlay: "power", laps: false }), { page: "activity-map", id: ID, overlay: "power", laps: false });
-		assert.deepEqual(readRoute({ page: "activity-map", id: ID, overlay: "speed" }), activityMapRoute(ID));
+		assert.deepEqual(readRoute({ page: "activity-map", id: ID, overlay: "<speed>" }), activityMapRoute(ID));
 	});
 
 	it("refuse an id that can't be Garmin's", () => {

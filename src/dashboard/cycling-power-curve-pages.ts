@@ -254,8 +254,7 @@ export interface PowerRecordRow {
 	/** "Sep 13, 2025": the record's ride's local start day, always with the year (`listDate`); "--" without one. */
 	date: string;
 	/**
-	 * The ride that set it. Rides have no page in the plugin yet, so the date
-	 * opens nothing; once they do, it opens `activityRoute(id)` in link blue.
+	 * The ride that set it: the date opens its page, in link blue.
 	 */
 	id?: number;
 }

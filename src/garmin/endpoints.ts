@@ -394,6 +394,75 @@ export interface Activity {
 	isParent?: boolean;
 	/** On a multisport leg: the multisport activity it belongs to. */
 	parentId?: number | null;
+	/** Race, training, …; `uncategorized` unless the athlete set one (`eventTypes()` lists them). */
+	eventType?: { typeId?: number; typeKey?: string; sortOrder?: number; [key: string]: unknown } | null;
+	/** Starred in Garmin Connect; `isFavorite` carries the same. */
+	favorite?: boolean;
+	isFavorite?: boolean;
+	/** The activity holds a personal record today (one since beaten is no longer flagged); `isPR` carries the same. */
+	pr?: boolean;
+	isPR?: boolean;
+	/** It has a GPS track. */
+	hasPolyline?: boolean;
+	/** Pool swims: the pool's length, in `unitOfPoolLength` (metres or yards; `factor` is cm per unit). */
+	poolLength?: number | null;
+	unitOfPoolLength?: { unitId?: number; unitKey?: string; factor?: number; [key: string]: unknown } | null;
+	[key: string]: unknown;
+}
+
+/**
+ * One node of Garmin's activity type tree (`/activity-service/activity/activityTypes`):
+ * `parentTypeId` is the next type up, and the top-level groups (running 1,
+ * cycling 2, swimming 26, …) hang off the root `all` (17). The tree has no
+ * names; the app's own words are in `src/dashboard/activity-types.ts`.
+ */
+export interface ActivityTypeDTO {
+	typeId: number;
+	typeKey: string;
+	parentTypeId?: number | null;
+	isHidden?: boolean;
+	restricted?: boolean;
+	trimmable?: boolean;
+	[key: string]: unknown;
+}
+
+/** An event type an activity can carry (`race`, `training`, …), in Garmin's `sortOrder`. */
+export interface EventTypeDTO {
+	typeId: number;
+	typeKey: string;
+	sortOrder?: number;
+	[key: string]: unknown;
+}
+
+/** A badge an activity earned ("Climber 1", `cycle_climb_500ft`). The row has no description. */
+export interface ActivityBadgeDTO {
+	badgeId?: number;
+	badgeKey?: string;
+	badgeName?: string;
+	badgeCategoryId?: number;
+	badgeDifficultyId?: number;
+	badgePoints?: number;
+	[key: string]: unknown;
+}
+
+/**
+ * A sensor as an activity used it (`metadataDTO.sensors`): its firmware and
+ * battery then. `fitProductNumber` names it (`device-names.ts`); never keep
+ * `serialNumber`.
+ */
+export interface ActivitySensorDTO {
+	/** The product number Garmin's catalogue names it by: 3578 is "Rally 100/200". */
+	fitProductNumber?: number;
+	/** `BIKE_POWER`, `HEART_RATE`, … */
+	antplusDeviceType?: string | null;
+	/** The part number, "006-B3578-00". */
+	sku?: string;
+	/** `ANTPLUS`, `BLUETOOTH_LOW_ENERGY`, `LOCAL`. */
+	sourceType?: string;
+	softwareVersion?: number | string | null;
+	batteryStatus?: string | null;
+	batteryLevel?: number | null;
+	manufacturer?: string;
 	[key: string]: unknown;
 }
 
@@ -432,8 +501,14 @@ export interface ActivitySummary {
 		lapCount?: number;
 		/** Running power counted the wind. */
 		runPowerWindDataEnabled?: boolean;
+		/** The sensors the activity used, by part number. */
+		sensors?: ActivitySensorDTO[] | null;
+		favorite?: boolean;
+		/** It set a personal record. */
+		personalRecord?: boolean;
 		[key: string]: unknown;
 	} | null;
+	eventTypeDTO?: { typeId?: number; typeKey?: string; sortOrder?: number; [key: string]: unknown } | null;
 	summaryDTO?: ActivityStats | null;
 	/** Totals per split type: `INTERVAL_ACTIVE`, `RWD_RUN`, `RWD_WALK`, `RWD_STAND`. */
 	splitSummaries?: Array<{ splitType?: string; noOfSplits?: number; duration?: number; distance?: number; [key: string]: unknown }>;
@@ -510,7 +585,38 @@ export interface ActivityDetails {
 /** `/activity-service/activity/{id}/splits`: the laps. */
 export interface ActivitySplits {
 	activityId?: number;
-	lapDTOs?: Array<ActivityStats & { lapIndex?: number; startLatitude?: number | null; startLongitude?: number | null; endLatitude?: number | null; endLongitude?: number | null; intensityType?: string }>;
+	lapDTOs?: Array<
+		ActivityStats & {
+			lapIndex?: number;
+			startLatitude?: number | null;
+			startLongitude?: number | null;
+			endLatitude?: number | null;
+			endLongitude?: number | null;
+			intensityType?: string;
+			/** A pool swim's lengths in the lap (one, of 0 m, for a rest). */
+			lengthDTOs?: ActivityLength[] | null;
+		}
+	>;
+	/** The timer's starts and stops and, on a ride with pedals, where the rider stood or sat (`riderPosition`). */
+	eventDTOs?: ActivityEvent[] | null;
+	[key: string]: unknown;
+}
+
+/** One pool length: its time, distance, strokes, Swolf and stroke. */
+export interface ActivityLength extends ActivityStats {
+	lengthIndex?: number;
+	/** `FREESTYLE`, `BREASTSTROKE`, … ; null on a rest. */
+	swimStroke?: string | null;
+}
+
+/** An event on the activity's clock: `TIMER_TRIGGER`, or `RIDER_POSITION` with its `riderPosition`. */
+export interface ActivityEvent {
+	startTimeGMT?: string;
+	/** Epoch ms. */
+	startTimeGMTDoubleValue?: number;
+	sectionTypeDTO?: { id?: number; key?: string; sectionTypeKey?: string } | null;
+	/** 0 seated, 1 standing, 2 to seated, 3 to standing (Garmin's FIT values). */
+	riderPosition?: number | null;
 	[key: string]: unknown;
 }
 
@@ -2221,6 +2327,25 @@ export class GarminApi extends GarminClient {
 			throw new TypeError(`versionPk must be a positive integer, got ${versionPk}`);
 		}
 		return this.request(`/device-service/deviceservice/app-info/${versionPk}`);
+	}
+
+	/** The badges an activity earned; most earn none. */
+	async activityBadges(id: number): Promise<ActivityBadgeDTO[]> {
+		const activity = assertActivityId(id);
+		const who = await this.requireDisplayName();
+		return (await this.request<ActivityBadgeDTO[] | null>(`/badge-service/badge/${who}/earned/activity/${activity}`)) ?? [];
+	}
+
+	/* Garmin's lookup tables for activities: the same for every account. */
+
+	/** Every activity type: 154 nodes under the root `all` (17), names not included. */
+	async activityTypes(): Promise<ActivityTypeDTO[]> {
+		return (await this.request<ActivityTypeDTO[] | null>("/activity-service/activity/activityTypes")) ?? [];
+	}
+
+	/** The nine event types an activity can carry, `uncategorized` among them. */
+	async eventTypes(): Promise<EventTypeDTO[]> {
+		return (await this.request<EventTypeDTO[] | null>("/activity-service/activity/eventTypes")) ?? [];
 	}
 
 	/* Health Stats pages: the web app's REST routes for the 7d, 4w and 1y views

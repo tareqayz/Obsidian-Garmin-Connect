@@ -6,7 +6,7 @@
  * built its own requests could pass while the plugin was broken.
  */
 
-import type { GarminApi } from "../../src/garmin/endpoints";
+import type { Activity, GarminApi } from "../../src/garmin/endpoints";
 import type { CatalogueEntry } from "./catalogue";
 
 export interface Window {
@@ -75,27 +75,44 @@ async function newestSnapshot(
 }
 
 /**
- * The activity page's routes need a real id: the newest run with a GPS track,
- * so the map, weather and running dynamics all have something to return. Looked
- * up once per run of the check, not once per probe.
+ * The activity page's routes need a real id: the newest activity of a kind
+ * among the last 20 listed. Looked up once per kind per run of the check, not
+ * once per probe.
  */
-const newestRuns = new WeakMap<GarminApi, Promise<number | null>>();
+const newestActivities = new WeakMap<GarminApi, Map<string, Promise<number | null>>>();
 
-async function newestRun(api: GarminApi, fetch: (id: number) => Promise<unknown>): Promise<unknown[]> {
-	let lookup = newestRuns.get(api);
+async function newestActivity(
+	api: GarminApi,
+	kind: string,
+	match: (activity: Activity) => boolean,
+	fetch: (id: number) => Promise<unknown>,
+): Promise<unknown[]> {
+	let byKind = newestActivities.get(api);
+	if (!byKind) newestActivities.set(api, (byKind = new Map()));
+	let lookup = byKind.get(kind);
 	if (!lookup) {
-		lookup = api.activities(0, 20).then((list) => {
-			const run = list.find(
-				(a) => (a.activityType?.typeId === 1 || a.activityType?.parentTypeId === 1) && a.hasPolyline === true,
-			);
-			return run?.activityId ?? null;
-		});
-		newestRuns.set(api, lookup);
+		lookup = api.activities(0, 20).then((list) => list.find(match)?.activityId ?? null);
+		byKind.set(kind, lookup);
 	}
 	const id = await lookup;
 	if (id === null) return [];
 	await sleep(PAUSE_MS);
 	return [await fetch(id)];
+}
+
+/** The newest run with a GPS track, so the map, weather and running dynamics all have something to return. */
+function newestRun(api: GarminApi, fetch: (id: number) => Promise<unknown>): Promise<unknown[]> {
+	return newestActivity(
+		api,
+		"run",
+		(a) => (a.activityType?.typeId === 1 || a.activityType?.parentTypeId === 1) && a.hasPolyline === true,
+		fetch,
+	);
+}
+
+/** The newest activity of any sport: the badges route answers for every one, most often with []. */
+function newestAny(api: GarminApi, fetch: (id: number) => Promise<unknown>): Promise<unknown[]> {
+	return newestActivity(api, "any", (a) => typeof a.activityId === "number", fetch);
 }
 
 /**
@@ -227,6 +244,10 @@ export const PROBES: Record<string, (api: GarminApi, w: Window) => Promise<unkno
 			await sleep(PAUSE_MS);
 			return api.deviceAppInfo(versionPk);
 		}),
+	"activity-badges": (api) => newestAny(api, (id) => api.activityBadges(id)),
+	// Garmin's lookup tables for activities: the type tree and the event types.
+	"activity-types": async (api) => [await api.activityTypes()],
+	"event-types": async (api) => [await api.eventTypes()],
 };
 
 /**

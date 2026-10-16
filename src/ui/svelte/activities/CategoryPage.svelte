@@ -147,7 +147,7 @@
 						detail={item.when}
 						value={item.value}
 						chevron={false}
-						onclick={route.category === "running" ? () => go(activityRoute(item.id)) : undefined}
+						onclick={() => go(activityRoute(item.id))}
 					/>
 				{/each}
 				{#each view.months as month (month.month)}

@@ -53,12 +53,12 @@ import {
 	addDays,
 	detailVersionOf,
 	parseDayCoverage,
-	parseRunCoverage,
+	parseDetailCoverage,
 	serializeDayCoverage,
-	serializeRunCoverage,
+	serializeDetailCoverage,
 	seriesVersion,
 	type DayCoverage,
-	type RunCoverage,
+	type DetailCoverage,
 	type Span,
 } from "./coverage";
 import { parseScan, serializeScan, type AccountScan } from "./scan";
@@ -86,8 +86,8 @@ export const DAY_INDEX_META_FILE = "index.json";
 export const ACTIVITY_DETAILS_FOLDER = "activity-details";
 /** The days whose details were fetched whole, and at which version (see `coverage.ts`). */
 export const DAY_COVERAGE_FILE = "index.json";
-/** Each downloaded run's file version, beside the run files. */
-export const RUN_COVERAGE_FILE = "index.json";
+/** Each downloaded activity's file version, beside the activity files. */
+export const DETAIL_COVERAGE_FILE = "index.json";
 /** Where the account's history starts and ends, as the last scan found it (see `scan.ts`). */
 export const SCAN_FILE = "scan.json";
 /** Whether the backfill is paused and which device runs it (see `backfill.ts`). */
@@ -97,7 +97,7 @@ export const BACKFILL_FILE = "backfill.json";
 export interface DiskUsage {
 	charts: number;
 	days: number;
-	runs: number;
+	details: number;
 	other: number;
 	total: number;
 	files: number;
@@ -232,13 +232,13 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return parseActivityDetail(await this.app.vault.cachedRead(file));
 	}
 
-	/** Writes the run's file and books its version in the run coverage. */
+	/** Writes the activity's file and books its version in the coverage. */
 	async writeActivityDetail(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
 		const outcome = await this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
-		const runs = await this.readRunCoverage();
-		if (runs.get(id) !== detail.version) {
-			runs.set(id, detail.version);
-			await this.put(this.runCoveragePath, serializeRunCoverage(runs));
+		const files = await this.readDetailCoverage();
+		if (files.get(id) !== detail.version) {
+			files.set(id, detail.version);
+			await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
 		}
 		return outcome;
 	}
@@ -255,28 +255,28 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return ids;
 	}
 
-	get runCoveragePath(): string {
-		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${RUN_COVERAGE_FILE}`);
+	get detailCoveragePath(): string {
+		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${DETAIL_COVERAGE_FILE}`);
 	}
 
 	/**
-	 * Each downloaded run's file version, by id. Built from the run files the
-	 * first time, reading only the start of each; a run listed is a run whose
-	 * file is there.
+	 * Each downloaded activity's file version, by id. Built from the files the
+	 * first time, reading only the start of each; an activity listed is one
+	 * whose file is there.
 	 */
-	async readRunCoverage(): Promise<RunCoverage> {
-		const file = this.app.vault.getAbstractFileByPath(this.runCoveragePath);
-		const held = file instanceof TFile ? parseRunCoverage(await this.app.vault.cachedRead(file)) : null;
+	async readDetailCoverage(): Promise<DetailCoverage> {
+		const file = this.app.vault.getAbstractFileByPath(this.detailCoveragePath);
+		const held = file instanceof TFile ? parseDetailCoverage(await this.app.vault.cachedRead(file)) : null;
 		if (held) return held;
-		const runs: RunCoverage = new Map();
+		const files: DetailCoverage = new Map();
 		for (const id of await this.activityDetailIds()) {
 			const detail = this.app.vault.getAbstractFileByPath(this.activityDetailPath(id));
 			if (!(detail instanceof TFile)) continue;
 			const version = detailVersionOf(await this.app.vault.cachedRead(detail));
-			if (version !== undefined) runs.set(id, version);
+			if (version !== undefined) files.set(id, version);
 		}
-		await this.put(this.runCoveragePath, serializeRunCoverage(runs));
-		return runs;
+		await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
+		return files;
 	}
 
 	get scanPath(): string {
@@ -294,12 +294,12 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	/**
 	 * Bytes on disk under the data folder, by data set, from the vault's own
-	 * file sizes: Day details are the day files and series, Run details the
-	 * runs' pages, Charts & trends the indexes, and the rest is the small
+	 * file sizes: Day details are the day files and series, Activity details
+	 * the activities' pages, Charts & trends the indexes, and the rest is the small
 	 * bookkeeping files.
 	 */
 	diskUsage(): DiskUsage {
-		const usage: DiskUsage = { charts: 0, days: 0, runs: 0, other: 0, total: 0, files: 0 };
+		const usage: DiskUsage = { charts: 0, days: 0, details: 0, other: 0, total: 0, files: 0 };
 		const root = this.app.vault.getAbstractFileByPath(this.join(""));
 		if (!(root instanceof TFolder)) return usage;
 		const charts = new Set([ACTIVITIES_FOLDER, DAILY_STATS_FOLDER, SLEEP_FOLDER, ...DAY_INDEXES.map((def) => def.folder)]);
@@ -315,7 +315,7 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		};
 		for (const child of root.children) {
 			if (child instanceof TFolder) {
-				const set = child.name === DAYS_FOLDER || child.name === SERIES_FOLDER ? "days" : child.name === ACTIVITY_DETAILS_FOLDER ? "runs" : charts.has(child.name) ? "charts" : "other";
+				const set = child.name === DAYS_FOLDER || child.name === SERIES_FOLDER ? "days" : child.name === ACTIVITY_DETAILS_FOLDER ? "details" : charts.has(child.name) ? "charts" : "other";
 				walk(child, set);
 			} else if (child instanceof TFile) {
 				usage.other += child.stat.size;

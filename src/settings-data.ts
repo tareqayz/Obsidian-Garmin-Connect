@@ -1,5 +1,5 @@
 import type { GarminDomain } from "./garmin/constants";
-import { DEFAULT_DAY_DETAILS, DEFAULT_RUN_DETAILS, type ConsentKey, type DayDetailsRange, type RunDetailsRange } from "./sync/datasets";
+import { DEFAULT_ACTIVITY_DETAILS, DEFAULT_DAY_DETAILS, type ActivityDetailsRange, type ConsentKey, type DayDetailsRange } from "./sync/datasets";
 import type { MetricGroup } from "./sync/metrics";
 import { ALL_GROUPS } from "./sync/metrics";
 import type { SyncSpeed } from "./sync/speed";
@@ -35,7 +35,7 @@ export interface SetupState {
  */
 export interface DataChoices {
 	dayDetails: DayDetailsRange;
-	runDetails: RunDetailsRange;
+	activityDetails: ActivityDetailsRange;
 	/** Agreed to: their gaps fill without asking. */
 	accepted: ConsentKey[];
 	/** Put off with Later: listed in Settings → Data, not asked about again. */
@@ -43,7 +43,7 @@ export interface DataChoices {
 }
 
 export function defaultData(): DataChoices {
-	return { dayDetails: DEFAULT_DAY_DETAILS, runDetails: DEFAULT_RUN_DETAILS, accepted: [], deferred: [] };
+	return { dayDetails: DEFAULT_DAY_DETAILS, activityDetails: DEFAULT_ACTIVITY_DETAILS, accepted: [], deferred: [] };
 }
 
 export interface GarminSettings {
@@ -61,7 +61,7 @@ export interface GarminSettings {
 	syncOnStartup: boolean;
 	/** Null until the setup ran: the wizard then opens on the first enable, and Home offers it. */
 	setup: SetupState | null;
-	/** What to keep, and the consent ledger. Replaced `downloadRuns` (`runDetails`). */
+	/** What to keep, and the consent ledger. Replaced `downloadRuns`, then `runDetails` (now `activityDetails`). */
 	data: DataChoices;
 	/**
 	 * Draw OpenStreetMap's map under an activity's route. Off, the route is

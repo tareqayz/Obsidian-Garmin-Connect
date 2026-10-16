@@ -599,10 +599,11 @@ every activity on the account, with Garmin's raw numbers:
 ```jsonc
 // 2026.json — newest first, one activity per line, keys always in this order.
 {
-	"version": 1,
+	"version": 3,
 	"year": 2026,
 	"activities": [
-		{"id":20460000001,"name":"Morning Run","type":"running","typeId":1,"parentTypeId":17,"start":"2026-10-03T14:59:19","begin":1791025159000,"distance":8008.75,"duration":2493.64,"ascent":52,"calories":543}
+		{"id":20460000002,"name":"Pool Swim","type":"lap_swimming","typeId":27,"parentTypeId":26,"start":"2026-10-04T07:02:10","begin":1791090130000,"distance":1100,"duration":1900.42,"calories":274,"pool":"m"},
+		{"id":20460000001,"name":"Morning Run","type":"running","typeId":1,"parentTypeId":17,"start":"2026-10-03T14:59:19","begin":1791025159000,"distance":8008.75,"duration":2493.64,"ascent":52,"calories":543,"event":"race","favorite":true,"pr":true}
 	]
 }
 ```
@@ -624,9 +625,14 @@ every activity on the account, with Garmin's raw numbers:
 | `load` | — | `activityTrainingLoad`, the exercise load |
 | `power` | W | A ride's best average power by duration in seconds: `maxAvgPower_1` … `maxAvgPower_7200`, and `maxAvgPower_18000` if Garmin sends it (no 5-hour ride seen) |
 | `noPowerCurve` | — | `true` when the rider left the ride out of the power curve (`excludeFromPowerCurveReports`) |
+| `event` | — | `eventType.typeKey`: `race`, `training`, `transportation`…; left out when `uncategorized`. All Activities' Event Type filter |
+| `favorite` | — | `true` for an activity marked a favourite (`favorite`) |
+| `pr` | — | `true` while the activity holds a personal record (`pr`): one since beaten loses it at the next listing |
+| `pool` | — | A pool swim's length unit, `m` or `yd` (`unitOfPoolLength.unitKey`): its card reads in that unit |
 
 Numbers are rounded to two decimals, past anything a page shows; a key is left
-out when the activity has nothing for it. `index.json` holds `complete` (the
+out when the activity has nothing for it. The favourite and record flags are as of
+the last listing: a sync refreshes the newest page, **Sync activity history** the rest. `index.json` holds `complete` (the
 index has the whole history), `units` (the account's, at the last sync) and
 `total` (how long the list was when last counted).
 
@@ -647,9 +653,11 @@ triathlon counts once, under Multisport.
 
 ### Activity details — `activity-details/`
 
-A run's page needs far more than its index row. The first time it opens, the
-plugin asks Garmin for the rest, ten requests made between syncs, and keeps the
-answer in one file per activity:
+An activity's page needs far more than its index row. The first time it opens,
+the plugin asks Garmin for the rest, up to eleven requests made between syncs
+(a run or a ride eleven, an open-water swim nine, a pool swim, yoga or a Stair
+Stepper eight: what doesn't apply isn't asked), and keeps the answer in one file
+per activity:
 
 ```
 <dataFolder>/activity-details/12345678901.json
@@ -657,34 +665,41 @@ answer in one file per activity:
 
 | Key | Holds | Source (`/activity-service/activity/{id}` unless named) |
 | --- | --- | --- |
-| `version` | The file's layout. A file of another version reads as missing and is fetched again | — |
+| `version` | The file's layout, 6. A run's file of version 5 is kept and reads as 6 with its summary and badges left to fetch (two requests); any other file of another version reads as missing and is fetched again | — |
 | `id`, `name`, `type`, `typeId`, `parentTypeId`, `start`, `startGmt`, `timeZone`, `privacy`, `notes`, `deviceVersionPk`, `windData` | The activity | the summary |
-| `summary` | The summary's figures as Garmin sent them, unrounded, so a page rounds once | the summary |
-| `samples` | The recorded samples as columns of equal length, in Garmin's units: `time`, `distance`, `hr`, `speed`, `gap`, `cadence`, `stride`, `vo`, `vr`, `gct`, `elevation`, `power`, `stamina`, `potential`, `performance`, `impact`, `breaths`, `gctBalance`, `speedLoss`, `speedLossPct`, `lat`, `lon`, and `clock`, seconds since the start, pauses included. A column the watch didn't record is left out; `null` is a gap | `/details` |
-| `laps` | Each lap's figures, unrounded | `/splits` |
+| `hasPolyline`, `hasPowerZones` | Whether it has a GPS track (a map) and time in power zones: without them the page draws no map and the weather and power zones aren't asked | the summary's `metadataDTO` |
+| `pool` | A pool swim's pool: `length` and `unit` (`m` or `yd`) | the summary's `poolLength`, `unitOfPoolLength` |
+| `summary` | The summary's figures as Garmin sent them, unrounded, so a page rounds once: a ride's power, balance, power phases and platform offsets, Intensity Factor and Training Stress Score; a swim's strokes, Swolf and stroke rate; temperatures | the summary |
+| `samples` | The recorded samples as columns of equal length, in Garmin's units: `time`, `distance`, `hr`, `speed`, `gap`, `cadence`, `stride`, `vo`, `vr`, `gct`, `elevation`, `power`, `stamina`, `potential`, `performance`, `impact`, `breaths`, `gctBalance`, `speedLoss`, `speedLossPct`, `lat`, `lon`; a ride's `bikeCadence`, `balanceRight` (the right pedal's share, %), the power phase angles `ppStartL`, `ppEndL`, `pppStartL`, `pppEndL` and their `…R`, and the platform centre offsets `pcoL`, `pcoR` (mm); a swim's `strokeRate`; `temperature` (°C); and `clock`, seconds since the start, pauses included. A column the watch didn't record is left out; `null` is a gap | `/details` |
+| `laps` | Each lap's figures, unrounded: a ride's cadence, max and normalized power; a pool swim's strokes, Swolf and stroke rate, its `lengths` one by one, and `rest` on a rest | `/splits` |
+| `positions` | A ride's rider positions: when each stretch of standing or sitting began, seconds on `clock` | `/splits`' events |
 | `segments` | Run, walk and idle stretches, and workout intervals | `/typedsplits` |
 | `hrZones`, `powerZones` | Seconds in each zone, with its bounds | `/hrTimeInZones`, `/powerTimeInZones` |
 | `weather` | Temperature and feels-like (°F), humidity, wind speed, gusts and direction, and Garmin's description | `/weather` |
 | `gear` | The gear on the activity | `/gear-service/gear/filterGear` |
 | `device` | The watch, and the firmware it was recorded on | `/device-service/deviceservice/app-info/{versionPk}` |
+| `sensors` | The sensors it recorded with: a name from Garmin's product catalogue ("Rally 100/200"), its firmware and battery. Never a serial number | the summary's `metadataDTO.sensors` |
+| `badges` | The badges it earned: the name and Garmin's key | `/badge-service/badge/{displayName}/earned/activity/{id}` |
 | `weightKg` | The newest weigh-in on or before the activity's day, for Power (W/kg) | `/weight-service/weight/latest` |
 | `checked` | The blocks Garmin answered, with data or without | — |
 
 How it fills:
 
-- When a run's page opens, with a session and the `workouts` group on. The
-  loads wait for a sync to finish, go at the sync speed's pace, and
+- When an activity's page opens, with a session and the `workouts` group on.
+  The loads wait for a sync to finish, go at the sync speed's pace, and
   stop at a 429 until the next view.
-- With **Run details** set to a range, for every run in it without a file of
-  today's version, newest first, by the history download — the pages' loads
-  first, then one run every two seconds or more, pausing after a 429.
+- With **Activity details** set to a range, for every activity in it without a
+  file of today's version, newest first, by the history download — the pages'
+  loads first, then one activity every two seconds or more, pausing after a 429.
+  A vault that agreed to the older Run details keeps downloading runs until the
+  new key is agreed to.
 - Opened again, the page reads the file and asks nothing. A block missing from
   `checked` (its request failed) is asked for again; when the index shows the
   activity renamed or trimmed (its name, distance or duration changed), the
   whole file is fetched afresh.
 - It is rewritten only when its content changes.
-- `lat` and `lon` are where you ran. Deleting the folder removes them; a page
-  opened later fetches its file again.
+- `lat` and `lon` are where you ran, rode or swam. Deleting the folder removes
+  them; a page opened later fetches its file again.
 
 ## History indexes
 

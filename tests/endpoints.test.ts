@@ -522,6 +522,19 @@ describe("activity details", () => {
 		]);
 	});
 
+	it("asks for an activity's badges by the display name, and for the lookup tables", async () => {
+		const { http, client } = await api([profile, { url: HOST, json: [] }]);
+		assert.deepEqual(await client.activityBadges(ID), []);
+		assert.deepEqual(await client.activityTypes(), []);
+		assert.deepEqual(await client.eventTypes(), []);
+		assert.deepEqual(http.urls.filter((u) => !u.includes("socialProfile")).slice(-3), [
+			`${HOST}/badge-service/badge/abc-123/earned/activity/12345678901`,
+			`${HOST}/activity-service/activity/activityTypes`,
+			`${HOST}/activity-service/activity/eventTypes`,
+		]);
+		await assert.rejects(() => client.activityBadges(-1), TypeError);
+	});
+
 	it("rejects an id that is not a positive integer before it reaches Garmin", async () => {
 		const { http, client } = await api([]);
 		const before = http.urls.length;

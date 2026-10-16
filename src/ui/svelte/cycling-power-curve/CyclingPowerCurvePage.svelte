@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cyclingPowerCurveView } from "../../../dashboard/cycling-power-curve-pages";
+	import { activityRoute } from "../../../dashboard/routes";
 	import StatLegend from "../health/StatLegend.svelte";
 	import StatPageShell from "../health/StatPageShell.svelte";
 	import StatTable from "../health/StatTable.svelte";
@@ -15,8 +16,8 @@
 	 *
 	 * Under the compact 4w · 3m · 1y control and the period: the chart's
 	 * title and, for a period without a ride, its empty line; the curve; its
-	 * legend; the records table, all 15 durations from the Record, whose
-	 * dates open nothing (rides have no page yet); and the explainer. A pane
+	 * legend; the records table, all 15 durations from the Record, each date
+	 * opening its ride; and the explainer. A pane
 	 * keeps the title, the chart and the table in the 748 pt column and puts
 	 * the legend and the explainer in the 370 pt one, the legend level with
 	 * the top gridline.
@@ -24,7 +25,7 @@
 	 * Everything comes from the activity index, so the page works offline and
 	 * fetches nothing on view.
 	 */
-	let { route, today, onBack, swap, activities }: PerformanceStatPageProps = $props();
+	let { route, today, onBack, go, swap, activities }: PerformanceStatPageProps = $props();
 
 	let view = $derived(cyclingPowerCurveView(route, activities.rows, { today, complete: activities.complete }));
 	/* The legend's markers: the period's line colour, and the Record's line colour. */
@@ -32,7 +33,12 @@
 		{ label: view.legend.period, shape: "circle" as const, color: "var(--color-blue)" },
 		{ label: view.legend.record, shape: "circle" as const, color: "var(--text-faint)" },
 	]);
-	let rows = $derived(view.table.rows.map((row) => ({ key: String(row.seconds), cells: [row.peak, row.watts, row.date] })));
+	let rows = $derived(
+		view.table.rows.map((row) => {
+			const id = row.id;
+			return { key: String(row.seconds), cells: [row.peak, row.watts, row.date], ...(id !== undefined ? { onclick: () => go(activityRoute(id)) } : {}) };
+		}),
+	);
 </script>
 
 <StatPageShell {route} {today} label={view.label} canGoBack={view.canGoBack} canGoForward={view.canGoForward} {onBack} {swap}>
@@ -97,7 +103,6 @@
 		font-size: 11px;
 		line-height: 14px;
 	}
-	/* Its rows have no `onclick`, so StatTable mutes the dates: a date opens nothing. */
 	.pc-records {
 		margin-top: 16px;
 	}

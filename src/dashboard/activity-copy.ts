@@ -45,3 +45,12 @@ const BENEFIT_MESSAGES: Readonly<Record<string, string>> = {
 export function benefitMessage(label: unknown): string | null {
 	return typeof label === "string" ? (BENEFIT_MESSAGES[label] ?? null) : null;
 }
+
+/**
+ * Badge descriptions, the app's own copy by Garmin's badge key: no badge route
+ * returns them (ref/activity-details/road-cycling/README.md, API additions), so
+ * only those seen on the phone are here. Any other badge shows its name alone.
+ */
+export const BADGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	cycle_climb_500ft: "Climb 500 feet during a cycling activity.",
+};

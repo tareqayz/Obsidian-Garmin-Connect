@@ -3,8 +3,8 @@
 	"path": "/activity-service/activity/{activityId}/powerTimeInZones",
 	"plugin": "GarminApi.activityPowerZones",
 	"firstRecorded": "2026-10-10T16:41:42.590Z",
-	"updatedAt": "2026-10-10T16:41:42.590Z",
-	"samples": 2,
+	"updatedAt": "2026-10-15T08:17:07.212Z",
+	"samples": 3,
 	"shape": {
 		"type": [
 			"array"

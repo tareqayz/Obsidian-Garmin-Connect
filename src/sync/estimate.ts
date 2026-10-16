@@ -1,6 +1,8 @@
+import { CHANGED_IN_6 } from "./activity-detail";
 import type { Span } from "./coverage";
 import { versionOn } from "./coverage";
-import { DAY_DETAILS_VERSION, RUN_DETAILS_VERSION, rangeStart, type DataSetId, type DayDetailsRange, type RunDetailsRange } from "./datasets";
+import type { DetailCandidate } from "./backfill";
+import { ACTIVITY_DETAILS_VERSION, DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DataSetId, type DayDetailsRange } from "./datasets";
 import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
 import { endpointsFor, type MetricGroup } from "./metrics";
@@ -10,7 +12,7 @@ import { secondsPerDay, SYNC_SPEEDS, type SyncSpeed } from "./speed";
 /**
  * How much a choice of data sets stores and how long its backfill takes, for
  * the setup and Settings → Data. Sizes were measured on a vault of 439 days
- * and 233 runs on 2026-10-14; times follow the sync speed and the backfill's
+ * and 233 run pages on 2026-10-14; times follow the sync speed and the backfill's
  * hourly budget. Every figure is an estimate, shown as "about".
  *
  * Pure.
@@ -20,14 +22,18 @@ import { secondsPerDay, SYNC_SPEEDS, type SyncSpeed } from "./speed";
 export const DAY_FILE_BYTES = 3_700;
 /** A day's full timelines: the median series file with intraday. */
 export const TIMELINE_BYTES = 40_000;
-/** A run's page. */
-export const RUN_BYTES = 154_000;
+/** An activity's page: a run's, as measured. */
+export const DETAIL_BYTES = 154_000;
 /** A row on the activity list. */
 export const ACTIVITY_ROW_BYTES = 355;
-/** Requests a run's page takes. */
-export const RUN_REQUESTS = 10;
-/** A run downloads no faster than one each this long: a pause between runs, and its requests. */
-export const RUN_SECONDS = 2.85;
+/** Requests an activity's page takes: a run's or a ride's, the most (a pool swim or yoga skips three). */
+export const DETAIL_REQUESTS = 11;
+/** An activity downloads no faster than one each this long: a pause between them, and its requests. */
+export const DETAIL_SECONDS = 2.85;
+/** A run's page saved by the version before: only what changed, kept in the same file (`CHANGED_IN_6`). */
+export const UPGRADE_REQUESTS = CHANGED_IN_6.length;
+/** …and its pause, with two requests instead of eleven. */
+export const UPGRADE_SECONDS = 2.15;
 /** How long one window of a history walk waits on Garmin. */
 export const WINDOW_SECONDS = 0.6;
 /** Day chunks are sized to take about this long, so a sync never waits longer for one. */
@@ -93,8 +99,8 @@ export function withBudget(requests: number, seconds: number, speed: SyncSpeed):
 export interface Held {
 	/** The day coverage's spans. */
 	daySpans?: readonly Span[];
-	/** The run coverage: file version by run. */
-	runs?: ReadonlyMap<number, number>;
+	/** The activity details' coverage: file version by activity. */
+	details?: ReadonlyMap<number, number>;
 	/** The chart indexes' metas by store (`index:<kind>`, `daily-stats`, `sleep`, `activities`): complete, or how far back they reach. */
 	charts?: ReadonlyMap<string, { complete: boolean; from?: string }>;
 }
@@ -105,20 +111,20 @@ export interface EstimateInput {
 	speed: SyncSpeed;
 	scan: AccountScan;
 	dayDetails: DayDetailsRange;
-	runDetails: RunDetailsRange;
-	/** The runs on the activity index, by local day: what Run details would download. */
-	runs: ReadonlyArray<{ id: number; date: string }>;
+	activityDetails: ActivityDetailsRange;
+	/** The activities on the index, by local day: what Activity details would download. */
+	activities: readonly DetailCandidate[];
 	held?: Held;
 }
 
 export interface SetEstimate {
 	id: DataSetId;
-	/** Days, or runs, to fetch. */
+	/** Days, or activities, to fetch. */
 	units: number;
 	bytes: number;
 	requests: number;
 	seconds: number;
-	/** What keeping every new day, or run, adds a year. */
+	/** What keeping every new day, or activity, adds a year. */
 	bytesPerYear: number;
 }
 
@@ -134,7 +140,7 @@ export interface Estimate {
 
 export function estimate(input: EstimateInput): Estimate {
 	const start = historyStart(input.scan);
-	const parts = [charts(input, start), dayDetails(input, start), runDetails(input, start)];
+	const parts = [charts(input, start), dayDetails(input, start), activityDetails(input, start)];
 	const sets = parts.map((part) => part.set);
 	const requests = sum(sets, (s) => s.requests);
 	// The budget holds across the whole backfill, not set by set.
@@ -150,16 +156,23 @@ export function estimate(input: EstimateInput): Estimate {
 	};
 }
 
-/** What one store's fetch costs: a chart index's walk over `units` days, Day details' `units` days, or Run details' `units` runs. */
-export function costOf(item: { set: DataSetId; store: string; units: number }, groups: readonly MetricGroup[], speed: SyncSpeed): { requests: number; bytes: number; seconds: number } {
+/** What one store's fetch costs: a chart index's walk over `units` days, Day details' `units` days, or Activity details' `units` activities. */
+export function costOf(
+	item: { set: DataSetId; store: string; units: number; upgrades?: number },
+	groups: readonly MetricGroup[],
+	speed: SyncSpeed,
+): { requests: number; bytes: number; seconds: number } {
 	const preset = SYNC_SPEEDS[speed];
 	let requests = 0;
 	let bytes = 0;
 	let raw = 0;
-	if (item.set === "run-details") {
-		requests = item.units * RUN_REQUESTS;
-		bytes = item.units * RUN_BYTES;
-		raw = item.units * RUN_SECONDS;
+	if (item.set === "activity-details") {
+		// A run saved by the version before is kept: two requests, and its file stays its size.
+		const upgrades = Math.min(item.upgrades ?? 0, item.units);
+		const full = item.units - upgrades;
+		requests = full * DETAIL_REQUESTS + upgrades * UPGRADE_REQUESTS;
+		bytes = full * DETAIL_BYTES;
+		raw = full * DETAIL_SECONDS + upgrades * UPGRADE_SECONDS;
 	} else if (item.set === "day-details") {
 		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups, speed)) : 0;
 		requests = item.units * requestsPerDay(groups) + chunks * requestsPerChunk(groups);
@@ -270,24 +283,24 @@ function dayDetails(input: EstimateInput, start: string | undefined): Part {
 	};
 }
 
-/** Each run in the range without a file of today's version. */
-function runDetails(input: EstimateInput, start: string | undefined): Part {
-	const from = rangeStart(input.runDetails, input.today, start);
-	const held = input.held?.runs;
-	const units = from ? input.runs.filter((run) => run.date >= from && held?.get(run.id) !== RUN_DETAILS_VERSION).length : 0;
+/** Each activity in the range without a file of today's version. */
+function activityDetails(input: EstimateInput, start: string | undefined): Part {
+	const from = rangeStart(input.activityDetails, input.today, start);
+	const held = input.held?.details;
+	const units = from ? input.activities.filter((a) => a.date >= from && held?.get(a.id) !== ACTIVITY_DETAILS_VERSION).length : 0;
 	const lastYear = shiftDate(input.today, -364);
-	const runsPerYear = input.runs.filter((run) => run.date >= lastYear).length;
-	const requests = units * RUN_REQUESTS;
-	const raw = units * RUN_SECONDS;
+	const perYear = input.activities.filter((a) => a.date >= lastYear).length;
+	const requests = units * DETAIL_REQUESTS;
+	const raw = units * DETAIL_SECONDS;
 	return {
 		raw,
 		set: {
-			id: "run-details",
+			id: "activity-details",
 			units,
-			bytes: units * RUN_BYTES,
+			bytes: units * DETAIL_BYTES,
 			requests,
 			seconds: withBudget(requests, raw, input.speed),
-			bytesPerYear: input.runDetails === "opened" ? 0 : runsPerYear * RUN_BYTES,
+			bytesPerYear: input.activityDetails === "opened" ? 0 : perYear * DETAIL_BYTES,
 		},
 	};
 }

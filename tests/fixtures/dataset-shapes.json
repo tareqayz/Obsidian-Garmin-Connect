@@ -44,8 +44,8 @@
 			"seriesFile": 1
 		}
 	},
-	"runs": {
-		"version": 5,
+	"activity-details": {
+		"version": 6,
 		"shape": {
 			"blocks": [
 				"summary",
@@ -57,12 +57,13 @@
 				"weather",
 				"gear",
 				"device",
-				"weight"
+				"weight",
+				"badges"
 			]
 		}
 	},
 	"activities": {
-		"version": 2,
+		"version": 3,
 		"shape": null
 	},
 	"daily-stats": {

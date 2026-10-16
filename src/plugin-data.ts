@@ -3,7 +3,7 @@ import { readGlance, type GlanceId } from "./dashboard/glance";
 import { DEFAULT_PRESET, isPresetId, type MoreId, type PresetId } from "./dashboard/home";
 import type { PersistedAuth, TokenStore } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, defaultData, SETTINGS_VERSION, type DataChoices, type GarminSettings, type SetupState } from "./settings-data";
-import { chartKeys, isDayDetailsRange, isRunDetailsRange, parseConsentKey, RUN_DETAILS_KEY } from "./sync/datasets";
+import { chartKeys, isActivityDetailsRange, isDayDetailsRange, LEGACY_RUNS_KEY, parseConsentKey } from "./sync/datasets";
 import type { LegacyNotes } from "./sync/import-notes";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { isSyncSpeed, speedFromPause } from "./sync/speed";
@@ -43,7 +43,8 @@ function dataOf(v: unknown): DataChoices {
 	const d = defaultData();
 	return {
 		dayDetails: isDayDetailsRange(raw.dayDetails) ? raw.dayDetails : d.dayDetails,
-		runDetails: isRunDetailsRange(raw.runDetails) ? raw.runDetails : d.runDetails,
+		// `runDetails` is the same choice from when only runs had a page.
+		activityDetails: isActivityDetailsRange(raw.activityDetails) ? raw.activityDetails : isActivityDetailsRange(raw.runDetails) ? raw.runDetails : d.activityDetails,
 		accepted: keys(raw.accepted),
 		deferred: keys(raw.deferred),
 	};
@@ -197,8 +198,8 @@ export class PluginData implements TokenStore {
 			];
 		}
 		if (this.settings.settingsVersion < 5) {
-			// "Download runs" became the Run details range.
-			this.settings.data = { ...defaultData(), runDetails: downloadRuns ? "all" : "opened" };
+			// "Download runs" became the Run details range, now Activity details'.
+			this.settings.data = { ...defaultData(), activityDetails: downloadRuns ? "all" : "opened" };
 			// A vault that was already syncing is set up: no wizard. Its charts
 			// were walked already; its runs were if Download runs was on. Its day
 			// details are left for the first update dialog, which offers the
@@ -206,7 +207,8 @@ export class PluginData implements TokenStore {
 			if (this.auth) {
 				this.settings.setup = { completedAt: new Date().toISOString(), migrated: true };
 				this.settings.data.dayDetails = "30d";
-				this.settings.data.accepted = [...chartKeys(this.settings.groups), ...(downloadRuns ? [RUN_DETAILS_KEY] : [])];
+				// Download runs agreed to runs: the legacy key keeps them coming, and the other sports are asked about.
+				this.settings.data.accepted = [...chartKeys(this.settings.groups), ...(downloadRuns ? [LEGACY_RUNS_KEY] : [])];
 			}
 		}
 		this.settings.settingsVersion = SETTINGS_VERSION;

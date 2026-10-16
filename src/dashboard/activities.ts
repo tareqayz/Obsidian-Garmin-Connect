@@ -1,7 +1,8 @@
 import type { AccountInfo } from "../sync/account";
+import { groupOf, typeName } from "./activity-types";
 import { PR_TYPES } from "../sync/account";
 import type { ActivityRow } from "../sync/activity-index";
-import { shortDate, titleCase } from "./day";
+import { shortDate } from "./day";
 import { lastDayOfMonth, MONTHS, shiftMonth } from "./periods";
 import { duration, shiftDate } from "./series";
 
@@ -44,6 +45,15 @@ export type SportGlyph =
 	| "walk"
 	| "medal"
 	| "shoe"
+	| "link"
+	| "scuba-diving"
+	| "snowflake"
+	| "wheelchair"
+	| "ripple"
+	| "ball-football"
+	| "ball-tennis"
+	| "asterisk"
+	| "chevrons-right"
 	| "activity";
 
 export interface Category {
@@ -69,7 +79,7 @@ export const CATEGORIES: readonly Category[] = [
 	{ id: "swimming", title: "Swimming", typeId: 26, metrics: ["distance", "time"], records: "swimming", glyph: "swimming" },
 	{ id: "hiking", title: "Hiking", typeId: 3, metrics: ALL_METRICS, glyph: "trekking" },
 	// Never seen in the app with data; given the running tabs until it is.
-	{ id: "multisport", title: "Multisport", typeId: 89, metrics: ALL_METRICS, glyph: "medal" },
+	{ id: "multisport", title: "Multisport", typeId: 89, metrics: ALL_METRICS, glyph: "link" },
 	{ id: "other", title: "Other", metrics: ["time"], glyph: "activity" },
 ];
 
@@ -85,6 +95,11 @@ export const METRIC_TITLE: Record<MetricId, string> = {
 };
 
 const BRANCH: Record<number, CategoryId> = { 1: "running", 2: "cycling", 29: "gym", 26: "swimming", 3: "hiking", 89: "multisport" };
+
+/** The hub's page for one of Garmin's filter groups (`groupOf`), where the hub has one. */
+export function hubOfGroup(group: number): CategoryId | undefined {
+	return Object.prototype.hasOwnProperty.call(BRANCH, group) ? BRANCH[group] : undefined;
+}
 
 /**
  * Which hub category an activity falls under: its own type or the one above
@@ -108,15 +123,9 @@ export function categoryOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTyp
 }
 
 /** Garmin's own names where its key says something else. */
-const TYPE_LABEL: Record<string, string> = {
-	lap_swimming: "Pool Swimming",
-	road_biking: "Road Cycling",
-	hiit: "HIIT",
-	multi_sport: "Multisport",
-};
-
+/** A type's name as the app gives it (`activity-types.ts`): "Pool Swimming", "Stair Stepper". */
 export function typeLabel(type: string): string {
-	return TYPE_LABEL[type] ?? titleCase(type) ?? type;
+	return typeName({ type });
 }
 
 export interface SubTypeOption {
@@ -501,45 +510,26 @@ export function monthView(input: Omit<CategoryInput, "range" | "offset" | "today
 	};
 }
 
-export interface AllItem {
-	id: number;
-	name: string;
-	when: string;
-	glyph: SportGlyph;
-	/** "41:34". */
-	time?: string;
-	/** "8.01 km". Activities without one show only the time. */
-	distance?: string;
-	/** A run, which opens its activity page. Other sports have none yet. */
-	opens?: boolean;
-}
-
-/** All Activities: everything, newest first. */
-export function allActivities(rows: readonly ActivityRow[], units: Units): AllItem[] {
-	return sorted(rows).map((r) => {
-		const item: AllItem = { id: r.id, name: r.name ?? typeLabel(r.type), when: dateTimeLabel(r.start), glyph: glyphOf(r) };
-		if (r.duration !== undefined) item.time = duration(r.duration);
-		if (r.distance !== undefined) item.distance = formatDistance(r.distance, units, 2, true);
-		if (categoryOf(r) === "running") item.opens = true;
-		return item;
-	});
+/**
+ * The activity a day note's workout is, for Home's Today's Activity cards,
+ * which carry no id: matched on the start to the minute (the note keeps
+ * minutes, the index seconds) and the name. A name that differs is trusted
+ * only when one activity started that minute.
+ */
+export function activityIdFor(rows: readonly ActivityRow[], start: string | undefined, name: string | undefined): number | null {
+	if (!start || start.length < 16) return null;
+	const minute = start.slice(0, 16);
+	const started = rows.filter((r) => r.start.slice(0, 16) === minute);
+	const named = started.find((r) => name !== undefined && (r.name ?? typeLabel(r.type)) === name);
+	return (named ?? (started.length === 1 ? started[0] : undefined))?.id ?? null;
 }
 
 /**
- * The run a day note's workout is, for Home's Today's Activity cards, which
- * carry no id: matched on the start to the minute (the note keeps minutes, the
- * index seconds) and the name. Only a run has a page to open, so only a run is
- * matched; a name that differs is trusted only when one run started that minute.
+ * The figure an activity is drawn with: its type's own where the app gives
+ * one, else its filter group's (ref/activities/all-activities, the groups'
+ * icons). Gym types without their own are the barbell; Other's are Lucide's
+ * `activity`.
  */
-export function runIdFor(rows: readonly ActivityRow[], start: string | undefined, name: string | undefined): number | null {
-	if (!start || start.length < 16) return null;
-	const minute = start.slice(0, 16);
-	const runs = rows.filter((r) => r.start.slice(0, 16) === minute && categoryOf(r) === "running");
-	const named = runs.find((r) => name !== undefined && (r.name ?? typeLabel(r.type)) === name);
-	return (named ?? (runs.length === 1 ? runs[0] : undefined))?.id ?? null;
-}
-
-/** The figure an activity is drawn with. */
 export function glyphOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTypeId">): SportGlyph {
 	const key = row.type;
 	if (key === "treadmill_running") return "treadmill";
@@ -547,22 +537,36 @@ export function glyphOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTypeId
 	if (/^(yoga|pilates|meditation|breathwork)$/.test(key)) return "yoga";
 	if (key === "stair_climbing" || key === "floor_climbing") return "stairs-up";
 	if (key === "mobility") return "stretching";
+	if (/transition_v2$/i.test(key)) return "chevrons-right";
 	if (/walking/.test(key)) return "walk";
 	switch (categoryOf(row)) {
 		case "running":
 			return "run";
 		case "cycling":
 			return "bike";
+		case "gym":
+			return "barbell";
 		case "swimming":
 			return "swimming";
 		case "hiking":
 			return "trekking";
 		case "multisport":
-			return "medal";
+			return "link";
 		default:
-			return "activity";
+			return GROUP_GLYPH[groupOf(row)] ?? "activity";
 	}
 }
+
+/** The figures of the filter groups the hub files under Other, by group id; Other's own types keep `activity`. */
+const GROUP_GLYPH: Readonly<Record<number, SportGlyph>> = {
+	144: "scuba-diving",
+	165: "snowflake",
+	199: "wheelchair",
+	228: "ripple",
+	206: "ball-football",
+	219: "ball-tennis",
+	157: "asterisk",
+};
 
 /* ------------------------------------------------------------------ */
 /*  Personal Records                                                   */
