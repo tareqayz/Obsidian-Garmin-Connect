@@ -8,6 +8,7 @@ import { healthStatRoute, performanceStatRoute, sleepRoute, statsRoute } from ".
 import { commandTitle } from "./dashboard/stat-registry";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GarminApi, toIsoDate } from "./garmin/endpoints";
+import { SecretTokenStore, SESSION_SECRET } from "./garmin/secret-token-store";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
@@ -37,7 +38,7 @@ import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it. */
 const STARTUP_SYNC_DELAY_MS = 5000;
-/** What an uninstalled plugin leaves on this device besides the vault: the map tiles and the device's id. */
+/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id and its Garmin session. */
 function forgetThisDevice(app: App): void {
 	try {
 		window.indexedDB.deleteDatabase(TILE_DB);
@@ -45,17 +46,23 @@ function forgetThisDevice(app: App): void {
 		// Nothing to clear.
 	}
 	app.saveLocalStorage(DEVICE_KEY, null);
+	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
+	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
 /** The backfill carries on after the startup sync has had its turn. */
 const STARTUP_BACKFILL_DELAY_MS = 8000;
 /** Where this device keeps its id, for the backfill's lease. Per vault and device, never synced. */
 const DEVICE_KEY = "garmin-connect-device";
+/** Set when Home's "Not signed in on this device" card was put away here: a device that only reads what another syncs. */
+const SIGN_IN_CARD_KEY = "garmin-connect-hide-sign-in";
 
 export default class GarminPlugin extends Plugin {
 	data!: PluginData;
 	garmin!: GarminApi;
 	sync!: SyncRunner;
+	/** This device's Garmin session, in Obsidian's keychain rather than data.json. */
+	tokens!: SecretTokenStore;
 
 	async onload(): Promise<void> {
 		registerGarminIcon();
@@ -63,7 +70,8 @@ export default class GarminPlugin extends Plugin {
 		// The activity maps add Leaflet's stylesheet when they first draw.
 		this.register(removeLeafletStyles);
 
-		this.data = new PluginData(this);
+		this.tokens = new SecretTokenStore(this.app);
+		this.data = new PluginData(this, this.tokens);
 		await this.data.init();
 
 		this.buildClient();
@@ -349,7 +357,21 @@ export default class GarminPlugin extends Plugin {
 
 	/** Signed in or out: open views redraw what depends on it, and a backfill waiting for the sign-in carries on. */
 	authChanged(): void {
-		if (this.garmin.isAuthenticated) void this.sync.signedIn();
+		if (this.garmin.isAuthenticated) {
+			this.app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
+			void this.sync.signedIn();
+		}
+		this.refreshViews();
+	}
+
+	/** Whether Home's "Not signed in on this device" card was put away on this device. */
+	get signInCardHidden(): boolean {
+		return this.app.loadLocalStorage(SIGN_IN_CARD_KEY) === "1";
+	}
+
+	/** Puts that card away on this device, for one that only reads what another syncs. */
+	hideSignInCard(): void {
+		this.app.saveLocalStorage(SIGN_IN_CARD_KEY, "1");
 		this.refreshViews();
 	}
 
@@ -420,7 +442,7 @@ export default class GarminPlugin extends Plugin {
 	buildClient(): void {
 		this.garmin = new GarminApi({
 			http: new ObsidianHttpClient(),
-			store: this.data,
+			store: this.tokens,
 			domain: this.data.settings.domain,
 		});
 		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());

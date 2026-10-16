@@ -18,6 +18,7 @@ import {
 	GarminMfaRequiredError,
 	GarminNetworkError,
 	GarminRateLimitError,
+	GarminRefreshError,
 } from "../src/garmin/errors";
 import { MFA_MAX_ATTEMPTS } from "../src/garmin/auth";
 import { MemoryTokenStore } from "../src/garmin/tokens";
@@ -309,6 +310,16 @@ describe("request", () => {
 		await assert.rejects(() => client.request("/userprofile-service/socialProfile"), GarminAuthError);
 		assert.equal(await store.load(), null);
 		assert.equal(client.isAuthenticated, false);
+	});
+
+	it("keeps the session when Garmin can't refresh it just now", async () => {
+		const { client, store } = await signedIn([
+			{ url: "/userprofile-service", status: 401, json: {} },
+			{ url: "diauth", status: 503, text: "<html>Service unavailable</html>" },
+		]);
+		await assert.rejects(() => client.request("/userprofile-service/socialProfile"), GarminRefreshError);
+		assert.equal((await store.load())!.refreshToken, "refresh-1");
+		assert.equal(client.isAuthenticated, true);
 	});
 
 	it("reads a JSON 403 as the API declining", async () => {

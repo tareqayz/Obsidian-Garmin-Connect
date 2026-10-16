@@ -2,7 +2,7 @@
 	"id": "garmin-connect",
 	"name": "Garmin Connect",
 	"version": "0.1.0",
-	"minAppVersion": "1.9.10",
+	"minAppVersion": "1.11.4",
 	"description": "Sync your Garmin Connect health and activity data into your vault and browse it in Garmin-style Home, Activities, Sleep and Health Stats pages.",
 	"author": "Tareq Alansari",
 	"authorUrl": "https://github.com/tareqayz",

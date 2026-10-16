@@ -100,6 +100,8 @@
 		initialBackfill: BackfillProgress | null;
 		onSetUp: () => void;
 		onSignIn: () => void;
+		/** Puts away the "Not signed in on this device" card on this device. */
+		onHideSignIn: () => void;
 		onPauseBackfill: () => void;
 		onResumeBackfill: () => void;
 		onSync: () => Promise<string | null>;
@@ -154,6 +156,7 @@
 		initialBackfill,
 		onSetUp,
 		onSignIn,
+		onHideSignIn,
 		onPauseBackfill,
 		onResumeBackfill,
 		onSync,
@@ -595,7 +598,7 @@
 			<div class="content">
 				<div class="backfill"><BackfillPill progress={backfill} onPause={onPauseBackfill} onResume={onResumeBackfill} {onSignIn} /></div>
 				{#if setupCard}
-					<SetupCard kind={setupCard} {onSetUp} {onSignIn} />
+					<SetupCard kind={setupCard} {onSetUp} {onSignIn} onHide={onHideSignIn} />
 				{/if}
 				{#if model.date !== today}
 					<div class="stale">Today isn’t synced yet. Showing {dateLabel}.</div>

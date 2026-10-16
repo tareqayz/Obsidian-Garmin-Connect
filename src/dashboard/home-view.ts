@@ -133,6 +133,7 @@ export class GarminHomeView extends ItemView {
 				initialBackfill: this.plugin.sync.backfillProgress,
 				onSetUp: () => this.plugin.openSetup(),
 				onSignIn: () => this.plugin.openLogin(),
+				onHideSignIn: () => this.plugin.hideSignInCard(),
 				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
 				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
@@ -219,12 +220,17 @@ export class GarminHomeView extends ItemView {
 	/**
 	 * The card Home shows above everything else, if any: the setup to finish,
 	 * a sign-in, or — set up, signed in, and still nothing here — data that
-	 * another device has but this one never received.
+	 * another device has but this one never received. Signed out with data
+	 * here, the device reads what another one syncs: it says so, once, until
+	 * put away.
 	 */
 	private async setupCard(): Promise<SetupCardKind | null> {
 		if (!this.plugin.data.settings.setup) return "finish";
-		if (!this.plugin.garmin.isAuthenticated) return "signed-out";
 		const store = this.store();
+		if (!this.plugin.garmin.isAuthenticated) {
+			if (!store.hasData()) return "signed-out";
+			return this.plugin.signInCardHidden ? null : "this-device";
+		}
 		if (!store.hasData()) {
 			// An account with nothing on Garmin yet is not missing anything here.
 			const scan = await store.readScan();

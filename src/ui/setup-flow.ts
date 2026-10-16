@@ -14,7 +14,8 @@ import type { SyncSpeed } from "../sync/speed";
 export type SetupStep = "signin" | "scan" | "choose" | "start";
 
 /** The card above Home: finish the setup, sign in again, or no data on this device. */
-export type SetupCardKind = "finish" | "signed-out" | "no-data";
+/** `this-device`: set up and holding data, but not signed in here: a device that reads what another syncs. */
+export type SetupCardKind = "finish" | "signed-out" | "this-device" | "no-data";
 
 export const SETUP_STEPS: ReadonlyArray<{ step: SetupStep; label: string }> = [
 	{ step: "signin", label: "Sign in" },

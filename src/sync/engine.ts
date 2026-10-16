@@ -24,7 +24,7 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { GarminAuthError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
@@ -1617,9 +1617,17 @@ export async function fetchAllActivities(
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Errors that make every remaining request pointless: a 429, a dead session, or files a newer build wrote. */
+/**
+ * Errors that make every remaining request pointless: a 429, a dead session, a
+ * session Garmin couldn't refresh just now, or files a newer build wrote.
+ */
 function isFatal(err: unknown): boolean {
-	return err instanceof GarminRateLimitError || err instanceof GarminAuthError || err instanceof NewerDataError;
+	return (
+		err instanceof GarminRateLimitError ||
+		err instanceof GarminAuthError ||
+		err instanceof GarminRefreshError ||
+		err instanceof NewerDataError
+	);
 }
 
 function message(err: unknown): string {
