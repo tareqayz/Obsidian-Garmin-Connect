@@ -231,7 +231,8 @@
 				<button onclick={() => void plugin.sync.pauseBackfill()}>Pause</button>
 			{:else if progress.status === "paused" && progress.reason === "sign-in"}
 				<button class="mod-cta" onclick={() => plugin.openLogin()}>Sign in</button>
-			{:else if progress.status === "paused"}
+			{:else if progress.status === "paused" && progress.reason !== "update"}
+				<!-- Nothing to resume until the plugin here is updated. -->
 				<button class="mod-cta" onclick={() => void plugin.sync.resumeBackfill()}>Resume</button>
 			{/if}
 		</div>

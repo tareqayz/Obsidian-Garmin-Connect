@@ -50,7 +50,7 @@
 {:else if progress?.status === "paused" && progress.reason === "sign-in"}
 	<button class="pill warn" onclick={onSignIn}><span class="icon" use:lucide={"circle-alert"}></span>Sign in to keep downloading</button>
 {:else if progress?.status === "paused" && progress.reason === "update"}
-	<div class="pill warn" role="status"><span class="icon" use:lucide={"circle-alert"}></span>Update the plugin to keep downloading</div>
+	<div class="pill warn plain" role="status"><span class="icon" use:lucide={"circle-alert"}></span>Update the plugin to keep downloading</div>
 {:else if progress?.status === "paused" && progress.reason === "user"}
 	<div class="pill" role="status">
 		<span class="icon" use:lucide={"pause"}></span>
@@ -58,12 +58,12 @@
 		<button class="link" onclick={onResume}>Resume</button>
 	</div>
 {:else if progress?.status === "paused" || progress?.status === "waiting"}
-	<div class="pill" role="status">
+	<div class="pill plain" role="status">
 		<span class="icon" use:lucide={"clock"}></span>
 		<span>{progress.reason === "rate-limit" ? "Garmin asked for a pause" : progress.reason === "blocked" ? "Refused by Garmin's bot check" : "Download resting"}{until ? ` · resumes ${until}` : ""}</span>
 	</div>
 {:else if progress?.status === "elsewhere"}
-	<div class="pill" role="status">
+	<div class="pill plain" role="status">
 		<span class="icon" use:lucide={"monitor-smartphone"}></span>
 		<span>Downloading history on {progress.device ?? "another device"}</span>
 	</div>
@@ -98,6 +98,10 @@
 	}
 	.pill.warn {
 		color: var(--text-warning);
+	}
+	/* Ending in text rather than an icon button: even padding, as Figma draws the set. */
+	.pill.plain {
+		padding-right: 12px;
 	}
 	.pill.done {
 		padding-right: 12px;
