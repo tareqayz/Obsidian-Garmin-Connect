@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, type App, type WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
 import { categoryOf } from "./dashboard/activities";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -9,6 +9,7 @@ import { commandTitle } from "./dashboard/stat-registry";
 import { STAT_IDS, STAT_TITLE } from "./dashboard/stats-pages";
 import { GarminApi, toIsoDate } from "./garmin/endpoints";
 import { SecretTokenStore, SESSION_SECRET } from "./garmin/secret-token-store";
+import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
@@ -16,7 +17,7 @@ import { DAY_INDEXES } from "./sync/day-indexes";
 import { importDayNotes } from "./sync/import-notes";
 import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
-import { GARMIN_ICON, registerGarminIcon } from "./ui/icon";
+import { GARMIN_ICON } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
 import { registerSportIcons } from "./ui/sport-icons";
@@ -67,7 +68,6 @@ export default class GarminPlugin extends Plugin {
 	tokens!: SecretTokenStore;
 
 	async onload(): Promise<void> {
-		registerGarminIcon();
 		registerSportIcons();
 		// The activity maps add Leaflet's stylesheet when they first draw.
 		this.register(removeLeafletStyles);
@@ -225,16 +225,19 @@ export default class GarminPlugin extends Plugin {
 
 	onunload(): void {
 		this.sync.stop();
+		// A dialog this instance opened would act through it after a reload (an update): close it.
+		for (const dialog of this.dialogs) dialog.close();
 		// Uninstalled rather than disabled or updated: offer to remove the synced data (see uninstall-watch.ts).
 		const app = this.app;
 		const dir = this.manifest.dir;
 		const dataFolder = this.data.settings.dataFolder;
+		const logFolder = this.data.settings.logFolder;
 		if (!dir) return;
 		watchForUninstall({
 			exists: () => app.vault.adapter.exists(dir),
 			onGone: () => {
 				forgetThisDevice(app);
-				if (deletePlan(app, dataFolder).files) new RemovedDataModal(app, dataFolder).open();
+				if (deletePlan(app, dataFolder).files) new RemovedDataModal(app, dataFolder, logFolder).open();
 			},
 		});
 	}
@@ -251,8 +254,21 @@ export default class GarminPlugin extends Plugin {
 		});
 	}
 
+	/** The setup and update dialogs this instance has open, closed when it unloads. */
+	private dialogs = new Set<Modal>();
+
+	private track(dialog: Modal): void {
+		this.dialogs.add(dialog);
+		const close = dialog.onClose.bind(dialog);
+		dialog.onClose = () => {
+			this.dialogs.delete(dialog);
+			close();
+		};
+		dialog.open();
+	}
+
 	openSetup(): void {
-		new SetupModal(this.app, this).open();
+		this.track(new SetupModal(this.app, this));
 	}
 
 	/**
@@ -360,7 +376,7 @@ export default class GarminPlugin extends Plugin {
 		const lines = await this.updateLines("pending");
 		if (!lines.length || this.askedForUpdates) return;
 		this.askedForUpdates = true;
-		new DataUpdateModal(this.app, this, lines).open();
+		this.track(new DataUpdateModal(this.app, this, lines));
 	}
 
 	/** Yes to `keys`, later to `later`: the ledger keeps both, and the backfill starts on the yeses. */
@@ -503,6 +519,14 @@ export default class GarminPlugin extends Plugin {
 		} catch (err) {
 			new Notice(`Couldn't gather the debug info: ${err instanceof Error ? err.message : String(err)}`);
 		}
+	}
+
+	/** A new region: every host changes, so the client is built again. */
+	async setDomain(domain: GarminDomain): Promise<void> {
+		if (this.data.settings.domain === domain) return;
+		this.data.settings.domain = domain;
+		await this.data.saveSettings();
+		await this.rebuildClient();
 	}
 
 	openLogin(onDone?: () => void): void {

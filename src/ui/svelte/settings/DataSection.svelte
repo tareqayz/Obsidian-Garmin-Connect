@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
-	import type { Setting } from "obsidian";
+	import { Notice, normalizePath, type Setting } from "obsidian";
+	import { folderProblem } from "../../../sync/vault-paths";
 	import type GarminPlugin from "../../../main";
 	import { DEFAULT_SETTINGS } from "../../../settings-data";
 	import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, rangeStart, isActivityDetailsRange, isDayDetailsRange } from "../../../sync/datasets";
@@ -150,15 +151,28 @@
 		setting
 			.setName("Data folder")
 			.setDesc("Where the synced JSON files live. Moving it does not move files already written.")
-			.addText((t) =>
-				t
-					.setPlaceholder(DEFAULT_SETTINGS.dataFolder)
-					.setValue(s.dataFolder)
-					.onChange((v) => {
-						s.dataFolder = v.trim() || DEFAULT_SETTINGS.dataFolder;
-						save();
-					}),
-			)}
+			.addText((t) => {
+				t.setPlaceholder(DEFAULT_SETTINGS.dataFolder).setValue(s.dataFolder);
+				// Saved once, on Enter or leaving the field: a folder taken a keystroke
+				// at a time would scatter half-typed folders through the vault.
+				const commit = () => {
+					const next = normalizePath(t.getValue().trim() || DEFAULT_SETTINGS.dataFolder);
+					const problem = folderProblem(next, plugin.app.vault.configDir);
+					if (problem) {
+						new Notice(problem);
+						t.setValue(s.dataFolder);
+						return;
+					}
+					if (next === s.dataFolder) return;
+					s.dataFolder = next;
+					t.setValue(next);
+					save();
+				};
+				t.inputEl.addEventListener("blur", commit);
+				t.inputEl.addEventListener("keydown", (e) => {
+					if (e.key === "Enter") t.inputEl.blur();
+				});
+			})}
 ></div>
 
 {#key usage}

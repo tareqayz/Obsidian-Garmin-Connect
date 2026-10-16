@@ -512,9 +512,9 @@ export async function syncRange(
 		if (got.fatal) return stop(report, got.fatal, log);
 		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
-		else if (maxMetricsByDate.size === 0) {
-			note(report, log, "VO2 Max: Garmin returned no rows for this range");
-		}
+		// No rows is an account without VO2 Max (a scale, a bike computer, no
+		// runs yet), not a problem: the log says so, the sync's notice doesn't.
+		else if (maxMetricsByDate.size === 0) log.detail("VO2 Max", "Garmin returned no rows for this range");
 		log.detail("VO2 Max days", maxMetricsByDate.size);
 	}
 
@@ -528,9 +528,7 @@ export async function syncRange(
 		// A window holding any prediction sends every day, null where there is none: count the days with a time.
 		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
 		if (got.error) note(report, log, `race predictions: ${got.error}`);
-		else if (predicted === 0) {
-			note(report, log, "race predictions: Garmin returned no rows for this range");
-		}
+		else if (predicted === 0) log.detail("race predictions", "Garmin returned no rows for this range");
 		log.detail("race prediction days", predicted);
 	}
 

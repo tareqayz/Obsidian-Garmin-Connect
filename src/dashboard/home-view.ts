@@ -201,6 +201,18 @@ export class GarminHomeView extends ItemView {
 		// The first Garmin view after an update asks about what it offers, once.
 		void this.plugin.askForUpdates();
 
+		// Left open past midnight, Home moves to the new day: every page's
+		// "Today", "Yesterday" and offsets count from it.
+		let shownDay = today;
+		this.registerInterval(
+			window.setInterval(() => {
+				const now = toIsoDate();
+				if (now === shownDay) return;
+				shownDay = now;
+				this.scheduleRefresh();
+			}, 60_000),
+		);
+
 		// Everything the sync writes is a JSON file under the data folder.
 		const onFile = (file: TAbstractFile) => {
 			const store = this.store();

@@ -241,7 +241,8 @@ describe("RACE_PREDICTIONS_INDEX — the day sync", () => {
 		assert.equal(report.requests, 2);
 		assert.deepEqual(sink.merged[0]!.rows.map((r) => r.date), ["2026-10-12"]);
 		assert.deepEqual([...sink.merged[0]!.dates].sort(), ["2026-10-12", "2026-10-13"]);
-		assert.ok(report.warnings.includes("race predictions: Garmin returned no rows for this range"));
+		// An account without predictions isn't a problem: no warning.
+		assert.ok(!report.warnings.some((w) => w.startsWith("race predictions")));
 	});
 
 	it("counts only the days with a prediction: a window reaching the history's start null-fills the days before it", async () => {
@@ -273,6 +274,6 @@ describe("RACE_PREDICTIONS_INDEX — the day sync", () => {
 			units: "metric",
 			wait: async () => {},
 		});
-		assert.deepEqual(report.warnings, ["race predictions: Garmin returned no rows for this range"]);
+		assert.deepEqual(report.warnings, []);
 	});
 });

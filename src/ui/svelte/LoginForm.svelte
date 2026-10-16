@@ -6,9 +6,13 @@
 		type MfaChallenge,
 		type MfaPrompt,
 	} from "../../garmin/auth";
+	import type { GarminDomain } from "../../garmin/constants";
 
 	interface Props {
 		initialEmail: string;
+		/** The account's region, chosen here so a China account never signs in against garmin.com first. */
+		initialDomain?: GarminDomain;
+		onDomainChange?: (domain: GarminDomain) => void | Promise<void>;
 		/**
 		 * Resolves to an error message, or null when the sign-in succeeded.
 		 *
@@ -27,10 +31,12 @@
 		embedded?: boolean;
 	}
 
-	let { initialEmail, onSubmit, onEmailChange, onCancel, embedded = false }: Props = $props();
+	let { initialEmail, initialDomain = "garmin.com", onDomainChange, onSubmit, onEmailChange, onCancel, embedded = false }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let email = $state(initialEmail);
+	// svelte-ignore state_referenced_locally
+	let domain = $state<GarminDomain>(initialDomain);
 	// Never leaves this component except as an argument to onSubmit.
 	let password = $state("");
 	let status = $state("");
@@ -151,6 +157,16 @@
 		/>
 	</div>
 
+	{#if onDomainChange}
+		<div class="field">
+			<label for="gc-region">Region</label>
+			<select id="gc-region" class="dropdown" bind:value={domain} disabled={busy} onchange={() => void onDomainChange?.(domain)}>
+				<option value="garmin.com">garmin.com — everywhere but mainland China</option>
+				<option value="garmin.cn">garmin.cn — mainland China</option>
+			</select>
+		</div>
+	{/if}
+
 	<div class="field">
 		<label for="gc-password">Password</label>
 		<input
@@ -160,7 +176,7 @@
 			bind:value={password}
 			onkeydown={(e) => e.key === "Enter" && submit()}
 		/>
-		<div class="hint">Used for this sign-in only. Only a refresh token is saved.</div>
+		<div class="hint">Used for this sign-in only. The session is kept in this device's keychain.</div>
 	</div>
 
 	<div class="status" role="status">{status}</div>

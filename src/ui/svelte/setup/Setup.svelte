@@ -8,10 +8,13 @@
 	import { afterScan, back, next, SETUP_STEPS, startFlow, stepState, type Choices, type Prepared, type SetupFlow } from "../../setup-flow";
 	import { lucide } from "../home/lucide";
 	import LoginForm from "../LoginForm.svelte";
+	import type { GarminDomain } from "../../../garmin/constants";
 
 	interface Props {
 		signedIn: boolean;
 		initialEmail: string;
+		initialDomain: GarminDomain;
+		onDomainChange: (domain: GarminDomain) => Promise<void>;
 		onEmailChange: (email: string) => void;
 		/** Resolves to an error message, or null once signed in. */
 		onSignIn: (email: string, password: string, prompt: MfaPrompt) => Promise<string | null>;
@@ -27,7 +30,7 @@
 		onCancel: () => void;
 	}
 
-	let { signedIn, initialEmail, onEmailChange, onSignIn, onScan, prepare, initialChoices, initialSpeed, today, onStart, onNewDaysOnly, onCancel }: Props = $props();
+	let { signedIn, initialEmail, initialDomain, onDomainChange, onEmailChange, onSignIn, onScan, prepare, initialChoices, initialSpeed, today, onStart, onNewDaysOnly, onCancel }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let flow = $state<SetupFlow>(startFlow(signedIn));
@@ -191,7 +194,7 @@
 
 	{#if flow.step === "signin"}
 		<div class="intro">Connect your Garmin account. Your data stays in this vault as JSON files.</div>
-		<LoginForm {initialEmail} {onEmailChange} onSubmit={signIn} {onCancel} embedded />
+		<LoginForm {initialEmail} {initialDomain} {onDomainChange} {onEmailChange} onSubmit={signIn} {onCancel} embedded />
 	{:else if flow.step === "scan"}
 		{#if flow.scan === "scanning"}
 			<h3>Looking through your Garmin history…</h3>

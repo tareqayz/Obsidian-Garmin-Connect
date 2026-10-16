@@ -1348,7 +1348,8 @@ describe("syncRange — health, hill score, running tolerance", () => {
 		assert.ok(!("hill_score" in target.written.get("2026-09-11")!));
 		// One call each for the three range metrics, whatever the day count.
 		assert.equal(source.calls.filter((c) => /^(hillScores|runningTolerance|healthSnapshots):/.test(c)).length, 3);
-		assert.equal(report.warnings.length > 0, true, "maxMetrics has no rows in this fake");
+		// maxMetrics has no rows in this fake: that is an account without VO2 Max, not a warning.
+		assert.deepEqual(report.warnings, []);
 	});
 
 	it("asks running tolerance a year a request, inside the route's 366-day cap", async () => {
@@ -1549,11 +1550,11 @@ describe("syncRange — range endpoints that come back empty", () => {
 		}
 	});
 
-	it("says so when a range endpoint returns nothing", async () => {
+	it("keeps quiet when a range endpoint returns nothing: an account without that data isn't a problem", async () => {
 		const source = new FakeSource();
 		source.maxMetricsRows = [];
 		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
-		assert.match(report.warnings.join(" "), /VO2 Max: Garmin returned no rows/);
+		assert.doesNotMatch(report.warnings.join(" "), /VO2 Max/);
 	});
 
 	it("says so when a range endpoint fails, without losing the rest of the sync", async () => {

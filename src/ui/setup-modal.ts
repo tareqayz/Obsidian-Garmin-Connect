@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import type { GarminDomain } from "../garmin/constants";
 import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
@@ -37,6 +38,8 @@ export class SetupModal extends Modal {
 			props: {
 				signedIn: this.plugin.garmin.isAuthenticated,
 				initialEmail: settings.email,
+				initialDomain: settings.domain,
+				onDomainChange: (domain: GarminDomain) => this.plugin.setDomain(domain),
 				onEmailChange: (email: string) => {
 					settings.email = email;
 					void this.plugin.data.saveSettings();

@@ -8,6 +8,7 @@ import {
 	GarminRateLimitError,
 } from "../garmin/errors";
 import type GarminPlugin from "../main";
+import type { GarminDomain } from "../garmin/constants";
 import LoginForm from "./svelte/LoginForm.svelte";
 
 /** Sign-in. The password lives in the component and nowhere else. */
@@ -27,6 +28,8 @@ export class LoginModal extends Modal {
 			target: this.contentEl,
 			props: {
 				initialEmail: this.plugin.data.settings.email,
+				initialDomain: this.plugin.data.settings.domain,
+				onDomainChange: (domain: GarminDomain) => this.plugin.setDomain(domain),
 				onEmailChange: (email: string) => {
 					this.plugin.data.settings.email = email;
 					void this.plugin.data.saveSettings();
