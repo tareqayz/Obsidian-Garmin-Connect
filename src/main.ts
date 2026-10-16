@@ -22,6 +22,7 @@ import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
 import { removeLeafletStyles } from "./ui/map/leaflet";
+import { copyDebugInfo } from "./debug-info";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 import { SetupModal } from "./ui/setup-modal";
@@ -193,6 +194,11 @@ export default class GarminPlugin extends Plugin {
 			id: "resume-download",
 			name: "Resume the history download",
 			callback: () => void this.sync.resumeBackfill(),
+		});
+		this.addCommand({
+			id: "copy-debug-info",
+			name: "Copy debug info",
+			callback: () => void this.copyDebugInfo(),
 		});
 		this.addCommand({
 			id: "run-probe",
@@ -488,6 +494,15 @@ export default class GarminPlugin extends Plugin {
 			if (view instanceof GarminHomeView) view.rebindRunner();
 		}
 		this.authChanged();
+	}
+
+	/** For a bug report: versions, settings without the email, the last sync and its warnings — see `debug-info.ts`. */
+	async copyDebugInfo(error?: unknown): Promise<void> {
+		try {
+			new Notice(await copyDebugInfo(this, error === undefined ? {} : { error }), 8000);
+		} catch (err) {
+			new Notice(`Couldn't gather the debug info: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	openLogin(onDone?: () => void): void {

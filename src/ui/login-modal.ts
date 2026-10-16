@@ -72,7 +72,7 @@ export function explainSignIn(err: unknown): string {
 		return "Garmin is rate limiting this network. Wait 15–30 minutes before trying again.";
 	}
 	if (err instanceof GarminBlockedError) {
-		return "Garmin's edge refused the request — a bot challenge, not your password. Run the probe's fingerprint check.";
+		return "Garmin's edge refused the request — a bot challenge, not your password. Wait an hour, then try again; Run diagnostics says more.";
 	}
 	return err instanceof Error ? err.message : String(err);
 }

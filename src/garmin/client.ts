@@ -117,6 +117,8 @@ export class GarminClient {
 	private auth: PersistedAuth | null = null;
 	private access: AccessToken | null = null;
 	private refreshInFlight: Promise<AccessToken> | null = null;
+	/** Values a request path carries about the account, and the placeholder logs and errors show instead. */
+	private readonly hidden = new Map<string, string>();
 
 	constructor(opts: GarminClientOptions) {
 		this.http = opts.http;
@@ -147,6 +149,19 @@ export class GarminClient {
 	get session(): { savedAt: number; accessExpiresAt: number | null } | null {
 		if (!this.auth) return null;
 		return { savedAt: this.auth.savedAt, accessExpiresAt: this.access?.expiresAt ?? null };
+	}
+
+	/** Keeps `value` — the display name, the account id — out of logs and error messages, written as `as`. */
+	protected hideInLogs(value: string | number | null | undefined, as: string): void {
+		const text = value === null || value === undefined ? "" : String(value);
+		if (text.length >= 3) this.hidden.set(text, as);
+	}
+
+	/** A request path as logs and error messages show it: no query, nothing that names the account. */
+	protected safePath(path: string): string {
+		let out = path.split("?")[0]!;
+		for (const [value, as] of this.hidden) out = out.split(encodeURIComponent(value)).join(as).split(value).join(as);
+		return out;
 	}
 
 	/* ---------------------------------------------------------------- */
@@ -210,7 +225,11 @@ export class GarminClient {
 				throw new GarminNetworkError(`Could not reach Garmin: ${outcome.detail}`);
 			default:
 				throw new GarminApiError(
-					"Unexpected login response",
+					outcome.detail.startsWith("SESSION_EXPIRED")
+						? outcome.detail
+						: `Garmin's sign-in answered with ${outcome.detail}, which this version doesn't handle. ` +
+								"Sign in at connect.garmin.com in a browser first: Garmin may want something from the account, " +
+								"such as unlocking it, a new password or new terms. Then try again.",
 					outcome.status,
 					outcome.detail,
 				);
@@ -327,7 +346,7 @@ export class GarminClient {
 		let attempt = 1;
 		for (let tries = 1; tries < MAX_ATTEMPTS && isTransient(res.status); tries++) {
 			const pause = backoffMs(tries);
-			this.log.detail(path, `HTTP ${res.status || "no response"} — retrying in ${pause}ms`);
+			this.log.detail(this.safePath(path), `HTTP ${res.status || "no response"} — retrying in ${pause}ms`);
 			await this.wait(pause);
 			res = await this.send(path, opts, token, ++attempt);
 		}
@@ -337,7 +356,7 @@ export class GarminClient {
 			if (pause > MAX_RATE_LIMIT_WAIT_MS) break;
 			this.throttle.slowDown(pause);
 			this.log.warn(
-				`${path}: rate limited by Garmin — pausing ${Math.round(pause / 1000)}s, ` +
+				`${this.safePath(path)}: rate limited by Garmin — pausing ${Math.round(pause / 1000)}s, ` +
 					`then ${this.throttle.rate} requests/s`,
 			);
 			this.onSlowDown?.(this.throttle.resumesAt);
@@ -375,14 +394,15 @@ export class GarminClient {
 	}
 
 	private unwrap<T>(res: { status: number; headers: Record<string, string>; text: string; error?: string }, path: string): T {
+		const at = this.safePath(path);
 		if (res.status === 0) {
-			throw new GarminNetworkError(`${path}: could not reach Garmin (${res.error})`);
+			throw new GarminNetworkError(`${at}: could not reach Garmin (${res.error})`);
 		}
 		if (res.status === 429) {
-			throw new GarminRateLimitError(`${path}: rate limited by Garmin`, retryAfter(res.headers));
+			throw new GarminRateLimitError(`${at}: rate limited by Garmin`, retryAfter(res.headers));
 		}
 		if (res.status === 401) {
-			throw new GarminAuthError(`${path}: Garmin rejected the token. Sign in again.`);
+			throw new GarminAuthError(`${at}: Garmin rejected the token. Sign in again.`);
 		}
 		if (res.status === 403) {
 			// A JSON 403 is the API declining. A non-JSON 403 is the edge declining,
@@ -390,16 +410,16 @@ export class GarminClient {
 			const isJson = (res.headers["content-type"] ?? "").includes("json");
 			if (!isJson) {
 				throw new GarminBlockedError(
-					`${path}: Garmin's edge refused the request (bot challenge, not credentials)`,
+					`${at}: Garmin's edge refused the request (bot challenge, not credentials)`,
 					403,
 				);
 			}
 			// The API declining this endpoint for this account. Not a dead session:
 			// a 401 says that, and signing in again would not change this answer.
-			throw new GarminApiError(`${path}: forbidden — ${snippet(res.text, 120)}`, 403, snippet(res.text, 200));
+			throw new GarminApiError(`${at}: forbidden — ${snippet(res.text, 120)}`, 403, snippet(res.text, 200));
 		}
 		if (res.status < 200 || res.status >= 300) {
-			throw new GarminApiError(`${path}: HTTP ${res.status}`, res.status, snippet(res.text, 200));
+			throw new GarminApiError(`${at}: HTTP ${res.status}`, res.status, snippet(res.text, 200));
 		}
 
 		if (!res.text.trim()) return null as T;
@@ -407,7 +427,7 @@ export class GarminClient {
 		const data = parseJson<T>(res.text);
 		if (data === null) {
 			throw new GarminApiError(
-				`${path}: expected JSON, got ${snippet(res.text, 80)}`,
+				`${at}: expected JSON, got ${snippet(res.text, 80)}`,
 				res.status,
 				snippet(res.text, 200),
 			);

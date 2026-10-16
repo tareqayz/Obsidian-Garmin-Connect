@@ -171,6 +171,8 @@ export class SyncRunner {
 	private unitFailures = 0;
 	/** Set by Stop syncing: the sync or history walk in progress stops after the day or window it is on. */
 	private foregroundCancel = false;
+	/** The last sync someone started this session, for Copy debug info. */
+	lastSync: { at: string; from: string; to: string; report: SyncReport } | null = null;
 	/** When this device last wrote its lease. */
 	private leaseWrittenAt = 0;
 	private budget: RequestBudget;
@@ -238,6 +240,21 @@ export class SyncRunner {
 
 	/** Whether a sync or history walk someone asked for holds the runner. */
 	private foregroundRunning = false;
+
+	/**
+	 * Runs `work` holding the runner, so nothing else asks Garmin meanwhile:
+	 * what the diagnostics need, since their log catches every request the
+	 * client makes. Null when a sync already holds it.
+	 */
+	async exclusive<T>(work: () => Promise<T>): Promise<T | null> {
+		const release = await this.claim("foreground");
+		if (!release) return null;
+		try {
+			return await work();
+		} finally {
+			release();
+		}
+	}
 
 	/** `claim`, but only if the runner is free now with nothing waiting ahead. */
 	private claimNow(priority: Priority): Release | null {
@@ -409,6 +426,7 @@ export class SyncRunner {
 				},
 			}));
 			notice.hide();
+			this.lastSync = { at: new Date(startedAt).toISOString(), from, to, report };
 			await this.recordDays(series, report, log);
 
 			// Once per sync, not per day: who you are, the watch, and the numbers

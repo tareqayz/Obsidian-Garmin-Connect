@@ -1430,9 +1430,13 @@ export class GarminApi extends GarminClient {
 		const profile = await this.request<SocialProfile>("/userprofile-service/socialProfile");
 		if (typeof profile?.displayName === "string" && profile.displayName.trim()) {
 			this.displayName = profile.displayName;
+			this.hideInLogs(profile.displayName, ":displayName");
 		}
 		if (typeof profile?.fullName === "string") this.fullName = profile.fullName;
-		if (profile && typeof profile === "object") this.lastProfile = profile;
+		if (profile && typeof profile === "object") {
+			this.lastProfile = profile;
+			this.hideInLogs(profile.profileId, ":profileId");
+		}
 		return profile;
 	}
 

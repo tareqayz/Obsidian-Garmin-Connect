@@ -90,6 +90,20 @@ describe("login", () => {
 		await assert.rejects(() => client.login("u", "p"), GarminAuthError);
 	});
 
+	it("names an answer it doesn't know, and says what to try, without repeating Garmin's body", async () => {
+		const { client } = clientWith([
+			{ url: "/mobile/api/login", json: { responseStatus: { type: "ACCOUNT_LOCKED" }, customerInfo: { email: "someone@example.com" } } },
+		]);
+		await assert.rejects(
+			() => client.login("u", "p"),
+			(err: unknown) =>
+				err instanceof GarminApiError &&
+				/responseStatus\.type ACCOUNT_LOCKED/.test(err.message) &&
+				/connect\.garmin\.com/.test(err.message) &&
+				!err.message.includes("someone@example.com"),
+		);
+	});
+
 	it("distinguishes an edge block from a credential problem", async () => {
 		const { client } = clientWith([
 			{ url: "/mobile/api/login", status: 403, text: "<html>Just a moment…</html>" },

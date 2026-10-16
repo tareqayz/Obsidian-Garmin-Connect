@@ -23,6 +23,11 @@ export class MemoryVault {
 		return this.entries.get(normalizePath(path)) ?? null;
 	}
 
+	getFolderByPath(path: string): TFolder | null {
+		const entry = this.entries.get(normalizePath(path));
+		return entry instanceof TFolder ? entry : null;
+	}
+
 	async read(file: TFile): Promise<string> {
 		return this.textOf(file);
 	}

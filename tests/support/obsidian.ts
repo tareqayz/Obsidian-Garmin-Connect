@@ -34,9 +34,23 @@ export class TFolder extends TAbstractFile {
 
 /** As Obsidian's: one slash between parts, none at either end, and "/" for nothing at all. */
 export function normalizePath(path: string): string {
-	const clean = path.replace(/[\\/]+/g, "/").replace(/^\/|\/$/g, "").replace(/ /g, " ").normalize();
+	const clean = path.replace(/[\\/]+/g, "/").replace(/^\/|\/$/g, "").replace(/\u00A0/g, " ").normalize();
 	return clean === "" ? "/" : clean;
 }
+
+export const apiVersion = "1.14.4";
+
+/** A Mac, unless a test says otherwise. */
+export const Platform = {
+	isDesktopApp: true,
+	isMobileApp: false,
+	isIosApp: false,
+	isAndroidApp: false,
+	isTablet: false,
+	isMacOS: true,
+	isWin: false,
+	isLinux: false,
+};
 
 /** Every Notice shown since the last `clearNotices`, oldest first. */
 export const notices: string[] = [];

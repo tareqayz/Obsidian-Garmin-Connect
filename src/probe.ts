@@ -46,7 +46,6 @@ export function reportPlatform(log: ProbeLog): void {
 	log.detail("isIosApp", Platform.isIosApp);
 	log.detail("isAndroidApp", Platform.isAndroidApp);
 	log.detail("isMacOS / isWin", `${Platform.isMacOS} / ${Platform.isWin}`);
-	log.detail("webview UA", snippet(navigator.userAgent, 120));
 	log.line();
 	log.line(
 		Platform.isMobileApp
@@ -99,7 +98,6 @@ export async function runFingerprintProbe(http: HttpClient, log: ProbeLog): Prom
 	}
 
 	const uaMatches = fp.user_agent === IOS_LOGIN_UA;
-	log.detail("public IP", maskIp(fp.ip));
 	log.detail("HTTP version", fp.http_version ?? "(unknown)");
 	log.detail("UA server saw", snippet(fp.user_agent ?? "(none)", 110));
 	log.detail("JA3 hash", fp.tls?.ja3_hash ?? "(unknown)");
@@ -113,8 +111,8 @@ export async function runFingerprintProbe(http: HttpClient, log: ProbeLog): Prom
 		log.fail("requestUrl did NOT honour the User-Agent override");
 		log.line("    Garmin will see Obsidian, not the iOS app. Expect a challenge.");
 	}
-	log.line("    Record the JA4 on each platform — a desktop/mobile mismatch here is");
-	log.line("    the likeliest explanation for one working and the other not.");
+	log.line("    A different JA4 on desktop and mobile is the likeliest reason one works");
+	log.line("    and the other doesn't: run this on both and put the two in an issue.");
 }
 
 /* ------------------------------------------------------------------ */
@@ -256,12 +254,6 @@ function summarise(log: ProbeLog, verdict: Verdict, outcome?: LoginOutcome): Ver
 	return verdict;
 }
 
-function maskIp(ip: string | undefined): string {
-	if (!ip) return "(unknown)";
-	const v4 = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/);
-	return v4 ? `${v4[1]}.x` : "(captured, masked)";
-}
-
 /* ------------------------------------------------------------------ */
 /*  Session persistence                                                */
 /* ------------------------------------------------------------------ */
@@ -302,7 +294,7 @@ export async function runPersistenceProbe(
 			await api.login(credentials.email, credentials.password, {
 				onMfaRequired: narrateMfa(log, credentials.requestMfaCode),
 			});
-			log.ok("signed in; refresh token written to data.json");
+			log.ok("signed in; session saved to this device's keychain");
 			restored = true;
 		}
 
@@ -325,15 +317,14 @@ export async function runPersistenceProbe(
 
 		const today = toIsoDate();
 		const summary = await api.dailySummary(today);
-		log.ok(`dailySummary(${today}) → ${summary.calendarDate ?? "(no calendarDate)"}`);
-		log.detail("steps", summary.totalSteps ?? "(none)");
-		log.detail("resting HR", summary.restingHeartRate ?? "(none)");
+		log.ok(`dailySummary(${today}) → ${summary.calendarDate ? "today's" : "(no calendarDate)"}`);
+		log.detail("steps", summary.totalSteps === null || summary.totalSteps === undefined ? "(none)" : "(present)");
+		log.detail("resting HR", summary.restingHeartRate === null || summary.restingHeartRate === undefined ? "(none)" : "(present)");
 
 		log.step("Verdict");
 		log.detail("result", "SUCCESS");
 		log.line();
-		log.line("  A stored refresh token survives a restart and mints working access");
-		log.line("  tokens. The sync engine can be built on this.");
+		log.line("  The saved session survives a restart and mints working access tokens.");
 		return "success";
 	} catch (err) {
 		return classifyFailure(err, log);
@@ -347,14 +338,14 @@ function classifyFailure(err: unknown, log: ProbeLog): Verdict {
 	if (err instanceof GarminRateLimitError) {
 		log.fail(err.message);
 		log.line();
-		log.line("  Wait 15-30 minutes. Not a verdict on the design.");
+		log.line("  Wait 15–30 minutes, then run it again.");
 		return "rate-limited";
 	}
 	if (err instanceof GarminBlockedError) {
 		log.fail(err.message);
 		log.line();
-		log.line("  Garmin's edge refused the client. Re-run the fingerprint check and");
-		log.line("  compare the JA4 against the values recorded in the README.");
+		log.line("  Garmin's edge refused the client. Run the network fingerprint check on");
+		log.line("  this device and on another, and put both in an issue.");
 		return "blocked";
 	}
 	if (err instanceof GarminMfaCancelledError) {
@@ -382,11 +373,11 @@ function classifyFailure(err: unknown, log: ProbeLog): Verdict {
 /*  Fitness endpoints                                                  */
 /* ------------------------------------------------------------------ */
 
-/** Field names and types, so a wrong assumption shows up as a wrong key. */
+/** Field names and types, never values, so a wrong assumption shows up as a wrong key. */
 function shapeOf(value: unknown, depth = 1): string {
 	if (value === null) return "null";
 	if (Array.isArray(value)) return `array(${value.length})`;
-	if (typeof value !== "object") return `${typeof value} ${JSON.stringify(value)}`;
+	if (typeof value !== "object") return typeof value;
 	const entries = Object.entries(value as Record<string, unknown>);
 	if (entries.length === 0) return "{}";
 	if (depth <= 0) return `{${entries.map(([k]) => k).join(", ")}}`;
@@ -438,14 +429,14 @@ export async function runFitnessProbe(
 			log.fail("nothing mapped — the field names above do not match what the plugin expects");
 		} else {
 			log.ok(`mapped ${keys.length} propert${keys.length === 1 ? "y" : "ies"}`);
-			for (const [key, value] of Object.entries(mapped)) log.detail(key, value);
+			for (const [key, value] of Object.entries(mapped)) log.detail(key, typeof value);
 		}
 
 		log.step("Verdict");
 		log.detail("result", keys.length > 0 ? "SUCCESS" : "FAILED");
 		log.line();
-		log.line("  Compare the keys above with what src/sync/metrics.ts reads. If a value");
-		log.line("  is there under a different name, that name is the fix.");
+		log.line("  If a metric never shows up and its field is above under another name,");
+		log.line("  put this run in an issue: that name is the fix.");
 		return keys.length > 0 ? "success" : "failed";
 	} catch (err) {
 		return classifyFailure(err, log);

@@ -89,8 +89,8 @@ export function planDelete(root: PathEntry | null, indexFolders: readonly string
 	return plan;
 }
 
-/** The diagnostics notes in the log folder: what "Also delete diagnostics notes" adds. */
+/** The diagnostics and debug info notes in the log folder: what "Also delete diagnostics notes" adds. */
 export function diagnosticsNotes(folder: PathEntry | null): PathEntry[] {
 	if (!folder || !isFolder(folder)) return [];
-	return folder.children!.filter((child) => !isFolder(child) && /^garmin-probe-.*\.md$/.test(child.name));
+	return folder.children!.filter((child) => !isFolder(child) && /^garmin-(?:probe|debug)-.*\.md$/.test(child.name));
 }

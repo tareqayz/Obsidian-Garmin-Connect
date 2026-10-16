@@ -34,6 +34,7 @@
 	import type { SetupCardKind } from "../../setup-flow";
 	import BackfillPill from "./BackfillPill.svelte";
 	import SetupCard from "./SetupCard.svelte";
+	import PageError from "./PageError.svelte";
 	import ActivitiesHub from "../activities/ActivitiesHub.svelte";
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
 	import CategoryPage from "../activities/CategoryPage.svelte";
@@ -102,6 +103,10 @@
 		onSignIn: () => void;
 		/** Puts away the "Not signed in on this device" card on this device. */
 		onHideSignIn: () => void;
+		/** A page threw while drawing: the view saves a safe page for the next launch. */
+		onPageError: (error: unknown) => void;
+		/** Copy debug info, from the error card, with the error. */
+		onCopyDebugInfo: (error: unknown) => void;
 		onPauseBackfill: () => void;
 		onResumeBackfill: () => void;
 		onSync: () => Promise<string | null>;
@@ -157,6 +162,8 @@
 		onSetUp,
 		onSignIn,
 		onHideSignIn,
+		onPageError,
+		onCopyDebugInfo,
 		onPauseBackfill,
 		onResumeBackfill,
 		onSync,
@@ -499,6 +506,19 @@
 {/snippet}
 
 <div class="gch-root" bind:this={root}>
+	<!-- One page throwing on data it didn't expect shows a card, not a blank pane. -->
+	<svelte:boundary onerror={(error) => onPageError(error)}>
+	{#snippet failed(error, reset)}
+		<PageError
+			{error}
+			onCopy={() => onCopyDebugInfo(error)}
+			onHome={() => {
+				stack = [{ page: "home" }];
+				onRoute(stack);
+				reset();
+			}}
+		/>
+	{/snippet}
 	{#if current.page === "glance"}
 		<SeeAll {model} list={glanceList} onBack={back} onSave={saveGlance} {onPick} />
 	{:else if current.page === "more"}
@@ -737,6 +757,7 @@
 			</div>
 		{/if}
 	{/if}
+	</svelte:boundary>
 </div>
 
 <style>

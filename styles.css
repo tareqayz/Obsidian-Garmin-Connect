@@ -176,3 +176,27 @@ body {
 .theme-dark {
 	--gc-record-area: #414141;
 }
+
+/* Home couldn't be built at all (home-view.ts showOpenError). */
+.gch-open-error {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 16px;
+	padding: 16px;
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+.gch-open-error p {
+	margin: 0;
+	color: var(--text-muted);
+}
+.gch-open-error code {
+	font-size: var(--font-smaller);
+	overflow-wrap: anywhere;
+}
+.gch-open-error-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}

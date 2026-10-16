@@ -45,13 +45,15 @@ export class ProbeModal extends Modal {
 						domain: settings.domain,
 						requestMfaCode,
 					}),
+				// These two use the plugin's own client, whose log takes every request:
+				// they hold the runner so no sync or page load writes into it meanwhile.
 				runPersistence: (
 					log: ProbeLog,
 					email: string,
 					password: string,
 					requestMfaCode: MfaPrompt,
-				) => runPersistenceProbe(this.plugin.garmin, log, { email, password, requestMfaCode }),
-				runFitness: (log: ProbeLog) => runFitnessProbe(this.plugin.garmin, log),
+				) => this.alone(log, () => runPersistenceProbe(this.plugin.garmin, log, { email, password, requestMfaCode })),
+				runFitness: (log: ProbeLog) => this.alone(log, () => runFitnessProbe(this.plugin.garmin, log)),
 				onFinished: (verdict: Verdict) => new Notice(`Garmin probe: ${verdict}`),
 				onCopyLog: (text: string) => {
 					navigator.clipboard
@@ -73,6 +75,14 @@ export class ProbeModal extends Modal {
 		this.contentEl.empty();
 	}
 
+	/** Runs a check with the runner held, or says why it can't. */
+	private async alone(log: ProbeLog, check: () => Promise<Verdict>): Promise<Verdict> {
+		const verdict = await this.plugin.sync.exclusive(check);
+		if (verdict) return verdict;
+		log.warn("A Garmin sync is running. Run this check again once it has finished.");
+		return "cancelled";
+	}
+
 	/**
 	 * Writes the log into the vault. On a phone this is the only reliable way to
 	 * get the output off the device: the file syncs back to the desktop like any
@@ -86,7 +96,9 @@ export class ProbeModal extends Modal {
 			if (folder && !this.app.vault.getFolderByPath(folder)) {
 				await this.app.vault.createFolder(folder);
 			}
-			await this.app.vault.create(path, ["```", text, "```", ""].join("\n"));
+			// A fence longer than any run of backticks in the log, so none can close it early.
+			const fence = "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+			await this.app.vault.create(path, [fence, text, fence, ""].join("\n"));
 			if (!quiet) new Notice(`Saved ${path}`);
 		} catch (err) {
 			new Notice(`Could not save log: ${err instanceof Error ? err.message : String(err)}`);

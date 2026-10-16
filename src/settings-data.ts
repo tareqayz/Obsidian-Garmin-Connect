@@ -102,5 +102,6 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	stopAfterEmptyDays: 45,
 
 	logFolder: "Garmin/diagnostics",
-	autoSaveLog: true,
+	// Off: a log is about your account, and a vault syncs. Save the runs you mean to share.
+	autoSaveLog: false,
 };
