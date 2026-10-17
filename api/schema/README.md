@@ -1,9 +1,9 @@
 # Recorded response shapes
 
-One file per endpoint the daily check covers, written by `npm run api:record`.
-Each is the **union of every response ever observed** at that path, not the last
-one — which is what lets the check tell "Garmin dropped a field" apart from "the
-account had a quiet day".
+One file per endpoint with a recorded answer, written by `npm run api:record` (or
+`npm run api:record-file` from saved responses). Each is the **union of every response ever
+observed** at that path, not the last one. That is what lets the check tell "Garmin dropped a
+field" apart from "the account had a quiet day".
 
 ```jsonc
 {

@@ -35,8 +35,8 @@ spans (stats daily ranges: 28 days, 29 → HTTP 400) and note how missing days a
    `npm run api:record-file -- <id> <a.json> [b.json…] [--unwrap healthStatusSummary]`.
    (`npm run api:record` needs `.garmin-token.json` / `GARMIN_TOKENS`, which Garmin may
    rotate — don't use it here.) Every `critical` path must exist in the recorded shape.
-6. If the sync stores it: a `defineDayIndex` / intraday registration (see the foundation's
-   docs in `docs/architecture.md`), gated by an existing `MetricGroup`.
+6. If the sync stores it: a `defineDayIndex` / intraday registration (see `docs/building-pages.md`,
+   "Day indexes"), gated by an existing `MetricGroup`.
 
 Range caps differ by endpoint — 28 days for most `stats` routes, others 29, 31, 367, exactly
 52 weeks, or none — so every spec proves its own; days with no watch data are omitted, not

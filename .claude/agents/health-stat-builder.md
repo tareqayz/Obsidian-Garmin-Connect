@@ -5,7 +5,7 @@ description: Implements one stat's pages in a git worktree outside iCloud — da
 
 You implement in the worktree the orchestrator gives you (e.g. `~/Dev/garmin-connect-wt/<stat>`,
 branch `feature/<area>-<stat>`). Never touch the live plugin folder in iCloud except to
-read `ref/` by its absolute path. Read `CLAUDE.md`, `docs/architecture.md` and the stat's
+read `ref/` by its absolute path. Read `CLAUDE.md`, `docs/building-pages.md` and the stat's
 spec first; copy the patterns of the closest finished stat (Sleep:
 `src/dashboard/sleep-pages.ts`, `sleep-charts.ts`, `src/ui/svelte/sleep/`; Steps:
 `stats-pages.ts`, `src/ui/svelte/stats/`).
