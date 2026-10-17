@@ -16,7 +16,7 @@ To count them:
 ```bash
 jq '.endpoints | length' api/endpoints.json                              # every endpoint
 jq '[.endpoints[] | select(.check == true)] | length' api/endpoints.json # checked daily
-jq '[.endpoints[] | select(.source == "plugin")] | length' api/endpoints.json # seen only in Garmin's own traffic
+jq '[.endpoints[] | select(.source == "plugin")] | length' api/endpoints.json # maintained by hand
 ```
 
 ## endpoints.json
@@ -27,9 +27,10 @@ The request half of most entries is **generated** from
 expressions back into path templates. That library is the closest thing Garmin has to a spec,
 because the people who keep it current notice when it breaks.
 
-The other entries are routes upstream doesn't know, seen in the Garmin Connect app's and web app's
-own traffic: GraphQL queries, and most of what the Health and Performance Stats pages call. They
-carry `"source": "plugin"`, which stops a regeneration from marking them retired, and their
+The other entries are maintained by hand. Most are routes upstream doesn't know, seen in the Garmin
+Connect app's and web app's own traffic: GraphQL queries, and most of what the Health and
+Performance Stats pages call. A few are forms of upstream calls the AST walk can't see. They carry
+`"source": "plugin"`, which stops a regeneration from marking them retired, and their
 `upstream.summary` says where they were seen.
 
 ```jsonc
@@ -90,14 +91,14 @@ one that stops working in the plugin.
 flowchart LR
   cron["06:17 UTC, or by hand"] --> probes["scripts/api/probes.ts, through GarminApi"]
   probes --> compare["Compare with api/schema/"]
-  compare --> verdict{"A critical path broke?"}
+  compare --> summary["Report in the run summary"]
+  summary --> verdict{"A fail or error, or the run failed?"}
   verdict -->|yes| issue["Issue labelled garmin-api"]
-  verdict -->|no| summary["Report in the run summary"]
   cron -->|"record ticked"| pr["Pull request with today's shapes"]
 ```
 
 - **What it asks for:** every endpoint with `check: true`, sampling the last three complete days and
-  a fourteen-day range. The weekly routes ask for their usual 52 weeks, and so do the weight and
+  a fourteen-day range. Most weekly routes ask for their usual 52 weeks, and so do the weight and
   blood-pressure ranges: the weekly forms accept no other span, and a rare weigh-in needs the
   wider net.
 - **It includes routes nothing calls yet:** the weekly, monthly and latest forms of routes the pages
@@ -110,13 +111,14 @@ Each endpoint comes back with one verdict:
 | | Verdict | Meaning |
 | --- | --- | --- |
 | `✓` | `ok` | Today's response fits the recorded shape. |
-| `!` | `warn` | Something changed, but not on a path the plugin reads. |
+| `!` | `warn` | Something changed, but nothing a `critical` path depends on: a field added or widened, or a change on a `reads` path. |
 | `✗` | `fail` | A `critical` path is gone, or changed into something incompatible. |
 | `·` | `no-data` | Every sample came back empty. A rest day, not a change. |
 | `+` | `new` | Nothing recorded yet. Run `npm run api:record`. |
 | `✗` | `error` | The request itself failed. |
 
-A failure opens a single issue labelled `garmin-api`, or comments on the one already open.
+A `fail` or `error` verdict, or a run that couldn't complete, opens a single issue labelled
+`garmin-api`, or comments on the one already open.
 
 ### Why it stays quiet
 
@@ -135,8 +137,8 @@ wrong field name.
 
 ## Setting it up
 
-The check needs a Garmin session. Mint one locally; the password never leaves your machine and is
-never written down:
+The check needs a Garmin session. Mint one locally; the password goes only to Garmin's sign-in and
+is never written down:
 
 ```bash
 npm run api:token                       # prompts, handles MFA

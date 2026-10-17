@@ -35,7 +35,7 @@ four layers broke, which is most of the diagnosis.
 | `SUCCESS` | This platform can sign in. |
 | `BLOCKED` | Garmin's edge refused the client, not your credentials. If step 0 passed and step 1 got a 403, the path is open and the credential POST is what was refused. Retrying won't help. |
 | `RATE-LIMITED` | A 429. Wait 15–30 minutes, and don't retry in a loop. |
-| `BAD-CREDENTIALS` | In check 2: wrong email or password; fix them before running it again, since repeated failures can lock the account. In checks 3 and 4: also no session on this device, or a session Garmin ended. Sign in again. |
+| `BAD-CREDENTIALS` | In check 2: wrong email or password; fix them before running it again, since repeated failures can lock the account. In check 3: a session Garmin ended. In check 4: no session on this device, or one Garmin ended. Sign in again. |
 | `BAD-MFA-CODE` | The email and password were accepted; three verification codes weren't. Run it again with the newest code Garmin sends. |
 | `CANCELLED` | Stopped at the code prompt (costing only the login attempt already spent), or a sync was running, or check 3 had no session and no email and password to make one. |
 | `FAILED` | Read the step that failed. Step 3 failing after step 1 succeeded means Garmin has rotated its client IDs: save the run and open an issue with it. |
@@ -117,7 +117,7 @@ If nothing downloads at all, there may be nothing to fetch: **Settings → Data*
 from your Day details and Activity details ranges. The download also waits for the setup to have run
 and for a session.
 
-### A date range stopped early and said it "found nothing"
+### A date range stopped early: "nothing found for 45 days running"
 
 Working as intended. After 45 empty days in a row (**Stop after empty days**; `0` turns it off),
 **Sync a date range…** gives up and says where. It walks newest to oldest, so the empty stretch is the
@@ -147,8 +147,8 @@ default): the data is JSON, which Obsidian Sync counts as another type. Or press
 download the history on this device.
 
 A device that isn't signed in shows **Sign in to Garmin Connect** instead. If the data already
-arrived through your vault sync, it shows **Not signed in on this device**, and **Not now** puts that
-away.
+arrived through your vault sync and this device has never signed in, it shows **Not signed in on
+this device**, and **Not now** puts that away.
 
 ### Home still shows yesterday after midnight
 
@@ -184,7 +184,7 @@ If a day still has no curve after that, Garmin has none for it: older days often
 ### A night has a score but no timeline, factors or coach
 
 A night's sleep page reads its timeline, factors and Sleep Coach from that day's timelines. Nights
-synced before the Sleep pages existed (2026-10-07) have none.
+synced by a release before 0.2.0-beta.1 have none.
 - **Inside your Day details range**, the history download fetches them again. A vault that was
   syncing before the setup existed is asked first, in the update dialog, or in **Settings → Data**
   after **Later**.
@@ -209,9 +209,10 @@ copies the old notes' days into those files and shows a notice with the count.
 The copy runs only while `days/` doesn't exist, so it is skipped if a sync ran first or the notes
 were somewhere it doesn't look. It reads notes in the data folder, and daily notes whose properties
 carry the `garmin_` prefix.
-- **To run it again,** close Obsidian, delete the `days/` folder, and reopen the vault. Days already
-  in JSON are never overwritten, so nothing is lost, but the days only come back from notes that
-  still exist.
+- **To run it again,** close Obsidian, move the `days/` folder out of the vault, and reopen it.
+  Careful: this drops every day the JSON held, including days synced since the upgrade. Only the
+  days whose notes still exist come back, and the history download fetches your Day details range
+  again.
 - **Or fetch the days from Garmin** instead, with **Sync a date range…**.
 
 Once the pages show your history, you can delete the old day notes, their `garmin_` properties and

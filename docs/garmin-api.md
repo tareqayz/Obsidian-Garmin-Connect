@@ -2,8 +2,8 @@
 
 Every Garmin endpoint the plugin calls, when it calls it and what it costs. The full catalogue is
 [`api/endpoints.json`](../api/endpoints.json), described in [`api/README.md`](../api/README.md). It
-holds every route upstream knows plus those seen in the app's own traffic, with their request and
-response shapes.
+holds every route upstream knows plus the plugin's own additions, with their request shapes; the
+recorded response shapes are in [`api/schema/`](../api/schema/).
 
 **Code:** `src/garmin/endpoints.ts` (the wrappers), `src/garmin/constants.ts` (hosts, client IDs,
 headers), `src/garmin/auth.ts` (sign-in), `src/garmin/client.ts` (the transport).
@@ -108,8 +108,9 @@ One request per day synced, for each group that is on.
 - **`dailySummary` serves five groups from one request,** so switching off only some of them saves
   nothing. Respiration and Pulse Ox cost no requests of their own.
 - **`dailySummary` throws `GarminApiError` (status 403) for a `privacyProtected: true` answer.**
-  Read as empty, it would pass for a day without data. The day fails with a warning, but the
-  session is fine: signing in again gets the same answer.
+  Read as empty, it would pass for a day without data. The summary is dropped with a warning, the
+  rest of the day is still written (and not booked as whole), and the session is fine: signing in
+  again gets the same answer.
 - **`enduranceScore` stays per day:** only the day route sends the day's class and feedback phrase.
 
 ### GraphQL
@@ -186,15 +187,16 @@ Called once for the whole run, in windows of up to a year (`RANGE_CHUNK_DAYS`).
 - **`racePredictions` rejects ranges longer than a year,** so a long run is cut into years.
 - **`activities` is paged rather than dated.** A sync pages back through it 50 at a time, five pages
   at most, to the run's oldest day. It files each activity under the local day it started on.
-- **A history chunk far from today** would never page down to its days, so it lists them with
-  `activitiesByDate` instead, a request per hundred. That list feeds the day files only, not the
+- **A history-download chunk** lists its days' activities with `activitiesByDate` instead, a request
+  per hundred, since paging from today would never reach a chunk far back. That list feeds the day files only, not the
   activity index.
 
 ## History index endpoints
 
 The pages inside Home read history indexes the sync keeps beside the day files (see
-[properties → history indexes](properties.md#history-indexes)). These routes fill the ones that
-aren't Health Stats:
+[properties → history indexes](properties.md#history-indexes)). These routes fill the indexes that
+aren't Health Stats pages'. VO₂ Max, Hill Score, Race Predictor and daily Running Tolerance walk
+their history with the range calls above:
 
 | Method | Path | Index | Per request |
 | --- | --- | --- | --- |
@@ -222,23 +224,23 @@ On a routine sync:
 - **Performance Stats indexes** with a `fromDay` feed take the run's days from the day routes and
   range calls above.
 - **Indexes with neither feed ask a window every routine sync:**
-  - Health Status, Fitness Age, Weight, Blood Pressure, weekly Running Tolerance, Running Economy,
-    Critical Swim Speed and HRV Stress, one request each;
-  - FTP and Running Lactate Threshold, two each.
+  - Health Status, Fitness Age, Blood Pressure, weekly Running Tolerance, Running Economy, Critical
+    Swim Speed and HRV Stress, one request each;
+  - Weight, FTP and Running Lactate Threshold, two each.
 - **Some indexes re-read their last days** (`refreshDays`); see the
   [Data reference](properties.md#history-indexes).
 
 ## Health Stats pages
 
-The Health Stats pages read routes the Garmin Connect web app uses (seen in its traffic on
-2026-10-08), not the day sync's. A range route per page fills its history index, and a few day
-routes fill a 1d page when it opens. None is GraphQL.
+The Health Stats pages mostly read routes the Garmin Connect web app uses (seen in its traffic on
+2026-10-08). A range route per page fills its history index, and a few day routes, some of them
+the day sync's own, fill a 1d page when it opens. None is GraphQL.
 
 ### Ranges
 
 Days without data are left out, not zero-filled. Past its cap a route answers HTTP 400, and the
-caps differ by route. "None found" means a ten-year span still answered; those indexes ask for up
-to ten years at a time.
+caps differ by route. "None found" means the longest span tried still answered: ten years, or three
+for Health Status. Those indexes ask for up to ten years at a time.
 
 | Method | Path | Index | Cap |
 | --- | --- | --- | --- |
@@ -278,8 +280,8 @@ An activity's page loads when it opens, never in a sync (see
     (`metadataDTO.hasPowerTimeInZones`).
   - The weather only with a GPS track (`hasPolyline`).
   - The weigh-in only with power.
-- **That makes** eleven for a run with power or a ride, nine for an open-water swim, and eight for a
-  pool swim, yoga or a Stair Stepper.
+- **That makes** eleven for a run or ride with power, nine for one without power or an open-water
+  swim, and eight without GPS or power, such as a pool swim, yoga or a Stair Stepper.
 - **After that, none:** the answer is kept in the vault.
 
 With an **Activity details** range, the history download loads every activity in it the same way,
@@ -331,7 +333,7 @@ check too (the **Checked** column), so a change to them is noticed.
 
 | Method | Path | Checked | Notes |
 | --- | --- | --- | --- |
-| `activityTypes()`, `eventTypes()` | `/activity-service/activity/activityTypes`, `…/eventTypes` | yes | The plugin bundles the answers (`activity-types.ts`, `EVENT_TYPES` in `all-activities.ts`); the check watches for drift. |
+| `activityTypes()`, `eventTypes()` | `/activity-service/activity/activityTypes`, `…/eventTypes` | yes | The plugin bundles the answers (`activity-types.ts`, `EVENT_TYPES` in `all-activities.ts`); the check watches the shape of the answer, not its contents. |
 | `cyclingPowerCurve(start, end)` | `/fitnessstats-service/powerCurve?startDate=&endDate=&sport=cycling` | no | Cycling Power Curve builds its curves from the activity list's best powers instead. |
 | `cyclingPowerRecords()` | `/fitnessstats-service/powerCurve?sport=cycling` | no | The all-time Record. |
 | `criticalSwimSpeedLatest(date)` | `/biometric-service/criticalSwimSpeed/latest/{date}` | yes | The newest CSS result on or before the day; 204 without one. |
@@ -434,7 +436,7 @@ These wait for any sync, run one at a time at the same pace, and go ahead of the
 A 429 that outlasts the pause answers every one still waiting.
 
 The sync runs **newest day first**, so a run cut short has already covered the days you care about
-most. Every request goes through one throttle on the client (`src/garmin/throttle.ts`), paced by the
+most. Every API request goes through one throttle on the client (`src/garmin/throttle.ts`), paced by the
 **Sync speed** setting.
 
 ## Keeping this honest
@@ -450,7 +452,7 @@ answers with the shapes recorded in [`api/schema/`](../api/schema/):
 
 ## Behaviour worth knowing
 
-- **Transient failures are retried at once; rate limits after a pause.**
+- **Transient failures are retried after a short backoff; rate limits after a pause.**
   - A request that comes back 5xx, or not at all, is tried up to three times in all, with a jittered
     backoff (`MAX_ATTEMPTS`, `src/garmin/client.ts`).
   - A 429 pauses *every* request the client makes for Garmin's `Retry-After` (30 s, then 60 s,
@@ -473,8 +475,7 @@ Garmin publishes no rate limit for the API the plugin uses, so one was measured.
 backfill does, at a rising rate. It stops at the first of: a 429, an edge refusal, a p95 latency
 three times the first stage's, or 5% server errors.
 
-On 2026-10-12, from a home connection, every stage ran clean: about 8,800 requests in half an hour,
-no 429 and no slowdown. 47 requests a second for a minute is a floor on the limit, not the limit. A
+On 2026-10-12, from a home connection, every stage ran clean: no 429 and no slowdown. 47 requests a second for a minute is a floor on the limit, not the limit. A
 minute-long test can't see a quota over hours, or an account flagged for the pattern, which is why
 the speeds stay well under it.
 

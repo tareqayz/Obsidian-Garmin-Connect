@@ -14,14 +14,20 @@ an activity lacks only when it opens.
 
 | Pages | Read | Kept current by |
 | --- | --- | --- |
-| Activities, All Activities, Cycling Power Curve | the activity index, `activities/` (`activity-index.ts`) | each sync's first page of the activity list; the whole history once, from the backfill or **Sync activity history** |
+| Activities, All Activities, Cycling Power Curve | the activity index, `activities/` (`activity-index.ts`) | each sync's pages of the activity list (50 a page, up to five, back to the run's oldest day); the whole history once, from the backfill or **Sync activity history** |
 | Steps, Floors, Intensity Minutes | the daily stats index, `daily-stats/` (`daily-stats.ts`) | each synced day's summary, at no cost; the range endpoints for days whose summary failed |
 | Sleep | the sleep index, `sleep/` (`sleep-index.ts`), and the night in the day's series file | every sync with the `sleep` group on |
-| Health and Performance Stats | a day index each (see [Day indexes](#day-indexes)), and blocks loaded on view | routine syncs and the backfill |
+| Health and Performance Stats | mostly a day index each (see [Day indexes](#day-indexes)), and blocks loaded on view | routine syncs and the backfill |
 | An activity's page | `activity-details/<id>.json` (`activity-detail.ts`) | `loadActivity` the first time it opens; the backfill's `details` task |
 | Home | the day files, the series files, `account.json` and the indexes above | — |
 
-Load reads Training Status's index; Training Effect reads the day files and the activity index.
+The exceptions:
+- Load reads Training Status's index, the day files and the activity index.
+- Training Effect reads the activity index alone.
+- Pulse Ox Acclimation reads Pulse Ox's index.
+- Health Snapshot loads only on view.
+- Lifestyle Logging reads nothing yet.
+
 Every file and key is in the [Data reference](properties.md).
 
 ## Home's page stack
@@ -41,8 +47,9 @@ of pages (`src/dashboard/routes.ts`). Home sits at the bottom. Above it can be `
   (`AllRoute`); an activity keeps its tab, axis, expanded chart and picker choices (`picks`).
   `readRoute` repairs each field it reads back, and folds an old run route's `pace`, `heart` and
   `power` into `picks`.
-- A saved route whose page this version lacks shows "This page isn't in this version of the
-  plugin" instead of failing.
+- A saved route this version can't read is dropped from the stack. A stat route whose stat the
+  registry knows but whose page isn't registered shows "This page isn't in this version of the
+  plugin" instead.
 
 ## Health and Performance Stats foundation
 
@@ -95,9 +102,9 @@ flowchart LR
 
 | Registration | What it switches on |
 | --- | --- |
-| `DAY_INDEXES` | Routine syncs feed the index. The backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to and its group is on. It also adds a **Sync <title> history** command and `readIndex(kind)`, and Home watches its folder |
+| `DAY_INDEXES` | Routine syncs feed the index. The backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to and its group is on. It also adds a `Sync <title> history` command and `readIndex(kind)`, and Home watches its folder |
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
-| `HEALTH_PAGES` | the stat's row in the hub, an **Open <stat>** command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
+| `HEALTH_PAGES` | the stat's row in the hub, an `Open <stat>` command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
 | `PERFORMANCE_PAGES` | the same for the `performance-stat` route, and its In Focus card (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The hub, More's row and **Open performance stats** appear with the first hub stat |
 
 ### The registry
@@ -150,7 +157,7 @@ When a route is read back from saved state:
 - an unknown stat is refused. So are Sleep, which keeps its own route, and Cycling Ability, which
   has none;
 - a range the stat lacks becomes its default;
-- `offset` must be a whole number at or below 0;
+- an `offset` that isn't a whole number at or below 0 becomes 0;
 - `tab` and `sub` are kept when they are short tokens, and `date` when it is `YYYY-MM-DD`.
 
 What `tab`, `sub` and `date` mean is the page's business: Health Status keeps its open metric sheet
@@ -163,8 +170,8 @@ the page a Performance card opens, on Home's day when it opens on 1d.
 ## Day indexes
 
 A day index is one short row a day for a stat's whole history:
-- a year file per year, `<dataFolder>/<folder>/<year>.json`, holding `{version, year, <listKey>:
-  [...]}`, one row a line, oldest first;
+- a year file per year, `<dataFolder>/<folder>/<year>.json`, holding
+  `{version, year, <listKey>: [...]}`, one row a line, oldest first;
 - `index.json`, holding `{version, from?, to?, complete}`.
 
 A file is written only when its text changes. The real Stress index
@@ -188,7 +195,7 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 
 | Field | Meaning |
 | --- | --- |
-| `kind`, `title`, `folder` | The id (`readIndex(kind)`, the history command, the progress map), how it reads mid-sentence ("Sync stress history"), and its folder. Lowercase and hyphenated |
+| `kind`, `title`, `folder` | The id (`readIndex(kind)`, the history command, the progress map), how it reads mid-sentence ("Sync stress history"), and its folder. `kind` and `folder` are lowercase and hyphenated |
 | `version` | Bump when a row's meaning changes. An `index.json` of another version reads as none, and the history is fetched again once its new consent key is agreed to. See [Data versions](CONTRIBUTING.md#data-versions) |
 | `listKey` | The list's key in a year file: `days` unless the stat reads better otherwise |
 | `columns` | The row's keys, in order. A number is rounded to `precision` decimals (whole by default). A negative is Garmin's "not measured" and is dropped, unless `signed`. `text` keeps a trimmed word. Unknown keys, nulls and empty rows are dropped |
@@ -211,7 +218,7 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 than a sync. It checks:
 - the names, and that `kind` and `folder` aren't in `RESERVED_INDEX_NAMES`;
 - the columns;
-- a window or refresh outside 0–3660;
+- a window outside 1–3660, or a refresh outside 0–3660;
 - a non-positive `emptyWindowsToStop`;
 - `fromDay` beside `fromSummary`, or a `fromDay` that needs nothing.
 
@@ -257,8 +264,8 @@ writes the file and resolves with the day's series.
   - A 429 answers every waiting load without asking again.
 - **A sync's write of a day** (`keepBlocks`, `src/sync/intraday-registry.ts`) refreshes the blocks
   it asked Garmin for, and keeps the file's copy of any block Garmin no longer sends.
-  - A write that fetched the day's intraday drops the extras and `checked`, so the next view
-    fetches them fresh.
+  - A write that fetched the day's intraday drops the on-view extras and `checked`, so the next
+    view fetches them fresh. The sync's own extras (`hrvDay`, `readinessDay`) stay.
   - A write that fetched only the night changes the night's blocks and keeps the rest.
 
 A day page reads its series. While `missingKeys(series, keys)` isn't empty, it shows the day's
@@ -279,7 +286,8 @@ keeps it in `<dataFolder>/activity-details/<id>.json` (`src/sync/activity-detail
   - the weight on the activity's day, with power, for W/kg.
 
   A block that doesn't apply is marked checked without a request. That makes 11 requests for a run
-  with power or a ride, 9 for an open-water swim, and 8 for a pool swim or yoga.
+  or ride with power, 9 for one without power or an open-water swim, and 8 without GPS or power,
+  such as a pool swim or yoga.
 - **Sensors** are named from the summary's FIT product numbers (`src/garmin/device-names.ts`),
   never with a request, and no serial number is kept.
 - **`checked`** lists the blocks fetched, with data or without. A block whose request failed is
@@ -340,12 +348,14 @@ from a finished stat: Stress (`src/ui/svelte/stress/`) or Respiration
 - `style` sets custom properties, such as the stat's colours;
 - `ranges` and `rangeLabels` override the registry's;
 - `steppers={false}` shows the label alone;
-- `step` and `canGoForward` replace the default stepping.
+- `step` and `canGoForward` replace the default stepping;
+- `title`, `navTitle` and `top` override the header's title and add content above the body.
 
 Its body snippet gets `{ pane, move, span }`, so a card moves the page with
-`move(dayCardRoute(date, today))`. Spacing follows the Stress twin unless a stat sets the layouts'
-custom properties: `--stat-chart-top`, `--stat-chart-top-pane`, `--stat-figures-top-pane`,
-`--stat-list-top` and `--stat-list-top-pane`.
+`move(dayCardRoute(date, today))`. Spacing follows the Stress twin unless a stat sets these custom
+properties:
+- the layouts': `--stat-chart-top`, `--stat-chart-top-pane`, `--stat-figures-top-pane`;
+- the card list's (`StatCardList.svelte`): `--stat-list-top`, `--stat-list-top-pane`.
 
 A 7d / 4w page in outline, simplified from Respiration's:
 
@@ -443,7 +453,8 @@ A profile has five optional parts, and each tab's shared view model takes its pa
 
 `src/dashboard/activity-types.ts` lists Garmin's activity types. Each has the app's English name,
 the filter group All Activities files it under, its place in that group and its card's disc colour.
-It is edited by hand; `api:check` on `activity-types` reports when Garmin's tree moves away from it.
+It is edited by hand. The daily contract check watches only the shape of Garmin's `activity-types`
+answer, not its contents, so a type Garmin adds shows up only as one the table lacks.
 
 - `FILTER_GROUPS` holds the Filters sheet's groups in its order, with the first `SHOWN_GROUPS`
   before **Show All**.
@@ -451,8 +462,9 @@ It is edited by hand; `api:check` on `activity-types` reports when Garmin's tree
   the rest.
 - A type the table lacks, one Garmin adds later, is named from its key and filed under its parent's
   group, else Other.
-- "All <Group> Activities" under an activity (`groupLink` in `activity-overview.ts`) opens the
-  hub's page where there is one (`hubOfGroup`), else All Activities filtered to the group.
+- The "All … Activities" link under an activity (`groupLink` in `activity-overview.ts`) opens the
+  hub's page for its group where there is one (`hubOfGroup`), else All Activities filtered to the
+  group.
 
 ### All Activities
 
@@ -497,7 +509,7 @@ the build, with components mounted with `mount()` and torn down with `unmount()`
   `activity/map/toggle.ts`). A few components import it directly: `SettingsPanel.svelte` and
   `settings/DataSection.svelte` for `Notice` and `normalizePath`, `ChartsTab.svelte` for `Platform`,
   and the menus (the sub-type picker, All Activities' Sort, the Charts pickers).
-- **Class names never use Obsidian's global ones** (`.card`, `.prompt`, `.message`, `.notice`,
-  `.menu`). Pages use container queries at 640 and 1000.
+- **Avoid Obsidian's global class names** (`.card`, `.prompt`, `.message`, `.notice`, `.menu`):
+  Obsidian styles them. Pages use container queries at 640 and 1000.
 
 [svelte-guide]: https://docs.obsidian.md/Plugins/Getting+started/Use+Svelte+in+your+plugin

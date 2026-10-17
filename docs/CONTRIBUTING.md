@@ -47,8 +47,8 @@ merged by pull request:
 | Workflow | Runs | Does |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | every pull request, every push to `main` | `npm ci` and `npm run build` |
-| `.github/workflows/api-contract.yml` | daily at 06:17 UTC, by hand, and on pull requests that touch the API | the catalogue's offline checks; the live contract check against Garmin (see [api/README.md](../api/README.md)) |
-| `.github/workflows/release.yml` | every pushed tag | builds, checks the tag against the manifest, attests and publishes a release |
+| `.github/workflows/api-contract.yml` | daily at 06:17 UTC, by hand, and on pull requests that touch the API | the catalogue's offline checks on every run; the live contract check against Garmin daily and by hand, never on pull requests (see [api/README.md](../api/README.md)) |
+| `.github/workflows/release.yml` | every pushed tag | builds, checks the tag against the manifest, attests, then drafts (stable) or publishes (beta) a release |
 
 ## Releasing
 
@@ -90,13 +90,13 @@ flowchart TD
 
 1. In a pull request, rename `## [Unreleased]` to `## [x.y.z-beta.N] — YYYY-MM-DD`, add a fresh
    `## [Unreleased]`, and update the compare links. Merge it.
-2. Tag the merged commit on `main`:
+2. On the merged `main`, check the notes: `npm run --silent release:notes -- x.y.z-beta.N` should
+   print the beta's section. Check now: a beta is published as soon as its tag is pushed.
+3. Tag the merged commit and push the tag:
    ```bash
    git tag -a x.y.z-beta.N -m "x.y.z-beta.N"
    git push origin x.y.z-beta.N
    ```
-3. Check the notes: `npm run --silent release:notes -- x.y.z-beta.N` should print the beta's
-   section.
 
 The workflow stamps the version into `manifest.json` **inside the runner** and publishes a
 pre-release. The bump is never committed: Obsidian reads `manifest.json` at the head of the default
@@ -156,10 +156,11 @@ already holds has to fetch them again, and ask first. Such a change:
    - Activity details: `ACTIVITY_DETAIL_VERSION` (`src/sync/activity-detail.ts`), which
      `ACTIVITY_DETAILS_VERSION` follows;
    - a chart history: the index's own `version`. For the three older indexes that is
-     `INDEX_VERSION` (`activity-index.ts`), `DAILY_STATS_VERSION` or `SLEEP_INDEX_VERSION`.
+     `INDEX_VERSION` (`activity-index.ts`), `DAILY_STATS_VERSION` (`daily-stats.ts`) or
+     `SLEEP_INDEX_VERSION` (`sleep-index.ts`).
 2. **For Day details or Activity details, adds a line to the set's `changes`** in `datasets.ts`,
    keyed by the new version. That line is what the update dialog says about the data an older
-   version saved. A chart history needs none: the dialog names it "<Title> history".
+   version saved. A chart history needs none: the dialog names it "`<Title>` history".
 3. **Runs `UPDATE_SHAPES=1 npm test`** to record the new shape in
    `tests/fixtures/dataset-shapes.json`, and commits it with the change.
 

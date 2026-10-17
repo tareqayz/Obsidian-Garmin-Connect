@@ -43,7 +43,7 @@ phone app, on desktop and mobile.
   - Endurance Score, Hill Score, Running Tolerance, FTP and Running Lactate Threshold;
   - Running Economy, Training Effect, Cycling Power Curve, Critical Swim Speed and HRV Stress;
   - Load and Heat Acclimation.
-- **Your data stays yours:** plain JSON files in one folder of your vault. It writes no notes.
+- **Your data stays yours:** plain JSON files in one folder of your vault. The sync writes no notes.
 - **Private by design:** the password is never stored, the session stays in Obsidian's keychain,
   and there is no telemetry.
 - **Gentle with Garmin:** paced requests and an hourly budget, and it backs off when Garmin asks.
@@ -91,7 +91,7 @@ on how much history you keep:
 
 | Data set | Holds | Size |
 | --- | --- | --- |
-| **Charts & trends** | every page's 7-day, 4-week and 1-year history, always all of it | under 1 MB a year of history |
+| **Charts & trends** | every page's 7-day, 4-week and 1-year history, always all of it | about 1 MB a year of history |
 | **Day details** | each day's numbers and its timelines | about 44 KB a day, 16 MB a year |
 | **Activity details** | an activity's map, charts and laps, every sport; by default only the activities you open | about 150 KB a run, less for most others |
 
@@ -120,7 +120,7 @@ What is stored where, and how it is redacted, is in [Security](docs/SECURITY.md)
 ## Known limitations
 
 - **Language and units:**
-  - English only, with times on a 12-hour clock whatever your account says.
+  - English only, and the pages show times on a 12-hour clock whatever your account says.
   - Imperial units are drawn but unverified; a UK account (`statute_uk`) shows pounds and °F.
   - Weeks follow fixed starts (Monday for steps, Sunday for some performance charts), not your
     account's first day of the week.
@@ -194,8 +194,8 @@ Danger zone → Delete synced data** removes it without uninstalling. See
   there.
 - [cyberjunky/python-garminconnect](https://github.com/cyberjunky/python-garminconnect): an actively
   maintained Garmin Connect library that saved a huge amount of reverse-engineering work.
-- [Lucide](https://lucide.dev) (ISC): the watch in the logo and the ribbon icon. Everything else uses
-  Obsidian's own Lucide icons.
+- [Lucide](https://lucide.dev) (ISC): the watch in the logo and the ribbon icon, and the plugin's
+  other icons, through Obsidian.
 - [Tabler Icons](https://tabler.io/icons) (MIT): the sport figures on the Activities pages.
 - [Leaflet](https://leafletjs.com) (BSD-2-Clause): the activity maps, bundled with the plugin.
 - [OpenStreetMap](https://www.openstreetmap.org/copyright): the map under a route, © OpenStreetMap

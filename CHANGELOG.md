@@ -2,9 +2,9 @@
 
 All notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each section is a published release,
-headed by its tag, and its GitHub release takes its notes from that section; see
-[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each section below `[Unreleased]` is a
+published release, headed by its tag. From the next release on, a GitHub release takes its notes
+from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
@@ -17,8 +17,8 @@ headed by its tag, and its GitHub release takes its notes from that section; see
   - **Open-water swims:** the route and charts.
   - **Every other sport:** the sections the sports share.
 - **Sensors and badges** on every activity's Overview, named as the app names them.
-- **"All <Group> Activities"** under an activity, opening the hub's page for its group or All
-  Activities filtered to it.
+- **An "All … Activities" link under every activity,** not only runs ("All Walking Activities"
+  under a walk), opening the hub's page for its group or All Activities filtered to it.
 - **All Activities, as Garmin's new page.**
   - A search that ignores case and accents.
   - A Filters sheet: activity groups, dates, distance, time, ascent, event type, favourites,
@@ -46,7 +46,8 @@ headed by its tag, and its GitHub release takes its notes from that section; see
 - **Region on the sign-in step,** so a China account signs in against garmin.cn from the start.
 - **Diagnostics are safe to paste.**
   - Emails, tokens and IP addresses are scrubbed, and names become placeholders.
-  - Runs are saved only when you ask.
+  - New installs save a run only when you ask: **Save every diagnostics run to the vault** is now
+    off by default.
   - The checks that use the session don't run during a sync.
 - **A generic icon:** Lucide's watch instead of a trace of Garmin's logo.
 - **The data and log folder settings** save on Enter or on leaving the field, and refuse the vault's
@@ -61,9 +62,9 @@ headed by its tag, and its GitHub release takes its notes from that section; see
 - **A failed token refresh signed every device out.** Only Garmin saying the token is spent ends a
   session now.
 - **Garmin's bot check refusing the device** didn't stop the history download. It now pauses for half
-  an hour, doubling up to twelve.
-- **A JSON 403, or a privacy-protected day,** read as a dead session. That day now fails alone, with a
-  warning.
+  an hour, doubling up to twelve hours.
+- **A JSON 403, or a privacy-protected day,** read as a dead session. Now only that request fails,
+  with a warning.
 - **An unexpected payload aborted the whole sync** and wedged the download. The day now fails alone,
   and a download piece that fails three times waits for the next session.
 - **A request that never answered** held the sync until Obsidian restarted. Requests give up after a
@@ -76,7 +77,7 @@ headed by its tag, and its GitHub release takes its notes from that section; see
 - **A short page partway down the activity list** replaced the index. A listing now replaces it only
   when it is about as long as Garmin's count.
 - **Sync services' conflict copies went unnoticed.** The first gets a notice, and **Delete synced
-  data** removes them.
+  data** now also removes Syncthing's and Dropbox's copies and set-aside unreadable files.
 - **A page that threw blanked Home,** even after a restart. It now shows a card with **Copy debug
   info** and **Back to Home**.
 - **A Home tab left open past midnight** kept yesterday. It moves to the new day within a minute.
@@ -85,14 +86,13 @@ headed by its tag, and its GitHub release takes its notes from that section; see
   predictions. That stays in the log now.
 - **An activity file could put HTML into a lap marker.** Lap numbers are drawn as text.
 - **Perceived Effort's dot colours** now go in the app's pairs.
-- **A pool swim's page said "Loading the map…" for good.** An activity without GPS has no map.
 
 ## [0.2.0-beta.2] — 2026-10-15
 
 ### Added
 
-- **Performance Stats.** More → Performance Stats rebuilds Garmin's performance pages, each with its
-  own history in the data folder:
+- **Performance Stats.** More → Performance Stats rebuilds Garmin's performance pages, most with a
+  history of their own in the data folder. Load and Heat Acclimation open from Training Status:
   - Training Status, Load, Training Readiness, HRV Status;
   - VO₂ Max, Race Predictor, Endurance Score, Hill Score, Heat Acclimation;
   - Training Effect, Cycling Power Curve, Running Tolerance, FTP;
@@ -145,7 +145,6 @@ headed by its tag, and its GitHub release takes its notes from that section; see
 ### Fixed
 
 - **Re-syncing an older day erased its timelines.** A sync now changes only what it asked for.
-- **A sync of many days rewrote its year file once a day.** It now writes each file once.
 - **Closing Obsidian during a history walk** lost what the walk had fetched. Walks keep each year as
   it comes in.
 
@@ -205,9 +204,9 @@ The first build published for testers.
   predictions.
 - **A generated Bases table view** (`Garmin Health.base`).
 - **A configurable dashboard** of cards with saved layouts.
-- **Run connectivity probe:** a four-step check of sign-in and connectivity that saves its log in the
-  vault.
-- **The Garmin API, written down and checked daily:** the endpoint catalogue, the recorded response
+- **Run connectivity probe:** a step-by-step check of sign-in and connectivity that saves its log in
+  the vault.
+- **The Garmin API, written down and checked daily:** the endpoint catalogue, a recorder for response
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 

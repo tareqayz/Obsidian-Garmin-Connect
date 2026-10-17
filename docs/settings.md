@@ -28,7 +28,7 @@ two blocks:
 | --- | --- | --- | --- |
 | Status | — | — | Whether you are signed in on this device and when the session was saved, with a **Sign in** or **Sign out** button. |
 | Garmin email | `email` | `""` | The account to sign in as. |
-| Region | `domain` | `garmin.com` | `garmin.cn` for mainland China accounts. It changes every host the plugin talks to, so changing it signs you out and rebuilds the client. |
+| Region | `domain` | `garmin.com` | `garmin.cn` for mainland China accounts. It changes every Garmin host the plugin talks to, so changing it signs you out and rebuilds the client. |
 
 Your password is never stored. If the account has multi-factor authentication on, the sign-in asks
 for the code as a second step. The code isn't stored either. Expect the challenge on every sign-in,
@@ -122,7 +122,7 @@ doesn't remove what it already wrote.
 | `spo2` | Pulse Ox, Pulse Ox Acclimation |
 | `body` | Weight, Blood Pressure |
 | `fitness` | Fitness Age, VO₂ Max, Hill Score, Endurance Score, Heat Acclimation, FTP, Running Lactate Threshold, Running Economy |
-| `health` | Health Status, Health Snapshot |
+| `health` | Health Status, Health Snapshot, Lifestyle Logging |
 | `hrv` | HRV Status, HRV Stress |
 | `readiness` | Training Readiness |
 | `training` | Training Status, Load, Running Tolerance |

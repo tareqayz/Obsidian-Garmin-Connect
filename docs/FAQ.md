@@ -29,7 +29,7 @@ It is not official, and not affiliated with Garmin. It signs in the way Garmin's
 then makes ordinary reads, at a deliberately gentle pace.
 - With every metric group on, a day costs nine requests, plus six for its timelines.
 - A sync costs about 30 more.
-- Your history downloads once, under an hourly budget of 2,500 requests at the default speed.
+- Your history downloads once, in the background, under an hourly request budget.
 
 Garmin does limit login attempts per IP and can lock an account after repeated failures, so sign in
 deliberately and never retry in a loop. The breakdown is in
@@ -102,8 +102,8 @@ and keep the plugin, use **Settings → Danger zone → Delete synced data**. Se
 
 A few reasons, most of them temporary:
 - **Garmin revises days late.** Sleep and Health Status are rescored, sometimes days afterwards. The
-  histories Garmin revises re-read their latest days on every sync (the `refreshDays` column in the
-  [Data reference](properties.md#history-indexes)).
+  histories Garmin revises re-read their latest days on every sync (the **Re-read** column in
+  [Data reference → Day indexes](properties.md#day-indexes)).
 - **Some states are inferred.** The pages were rebuilt from screenshots of the app and its web
   data, and some states never appeared on the accounts they were built from. Those states are
   inferred until someone checks them against the phone.
@@ -145,14 +145,14 @@ JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads 
 
 ## Does it work with a Garmin China account?
 
-Choose **garmin.cn** under **Region** when you sign in, or in **Settings → Connection**: every host
-changes accordingly, and changing it signs you out. It is untested, because nobody with a China
+Choose **garmin.cn** under **Region** when you sign in, or in **Settings → Connection**: every
+Garmin host changes accordingly, and changing it signs you out. It is untested, because nobody with a China
 account has tried it yet, so a report either way helps.
 
 ## Why no chart library?
 
 An Obsidian plugin can't load external scripts, and a bundled chart library would be dead weight on a
-phone, so the charts are hand-drawn SVG. The one library is Leaflet, for the activity maps: panning
+phone, so the charts are hand-drawn SVG. The one drawing library is Leaflet, for the activity maps: panning
 and pinching a map on a phone is where hand-rolled code breaks. It is bundled with the plugin and
 loads only when a map is drawn.
 
@@ -160,8 +160,8 @@ loads only when a map is drawn.
 
 Garmin's app draws Google's map, which a plugin can't use without each user setting up a paid key. So
 the plugin draws OpenStreetMap's, from `tile.openstreetmap.org`, which sees which part of the map you
-open. Turn **Map tiles** off and the route is drawn on its own, with no request at all; that is also
-what you see offline.
+open. Turn **Map tiles** off and the route is drawn on its own, with no request at all. Offline, a
+map draws the tiles this device has cached, and the route alone elsewhere.
 
 ## What are the diagnostics logs in my vault?
 

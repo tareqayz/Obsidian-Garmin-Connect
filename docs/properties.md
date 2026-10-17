@@ -61,7 +61,7 @@ A day's properties are the keys of one object in a JSON file per year:
   keeps the values it wrote.
 - **Unchanged files are left alone.** A year file is rewritten only when its text changes.
 
-Older builds wrote the same keys as note properties with a `garmin_` prefix. See the
+Older builds wrote the same keys as note properties (in daily notes, with a `garmin_` prefix). See the
 [FAQ](FAQ.md#i-used-an-older-version-where-did-my-day-notes-go) for the one-time copy into these
 files.
 
@@ -99,7 +99,7 @@ From the daily summary, `/usersummary-service/usersummary/daily/{displayName}`.
 | `intensity_moderate` | integer | minutes | `moderateIntensityMinutes` |
 | `intensity_vigorous` | integer | minutes | `vigorousIntensityMinutes` |
 | `intensity_minutes` | integer | minutes | moderate + vigorous × 2, Garmin's weighting; written when either part exists |
-| `intensity_goal` | integer | minutes | `intensityMinutesGoal` |
+| `intensity_goal` | integer | minutes a week | `intensityMinutesGoal` |
 | `active_minutes` | integer | minutes | `activeSeconds` ÷ 60 |
 | `highly_active_minutes` | integer | minutes | `highlyActiveSeconds` ÷ 60 |
 | `sedentary_minutes` | integer | minutes | `sedentarySeconds` ÷ 60 |
@@ -120,7 +120,9 @@ From the daily summary.
 
 ### sleep
 
-From `/wellness-service/wellness/dailySleepData/{displayName}`, the `dailySleepDTO` object.
+From `/wellness-service/wellness/dailySleepData/{displayName}`, mostly its `dailySleepDTO` object.
+`sleep_resting_hr`, `sleep_restless_moments`, `sleep_body_battery_change` and
+`sleep_need_next_hours` read the payload's top level first.
 
 | Property | Type | Unit | Source field |
 | --- | --- | --- | --- |
@@ -198,7 +200,8 @@ From `/hrv-service/hrv/{date}`, the `hrvSummary` object.
 
 ### readiness
 
-From `/metrics-service/metrics/trainingreadiness/{date}`, its first entry.
+From `/metrics-service/metrics/trainingreadiness/{date}`, its first entry: the day's newest reading
+(the history index keeps the morning one).
 
 | Property | Type | Unit | Source field |
 | --- | --- | --- | --- |
@@ -337,14 +340,14 @@ call.
 | `load_aerobic_high_target_min`, `load_aerobic_high_target_max` | integer | load | `<balance>.monthlyLoadAerobicHighTargetMin`, `…TargetMax` |
 | `load_anaerobic_target_min`, `load_anaerobic_target_max` | integer | load | `<balance>.monthlyLoadAnaerobicTargetMin`, `…TargetMax` |
 | `load_focus` | string | — | `<balance>.trainingBalanceFeedbackPhrase` |
-| `running_tolerance` | integer | load | `runningtolerance/stats` `acuteTolerance` |
-| `running_tolerance_load` | integer | load | `acuteImpactLoad` |
+| `running_tolerance` | number | m | `runningtolerance/stats` `acuteTolerance` |
+| `running_tolerance_load` | number | m | `acuteImpactLoad` |
 | `running_tolerance_distance_km`, `running_tolerance_distance_mi` | number, 2 dp | km, mi | `acuteDistance` (metres), by the unit setting |
 | `running_tolerance_feedback` | string | — | `runningToleranceFeedBackPhrase` |
 
 - **`<status>`** is `mostRecentTrainingStatus.latestTrainingStatusData.<deviceId>`.
-- **`<acute>`** is `acuteTrainingLoadDTO` inside that entry, or at the top level if the account sends
-  it there.
+- **`<acute>`** is the top-level `acuteTrainingLoadDTO`, or the one inside that entry when the top
+  level has none.
 - **`<balance>`** is `mostRecentTrainingLoadBalance.metricsTrainingLoadBalanceDTOMap.<deviceId>`.
 
 Both maps are keyed by device. An account with a watch and a bike computer has several entries, and
@@ -370,7 +373,7 @@ without activities.
 | `elevation_gain_m`, `elevation_gain_ft` | integer | m, ft | `elevationGain` |
 | `steps` | integer | count | `steps` |
 | `training_effect` | number, 1 dp | 0–5 | `aerobicTrainingEffect` |
-| `pace` | string | min per km or mile | `distance` ÷ `movingDuration` |
+| `pace` | string | m:ss per km or mile | `movingDuration` (else `duration`) ÷ `distance` |
 
 ```json
 "workouts": [
@@ -481,16 +484,15 @@ Every timestamp is epoch milliseconds, UTC, and a key is left out when Garmin ha
 - **A sync's write merges** (`keepBlocks`). It refreshes the blocks it fetched and keeps any block
   Garmin no longer sends. A write that fetched the day's timelines drops the on-view extras and
   `checked`, so the next view fetches them fresh; a write that fetched only the night keeps them.
-- **Older files.** Files written before 2026-10-07 have no `sleep` block, and before 2026-10-04 no
-  floors, intensity or `dayStart`. They fill in when a sync covers those days again.
 
 ## Activity details — `activity-details/`
 
-An activity's page needs far more than its index row. The first time it opens, the plugin asks
-Garmin for the rest and keeps the answer in one file per activity:
-- 11 requests for a run with power or a ride;
-- 9 for an open-water swim;
-- 8 for a pool swim or yoga.
+An activity's page needs far more than its index row. The first time it opens (or ahead of time,
+with an **Activity details** range), the plugin asks Garmin for the rest and keeps the answer in one
+file per activity:
+- 11 requests for a run or ride with power;
+- 9 for one without power, or an open-water swim;
+- 8 without GPS or power, such as a pool swim or yoga.
 
 | Key | Holds | Source (`/activity-service/activity/{id}` unless named) |
 | --- | --- | --- |
@@ -534,12 +536,13 @@ per page beside them, with Garmin's own daily figures: a file per year and an `i
 folder under the data folder.
 
 ```text
-<dataFolder>/<folder>/index.json   {version, from, to, complete}
+<dataFolder>/<folder>/index.json   {version, from, to, complete} for the day-by-day indexes
 <dataFolder>/<folder>/2025.json    one row per line, keys always in the same order
 <dataFolder>/<folder>/2026.json
 ```
 
-- **Rows** are oldest first, and a day with nothing has no row.
+- **Rows** are oldest first, and a day with nothing has no row. The activity index differs: see
+  [below](#the-activity-index--activities).
 - **`index.json`** holds `from` and `to` (the stretch fetched end to end) and `complete` (whether
   fetching further back found nothing).
 - **Every sync** keeps each index current. Its own days come free from what it fetched anyway. Any
@@ -586,8 +589,9 @@ files' rounded `workouts` rows.
 | `pool` | — | a pool swim's length unit, `m` or `yd` |
 
 Numbers are rounded to two decimals, and a key is left out when the activity has nothing for it.
-`index.json` also holds `units` (the account's, at the last sync) and `total` (the list's length when
-last counted). Multisport legs aren't in Garmin's list, so a triathlon counts once.
+Rows are newest first. Its `index.json` holds `version`, `complete` (a whole listing has been
+merged), `units` (the account's, at the last sync) and `total` (the list's length when last
+counted); it has no `from` or `to`. Multisport legs aren't in Garmin's list, so a triathlon counts once.
 
 ### The daily stats index — `daily-stats/`
 
@@ -617,7 +621,7 @@ A row a night, filed under the day it ended. The fields are:
 - the score: `score`, `quality`, and the Sleep Coach `need` in minutes;
 - time asleep and in each stage, in seconds: `seconds`, `deep`, `light`, `rem`, `awake`;
 - `bed` and `wake`, as seconds from that day's midnight (negative before it);
-- overnight vitals: `hr`, `rhr`, `bb` (Body Battery gained), `resp`, `spo2`, `skinC` or `skinF`,
+- overnight vitals: `hr`, `rhr`, `bb` (Body Battery gained), `resp`, `spo2`, `skinC` and `skinF`,
   `hrv`, `hrv7d`, `hrvStatus`;
 - the `align` verdict, with its `alignStart` and `alignEnd` window.
 
@@ -632,7 +636,7 @@ The columns are:
 
 | Folder | Group | Pages | A row holds | Window | Re-read |
 | --- | --- | --- | --- | --- | --- |
-| `stress/` | `stress` | Stress | `level`, the seconds at `rest`, `low`, `medium`, `high`; `qualifier` | 28 | 0 |
+| `stress/` | `stress` | Stress, Training Readiness | `level`, the seconds at `rest`, `low`, `medium`, `high`; `qualifier` | 28 | 0 |
 | `heart-rate/` | `heart` | Heart Rate | `resting`, `high`, `low` (two-minute averages), `avg7` (seven-day resting average) | 28 | 0 |
 | `body-battery/` | `stress` | Body Battery | `high`, `low`, `charged`, `drained`, `latest`, `atWake`, and the day's `feedback` key | 28, two requests | 0 |
 | `respiration/` | `respiration` | Respiration | `awake` and `sleep` averages, breaths a minute | 31 | 2 |
@@ -641,11 +645,11 @@ The columns are:
 | `weight/` | `body` | Weight | in grams: `w` (the day's latest weigh-in), `lo`, `hi`, `avg`, `d` (Garmin's change); `n` (weigh-ins), `ins` (each one), `h` (height, cm) | 3660, two requests | 7 |
 | `pulse-ox/` | `spo2` | Pulse Ox, Pulse Ox Acclimation | `avg`, `low`, `latest` (%), `elev` (mean elevation, m) | 3660 | 0 |
 | `blood-pressure/` | `body` | Blood Pressure | `sys`, `dia`, `sysLo`, `diaLo`, `pulse`, `n` (readings), `cat` (Garmin's category) | 3660 | 7 |
-| `vo2-max/` | `fitness` | VO₂ Max, Hill Score's VO₂ factor | `vo2` (to a tenth) and `vo2Value` (Garmin's whole number), `cycling` and `cyclingValue` | 365 | 0 |
+| `vo2-max/` | `fitness` | VO₂ Max, Hill Score's VO₂ factor, Training Status | `vo2` (to a tenth) and `vo2Value` (Garmin's whole number), `cycling` and `cyclingValue` | 365 | 0 |
 | `hill-score/` | `fitness` | Hill Score | `score`, `strength`, `endurance`, `classId`, `phraseId` | 365 | 2 |
-| `hrv-status/` | `hrv` | HRV Status | in ms: `weekly`, `night`, `high`, `lowUpper`, `balLow`, `balHigh`; `marker`, `status`, `feedback` | 367 | 28 |
+| `hrv-status/` | `hrv` | HRV Status, Training Readiness, Training Status | in ms: `weekly`, `night`, `high`, `lowUpper`, `balLow`, `balHigh`; `marker`, `status`, `feedback` | 367 | 28 |
 | `race-predictions/` | `races` | Race Predictor | seconds: `time5k`, `time10k`, `half`, `marathon` | 365 | 2 |
-| `training-status/` | `training` | Training Status, Load's Training Load tab | `code`, `phrase`; `acute`, `chronic`, `ratio`, `acwr`, `acwrPct`, `acwrFeedback`; `trend`, `trendSport`; `paused` | 365 | 2 |
+| `training-status/` | `training` | Training Status, Load's Training Load tab, Training Readiness | `code`, `phrase`; `acute`, `chronic`, `ratio`, `acwr`, `acwrPct`, `acwrFeedback`; `trend`, `trendSport`; `paused` | 365 | 2 |
 | `endurance-score/` | `fitness` | Endurance Score | `score`, `classId`, `phraseId`, and `contrib`: the day's contributors as text | 365 | 2 |
 | `heat-acclimation/` | `fitness` | Heat Acclimation, Training Status's row | `pct`, `prev`, `trend`; `altitude`, `altitudePrev`, `altitudeTrend`, `altitudeNow` (m) | 365 | 2 |
 | `training-readiness/` | `readiness` | Training Readiness | the morning reading: `time`, `ctx`, `score`, `level`, `short`, `long`, then `sleep`, `sleepPct`, `sleepFb`, `recovery`, `recoveryPct`, `recoveryFb`, `acute`, `acwrPct`, `acwrFb`, `hrv`, `hrvPct`, `hrvFb`, `sleepHistPct`, `sleepHistFb`, `stressHistPct`, `stressHistFb` | 367 | 2 |
@@ -657,8 +661,8 @@ The columns are:
 | `critical-swim-speed/` | `workouts` | Critical Swim Speed | `speed` (m/s, 4 dp); the pace per 100 m is 100 ÷ `speed` seconds | 367 | 0 |
 | `hrv-stress/` | `hrv` | HRV Stress | `score` (0–100, the day's last test), `n` (tests that day) | 3660 | 0 |
 
-Critical Swim Speed's and HRV Stress's field names are inferred from Garmin's web app until a real
-result is recorded.
+Critical Swim Speed's and HRV Stress's field names are inferred from the routes' names, their
+sibling routes and Garmin's help, until a real result is recorded.
 
 ## Bookkeeping files
 

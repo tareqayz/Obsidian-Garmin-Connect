@@ -7,8 +7,8 @@ step-by-step method, with its gotchas, is
 
 **Code:** `scripts/dev/ev.sh`, `click.sh`, `capture-view.sh`.
 
-The CLI is `/Applications/Obsidian.app/Contents/MacOS/obsidian` on macOS. It talks to the app that
-is already running. Run `obsidian help` for every command; the vault commands (files, properties,
+The CLI is the app's own binary, `/Applications/Obsidian.app/Contents/MacOS/Obsidian` on macOS (on
+the `PATH` as `obsidian`). It talks to the app that is already running. Run `obsidian help` for every command; the vault commands (files, properties,
 tasks, sync and so on) aren't needed here.
 
 ## What this repo uses
@@ -28,7 +28,7 @@ route at phone (402) or pane (1190) width, in light or dark, and saves the scree
 
 ## Reference
 
-The commands above, as `obsidian help` printed them for Obsidian 1.14.4 on 2026-10-17:
+The relevant part of `obsidian help`, as it printed for Obsidian 1.14.4 on 2026-10-17:
 
 ```text
   command               Execute an Obsidian command

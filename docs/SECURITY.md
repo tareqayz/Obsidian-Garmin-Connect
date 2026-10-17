@@ -7,7 +7,7 @@ This page says exactly what is stored where, what leaves your device, and what t
 
 Your session stays on the device, in Obsidian's keychain. Your settings and health data are files in
 the vault, so they travel wherever your vault does. The plugin sends requests only to Garmin, to
-OpenStreetMap for map tiles, and to `tls.peet.ws` when you run the diagnostics.
+OpenStreetMap for map tiles, and to `tls.peet.ws` when you run the diagnostics' network check.
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,7 @@ flowchart LR
   plugin --- vault
   plugin -->|"sign-in, MFA code, tokens"| garmin["Garmin: sso, diauth, connectapi"]
   plugin -->|"tile requests: roughly where you were"| osm["tile.openstreetmap.org"]
-  plugin -->|"a User-Agent, on Run diagnostics"| peet["tls.peet.ws"]
+  plugin -->|"a User-Agent, on Network fingerprint"| peet["tls.peet.ws"]
 ```
 
 ### The session: Obsidian's keychain
@@ -97,7 +97,8 @@ anyone with access to the device's Obsidian does.
 - **One session per device.** Each device signs in on its own and refreshes its own token. Signing
   out on one leaves the others signed in.
 - **Releases up to 0.2.0-beta.2 kept the token in `data.json`.** If you shared or committed a vault
-  while on one of them, sign out and in again: a new sign-in issues a new token.
+  while on one of them, treat that token as exposed: signing out clears only this device's copy,
+  and the plugin has no way to revoke a token at Garmin.
 
 ## Removing the plugin and its data
 
@@ -176,8 +177,8 @@ Garmin limits login attempts per IP and **can lock an account after repeated fai
 - **All Garmin traffic is HTTPS.**
 - **The display name is URL-encoded** before going into a request path, so a hostile or corrupted
   profile can't inject path segments.
-- **A `privacyProtected` daily summary** fails that day with a warning rather than passing as an
-  empty day.
+- **A `privacyProtected` daily summary** is dropped with a warning rather than read as an empty
+  day.
 - **No external scripts.** The charts are hand-drawn SVG, and the activity maps' Leaflet is bundled,
   not fetched.
 - **`npm run build` fails** if a node or electron import reaches the bundle.

@@ -14,10 +14,10 @@ card, and from **Settings → Data → Run setup again**. It has four steps:
    on Garmin's China service choose **garmin.cn** under **Region** first.
 2. **Scan.** A few requests find where your Garmin history starts and how much there is: the watch's
    last upload, your activities and the oldest of them, and the weeks with health data. The result is
-   kept in `scan.json`. While you choose the next step, the plugin downloads your activity list and
-   syncs your recent days in the background.
-3. **Choose** what to keep: the three [data sets](#what-to-keep), each showing its size, its time
-   and what it adds a year, plus the **Sync speed**.
+   kept in `scan.json`. Before showing the result it also downloads your activity list, and while
+   you choose, it syncs your recent days in the background.
+3. **Choose** what to keep: the three [data sets](#what-to-keep), each with its size and time (Day
+   details also with what it adds a year), then a total, plus the **Sync speed**.
 4. **Start download** fetches your history in the background. **Keep new days only** fetches no
    more history than the scan already did; **Settings → Data** can add more later.
 
@@ -28,7 +28,7 @@ to Garmin Connect** or use the button in **Settings → Connection**.
 
 | Command | What it does |
 | --- | --- |
-| **Sync recent days** | Everything since the last recent sync, from the day before it through today. Home's ↻ button runs the same thing. |
+| **Sync recent days** | Everything since the watch's last upload as of the last recent sync, from the day before it through today. Home's ↻ button runs the same thing. |
 | **Sync today** | Just today. |
 | **Sync a date range…** | Any stretch of days, back as far as 2010, with each day's timelines. Shows the request count and the time it will take before you start. |
 
@@ -87,7 +87,9 @@ order:
 2. the chart histories, a year at a time;
 3. Day details and Activity details, newest first.
 
-Nothing fetches your history unless you agreed to it, in the setup or in the update dialog.
+Apart from the activity list the setup's scan reads, nothing downloads your history in the
+background unless you agreed to it: in the setup, the update dialog or **Settings → Data**. The
+**Sync … history** commands and a page's **Sync history** button fetch when you ask.
 
 - **A sync, or a page loading what it needs, always goes first.**
 - **It stays under an hourly request budget on each device,** manual syncs included: 2,500 requests
@@ -116,7 +118,8 @@ has its own command (see [Commands](#commands)).
 An update that can fill in more of your history asks once, the first time a Garmin page opens after
 it while you are signed in. That covers a page with a history of its own, or more detail for days you
 keep.
-- **The dialog.** **New data for your history** lists each item with its size and time, ticked.
+- **The dialog.** **New data for your history** lists each item, ticked, with its size and time, or
+  its request count for a small one.
   **Download now** fetches the ticked items in the background; **Later** puts them off.
 - **After either choice** it doesn't ask again. **Settings → Data** lists what is still on offer,
   with a **Download** button.
@@ -163,8 +166,9 @@ can hold your phone next to it and check that every number arrived.
   | **No Garmin data on this device** | signed in here, but the data folder is empty: the settings arrived and the data didn't |
 - **The header:** ↻ runs **Sync recent days**; **⋯** opens **More**, which holds **Activities**,
   **Health Stats** and **Performance Stats**.
-- **Cards open their pages,** as in the app: Sleep, Steps and All Activities in In Focus, the Sleep
-  Coach row, and the At a Glance cards.
+- **Cards open their pages,** as in the app: In Focus's Sleep, Steps, All Activities, Training
+  Readiness and Training Status; the Sleep Coach row; Today's Activity; and the At a Glance cards
+  that have a page.
 - **See All** beside At a Glance opens its full page. Home shows the first eight stats, and See All
   holds up to twenty. **Edit** there lets you:
   - remove a stat with its red badge;
@@ -268,8 +272,8 @@ sport:
   by another measure.
 
 **Costs, storage and maps:**
-- **The first time a page opens** it costs eight to eleven requests: eleven for a run with power or a
-  ride, eight for a pool swim or yoga. They are made between syncs, never during one.
+- **The first time a page opens** it costs eight to eleven requests: eleven for a run or ride with
+  power, eight for a pool swim or yoga. They are made between syncs, never during one.
 - **After that** the page is kept in `activity-details/` and opens without asking again. It needs a
   session and the `workouts` group.
 - **Activity details** in the setup or **Settings → Data** fetches the pages in its range ahead,
@@ -308,7 +312,7 @@ From Home's sleep cards, **More → Health Stats → Sleep**, or **Open sleep**,
     opening its own page;
   - **Sleep Coach:** how much sleep the night called for and what adjusted it.
 - **Longer ranges** show the score and the averages, duration against sleep need, and Sleep
-  Consistency and Sleep Alignment.
+  Consistency; 7d and 4w also show Sleep Alignment.
 
 The pages read the sleep index (`sleep/`), about 14 requests for a year of history. A night's
 timeline, factors and coach come from that day's timelines.
