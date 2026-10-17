@@ -10,5 +10,5 @@ OUT="tests/.build-$SLUG"
 files=(tests/${~GLOB}.test.ts(N))
 (( ${#files} )) || { print -u2 "no tests match tests/$GLOB.test.ts"; exit 2 }
 rm -rf "$OUT"
-npx esbuild "${files[@]}" --bundle --platform=node --format=esm --target=node20 --outdir="$OUT" --out-extension:.js=.mjs --log-level=warning
+npx esbuild "${files[@]}" --bundle --platform=node --format=esm --target=node20 --alias:obsidian=./tests/support/obsidian.ts --outdir="$OUT" --out-extension:.js=.mjs --log-level=warning
 node --test "$OUT"/*.mjs

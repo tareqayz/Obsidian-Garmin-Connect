@@ -14,7 +14,7 @@ if (!tag) {
 }
 const notes = releaseNotes(readFileSync("CHANGELOG.md", "utf8"), tag);
 if (notes === null) {
-	console.error(`CHANGELOG.md has no notes for ${tag}: add a "## [${tag.replace(/-.*$/, "")}]" or "## [Unreleased]" section.`);
+	console.error(`CHANGELOG.md has no notes for ${tag}: add a "## [${tag}]" section (see docs/CONTRIBUTING.md, "Releasing").`);
 	process.exit(1);
 }
 process.stdout.write(`${notes}\n`);

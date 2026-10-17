@@ -1,7 +1,7 @@
 # Verify in the live vault
 
-The CLI is `/Applications/Obsidian.app/Contents/MacOS/obsidian`; `docs/obsidian-cli.md` has
-its help. Helpers: `scripts/dev/ev.sh` (eval with retries), `capture-view.sh`, `click.sh`,
+The CLI is `/Applications/Obsidian.app/Contents/MacOS/obsidian`; `docs/obsidian-cli.md` lists
+the commands we use (`obsidian help` has the rest). Helpers: `scripts/dev/ev.sh` (eval with retries), `capture-view.sh`, `click.sh`,
 `compare.py` (needs Pillow: `pip3 install pillow`).
 
 ## Reload once per wave
