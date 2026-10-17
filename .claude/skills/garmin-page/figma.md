@@ -57,7 +57,8 @@ File: **Obsidian Garmin** — https://www.figma.com/design/8D338zFIJ1a2zrsuligjv
 ## Conventions
 
 - Every page gets an annotation at y = −40 labelling each frame **1:1** (copied from a
-  phone shot) or **Inferred**. Inferred items also go to `TODO.md`. Update the Cover's
+  phone shot) or **Inferred**. Inferred items also go to the stat's open items in
+  `ref/<area>/STATUS.md`. Update the Cover's
   KNOWN GAPS.
 - Build the twin from the Garmin frames: same structure, Obsidian variables and text
   styles, Garmin brand colours only where the data needs them (stat colours).

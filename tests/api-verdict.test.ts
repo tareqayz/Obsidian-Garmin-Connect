@@ -81,8 +81,8 @@ describe("check", () => {
 		assert.ok(result.changes.some((c) => c.kind === "field-removed" && c.path === "[].generic"));
 	});
 
-	// The open VO2 Max question in TODO.md looks exactly like this from inside a
-	// note: the sync runs, the property never appears, and nothing errors.
+	// VO2 Max's first-release bug looked exactly like this from inside a note:
+	// the sync ran, the property never appeared, and nothing errored.
 	it("separates a field that is present but always null from one that is absent", () => {
 		const empty = [{ calendarDate: "2026-09-17", generic: { vo2MaxPreciseValue: null, vo2MaxValue: null } }];
 		const result = check(entry, [empty], recorded([empty]));

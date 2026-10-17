@@ -162,8 +162,7 @@ A few reasons, most of them temporary:
   respiration) re-read their latest days on every sync.
 - **Some states are inferred.** The pages were rebuilt from screenshots of the
   app and its web data. Some states never appeared on the accounts they were
-  built from, so they are inferred. [TODO.md](../TODO.md) lists every one still
-  waiting for a check against the phone.
+  built from, so they are inferred until someone checks them against the phone.
 - **The curve may be missing.** A day page's curve needs that day's series file.
   See [Troubleshooting](troubleshooting.md).
 

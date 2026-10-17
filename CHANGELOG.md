@@ -422,8 +422,7 @@ gone.
   - Home's At a Glance cards show the latest;
   - **Sync a date range…** still backfills.
 
-  Performance Stats and an activity detail screen are next to be rebuilt (see
-  [TODO.md](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/TODO.md)).
+  Performance Stats and an activity detail screen are next to be rebuilt.
   Hotkeys bound to **Open classic dashboard** no longer do anything, and a tab
   of it left open reopens as Home.
 - The one-off clean-up, and its notice, for settings written by pre-release

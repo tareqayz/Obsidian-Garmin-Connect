@@ -60,7 +60,7 @@ export function focusTitle(phrase: string | undefined): string | undefined {
  * and the web dialog's paragraph, word for word. The other six
  * (ANAEROBIC_SHORTAGE, AEROBIC_HIGH_FOCUS, BALANCED, AEROBIC_LOW_FOCUS,
  * ABOVE_TARGETS, AEROBIC_HIGH_SHORTAGE) are unseen: they show no copy
- * (TODO.md).
+ * (inferred).
  */
 export const FOCUS_COPY_LINES: Readonly<Record<string, readonly string[]>> = {
 	AEROBIC_LOW_SHORTAGE: [
@@ -104,7 +104,7 @@ export type TrainingSegment = "acute" | "ratio";
  * (Optimal, a ratio of 0.8–1.2) is seen on the phone in both views and in
  * the web's Acute Training Load dialog; FEEDBACK_1 (Low), _3 (Optimal,
  * 1.3–1.4), _4 (High), _5 (Very High) and NONE are unseen and show none
- * (TODO.md).
+ * (inferred).
  */
 export const LOAD_COPY_LINES: Readonly<Record<TrainingSegment, Readonly<Record<string, readonly string[]>>>> = {
 	acute: { FEEDBACK_2: ["Your acute load is in the optimal range to", "maintain or improve your fitness."] },

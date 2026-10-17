@@ -137,7 +137,6 @@ zone → Delete synced data…** removes it without uninstalling. See the
 | [API catalogue](api/README.md) | The full endpoint list, the recorded response shapes, and the daily check |
 | [Contributing](docs/CONTRIBUTING.md) | Branches, commits and releases |
 | [Changelog](CHANGELOG.md) | What changed in each release |
-| [TODO](TODO.md) | Known gaps and open questions |
 
 ## Acknowledgements
 

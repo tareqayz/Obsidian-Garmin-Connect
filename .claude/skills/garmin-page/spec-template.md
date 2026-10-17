@@ -46,7 +46,7 @@ What the page shows with no data, calibrating, partial today, and on an offline 
 
 ## Inferred (not seen on the phone)
 
-Each item also goes to `TODO.md` under the area.
+Each item also goes to the stat's open items in `ref/<area>/STATUS.md`.
 
 ## API additions (for the orchestrator)
 
