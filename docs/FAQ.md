@@ -1,252 +1,175 @@
 # FAQ
 
+Short answers, each with a link to the full story.
+
 ## Is my password stored?
 
-No. It's used for one sign-in request and dropped. Only an OAuth2 refresh token
-and its client ID are kept, in Obsidian's keychain on that device (**Settings →
-Keychain**), never in the vault. See [Security](SECURITY.md).
+No. It is used for the sign-in and dropped. Only the session (an OAuth2 refresh token and its client
+ID) is kept, in Obsidian's keychain on that device, never in the vault. See
+[Security](SECURITY.md).
 
 ## Does it work on mobile?
 
-Yes — that was the point. Same plugin, same pages.
+Yes. It is the same plugin with the same pages, on desktop and mobile.
 
 ## Do I have to sign in on every device?
 
-Only on the devices you want to sync from. The session is kept in Obsidian's
-keychain on each device, not in the vault, so it never travels with your vault
-sync and no two devices share one.
+Only on the devices you want to sync from. Each device keeps its own session in its keychain, so a
+session never travels with your vault.
+- **Sign in on one device,** and the others show what it syncs: the data is ordinary files in the
+  vault. Home there says **Not signed in on this device**, with **Not now** to put that away.
+- **Sign in on another device too** to sync from it as well.
 
-- **Sign in on one device** and the others show what it syncs: the data is
-  ordinary files in the vault. Home there says "Not signed in on this device",
-  with **Not now** to put that away.
-- **Sign in on another device too** to sync from it as well. Each device
-  refreshes its own session.
-
-After updating from a version that kept the session in `data.json`, the first
-device to start moves it into its keychain; the others ask you to sign in once.
-
-The data is separate: ordinary files in the vault, which travel with it.
-Obsidian Sync carries them only with **Sync all other types** on, and it is off
-by default. Without it, Home on the second device says "No Garmin data on this
-device".
+The data needs your vault sync to carry it. With Obsidian Sync, that means turning on **Sync all
+other types**, which is off by default.
 
 ## Is this official? Will Garmin ban me?
 
-It's not official, and not affiliated with Garmin. It signs in the way the
-mobile app does. Garmin limits login attempts per IP and can lock an account
-after repeated failures, so sign in deliberately and don't retry in a loop.
+It is not official, and not affiliated with Garmin. It signs in the way Garmin's mobile app does,
+then makes ordinary reads, at a deliberately gentle pace.
+- With every metric group on, a day costs nine requests, plus six for its timelines.
+- A sync costs about 30 more.
+- Your history downloads once, under an hourly budget of 2,500 requests at the default speed.
 
-After that it makes ordinary API reads, and how many depends on the metric
-groups you turn on:
-- **Every day it syncs:** nine requests with everything on.
-- **Each of those days inside Day details** (every day, for **Sync a date
-  range…**): six more, for the day's curves.
-- **Each sync:** about fifteen more, for your profile and the range calls.
-- **Once, for the history you choose in the setup:** about 150 a year of
-  history for Charts & trends, 15 a day for Day details and 8 to 11 an activity
-  for Activity details. It downloads in the background, paced by the **Sync
-  speed** setting (Gentle unless you change it) and kept under an hourly
-  budget on each device, manual syncs included: 2,500 requests at Gentle.
-
-The [Guide](GUIDE.md#what-gets-collected) has the breakdown.
+Garmin does limit login attempts per IP and can lock an account after repeated failures, so sign in
+deliberately and never retry in a loop. The breakdown is in
+[Settings → Metrics](settings.md#metrics).
 
 ## Why does a sync cover more than one day?
 
-Garmin keeps revising a day after it ends: sleep is finalised late, and a watch
-that syncs in the morning rewrites yesterday. So **Sync recent days** covers
-everything since the watch's last upload as the previous sync saw it, from the
-day before through today: at least yesterday and today, at most 30 days. There
-is no setting; see [Settings → Sync](settings.md#sync).
+Garmin keeps revising a day after it ends: sleep is finalised late, and a watch that syncs in the
+morning rewrites yesterday. So **Sync recent days** covers everything since the watch's last upload,
+at least yesterday and today, and at most 30 days. See
+[the Guide](GUIDE.md#how-sync-recent-days-picks-its-days).
 
 ## Will it overwrite my daily notes?
 
-No. The sync writes no notes at all: everything goes to JSON files in its own
-`Garmin/data` folder.
+No. The sync writes no notes at all. Everything goes into JSON files in its own data folder,
+`Garmin/data` by default.
 
 ## I used an older version. Where did my day notes go?
 
-Nowhere; they are still there. Older builds wrote each day as a note with the
-numbers in its properties (in `Garmin/data`, your daily notes, or both) and
-generated a `Garmin Health.base` table view. The plugin now keeps days in
-`Garmin/data/days/<year>.json` instead.
+Nowhere: they are still there. Older builds wrote each day as a note with the numbers as properties,
+and generated a `Garmin Health.base` table. The plugin now keeps days in
+`Garmin/data/days/<year>.json`. The first time a new build loads, it copies the days from those
+notes into the day files, without deleting anything.
 
-The first time a new build loads, once the vault is indexed, it copies the days
-from those notes into the day files and shows a notice saying how many. It only
-does this while `days/` doesn't exist yet, and it never overwrites a day the
-JSON already holds. It reads both the data-folder notes and daily notes with
-the old `garmin_` prefix.
-
-It doesn't delete anything. Once you've checked Home and the pages show your
-history, you can delete the old day notes and `Garmin Health.base` yourself. In
-daily notes, that means removing the `garmin_` properties; the plugin no longer
-reads them.
+Once Home and the pages show your history, you can delete the old notes and `Garmin Health.base`
+yourself. If days are missing, see
+[Troubleshooting](troubleshooting.md#days-synced-by-an-older-version-are-missing-after-an-upgrade).
 
 ## What files does it create?
 
-All of them JSON under `Garmin/data/` (the default):
-- **Day files.** `days/<year>.json`, each day's numbers keyed by date.
-- **History and series files:**
-  - `series/<date>.json` for a day's curves;
-  - `account.json` for your profile;
-  - `activities/`, `daily-stats/` and `sleep/`;
-  - `activity-details/<id>.json`, an activity's page;
-  - one folder per Health Stats and Performance Stats history.
-- **Bookkeeping:** `sync-state.json`, `scan.json`, `backfill.json`,
-  `days/index.json` and `activity-details/index.json`, which say how far the
-  syncs and the history download have got.
-- **Diagnostics logs**, notes under `Garmin/diagnostics`, only if you run the
-  diagnostics with saving on.
+Only JSON files in the data folder (`Garmin/data` by default):
+- a file per year of days;
+- the pages' histories and timelines;
+- a few bookkeeping files.
 
-The [Guide](GUIDE.md#where-the-data-goes) lists every path and the metric group
-that fills it.
+It also writes diagnostics notes in the **Log folder**, but only when you ask it to. Every path is in
+the [Data reference](properties.md).
 
 ## Can I backfill years of data?
 
-Yes. Choose **All history** for Day details and **All activities** for Activity details,
-in the setup or **Settings → Data**, and the history download fetches them in
-the background; the setup says how long that takes. Charts & trends always
-cover your whole history.
+Yes. Choose **All history** for Day details and **All activities** for Activity details, in the
+setup or **Settings → Data**. The history download fetches them in the background, and the setup
+says how long that takes. Charts & trends always cover your whole history.
 
-**Sync a date range…** fetches a stretch by hand, back as far as 2010, and shows
-the request count and time before you start. It walks newest to oldest and stops
-after 45 consecutive empty days, so asking for 2010 won't hammer the API past
-the start of your history.
+**Sync a date range…** also fetches any stretch by hand, back as far as 2010, and shows the cost
+before you start.
 
 ## What is the "history isn't synced" banner?
 
-The pages read history files — your activities, steps, sleep, stress and so on —
-that a routine sync only keeps topped up. Until a history is complete, its pages
-say so, with a rough request count and a **Sync history** button.
-
-The history download fills them in the background once you have agreed to
-Charts & trends, in the setup or the update dialog. A download cut short keeps
-what it fetched and carries on next time.
+A page whose history isn't complete yet says so, with a rough request count and a **Sync history**
+button that fetches it at once. Otherwise the history download fills it in the background, once you
+have agreed to Charts & trends.
 
 ## Will an update download things without asking?
 
-No. A release that adds data for your history — a page with a history of its
-own, or more detail for days you already keep — asks once, the first time a
-Garmin page opens after it: **New data for your history** lists each item with
-its size and time. **Download now** fetches the ticked ones in the background;
-**Later** leaves them in **Settings → Data**, and nothing asks again.
-
-What you already agreed to carries on without a question: new days, and gaps in
-your Day details and Activity details ranges, keep filling. Only what an older
-version saved is asked about again. If you had chosen a Run details range before
-every sport had a page, your runs keep downloading, and the other sports wait for
-one Yes.
+No. A release that adds data for your history asks once, the first time a Garmin page opens after
+it. **Download now** fetches the ticked items; **Later** leaves them in **Settings → Data**. What
+you already agreed to, such as new days and the gaps in your ranges, keeps filling without a
+question. See [After an update](GUIDE.md#after-an-update).
 
 ## How do I uninstall it and remove the data?
 
-Obsidian's **Uninstall** deletes the plugin's folder, with `data.json` in it:
-your settings. The data folder (`Garmin/data`) is part of your vault, so it
-stays.
-
-On the device you uninstall from, the plugin notices its folder has gone and
-asks: **Keep data**, or **Move to trash**, which sends the plugin's own files in
-the data folder to the trash and leaves anything else there. It also clears the
-map tiles that device cached and its Garmin session from the keychain. It can't ask when the folder goes another way,
-deleted by hand or uninstalled on another device; delete the data folder
-yourself then.
-
-To remove the data and keep the plugin, use **Settings → Danger zone → Delete
-synced data…**, which can take the diagnostics notes too. Neither touches your
-Garmin account. See [Security](SECURITY.md#removing-the-plugin-and-its-data).
+Obsidian's **Uninstall** deletes the plugin's folder, with your settings. Your data folder stays,
+because it is part of your vault. On the device you uninstall from, the plugin then offers to **Keep
+data** or **Move to trash**, and clears its session and map tiles from that device. To remove the data
+and keep the plugin, use **Settings → Danger zone → Delete synced data**. See
+[Security](SECURITY.md#removing-the-plugin-and-its-data).
 
 ## Why does a page differ from the phone app?
 
 A few reasons, most of them temporary:
-- **Garmin revises days late.** Sleep and Health Status are rescored, sometimes
-  days afterwards. The next sync that covers the day catches up. The histories
-  Garmin is known to revise (Health Status, weight, blood pressure, fitness age,
-  respiration) re-read their latest days on every sync.
-- **Some states are inferred.** The pages were rebuilt from screenshots of the
-  app and its web data. Some states never appeared on the accounts they were
-  built from, so they are inferred until someone checks them against the phone.
-- **The curve may be missing.** A day page's curve needs that day's series file.
-  See [Troubleshooting](troubleshooting.md).
+- **Garmin revises days late.** Sleep and Health Status are rescored, sometimes days afterwards. The
+  histories Garmin revises re-read their latest days on every sync (the `refreshDays` column in the
+  [Data reference](properties.md#history-indexes)).
+- **Some states are inferred.** The pages were rebuilt from screenshots of the app and its web
+  data, and some states never appeared on the accounts they were built from. Those states are
+  inferred until someone checks them against the phone.
+- **The curve may be missing.** See
+  [Troubleshooting](troubleshooting.md#a-day-page-has-figures-but-no-chart).
 
 ## Where did the classic dashboard go?
 
-It was retired in 0.2, replaced by the Garmin Connect pages:
-- its layouts, the history charts for HRV, readiness, training load, VO₂ max,
-  endurance and race predictions, the activity detail, the heatmap and the data
-  table are gone;
-- the data is all still there, in the day files, and Home's At a Glance cards
-  show the latest values.
-
-A tab of the old dashboard left open reopens as Home.
-
-## A metric is always empty. Why?
-
-Either its group is off in settings, your watch doesn't record it, or Garmin
-renamed a field. **Run diagnostics** → check 4 prints the raw keys the fitness
-endpoints actually return, next to what the mapper extracted. If the value is
-there under a different name, that's the fix — open an issue.
+It was retired in 0.2. Its layouts, heatmap and data table are gone. Its charts came back as Garmin's
+own pages: HRV Status, Training Readiness, Load, VO₂ Max, Endurance Score and Race Predictor, with
+each activity on its own page. All the data is still there, and a tab of the old dashboard left open
+reopens as Home.
 
 ## Does re-syncing the same day cost anything?
 
-It costs the requests, but not a file write. A day file is rewritten only when
-its text changes, so Obsidian Sync doesn't see a change to propagate.
+It costs the requests, but not a file write. A file is rewritten only when its content changes, so
+Obsidian Sync sees nothing to send.
 
 ## Sign-in fails. What now?
 
 Run **Run diagnostics** and read the verdict:
-- `BLOCKED` means Garmin's edge refused the client, not your password, and
-  retrying won't help.
+- `BLOCKED` means Garmin's edge refused the client, not your password; retrying won't help.
 - `BAD-CREDENTIALS` means stop and fix the credentials.
 - `RATE-LIMITED` means wait 15–30 minutes.
 
-The full table is in [Troubleshooting](troubleshooting.md).
+The full table is in [Troubleshooting](troubleshooting.md#verdicts).
 
 ## Does a sync ever ask for an MFA code?
 
-No. A sync runs on the stored refresh token; only *signing in* is challenged. If
-a sync stops because Garmin ended the session, sign in again. A refresh that
-fails for another reason — Garmin down, a bot check — keeps the session, and the
-next sync tries again.
+No. A sync runs on the stored session; only signing in is challenged. If a sync stops because Garmin
+ended the session, sign in again. A refresh that fails for another reason, such as Garmin being down,
+keeps the session, and the next sync tries again.
 
 ## Can I query the data with Dataview or Bases?
 
-Not directly any more. Both query note properties, and the plugin no longer
-writes notes. The days are plain JSON in `Garmin/data/days/`, one line a day,
-so a script or another plugin that reads JSON can use them. See the
-[property reference](properties.md) for names and units.
+Not directly. Both query note properties, and the plugin no longer writes notes. The days are plain
+JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads JSON can use them. The
+[Data reference](properties.md) lists every key and unit.
 
 ## Does it work with a Garmin China account?
 
-Choose **garmin.cn** under **Region** when you sign in (or in **Settings →
-Connection**); every host changes accordingly. It is untested: nobody with a
-China account has tried it yet, so a report either way helps.
+Choose **garmin.cn** under **Region** when you sign in, or in **Settings → Connection**: every host
+changes accordingly, and changing it signs you out. It is untested, because nobody with a China
+account has tried it yet, so a report either way helps.
 
 ## Why no chart library?
 
-An Obsidian plugin can't load external scripts, and a bundled chart library
-would be dead weight on a phone. The charts are hand-drawn SVG.
-
-The one library is Leaflet, for the activity maps: panning and pinching a map
-on a phone is where hand-rolled code breaks. It is bundled with the plugin and
+An Obsidian plugin can't load external scripts, and a bundled chart library would be dead weight on a
+phone, so the charts are hand-drawn SVG. The one library is Leaflet, for the activity maps: panning
+and pinching a map on a phone is where hand-rolled code breaks. It is bundled with the plugin and
 loads only when a map is drawn.
 
 ## Why does an activity map talk to OpenStreetMap?
 
-Garmin's app draws Google's map, which a plugin can't use without each user
-setting up a paid Google key. The plugin draws OpenStreetMap's map instead,
-from `tile.openstreetmap.org`, and that server sees which part of the map you
-open. Turn **Map tiles** off in the settings and the route is drawn on its own,
-with no request at all; that is also what you see offline.
+Garmin's app draws Google's map, which a plugin can't use without each user setting up a paid key. So
+the plugin draws OpenStreetMap's, from `tile.openstreetmap.org`, which sees which part of the map you
+open. Turn **Map tiles** off and the route is drawn on its own, with no request at all; that is also
+what you see offline.
 
 ## What are the diagnostics logs in my vault?
 
-**Run diagnostics** runs you saved as notes, because a phone has no console:
-with **Save to vault**, or every run while **Save every diagnostics run to the
-vault** is on (it's off by default).
-- **Where:** the **Log folder** setting, `Garmin/diagnostics` in vaults set up
-  since 0.2. Older vaults keep the folder they had, usually
-  `garmin-probe-logs`.
-- **Redacted:** emails are masked, tokens truncated, IP addresses masked and
-  your display name replaced before anything is written. See
-  [Security](SECURITY.md#diagnostics-logs).
+They are **Run diagnostics** runs you saved as notes, because a phone has no console. A run is saved
+when you press **Save to vault**, or whenever a check ends in a verdict while **Save every diagnostics
+run to the vault** is on (it is off by default). They go in the **Log folder**, `Garmin/diagnostics` in
+vaults set up since 0.2, and they are redacted before they are written. See
+[Security](SECURITY.md#diagnostics-logs).
 
-For a bug report, **Copy debug info** is usually what's wanted: it needs no
-password and makes no request.
+For a bug report, **Copy debug info** is usually what's wanted: it needs no password and makes no
+request.
