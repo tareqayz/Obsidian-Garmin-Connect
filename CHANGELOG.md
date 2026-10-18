@@ -8,6 +8,8 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] — 2026-10-18
+
 ### Added
 
 - **A page for every activity,** whatever the sport, from every list that shows one.
@@ -210,7 +212,8 @@ The first build published for testers.
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/3303f9d...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.2.0-beta.2...1.0.0-beta.1
 [0.2.0-beta.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.2.0-beta.1...0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.1.0-beta.1...0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/releases/tag/0.1.0-beta.1
