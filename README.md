@@ -16,9 +16,9 @@ phone app, on desktop and mobile.
 
 [Install](docs/INSTALLATION.md) · [Guide](docs/GUIDE.md) · [FAQ](docs/FAQ.md) · [Troubleshooting](docs/troubleshooting.md) · [Contributing](docs/CONTRIBUTING.md)
 
-<img src="docs/images/home-desktop.png" alt="Home in a wide pane: Sleep Score, Body Battery, the week's activities and At a Glance" width="800">
+<img src="docs/images/home-desktop.png" alt="Home in a wide pane: today's run, Sleep Score, Body Battery, the week's activities and At a Glance" width="800">
 
-<img src="docs/images/sleep-phone.png" alt="Sleep on a phone" width="240"> <img src="docs/images/body-battery-phone.png" alt="Body Battery on a phone" width="240"> <img src="docs/images/pool-swim-phone.png" alt="A pool swim's page on a phone" width="240">
+<img src="docs/images/sleep-phone.png" alt="Sleep on a phone" width="240"> <img src="docs/images/run-phone.png" alt="A run's page on a phone, with its map" width="240"> <img src="docs/images/training-readiness-phone.png" alt="Training Readiness on a phone" width="240">
 
 </div>
 
@@ -47,6 +47,27 @@ phone app, on desktop and mobile.
 - **Private by design:** the password is never stored, the session stays in Obsidian's keychain,
   and there is no telemetry.
 - **Gentle with Garmin:** paced requests and an hourly budget, and it backs off when Garmin asks.
+
+## A closer look
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/run-desktop.png" alt="A run's page: the route coloured by pace on an OpenStreetMap map, beside its stats and evaluation"></td>
+<td width="50%"><img src="docs/images/all-activities-desktop.png" alt="All Activities: every activity in a searchable grid"></td>
+</tr>
+<tr>
+<td><b>A run's page:</b> the route coloured by pace, stats, laps and charts.</td>
+<td><b>All Activities:</b> search, filter and sort everything you've recorded.</td>
+</tr>
+<tr>
+<td><img src="docs/images/body-battery-desktop.png" alt="Body Battery: the day's timeline with rest and stress, and what charged and drained it"></td>
+<td><img src="docs/images/training-status-desktop.png" alt="Training Status over 12 weeks: a coloured status bar and the dates of each status"></td>
+</tr>
+<tr>
+<td><b>Health Stats:</b> Body Battery's day, with what charged and drained it.</td>
+<td><b>Performance Stats:</b> Training Status over the last 12 weeks.</td>
+</tr>
+</table>
 
 ## How it works
 
