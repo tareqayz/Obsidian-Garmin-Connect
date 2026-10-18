@@ -51,13 +51,18 @@ describe("releaseNotes", () => {
 		assert.equal(releaseNotes(CHANGELOG.replace("- Home.\n", ""), "1.1.0"), null);
 	});
 
-	it("reads the real CHANGELOG.md's Unreleased section for the next beta", async () => {
+	it("gives every published tag its own section of the real CHANGELOG.md", async () => {
 		const { readFileSync } = await import("node:fs");
-		const notes = releaseNotes(readFileSync("CHANGELOG.md", "utf8"), "0.2.0-beta.1");
-		assert.ok(notes?.startsWith("The plugin is now Garmin Connect"), notes ?? "no notes");
-		assert.ok(!notes?.includes("[Unreleased]:"));
-		const beta = releaseNotes(readFileSync("CHANGELOG.md", "utf8"), "0.1.0-beta.1");
-		assert.ok(beta?.includes("Sign-in that works on desktop and mobile"), beta ?? "no notes");
-		assert.ok(!beta?.includes("https://github.com/"), "ran into the link definitions");
+		const real = readFileSync("CHANGELOG.md", "utf8");
+		const notes = (tag: string) => releaseNotes(real, tag) ?? "";
+		assert.ok(notes("0.1.0-beta.1").includes("Sign-in that works on desktop and mobile"));
+		assert.ok(notes("0.2.0-beta.1").startsWith("The plugin is now Garmin Connect"));
+		// 0.2.0-beta.2 shipped with beta.1's notes while a [0.2.0] section existed.
+		assert.notEqual(notes("0.2.0-beta.2"), notes("0.2.0-beta.1"));
+		for (const tag of ["0.1.0-beta.1", "0.2.0-beta.1", "0.2.0-beta.2"]) {
+			assert.ok(notes(tag), `no notes for ${tag}`);
+			assert.doesNotMatch(notes(tag), /^\[[^\]]+\]:\s/m, `${tag} ran into the link definitions`);
+			assert.doesNotMatch(notes(tag), /\]\((?!https:\/\/)/, `${tag} has a relative link or image`);
+		}
 	});
 });

@@ -100,7 +100,7 @@ export const PERFORMANCE_STATS: readonly PerformanceStat[] = [
 			{ id: "xcSkiFtp", tab: "xc" },
 		],
 	},
-	// Left out for now: no page, so the hub hides it (TODO.md).
+	// Left out for now: no page, so the hub hides it.
 	{ id: "cycling-ability", title: "Cycling Ability", ranges: ["1d"], defaultRange: "1d", group: "profile" },
 	{ id: "critical-swim-speed", title: "Critical Swim Speed", ranges: ["1d", "7d", "12w", "1y"], defaultRange: "1d", rangeLabels: CURRENT, group: "workouts", glance: ["criticalSwimSpeed"] },
 	// Weekly totals in Sunday-to-Saturday weeks, this one so far the last: Jul 26 - Oct 11, Oct 19, 2025 - Oct 11, 2026.

@@ -77,7 +77,7 @@ export interface IndexHistoryProgress {
 	reached?: string;
 }
 
-/** What a stat says about its index. See the Health Stats foundation in `docs/architecture.md`. */
+/** What a stat says about its index. See `docs/building-pages.md`, "Day indexes". */
 export interface DayIndexSpec<R extends DayRow> {
 	/** The index's id: `readIndex(kind)`, the history command, the progress map. Lowercase, hyphenated. */
 	kind: string;

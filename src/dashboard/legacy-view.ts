@@ -7,7 +7,7 @@ import { GARMIN_HOME_VIEW } from "./home-view";
  * workspace saved before then can still hold a tab of it: this view turns that
  * tab into Home the first time it is shown, rather than leaving a dead leaf.
  *
- * Remove it the release after 0.2 (TODO.md).
+ * Remove it the release after 0.2.
  */
 export const LEGACY_DASHBOARD_VIEW = "garmin-dashboard";
 

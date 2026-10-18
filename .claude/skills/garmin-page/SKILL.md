@@ -26,7 +26,8 @@ print `data.json` or `.garmin-token.json`. `ref/` is local-only (gitignored: it 
 | P6 finish | you | Registrations, `verify/*.png`, commit | `verify.md` checks pass |
 
 There is **no approval stop** between Figma and code. Frames not seen on the phone are marked
-"Inferred" in Figma and listed in `TODO.md`; the run continues.
+"Inferred" in Figma and listed under the stat's open items in `ref/<area>/STATUS.md`; the run
+continues.
 
 ## Order for a batch (e.g. all Health Stats)
 

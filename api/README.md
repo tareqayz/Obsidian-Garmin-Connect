@@ -1,30 +1,37 @@
 # Garmin API catalogue
 
-Garmin Connect's API is private. There is no specification, no version, and no
-deprecation notice — a field is there one morning and gone the next, and the
-first anyone hears about it is a user asking why a property stopped appearing.
+Garmin Connect's API is private, with no specification, no version and no deprecation notices: a
+field is there one morning and gone the next. This folder answers that with two things. There is a
+written-down description of the API, and a job that checks it against the live one every day.
 
-This directory is the answer to that: a written-down description of the API, and
-a job that checks it against the live one every day.
+**Code:** `scripts/api/` (the check, the probes, the shape language), `.github/workflows/api-contract.yml`.
 
 | File | What it is |
 | --- | --- |
 | [`endpoints.json`](endpoints.json) | Every endpoint, its request shape, and what this plugin does with it. |
-| [`schema/`](schema/) | The response shapes actually observed: 101 files. Every checked endpoint has one but four — `activity-gear`, `blood-pressure-last`, `critical-swim-speed-latest` and `hrv-stress-daily` — which only ever returned an empty answer on the recording account; three belong to routes no longer checked. |
+| [`schema/`](schema/) | The response shapes actually observed, one file per endpoint that has answered with data (format: [`schema/README.md`](schema/README.md)). |
+
+To count them:
+
+```bash
+jq '.endpoints | length' api/endpoints.json                              # every endpoint
+jq '[.endpoints[] | select(.check == true)] | length' api/endpoints.json # checked daily
+jq '[.endpoints[] | select(.source == "plugin")] | length' api/endpoints.json # maintained by hand
+```
 
 ## endpoints.json
 
-192 endpoints. For 139 of them the request half is **generated** from
-[`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect)
-by `scripts/api/extract-endpoints.py`, which reads that library's AST and folds
-its URL expressions back into path templates. That library is the closest thing
-Garmin has to a spec, because it is kept current by people who notice when it
-breaks.
+The request half of most entries is **generated** from
+[`cyberjunky/python-garminconnect`](https://github.com/cyberjunky/python-garminconnect) by
+`scripts/api/extract-endpoints.py`. The script reads that library's AST and folds its URL
+expressions back into path templates. That library is the closest thing Garmin has to a spec,
+because the people who keep it current notice when it breaks.
 
-The other 53 are routes upstream does not know, seen in the Garmin Connect app's
-and web app's own traffic: GraphQL queries, and most of what the Health Stats
-pages call. They carry `"source": "plugin"`, which keeps a regeneration from
-marking them retired, and their `upstream.summary` says where they were seen.
+The other entries are maintained by hand. Most are routes upstream doesn't know, seen in the Garmin
+Connect app's and web app's own traffic: GraphQL queries, and most of what the Health and
+Performance Stats pages call. A few are forms of upstream calls the AST walk can't see. They carry
+`"source": "plugin"`, which stops a regeneration from marking them retired, and their
+`upstream.summary` says where they were seen.
 
 ```jsonc
 {
@@ -50,25 +57,17 @@ marking them retired, and their `upstream.summary` says where they were seen.
 }
 ```
 
-Two lists say what the plugin does with the response. `[]` descends into array
-items, so `[].generic.vo2MaxPreciseValue` reaches into each day of a range
-response.
+Two lists say what the plugin does with a response. `[]` descends into array items, so
+`[].generic.vo2MaxPreciseValue` reaches into each day of a range response.
 
-- **`critical`** — paths the plugin depends on. Losing one fails the daily check.
-- **`reads`** — paths it reads but tolerates missing: a property that will not
-  appear rather than a sync that breaks. Reported, never fatal. It is also where
-  a field name taken from documentation rather than observed belongs, until a
-  live recording has confirmed it.
+- **`critical`:** paths the plugin depends on. Losing one fails the daily check.
+- **`reads`:** paths it reads but tolerates missing; the result is a property that doesn't appear,
+  not a sync that breaks. Reported, never fatal. A field name taken from documentation rather than
+  observed belongs here too, until a live recording confirms it.
 
-Losing anything outside both lists is a warning at most.
-
-A range entry's `notes` also say how long a span Garmin takes, probed live
-rather than assumed, because the caps differ by route: 28 days for most
-`stats/…/daily` ranges, 29 for fitness age, 31 for respiration, 367 for HRV,
-exactly 52 weeks for the weekly weight and blood pressure forms, and none found
-for others. Past the cap the answer is HTTP 400. The notes also say what an
-empty answer looks like, and when the recording account had no data to record
-a shape from.
+Losing anything outside both lists is a warning at most. A range entry's `notes` also give the
+longest span Garmin takes, probed live, because the caps differ by route. They also say what an
+empty answer looks like.
 
 ### Regenerating
 
@@ -77,103 +76,92 @@ GARMINCONNECT_SRC=~/Dev/python-garminconnect npm run api:extract
 npm run api:extract:check   # exits 1 if the catalogue has drifted from upstream
 ```
 
-`--check` is what CI runs daily against a fresh clone of upstream. It is
-advisory — upstream adding an endpoint does not break this plugin — but it is
-the earliest warning we get that Garmin moved something.
-
-An endpoint that disappears upstream is kept and marked `"status":
-"gone-upstream"` rather than dropped, because a path Garmin retired is exactly
-the news this file exists to carry.
+CI runs `--check` daily against a fresh clone of upstream. It is advisory: upstream adding an
+endpoint doesn't break this plugin, but it is the earliest warning that Garmin moved something. An
+endpoint that disappears upstream is kept and marked `"status": "gone-upstream"`, because a path
+Garmin retired is exactly the news this file exists to carry.
 
 ## The daily check
 
-`.github/workflows/api-contract.yml`, every morning at 06:17 UTC.
+`.github/workflows/api-contract.yml` runs every morning at 06:17 UTC. It drives the plugin's own
+`GarminApi`, not a parallel HTTP client, so a path, header or parameter that stops working here is
+one that stops working in the plugin.
 
-It drives the plugin's own `GarminApi` — not a parallel HTTP client — so a path,
-header or parameter that stops working here is one that stops working in the
-plugin. 104 endpoints and several hundred response paths, sampling the last three
-complete days and a fourteen-day range. The weekly routes ask for their usual 52
-weeks, and the weight and blood pressure ranges for 52 weeks too: the weekly
-forms accept no other span, and a rare weigh-in needs the wider net.
+```mermaid
+flowchart LR
+  cron["06:17 UTC, or by hand"] --> probes["scripts/api/probes.ts, through GarminApi"]
+  probes --> compare["Compare with api/schema/"]
+  compare --> summary["Report in the run summary"]
+  summary --> verdict{"A fail or error, or the run failed?"}
+  verdict -->|yes| issue["Issue labelled garmin-api"]
+  cron -->|"record ticked"| pr["Pull request with today's shapes"]
+```
 
-Twenty-seven of the 104 have no caller in the plugin. The Health and
-Performance Stats work catalogued them: weekly, monthly and latest forms of
-routes the pages read another way, and routes for pages still to be built.
-Until they are wired up or unchecked, the check spends a request on each:
-
-`activities-for-day`, `blood-pressure-day`, `blood-pressure-last`,
-`critical-swim-speed-latest`, `daily-events`, `health-snapshot-detail`,
-`health-status-summary`, `heart-rate-zones`, `heat-altitude-acclimation-weekly`,
-`hill-score-stats`, `lifestyle-logging-data`, `max-metrics-latest`,
-`max-metrics-monthly`, `max-metrics-weekly`, `naps`, `race-predictions-latest`,
-`race-predictions-monthly`, `running-economy-weekly`,
-`training-load-balance-latest`, `training-status-daily`,
-`training-status-monthly`, `weekly-blood-pressure`, `weekly-fitnessage`,
-`weekly-heart-rate`, `weekly-stress`, `weekly-weigh-ins`, `weight-goal`.
-
-[`docs/garmin-api.md`](../docs/garmin-api.md#available-but-unused) lists their
-methods.
+- **What it asks for:** every endpoint with `check: true`, sampling the last three complete days and
+  a fourteen-day range. Most weekly routes ask for their usual 52 weeks, and so do the weight and
+  blood-pressure ranges: the weekly forms accept no other span, and a rare weigh-in needs the
+  wider net.
+- **It includes routes nothing calls yet:** the weekly, monthly and latest forms of routes the pages
+  read another way, and routes for pages still to be built. Until they are wired up or unchecked, the
+  check spends a request on each. They are listed in
+  [Garmin API → Available but unused](../docs/garmin-api.md#available-but-unused).
 
 Each endpoint comes back with one verdict:
 
 | | Verdict | Meaning |
 | --- | --- | --- |
 | `✓` | `ok` | Today's response fits the recorded shape. |
-| `!` | `warn` | Something changed, but not on a path the plugin reads. |
+| `!` | `warn` | Something changed, but nothing a `critical` path depends on: a field added or widened, or a change on a `reads` path. |
 | `✗` | `fail` | A `critical` path is gone, or changed into something incompatible. |
 | `·` | `no-data` | Every sample came back empty. A rest day, not a change. |
 | `+` | `new` | Nothing recorded yet. Run `npm run api:record`. |
 | `✗` | `error` | The request itself failed. |
 
-A failure opens — or comments on — a single issue labelled `garmin-api`.
+A `fail` or `error` verdict, or a run that couldn't complete, opens a single issue labelled
+`garmin-api`, or comments on the one already open.
 
 ### Why it stays quiet
 
-A recorded shape is a **union over time**, not a snapshot, and the comparison is
-deliberately one-directional. A field that is merely absent today, or a
-`number | null` that happens to be a number today, is not news. A field the
-recording says is *always* there and is now gone, or a type never seen before,
-is. Without that asymmetry the check would fire every time the account had a
-quiet day, and everyone would learn to ignore it.
+A recorded shape is a **union over time**, not a snapshot, and the comparison is deliberately
+one-directional.
+- **Not news:** a field merely absent today, or a `number | null` that happens to be a number today.
+- **News:** a field the recording says is *always* there and is now gone, or a type never seen
+  before.
 
-`critical` paths get a third status beyond present/absent: **present but always
-null**. A property that is there and forever empty is the signature of reading the
-right endpoint with the wrong field name, which from inside a note looks exactly
-like a metric with no data.
+Without that asymmetry the check would fire on every quiet day, and everyone would learn to ignore
+it.
+
+`critical` paths get a third status besides present and absent: **present but always null**. A
+property that is there and forever empty is the signature of reading the right endpoint with the
+wrong field name.
 
 ## Setting it up
 
-The check needs a Garmin session. Mint one locally — the password never leaves
-your machine and is never written down:
+The check needs a Garmin session. Mint one locally; the password goes only to Garmin's sign-in and
+is never written down:
 
 ```bash
 npm run api:token                       # prompts, handles MFA
 gh secret set GARMIN_TOKENS < .garmin-token.json
 ```
 
-`.garmin-token.json` is written `0600` and is gitignored. It holds a refresh
-token, not a password.
+`.garmin-token.json` is written `0600` and is gitignored. It holds a refresh token, not a password.
 
-Optionally also set `GH_SECRETS_TOKEN` to a fine-grained PAT with **Secrets:
-write** on this repository. Garmin may hand back a new refresh token when the
-old one is used; with that PAT the workflow returns it to the secret, and
-without it a rotation strands the next run on a token Garmin has already
-retired. Re-run `npm run api:token` if that happens.
+- **`GH_SECRETS_TOKEN`:** set it to a fine-grained PAT with **Secrets: write** on this repository.
+  Garmin may hand back a new refresh token when the old one is used. With that PAT the workflow
+  saves it back to the secret; without it, a rotation strands the next run on a token Garmin has
+  retired. Re-run `npm run api:token` if that happens.
+- **`GARMIN_EMAIL` and `GARMIN_PASSWORD`:** they work too, but don't store the password as a secret.
+  A non-interactive run can't answer MFA, and repeated sign-ins are what Garmin rate-limits and
+  locks accounts over.
 
-Email and password work too — `GARMIN_EMAIL` and `GARMIN_PASSWORD` — but a
-non-interactive run cannot answer an MFA challenge, and repeated sign-ins are
-what Garmin rate-limits and locks accounts over. Use the token, and don't store
-the password as a secret at all.
-
-The report goes to the run's log and step summary, which are public on a public
-repository, and into an issue when a contract breaks. Field names and types
-only; error messages are scrubbed of emails, tokens and IP addresses, and the
-account's display and full names become `[name]`. The job that gets the secrets
-installs with `npm ci --ignore-scripts`, so no package's install script runs
-next to them, and the actions are pinned to commit SHAs.
-
-With no secret at all the live job skips rather than fails, so a fork stays
-green.
+What the run exposes:
+- **The report** goes to the run's log and step summary, which are public on a public repository,
+  and into an issue when a contract breaks. It holds field names and types only. Error messages are
+  scrubbed of emails, tokens and IP addresses, and the account's names become `[name]`.
+- **The job that gets the secrets** installs with `npm ci --ignore-scripts`, so no package's install
+  script runs beside them. The actions are pinned to commit SHAs.
+- **With no secret at all** the live job skips rather than fails, so a fork stays green.
 
 ## Running it yourself
 
@@ -185,8 +173,8 @@ npm run api:check -- --days 7 --range 90
 npm run api:check -- --strict      # exit 1 on any change, not just a broken one
 ```
 
-Credentials come from the same environment variables; `.garmin-token.json` is
-not read automatically, so pass it explicitly:
+Credentials come from the same environment variables. `.garmin-token.json` isn't read
+automatically, so pass it explicitly:
 
 ```bash
 GARMIN_TOKENS="$(cat .garmin-token.json)" npm run api:check
@@ -194,47 +182,42 @@ GARMIN_TOKENS="$(cat .garmin-token.json)" npm run api:check
 
 ## Measuring the rate limit
 
-`npm run api:ramp` finds how fast Garmin lets the plugin ask, and stops at the
-first sign it objects. It is how the sync speeds in
-[`docs/garmin-api.md`](../docs/garmin-api.md#request-pace) were chosen.
+`npm run api:ramp` finds how fast Garmin lets the plugin ask, and stops at the first sign it
+objects. That is how the sync speeds in [Garmin API](../docs/garmin-api.md#request-pace) were
+chosen.
 
 ```bash
 GARMIN_TOKENS="$(cat .garmin-token.json)" npm run api:ramp -- --save-token .garmin-token.json
 npm run api:ramp -- --stages 1x3,2x6,4x9 --stage-seconds 60 --cooldown 120
 ```
 
-Without a fresh token, run it inside Obsidian on the plugin's own session:
-`npm run api:ramp:eval`, then follow the header of `scripts/api/ramp-eval.ts`.
-Either way, pause the plugin's syncing while it runs, and expect a long wait
-before the next sync if it does hit a 429.
+Without a fresh token, run it inside Obsidian on the plugin's own session: `npm run api:ramp:eval`,
+then follow the header of `scripts/api/ramp-eval.ts`. Either way, pause the plugin's syncing while
+it runs, and expect a long wait before the next sync if it does hit a 429.
 
 ## Accepting a change
 
 When Garmin changes something and the change is fine:
-
-1. Read the report on the issue or in the run summary.
+1. Read the report, on the issue or in the run summary.
 2. If the plugin needs to follow the change, fix `src/` first.
-3. Re-run the workflow with the **record** input ticked. It folds today's shapes
-   into `api/schema/` and opens a pull request, so the new baseline is reviewed
-   rather than assumed.
+3. Re-run the workflow with the **record** input ticked. It folds today's shapes into `api/schema/`
+   and opens a pull request, so the new baseline is reviewed rather than assumed.
 
-If a `critical` path turns out to have been wrong all along — the plugin reading
-a key Garmin never sent — correct `critical` in `endpoints.json` to what is
-really there. `tests/api-catalogue.test.ts` checks every `critical` path against
-the recorded shape, so a typo there fails offline, on the pull request, without
-an account.
+If a `critical` path turns out to have been wrong all along, the plugin reading a key Garmin never
+sent, correct `critical` in `endpoints.json` to what is really there. `tests/api-catalogue.test.ts`
+checks every `critical` path against the recorded shape, so a typo there fails offline, on the pull
+request, without an account.
 
 ## Adding an endpoint to the check
 
 1. Add the wrapper to `src/garmin/endpoints.ts`.
-2. In `endpoints.json`, set `plugin`, `check: true`, `critical` and `schema` on
-   its entry. A route upstream does not have needs a new entry with
-   `"source": "plugin"`.
+2. In `endpoints.json`, set `plugin`, `check: true`, `critical` and `schema` on its entry. A route
+   upstream doesn't have needs a new entry with `"source": "plugin"`.
 3. Add a probe to `scripts/api/probes.ts` under the same id.
-4. `npm run api:record` once to lay down the baseline. Without a token, save
-   a few responses through the running plugin with `scripts/dev/live-api.sh`
-   and run `npm run api:record-file -- <id> <response.json>…` instead.
+4. Run `npm run api:record` once to lay down the baseline. Without a token, save a few responses
+   through the running plugin with `scripts/dev/live-api.sh`, then run
+   `npm run api:record-file -- <id> <response.json>…`.
 
-Steps 2 and 3 have to agree: `tests/api-catalogue.test.ts` fails if an endpoint
-is marked `check: true` with no probe, or the other way round. The failure it
-prevents is silent — an endpoint that is never actually fetched.
+Steps 2 and 3 have to agree. `tests/api-catalogue.test.ts` fails if an endpoint is marked
+`check: true` with no probe, or the other way round. The failure it prevents is silent: an endpoint
+that is never actually fetched.

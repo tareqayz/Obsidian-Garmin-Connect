@@ -54,7 +54,7 @@ export const SCALE_BAND_TITLES: Readonly<Record<TeScaleKey, readonly string[]>> 
 /**
  * The copy under a scale, by band, as the phone breaks it into lines
  * (`phone/7d/sub-detail/01-oct-11.png`). Only Aerobic's 4 and Anaerobic's 0
- * are seen; every other band shows none (TODO.md).
+ * are seen; every other band shows none (inferred).
  */
 export const SCALE_COPY_LINES: Readonly<Record<TeScaleKey, Readonly<Partial<Record<number, readonly string[]>>>>> = {
 	aerobic: {
