@@ -8,6 +8,8 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-10-19
+
 ### Changed
 
 - **Two command names** no longer repeat the plugin's name, which the command palette already shows:
@@ -238,7 +240,9 @@ The first build published for testers.
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.2...HEAD
+[1.0.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.1...1.0.2
+[1.0.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0-beta.1...1.0.0
 [1.0.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.2.0-beta.2...1.0.0-beta.1
 [0.2.0-beta.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/0.2.0-beta.1...0.2.0-beta.2
