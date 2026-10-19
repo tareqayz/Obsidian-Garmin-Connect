@@ -794,7 +794,7 @@ export class SyncRunner {
 	 */
 	private async notBefore(store: VaultSeriesStore): Promise<string | undefined> {
 		const [scan, index] = await Promise.all([store.readScan(), store.readActivities()]);
-		const days = [historyStart(scan), index.rows.at(-1)?.start.slice(0, 10)].filter((d): d is string => !!d).sort();
+		const days = [historyStart(scan), index.rows[index.rows.length - 1]?.start.slice(0, 10)].filter((d): d is string => !!d).sort();
 		return days[0];
 	}
 

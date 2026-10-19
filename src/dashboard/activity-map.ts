@@ -143,7 +143,7 @@ export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpe
 	for (let i = 0; i < points.length; i += 1) {
 		const point = points[i];
 		const bucket = bucketOf(point.sample);
-		const last = runs.at(-1);
+		const last = runs[runs.length - 1];
 		if (last && last.bucket === bucket) {
 			last.points.push(point.at);
 		} else {
@@ -263,7 +263,7 @@ export function lapMarkers(detail: ActivityDetail): LapMarker[] {
 /** The first and last point of the route. */
 export function routeEnds(points: readonly RoutePoint[]): { start: LatLon; end: LatLon } | null {
 	if (points.length < 2) return null;
-	return { start: points[0].at, end: points.at(-1)!.at };
+	return { start: points[0].at, end: points[points.length - 1].at };
 }
 
 /**

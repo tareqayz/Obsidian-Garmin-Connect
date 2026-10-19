@@ -141,7 +141,7 @@ export function timeInPositionPlot(data: TimeInPositionData, width: number): Tim
 		const y = r2(R.top + i * R.pitch);
 		return { y, trackY: r2(y + R.track), track, fill: row.fill > 0 ? { x: track.x, width: r2(row.fill * track.width) } : null, colour: row.colour };
 	});
-	const last = bars.at(-1);
+	const last = bars[bars.length - 1];
 	return { width, height: r2((last ? last.y + R.row : R.top) + R.foot), bars };
 }
 
@@ -415,7 +415,7 @@ function curvePaths(vertices: readonly CurveVertex[], place: (v: CurveVertex) =>
 	const points = vertices.map(place);
 	if (!points.length) return { points, line: "", area: "" };
 	const first = points[0];
-	const last = points.at(-1)!;
+	const last = points[points.length - 1];
 	const along = points.slice(points.length > 1 ? 1 : 0).map((p) => `L${p.x} ${p.y}`);
 	return {
 		points,
