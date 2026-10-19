@@ -202,18 +202,13 @@ open an issue with the log.
 
 ### Days synced by an older version are missing after an upgrade
 
-Older builds kept each day as a note, with the numbers as properties. The plugin now reads days only
-from `Garmin/data/days/<year>.json`. On the first load of a new build, once the vault is indexed, it
-copies the old notes' days into those files and shows a notice with the count.
-
-The copy runs only while `days/` doesn't exist, so it is skipped if a sync ran first or the notes
-were somewhere it doesn't look. It reads notes in the data folder, and daily notes whose properties
-carry the `garmin_` prefix.
-- **To run it again,** close Obsidian, move the `days/` folder out of the vault, and reopen it.
-  Careful: this drops every day the JSON held, including days synced since the upgrade. Only the
-  days whose notes still exist come back, and the history download fetches your Day details range
-  again.
-- **Or fetch the days from Garmin** instead, with **Sync a date range…**.
+0.1.0-beta.1 and 0.2.0-beta.1 kept each day as a note, with the numbers as properties. The plugin
+now reads days only from `Garmin/data/days/<year>.json`. Up to 1.0.1 it copied the old notes' days
+into those files once; from 1.0.2 on it doesn't read the notes at all. Fetch the days from Garmin
+instead:
+- **The history download** fills your **Day details** range. Choose a longer one in
+  **Settings → Data** to reach further back.
+- **Sync a date range…** fetches any span, whatever the range.
 
 Once the pages show your history, you can delete the old day notes, their `garmin_` properties and
 `Garmin Health.base`. The plugin no longer reads or writes them.

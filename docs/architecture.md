@@ -122,7 +122,7 @@ when adding to it.
 | `days.ts` | the day files: merging a day, a year file's text, `DayBuffer` — pure |
 | `series-store.ts` | `VaultSeriesStore`: every file in the data folder |
 | `file-health.ts` | setting aside a file it can't read; `NewerDataError` — pure |
-| `vault-paths.ts`, `import-notes.ts` | folder helpers and rules; the one-time copy of old day notes into the day files |
+| `vault-paths.ts` | folder helpers and rules |
 | `activity-index.ts`, `daily-stats.ts`, `sleep-index.ts` | the activity, daily stats and sleep indexes — pure |
 | `day-index.ts`, `day-indexes.ts`, `<stat>-index.ts` | `defineDayIndex`, `DAY_INDEXES` and every stat's index (see [Building pages](building-pages.md#day-indexes)) — pure |
 | `activity-detail.ts` | an activity's page file: its blocks, `loadActivity`, `ACTIVITY_DETAIL_VERSION` — pure |
