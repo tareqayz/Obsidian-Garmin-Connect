@@ -14,7 +14,6 @@ import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
 import { DAY_INDEXES } from "./sync/day-indexes";
-import { importDayNotes } from "./sync/import-notes";
 import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { GARMIN_ICON } from "./ui/icon";
@@ -170,12 +169,12 @@ export default class GarminPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "sign-in",
-			name: "Sign in to Garmin Connect",
+			name: "Sign in",
 			callback: () => this.openLogin(),
 		});
 		this.addCommand({
 			id: "set-up",
-			name: "Set up Garmin Connect…",
+			name: "Set up…",
 			callback: () => this.openSetup(),
 		});
 		this.addCommand({
@@ -206,11 +205,8 @@ export default class GarminPlugin extends Plugin {
 
 		this.addSettingTab(new GarminSettingTab(this.app, this));
 
-		this.app.workspace.onLayoutReady(() => this.importDayNotes());
-
 		if (this.data.settings.syncOnStartup && this.garmin.isAuthenticated) {
-			// Deferred: a sync at load time competes with vault indexing, and the
-			// import of old day notes reads the metadata cache first.
+			// Deferred: a sync at load time competes with vault indexing.
 			this.registerInterval(
 				window.setTimeout(() => void this.sync.syncRecent(), STARTUP_SYNC_DELAY_MS),
 			);
@@ -454,26 +450,6 @@ export default class GarminPlugin extends Plugin {
 		const leaf = existing ?? this.app.workspace.getLeaf("tab");
 		await leaf.setViewState({ type, active: true, ...(state ? { state } : {}) });
 		await this.app.workspace.revealLeaf(leaf);
-	}
-
-	/** Brings the days old builds wrote as notes into the day files, once the vault is indexed. */
-	private importDayNotes(): void {
-		const run = async () => {
-			const store = new VaultSeriesStore(this.app, this.data.settings.dataFolder);
-			const count = await importDayNotes(this.app, store, this.data.legacyNotes);
-			if (count) new Notice(`Garmin: copied ${count} days from the old day notes into ${store.daysFolder}.`);
-		};
-		const go = () => void run().catch((err) => console.error("Garmin: day note import failed", err));
-		// A file with no cache yet means the vault is still being indexed.
-		const indexed = this.app.vault.getMarkdownFiles().every((f) => this.app.metadataCache.getFileCache(f));
-		if (indexed) go();
-		else {
-			const ref = this.app.metadataCache.on("resolved", () => {
-				this.app.metadataCache.offref(ref);
-				go();
-			});
-			this.registerEvent(ref);
-		}
 	}
 
 	/** The domain is baked into every URL, so changing it needs a fresh client. */

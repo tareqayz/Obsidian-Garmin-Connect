@@ -49,10 +49,10 @@ No. The sync writes no notes at all. Everything goes into JSON files in its own 
 
 ## I used an older version. Where did my day notes go?
 
-Nowhere: they are still there. Older builds wrote each day as a note with the numbers as properties,
-and generated a `Garmin Health.base` table. The plugin now keeps days in
-`Garmin/data/days/<year>.json`. The first time a new build loads, it copies the days from those
-notes into the day files, without deleting anything.
+Nowhere: they are still there. 0.1.0-beta.1 and 0.2.0-beta.1 wrote each day as a note with the
+numbers as properties, and generated a `Garmin Health.base` table. The plugin now keeps days in
+`Garmin/data/days/<year>.json`, and from 1.0.2 on it no longer reads those notes: the history
+download fetches the days from Garmin again, as far back as your **Day details** range goes.
 
 Once Home and the pages show your history, you can delete the old notes and `Garmin Health.base`
 yourself. If days are missing, see

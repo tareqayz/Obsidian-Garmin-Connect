@@ -62,7 +62,7 @@ A day's properties are the keys of one object in a JSON file per year:
 - **Unchanged files are left alone.** A year file is rewritten only when its text changes.
 
 Older builds wrote the same keys as note properties (in daily notes, with a `garmin_` prefix). See the
-[FAQ](FAQ.md#i-used-an-older-version-where-did-my-day-notes-go) for the one-time copy into these
+[FAQ](FAQ.md#i-used-an-older-version-where-did-my-day-notes-go) for getting those days into these
 files.
 
 ### How absent values behave

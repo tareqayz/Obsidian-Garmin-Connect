@@ -52,7 +52,7 @@ export function summarize(samples: readonly RequestSample[]): RequestSummary {
 		errors: samples.filter((s) => s.status === 0 || s.status >= 400).length,
 		p50: percentile(ms, 50),
 		p95: percentile(ms, 95),
-		max: ms.at(-1) ?? 0,
+		max: ms[ms.length - 1] ?? 0,
 		busyMs: ms.reduce((sum, v) => sum + v, 0),
 	};
 }

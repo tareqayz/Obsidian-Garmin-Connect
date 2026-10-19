@@ -501,8 +501,9 @@ the build, with components mounted with `mount()` and torn down with `unmount()`
   - The one exception is Leaflet, for the activity map (`src/ui/map/leaflet.ts`): panning and
     pinching a tiled map on a phone is where hand-rolled code breaks. It is bundled, evaluated only
     when the first map draws, and leaves `window.L` to whichever plugin owns it. Its stylesheet is
-    copied verbatim to the top of `styles.css`; `tests/leaflet-styles.test.ts` fails if it drifts
-    from the installed Leaflet.
+    copied to the top of `styles.css`, less the old-browser fallbacks and `!important` the
+    Community directory's review flags; `tests/leaflet-styles.test.ts` lists each edit and fails if
+    the copy drifts from the installed Leaflet.
 - **Settings keep native controls.** The settings panel is a Svelte component, but every row is
   built with Obsidian's own `Setting` API through a small action (`src/ui/svelte/obsidian-setting.ts`).
   Svelte decides which rows exist, so a row can come and go without rebuilding the pane or losing

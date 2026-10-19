@@ -103,7 +103,7 @@ bar. What it says, and what to do:
 
 | On Home | Why | What to do |
 | --- | --- | --- |
-| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → Data** or **Sign in to Garmin Connect**. It carries on by itself. |
+| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → Data** or the **Sign in** command. It carries on by itself. |
 | Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin. |
 | Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device | Nothing. It waits half an hour, doubling up to twelve hours, because asking again soon keeps a block in place. Run diagnostics if it keeps happening. |
 | Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device. |
@@ -202,18 +202,13 @@ open an issue with the log.
 
 ### Days synced by an older version are missing after an upgrade
 
-Older builds kept each day as a note, with the numbers as properties. The plugin now reads days only
-from `Garmin/data/days/<year>.json`. On the first load of a new build, once the vault is indexed, it
-copies the old notes' days into those files and shows a notice with the count.
-
-The copy runs only while `days/` doesn't exist, so it is skipped if a sync ran first or the notes
-were somewhere it doesn't look. It reads notes in the data folder, and daily notes whose properties
-carry the `garmin_` prefix.
-- **To run it again,** close Obsidian, move the `days/` folder out of the vault, and reopen it.
-  Careful: this drops every day the JSON held, including days synced since the upgrade. Only the
-  days whose notes still exist come back, and the history download fetches your Day details range
-  again.
-- **Or fetch the days from Garmin** instead, with **Sync a date range…**.
+0.1.0-beta.1 and 0.2.0-beta.1 kept each day as a note, with the numbers as properties. The plugin
+now reads days only from `Garmin/data/days/<year>.json`. Up to 1.0.1 it copied the old notes' days
+into those files once; from 1.0.2 on it doesn't read the notes at all. Fetch the days from Garmin
+instead:
+- **The history download** fills your **Day details** range. Choose a longer one in
+  **Settings → Data** to reach further back.
+- **Sync a date range…** fetches any span, whatever the range.
 
 Once the pages show your history, you can delete the old day notes, their `garmin_` properties and
 `Garmin Health.base`. The plugin no longer reads or writes them.

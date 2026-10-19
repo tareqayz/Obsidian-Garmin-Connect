@@ -346,11 +346,11 @@ export interface PositionSpan {
 export function positionSpans(detail: ActivityDetail): PositionSpan[] {
 	const events = [...(detail.positions ?? [])].filter((e) => isNumber(e.at)).sort((a, b) => a.at - b.at);
 	if (!events.length) return [];
-	const end = Math.max(num(detail.summary.elapsedDuration) ?? 0, num(detail.summary.duration) ?? 0, events.at(-1)!.at);
+	const end = Math.max(num(detail.summary.elapsedDuration) ?? 0, num(detail.summary.duration) ?? 0, events[events.length - 1].at);
 	const spans: PositionSpan[] = [];
 	const push = (from: number, to: number, lane: PositionLane) => {
 		if (!(to > from)) return;
-		const last = spans.at(-1);
+		const last = spans[spans.length - 1];
 		if (last && last.lane === lane && last.to === from) last.to = to;
 		else spans.push({ from, to, lane });
 	};

@@ -1,0 +1,10 @@
+{
+	// The plugin's own code, typed the way the Community directory's scanner types it: with no Node
+	// globals. @types/node, there for scripts/ and tests/, would otherwise give every array in src
+	// ES2022's .at() on top of the ES2020 lib, and each call fails the directory's review.
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"types": []
+	},
+	"include": ["**/*.ts", "**/*.svelte"]
+}

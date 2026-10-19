@@ -105,7 +105,7 @@
 				<ul class="indicators">
 					{#each view.guidance.slice(1, -1) as line}<li>{line}</li>{/each}
 				</ul>
-				<div class="guidance natural">{view.guidance.at(-1)}</div>
+				<div class="guidance natural">{view.guidance[view.guidance.length - 1]}</div>
 			{:else}
 				{#each view.guidance as line}<div class="guidance">{line}</div>{/each}
 			{/if}

@@ -5,7 +5,6 @@ import type { SecretTokenStore } from "./garmin/secret-token-store";
 import type { PersistedAuth } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, defaultData, SETTINGS_VERSION, type DataChoices, type GarminSettings, type SetupState } from "./settings-data";
 import { chartKeys, isActivityDetailsRange, isDayDetailsRange, LEGACY_RUNS_KEY, parseConsentKey } from "./sync/datasets";
-import type { LegacyNotes } from "./sync/import-notes";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { isSyncSpeed, speedFromPause } from "./sync/speed";
 
@@ -95,12 +94,6 @@ export class PluginData {
 	 */
 	home: HomeState = { preset: DEFAULT_PRESET, hidden: [] };
 
-	/**
-	 * Where a build before JSON-only storage wrote day notes, read once from
-	 * what it saved, for the import (`import-notes.ts`). Never saved again.
-	 */
-	legacyNotes: LegacyNotes = { dataFolder: DEFAULT_SETTINGS.dataFolder, dataFolderPrefix: "", prefix: "garmin_" };
-
 	private plugin: Plugin;
 	private tokens: Pick<SecretTokenStore, "read" | "save">;
 
@@ -147,11 +140,6 @@ export class PluginData {
 		if (legacy && !this.tokens.read()) await this.tokens.save(legacy);
 
 		const migrated = this.migrate(source.downloadRuns === true, legacy !== null || this.hasSession);
-		this.legacyNotes = {
-			dataFolder: this.settings.dataFolder,
-			dataFolderPrefix: text(source.dataFolderPrefix, ""),
-			prefix: text(source.prefix, "garmin_"),
-		};
 
 		// Same allowlist treatment as settings: a card or section this build does
 		// not know is dropped rather than drawn.
