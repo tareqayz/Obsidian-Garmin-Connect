@@ -41,8 +41,6 @@ Always cross-check a UI implementation in the live vault with the Obsidian CLI: 
   is the version commit `npm version` makes for a stable release.
 - Branches are one level deep and named after the outcome:
   `feature/<slug>`, `fix/<slug>`, `chore/<slug>`, `docs/<slug>`, `refactor/<slug>`.
-- There is no `staging`, `develop` or `hotfix/*`, on purpose. Release channels are tags, not
-  branches. An urgent fix is a `fix/*` branch released as a patch tag.
 - Conventional Commits. Pull requests squash-merge.
 
 ## Releases: do not improvise these
