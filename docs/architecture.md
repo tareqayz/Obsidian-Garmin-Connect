@@ -86,7 +86,7 @@ when adding to it.
 | `probe.ts` | **Run diagnostics**: network fingerprint, test login, session persistence, fitness endpoints |
 | `debug-info.ts` | **Copy debug info**: the redacted bug-report text |
 | `uninstall-watch.ts` | after `onunload`, whether the plugin's folder is gone (an uninstall) — pure |
-| `types.d.ts` | stylesheets imported as text, for Leaflet's CSS |
+| `types.d.ts` | Leaflet's ES module build, typed as `leaflet` |
 
 ### `src/garmin/`
 
