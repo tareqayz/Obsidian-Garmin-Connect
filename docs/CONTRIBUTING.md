@@ -22,9 +22,16 @@ import, not the check.
 
 `npm run lint` runs `eslint-plugin-obsidianmd`'s recommended rules, the ones the Community directory's
 automated review lints every release with, and CI runs it beside the build. `eslint.config.mjs`
-ignores what the directory's scanner ignores. Don't silence a rule with a disable comment: the
+ignores what the directory's scanner ignores, and `src/tsconfig.json` types the plugin's code the
+way the scanner does, without Node's globals: `@types/node`, there for `scripts/` and `tests/`,
+would otherwise give every array ES2022's `.at()`, which the ES2020 lib lacks and the review reports
+as untyped. svelte-check reads the same file. Don't silence a rule with a disable comment: the
 review doesn't honour them all. Two things only the lint catches: a `<style>` or `<link>` the code
 adds to the page (CSS belongs in `styles.css`), and `any` reaching typed code.
+
+The review checks `styles.css` too: no `!important`, no property set twice in one rule, and nothing
+that Obsidian's browser supports only in part. `tests/leaflet-styles.test.ts` runs the first two;
+only the review runs the third.
 
 ## Branches and commits
 
@@ -83,13 +90,15 @@ flowchart TD
 1. In a pull request, rename `## [Unreleased]` to `## [x.y.z] — YYYY-MM-DD`. Sum up everything since
    the last stable there, leaving the beta sections below it. Add a fresh, empty `## [Unreleased]`
    and update the compare links at the foot. Merge it: `npm version` refuses a dirty working tree.
-2. On `main`:
+2. In the directory's dashboard, run **Review branch → Run preview scan** on `main`. It runs the
+   checks a release gets, without making one; fix what it finds before tagging.
+3. On `main`:
    ```bash
    npm version patch|minor|major     # bumps package.json; version-bump.mjs syncs manifest.json and
                                      # versions.json; commits; tags with no "v" prefix
    git push origin main --follow-tags
    ```
-3. The workflow builds, checks that the tag matches `manifest.json`, and attests the files. It then
+4. The workflow builds, checks that the tag matches `manifest.json`, and attests the files. It then
    opens a **draft** release with `main.js`, `manifest.json` and `styles.css` attached and the
    version's section as its notes. Check it, then publish.
 

@@ -8,6 +8,20 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Changed
+
+- **Two command names** no longer repeat the plugin's name, which the command palette already shows:
+  **Sign in** and **Set up…**. Command ids are unchanged, so hotkeys keep working.
+
+### Removed
+
+- **The one-time copy of old day notes,** which 0.1.0-beta.1 and 0.2.0-beta.1 wrote. The notes stay
+  where they are, and the history download fetches those days from Garmin again.
+
+### Fixed
+
+- **The Community directory's review** no longer warns about the plugin's code or the map styles.
+
 ## [1.0.1] — 2026-10-19
 
 ### Fixed
