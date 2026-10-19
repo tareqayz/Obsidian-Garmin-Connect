@@ -110,7 +110,7 @@ export function clockText(time: string): string {
 
 /** The newest height the index holds. */
 export function heightIn(rows: readonly WeightRow[]): number | undefined {
-	for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.h) return rows[i]!.h;
+	for (let i = rows.length - 1; i >= 0; i--) if (rows[i].h) return rows[i].h;
 	return undefined;
 }
 
@@ -267,8 +267,8 @@ export function weightPeriodView(input: WeightInput): WeightPeriodView {
 				target: { range: "7d", offset: weekOffset(w.to, today) },
 			});
 		}
-		const last = weeks[weeks.length - 1]!;
-		if (line.length && line[line.length - 1]!.x < months.x(last.from)) line.push({ x: months.x(last.from), value: line[line.length - 1]!.value });
+		const last = weeks[weeks.length - 1];
+		if (line.length && line[line.length - 1].x < months.x(last.from)) line.push({ x: months.x(last.from), value: line[line.length - 1].value });
 		cards.push(...listed.reverse());
 		figures = [
 			{ value: massText(average, units), ...(average !== undefined ? { unit } : {}), label: "Weight" },

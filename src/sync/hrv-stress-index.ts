@@ -95,7 +95,7 @@ function dayOf(entry: Rec): string | undefined {
  */
 export function rowsOfHrvStress(payload: ReadonlyArray<Rec | null> | null | undefined): Array<DayRowInput<HrvStressRow>> {
 	const tests: Array<{ date: string; at: string; i: number; score: number }> = [];
-	(Array.isArray(payload) ? payload : []).forEach((entry, i) => {
+	(payload ?? []).forEach((entry, i) => {
 		if (!entry || typeof entry !== "object") return;
 		const date = dayOf(entry);
 		const score = hrvStressScoreOf(entry);

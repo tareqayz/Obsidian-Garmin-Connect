@@ -31,7 +31,7 @@ export interface RequestSummary {
 /** `/wellness-service/wellness/dailySleepData/abc?date=2024-01-02` → `/wellness-service/wellness/dailySleepData/:id`. */
 export function endpointOf(path: string): string {
 	return path
-		.split("?")[0]!
+		.split("?")[0]
 		.replace(/\/\d{4}-\d{2}-\d{2}(?=\/|$)/g, "/:date")
 		.replace(/\/[0-9a-f-]{8,}(?=\/|$)/gi, "/:id")
 		.replace(/\/\d+(?=\/|$)/g, "/:n");
@@ -40,7 +40,7 @@ export function endpointOf(path: string): string {
 export function percentile(sorted: readonly number[], p: number): number {
 	if (!sorted.length) return 0;
 	const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
-	return sorted[index]!;
+	return sorted[index];
 }
 
 export function summarize(samples: readonly RequestSample[]): RequestSummary {

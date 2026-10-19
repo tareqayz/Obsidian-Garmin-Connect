@@ -82,8 +82,8 @@ export function timelinePlot(t: Timeline, overlay: TimelineOverlay | null, width
 	const rightLabels: TimelinePlot["rightLabels"] = [];
 	if (overlay && overlay.kind !== "awake" && overlay.axis) {
 		const axis = overlay.axis;
-		const lo = axis[0]!;
-		const hi = axis[axis.length - 1]!;
+		const lo = axis[0];
+		const hi = axis[axis.length - 1];
 		const y = (v: number) => baseline - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo || 1)) * (baseline - f.top);
 		line = pathOf(overlay.points.map(([px, v]) => [x(px), v === null ? null : y(v)]));
 		// Bottom first: the baseline, then the four stage lines.
@@ -369,8 +369,8 @@ export function scorePlot(view: SleepPeriodView, overlay: PeriodOverlay | null, 
 		axis: axisPlot(view.score.axis, x, baseline, view.range === "1y"),
 	};
 	if (overlay) {
-		const lo = overlay.axis[0]!;
-		const hi = overlay.axis[overlay.axis.length - 1]!;
+		const lo = overlay.axis[0];
+		const hi = overlay.axis[overlay.axis.length - 1];
 		const oy = (v: number) => baseline - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo || 1)) * f.height;
 		const marks = overlay.points.map((p) => ({ x: r2(x(p.x)), y: r2(oy(p.value)), ...(p.status ? { status: p.status } : {}) }));
 		plot.overlay = {

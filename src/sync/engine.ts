@@ -293,7 +293,7 @@ const DAY_MS = 86_400_000;
 
 function utcOf(iso: string): number {
 	const [y, m, d] = iso.split("-").map(Number);
-	return Date.UTC(y!, (m ?? 1) - 1, d ?? 1);
+	return Date.UTC(y, (m ?? 1) - 1, d ?? 1);
 }
 
 function isoOf(utc: number): string {
@@ -382,7 +382,7 @@ export function recentRange(mark: string | null, today: string): { from: string;
 /*  Sync                                                               */
 /* ------------------------------------------------------------------ */
 
-const defaultWait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const defaultWait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 
 export async function syncRange(
 	source: SyncSource,
@@ -589,7 +589,7 @@ export async function syncRange(
 		if (index >= due.length) return undefined;
 		let pending = fetching.get(index);
 		if (!pending) {
-			pending = fetchDay(source, due[index]!, { ...wanted, intraday: withSeries && index < intradayDays });
+			pending = fetchDay(source, due[index], { ...wanted, intraday: withSeries && index < intradayDays });
 			fetching.set(index, pending);
 		}
 		return pending;
@@ -601,7 +601,7 @@ export async function syncRange(
 			break;
 		}
 
-		for (let next = index; next < index + ahead; next++) fetchAt(next);
+		for (let next = index; next < index + ahead; next++) void fetchAt(next);
 		const fetched = await fetchAt(index)!;
 		fetching.delete(index);
 		report.requests += fetched.requests;
@@ -892,10 +892,10 @@ interface IndexRun {
 
 /** A day's summary as a row for an index that reads summaries. A day it cannot read stays for the window fetch. */
 function takeSummary(run: IndexRun, date: string, summary: DailySummary | null | undefined): void {
-	const read = run.runtime.def.fromSummary;
-	if (!read) return;
+	const def = run.runtime.def;
+	if (!def.fromSummary) return;
 	try {
-		const row = summary && typeof summary === "object" ? read(summary, date) : null;
+		const row = summary && typeof summary === "object" ? def.fromSummary(summary, date) : null;
 		run.dates.add(date);
 		const clean = row ? run.runtime.def.normalize({ ...row, date }) : null;
 		if (clean) run.rows.push(clean);
@@ -1210,7 +1210,7 @@ async function fetchStatsWindow(source: StatsSource, from: string, to: string, w
 	const [steps, floors, intensity] = settled.map((r) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []));
 	return {
 		rows: rowsFromRanges(steps as DailyStepStat[], floors as DailyFloorStat[], intensity as DailyIntensityStat[]),
-		steps: steps!.length,
+		steps: steps.length,
 		requests,
 	};
 }
@@ -1382,7 +1382,7 @@ async function fetchDay(
 		intradayFetched: Boolean(wanted.intraday),
 	};
 	settled.forEach((result, i) => {
-		const name = jobs[i]!.name;
+		const name = jobs[i].name;
 		if (result.status === "fulfilled") {
 			if (name === "summary") out.summaryFetched = true;
 			if (isIntradayJob(name)) assignIntraday(out.intraday, name, result.value);

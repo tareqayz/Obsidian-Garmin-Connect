@@ -44,7 +44,7 @@ const SEVEN: Tone[] = ["red", "orange", "yellow", "green", "blue", "purple", "pi
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 function bands(bounds: readonly number[], tones: readonly Tone[]): GaugeSegment[] {
-	return tones.map((tone, i) => ({ from: bounds[i]!, to: bounds[i + 1]!, tone }));
+	return tones.map((tone, i) => ({ from: bounds[i], to: bounds[i + 1], tone }));
 }
 
 function bandAt(segments: readonly GaugeSegment[], at: number): number {
@@ -53,7 +53,7 @@ function bandAt(segments: readonly GaugeSegment[], at: number): number {
 }
 
 function gauge(value: string, segments: GaugeSegment[], at: number | undefined, label?: string): Gauge {
-	return { value, label, segments, at, tone: at === undefined ? undefined : segments[bandAt(segments, at)]!.tone };
+	return { value, label, segments, at, tone: at === undefined ? undefined : segments[bandAt(segments, at)].tone };
 }
 
 /** Linear interpolation of `value` inside `[lo, hi]`, placed inside a band. */
@@ -133,7 +133,7 @@ export function vo2Gauge(value: number, age: number | undefined, sex: Sex | unde
 	const scale = age === undefined || !sex ? undefined : vo2Scale(age, sex);
 	if (!scale) return gauge(String(shown), segments, undefined);
 	const index = vo2Class(value, scale);
-	return gauge(String(shown), segments, within(value, scale[index]!, scale[index + 1]!, segments[index]!), VO2_CLASSES[index]);
+	return gauge(String(shown), segments, within(value, scale[index], scale[index + 1], segments[index]), VO2_CLASSES[index]);
 }
 
 /* FTP, as W/kg. A linear dial from 0 to about 6 W/kg for men, graded by
@@ -185,9 +185,9 @@ export function enduranceGauge(score: number, scale: EnduranceScale = {}, classi
 	const { low, high, limits = [] } = scale;
 	const known = low !== undefined && high !== undefined && high > low && limits.length === 6 && limits.every((v) => v !== undefined);
 	const f = (v: number) => clamp01((v - low!) / (high! - low!));
-	const segments = known ? bands([0, ...limits.map((v) => f(v!)), 1], SEVEN) : bands([0, 1, 2, 3, 4, 5, 6, 7].map((i) => i / 7), SEVEN);
+	const segments = known ? bands([0, ...limits.map((v) => f(v)), 1], SEVEN) : bands([0, 1, 2, 3, 4, 5, 6, 7].map((i) => i / 7), SEVEN);
 	const named = classification !== undefined && classification >= 1 && classification <= 7;
-	const index = named ? classification - 1 : known ? limits.filter((v) => score >= v!).length : undefined;
+	const index = named ? classification - 1 : known ? limits.filter((v) => score >= v).length : undefined;
 	const at = known ? f(score) : index !== undefined ? (index + 0.5) / 7 : undefined;
 	return gauge(score.toLocaleString(), segments, at, index !== undefined ? ENDURANCE_CLASSES[index] : undefined);
 }
@@ -237,7 +237,7 @@ export function economyGauge(score: number, classification?: string): Gauge {
 	const shown = String(Math.round(score));
 	const label = economyClassName(classification) ?? titleCase(classification);
 	if (index < 0) return gauge(shown, segments, undefined, label);
-	const [worse, better] = ECONOMY_RANGES[index]!;
-	const at = within(worse - score, 0, worse - better, segments[index]!);
+	const [worse, better] = ECONOMY_RANGES[index];
+	const at = within(worse - score, 0, worse - better, segments[index]);
 	return gauge(shown, segments, at, label);
 }

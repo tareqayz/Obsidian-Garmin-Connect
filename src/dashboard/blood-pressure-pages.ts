@@ -75,9 +75,9 @@ export function bloodPressureDayView(input: BloodPressureInput): BloodPressureDa
 		label: dayLabel(date, today),
 		canGoBack: canGoBack(data, date),
 		canGoForward: date < today,
-		hero: has ? `${row!.sys}/${row!.dia}` : "--",
+		hero: has ? `${row.sys}/${row.dia}` : "--",
 		hasReading: has,
-		...(has ? { category: bpCategory(row!.sys!, row!.dia!) } : {}),
+		...(has ? { category: bpCategory(row.sys!, row.dia!) } : {}),
 		...(row?.pulse !== undefined ? { pulse: `${row.pulse} bpm` } : {}),
 	};
 }

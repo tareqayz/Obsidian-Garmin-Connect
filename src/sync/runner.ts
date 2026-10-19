@@ -1398,7 +1398,7 @@ export class SyncRunner {
 			return { requests, ...(fatal ? { fatal } : {}) };
 		}
 		if (task.kind === "details") {
-			const id = task.ids[0]!;
+			const id = task.ids[0];
 			const load = await this.loadActivityFor(id, true);
 			if (load.fatal) return { requests: DETAIL_REQUESTS, fatal: load.fatal };
 			task.ids.shift();
@@ -1522,22 +1522,22 @@ export function describe(report: SyncReport): string {
  * styles.css.
  */
 function noticeBody(progress: SyncProgress): DocumentFragment {
-	const fragment = document.createDocumentFragment();
-	const wrap = document.createElement("div");
+	const fragment = createFragment();
+	const wrap = createDiv();
 	wrap.className = "gcn-sync";
 
-	const line = document.createElement("div");
+	const line = createDiv();
 	line.className = "gcn-line";
-	const title = document.createElement("span");
+	const title = createSpan();
 	title.textContent = "Garmin sync";
-	const count = document.createElement("span");
+	const count = createSpan();
 	count.className = "gcn-count";
 	count.textContent = progress.total > 0 ? `${progress.done} of ${progress.total}` : "starting…";
 	line.append(title, count);
 
-	const rail = document.createElement("div");
+	const rail = createDiv();
 	rail.className = progress.total > 0 ? "gcn-rail" : "gcn-rail is-indeterminate";
-	const fill = document.createElement("div");
+	const fill = createDiv();
 	fill.className = "gcn-fill";
 	if (progress.total > 0) fill.style.width = `${Math.round(fraction(progress) * 100)}%`;
 	rail.append(fill);
@@ -1548,7 +1548,7 @@ function noticeBody(progress: SyncProgress): DocumentFragment {
 	// how far back the run has reached, and whether it is worth waiting for.
 	const detail = [progress.date, formatEta(progress.eta)].filter(Boolean).join(" · ");
 	if (detail) {
-		const el = document.createElement("div");
+		const el = createDiv();
 		el.className = "gcn-detail";
 		el.textContent = detail;
 		wrap.append(el);
@@ -1560,15 +1560,15 @@ function noticeBody(progress: SyncProgress): DocumentFragment {
 
 /** The history sync's Notice: the same bar as a day sync's, counting activities. */
 function historyBody(progress: HistoryProgress): DocumentFragment {
-	const fragment = document.createDocumentFragment();
-	const wrap = document.createElement("div");
+	const fragment = createFragment();
+	const wrap = createDiv();
 	wrap.className = "gcn-sync";
 
-	const line = document.createElement("div");
+	const line = createDiv();
 	line.className = "gcn-line";
-	const title = document.createElement("span");
+	const title = createSpan();
 	title.textContent = "Garmin activity history";
-	const count = document.createElement("span");
+	const count = createSpan();
 	count.className = "gcn-count";
 	count.textContent =
 		progress.total !== undefined
@@ -1578,10 +1578,10 @@ function historyBody(progress: HistoryProgress): DocumentFragment {
 				: "starting…";
 	line.append(title, count);
 
-	const rail = document.createElement("div");
+	const rail = createDiv();
 	const known = progress.total !== undefined && progress.total > 0;
 	rail.className = known ? "gcn-rail" : "gcn-rail is-indeterminate";
-	const fill = document.createElement("div");
+	const fill = createDiv();
 	fill.className = "gcn-fill";
 	if (known) fill.style.width = `${Math.min(100, Math.round((progress.fetched / progress.total!) * 100))}%`;
 	rail.append(fill);
@@ -1598,23 +1598,23 @@ function statsHistoryBody(progress: StatsHistoryProgress): DocumentFragment {
 
 /** A history walk's Notice: what it fetches and how far back it has reached. */
 function historyNotice(label: string, progress: { reached?: string }): DocumentFragment {
-	const fragment = document.createDocumentFragment();
-	const wrap = document.createElement("div");
+	const fragment = createFragment();
+	const wrap = createDiv();
 	wrap.className = "gcn-sync";
 
-	const line = document.createElement("div");
+	const line = createDiv();
 	line.className = "gcn-line";
-	const title = document.createElement("span");
+	const title = createSpan();
 	title.textContent = label;
-	const count = document.createElement("span");
+	const count = createSpan();
 	count.className = "gcn-count";
 	count.textContent = progress.reached ? `back to ${monthOf(progress.reached)}` : "starting…";
 	line.append(title, count);
 
 	// How far back the account goes is unknown until the walk finds its start.
-	const rail = document.createElement("div");
+	const rail = createDiv();
 	rail.className = "gcn-rail is-indeterminate";
-	const fill = document.createElement("div");
+	const fill = createDiv();
 	fill.className = "gcn-fill";
 	rail.append(fill);
 
@@ -1630,7 +1630,7 @@ export function monthOf(date: string): string {
 
 function shiftDay(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
-	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 function pauseFor(ms: number): Promise<void> {

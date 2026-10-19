@@ -210,7 +210,7 @@ export function readinessPageDial(score: number | undefined, level?: string): Re
 	const segments = segmentsFromAngles(READINESS_DIAL_ANGLES, READINESS_TONES);
 	if (score === undefined) return { gauge: { value: DASH, label: DIAL_TOP, segments } };
 	const angle = readinessAngle(score);
-	const tone = LEVEL_TONES[level?.trim().toUpperCase() ?? ""] ?? LEVEL_TONES[levelOfScore(score)]!;
+	const tone = LEVEL_TONES[level?.trim().toUpperCase() ?? ""] ?? LEVEL_TONES[levelOfScore(score)];
 	return { gauge: { value: String(score), label: DIAL_TOP, segments, at: dialFraction(angle), tone }, angle };
 }
 
@@ -463,12 +463,12 @@ export function acuteFactor({ date, reading, ctx }: FactorInput): ReadinessFacto
 	const rows = ctx.status ?? [];
 	const row = rows.find((r) => r.date === date);
 	const fromRow = !none && row?.acute !== undefined;
-	const value = none ? DASH : fromRow ? String(row!.acute) : reading.acute !== undefined ? String(reading.acute) : DASH;
-	const word = fromRow && row!.acwr ? LOAD_WORDS[row!.acwr.trim().toUpperCase()] : undefined;
+	const value = none ? DASH : fromRow ? String(row.acute) : reading.acute !== undefined ? String(reading.acute) : DASH;
+	const word = fromRow && row.acwr ? LOAD_WORDS[row.acwr.trim().toUpperCase()] : undefined;
 	// Load's Training Load tab on the 28 days ending on the day: its acute timeline, verbatim.
 	const load = trainingView({ range: "4w", offset: 0, tab: "training" }, { today: date, status: rows, statusComplete: true });
 	const sheet: AcuteSheet = {
-		...base("acute", value === DASH ? undefined : word ? `${value} - ${word}` : value, fromRow ? sheetCopy("acute", row!.acwr) : undefined),
+		...base("acute", value === DASH ? undefined : word ? `${value} - ${word}` : value, fromRow ? sheetCopy("acute", row.acwr) : undefined),
 		chartTitle: load.title,
 		chart: load.chart?.segment === "acute" ? load.chart : null,
 		legend: load.legend,

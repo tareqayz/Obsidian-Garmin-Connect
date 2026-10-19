@@ -250,7 +250,7 @@ export function rowOfNight(night: HrvNight | null | undefined, date: string): Hr
 export const HRV_DAY = defineIntraday<HrvData | null, HrvNight>({
 	key: HRV_DAY_KEY,
 	group: "hrv",
-	fetch: (api, date) => api.hrv(date) as Promise<HrvData | null>,
+	fetch: (api, date) => api.hrv(date),
 	map: (payload, date) => hrvNightOf(payload, date),
 	fromDay: (day) => (day.hrv?.hrvReadings?.length ? day.hrv : null),
 });

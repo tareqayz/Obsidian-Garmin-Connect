@@ -39,7 +39,7 @@ export class AddStatModal extends Modal {
 
 	onClose(): void {
 		if (this.list) {
-			unmount(this.list);
+			void unmount(this.list);
 			this.list = undefined;
 		}
 		this.contentEl.empty();

@@ -77,6 +77,8 @@ The working tree is `.obsidian/plugins/garmin-connect` in a real vault.
 `npm run build` chains `tsc` → `svelte-check` → tests → esbuild → `check-mobile-safe`. That last
 step is what backs `isDesktopOnly: false`; if a change pulls in a node or electron import, fix the
 import rather than the check. `scripts/dev/test.sh '<glob>'` runs only the matching tests.
+`npm run lint` is the Community directory's review rules; CI runs it too, and it must stay at 0
+errors (see `docs/CONTRIBUTING.md`).
 
 ## Data versions
 

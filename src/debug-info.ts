@@ -17,7 +17,7 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	const app = plugin.app;
 	const s = plugin.data.settings;
 	const lines: string[] = ["Garmin Connect debug info", ""];
-	const add = (key: string, value: unknown) => lines.push(`- ${key}: ${value === undefined || value === null || value === "" ? "—" : String(value)}`);
+	const add = (key: string, value: string | number | boolean | null | undefined) => lines.push(`- ${key}: ${value === undefined || value === null || value === "" ? "—" : String(value)}`);
 
 	add("Plugin", plugin.manifest.version);
 	add("Obsidian", apiVersion);
@@ -86,7 +86,7 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	if (opts.error !== undefined) {
 		lines.push("", "Error");
 		const err = opts.error;
-		lines.push(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+		lines.push(err instanceof Error ? `${err.name}: ${err.message}` : message(err));
 		const stack = err instanceof Error ? err.stack?.split("\n").slice(1, 9) : undefined;
 		if (stack) lines.push(...stack.map((line) => `  ${line.trim()}`));
 	}

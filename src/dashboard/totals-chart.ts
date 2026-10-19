@@ -76,7 +76,7 @@ export function chartGeometry(chart: Chart, width: number): ChartGeometry {
 
 	const labels = yearly
 		? chart.slots.map((s, i) => ({ x: x(i) + 3.5, y: f.dotY + 10, text: s.label, rotated: true }))
-		: [0, n - 1].filter((i, k, all) => n > 0 && all.indexOf(i) === k).map((i) => ({ x: x(i), y: 324, text: chart.slots[i]!.label, rotated: false }));
+		: [0, n - 1].filter((i, k, all) => n > 0 && all.indexOf(i) === k).map((i) => ({ x: x(i), y: 324, text: chart.slots[i].label, rotated: false }));
 
 	return { width, gridlines, bars, dots, labels };
 }

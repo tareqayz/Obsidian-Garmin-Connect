@@ -88,10 +88,10 @@ export function sheetPlot(view: HealthSheetView, width: number): SheetPlot {
 	const bottoms: string[] = [];
 	view.band.forEach((b, i) => {
 		if (!b) return;
-		tops.push(`${r2(xs[i]!)} ${r2(scale.y(b.hi))}`);
-		bottoms.unshift(`${r2(xs[i]!)} ${r2(scale.y(b.lo))}`);
+		tops.push(`${r2(xs[i])} ${r2(scale.y(b.hi))}`);
+		bottoms.unshift(`${r2(xs[i])} ${r2(scale.y(b.lo))}`);
 	});
 	const band = tops.length ? `M${[...tops, ...bottoms].join(" L")} Z` : "";
-	const points = view.line.flatMap((v, i) => (v === null ? [] : [{ x: r2(xs[i]!), y: r2(scale.y(v)) }]));
-	return { ...box, band, line: linePath(view.line.map((v, i) => [xs[i]!, v === null ? null : scale.y(v)])), points };
+	const points = view.line.flatMap((v, i) => (v === null ? [] : [{ x: r2(xs[i]), y: r2(scale.y(v)) }]));
+	return { ...box, band, line: linePath(view.line.map((v, i) => [xs[i], v === null ? null : scale.y(v)])), points };
 }

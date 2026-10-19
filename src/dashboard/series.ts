@@ -25,7 +25,7 @@ export interface DayRow {
 /** `YYYY-MM-DD` moved by whole days, in UTC so a DST change cannot skip or repeat one. */
 export function shiftDate(iso: string, days: number): string {
 	const [y, m, d] = iso.split("-").map(Number);
-	return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1) + days * DAY_MS).toISOString().slice(0, 10);
+	return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
 /** Seconds → "24:31" or "3:12:04": an activity's time, or a personal record's. */

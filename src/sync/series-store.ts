@@ -435,7 +435,7 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		if (!(file instanceof TFile)) return null;
 		try {
 			const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as unknown;
-			return parsed && typeof parsed === "object" ? (parsed as AccountInfo) : null;
+			return parsed && typeof parsed === "object" ? (parsed) : null;
 		} catch {
 			return null;
 		}

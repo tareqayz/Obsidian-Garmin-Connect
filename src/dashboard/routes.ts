@@ -127,7 +127,7 @@ const MAX_DEPTH = 8;
 export function push(stack: readonly Route[], route: Route): Route[] {
 	const next = [...stack, route];
 	// Drop from just above Home rather than lose the way back to it.
-	return next.length > MAX_DEPTH ? [next[0]!, ...next.slice(next.length - MAX_DEPTH + 1)] : next;
+	return next.length > MAX_DEPTH ? [next[0], ...next.slice(next.length - MAX_DEPTH + 1)] : next;
 }
 
 /** One page back. Home is never popped. */
@@ -436,7 +436,7 @@ function subId(value: unknown): number | null {
 
 function metricId(value: unknown, category: CategoryId): MetricId {
 	const allowed = CATEGORIES.find((c) => c.id === category)!.metrics;
-	return METRICS.includes(value as MetricId) && allowed.includes(value as MetricId) ? (value as MetricId) : allowed[0]!;
+	return METRICS.includes(value as MetricId) && allowed.includes(value as MetricId) ? (value as MetricId) : allowed[0];
 }
 
 /** Steps, Floors or Intensity Minutes as the hub and Home open them: today. */
@@ -549,6 +549,6 @@ export function allRoute(opts: Omit<AllRoute, "page"> = {}): AllRoute {
 
 /** A category page as the hub opens it: everything, this week, the first tab. */
 export function categoryRoute(category: CategoryId): Route {
-	const metric = CATEGORIES.find((c) => c.id === category)!.metrics[0]!;
+	const metric = CATEGORIES.find((c) => c.id === category)!.metrics[0];
 	return { page: "category", category, sub: null, range: "7d", offset: 0, metric };
 }

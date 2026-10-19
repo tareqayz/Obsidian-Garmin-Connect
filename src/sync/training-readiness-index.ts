@@ -188,8 +188,9 @@ export function newestOf<T>(readings: readonly T[] | null | undefined): T | unde
 /** A range answer as rows: a day each with readings, its morning reading. */
 export function rowsOfReadings(raw: unknown): Array<DayRowInput<TrainingReadinessRow>> {
 	const byDay = new Map<string, TrainingReadinessReading[]>();
-	for (const reading of Array.isArray(raw) ? raw : []) {
-		const day = isReading(reading) ? dayOf(reading.calendarDate) : undefined;
+	for (const reading of Array.isArray(raw) ? (raw as unknown[]) : []) {
+		if (!isReading(reading)) continue;
+		const day = dayOf(reading.calendarDate);
 		if (!day) continue;
 		const list = byDay.get(day);
 		if (list) list.push(reading);

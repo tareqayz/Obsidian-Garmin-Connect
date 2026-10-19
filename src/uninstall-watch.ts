@@ -35,7 +35,7 @@ export function watchForUninstall(watch: UninstallWatch): void {
 	const setTimer = watch.setTimer ?? ((run, ms) => window.setTimeout(run, ms));
 	const check = (index: number, missed: number) => {
 		if (index >= delays.length) return;
-		const wait = delays[index]! - (index ? delays[index - 1]! : 0);
+		const wait = delays[index] - (index ? delays[index - 1] : 0);
 		setTimer(() => {
 			watch.exists().then(
 				(there) => {

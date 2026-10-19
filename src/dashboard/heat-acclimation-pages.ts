@@ -72,7 +72,7 @@ export const HEAT_TICK_LABELS: readonly string[] = HEAT_TICKS.map((t) => `${t}%`
  */
 export function heatRowOn(rows: readonly HeatAcclimationRow[], date: string): HeatAcclimationRow | undefined {
 	for (let i = rows.length - 1; i >= 0; i--) {
-		const row = rows[i]!;
+		const row = rows[i];
 		if (row.date <= date && row.pct !== undefined) return row;
 	}
 	return undefined;

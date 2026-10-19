@@ -94,7 +94,7 @@ export function readingsPlot(view: HeartRatePeriodView, width: number, pane: boo
 	const a = year ? YEAR_AXIS : DAYS_AXIS;
 	const { box, scale } = plotBox(f, width, a.ticks, view.axis);
 	const y = yOf(f, a);
-	const series = (key: "resting" | "high") => view.points.map((p): [number, number | null] => [scale.x(p.x), p[key] === null ? null : y(p[key]!)]);
+	const series = (key: "resting" | "high") => view.points.map((p): [number, number | null] => [scale.x(p.x), p[key] === null ? null : y(p[key])]);
 	const points: ReadingsPlot["points"] = [];
 	for (const key of ["high", "resting"] as const) {
 		for (const [x, py] of series(key)) if (py !== null) points.push({ x: r2(x), y: r2(py), series: key });

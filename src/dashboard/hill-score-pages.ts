@@ -124,12 +124,12 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /** The colour under the marker: the band it sits in, as `gauges.ts` colours its markers. */
 function toneAt(segments: readonly GaugeSegment[], at: number): Tone {
-	return (segments.find((s) => at < s.to) ?? segments[segments.length - 1]!).tone;
+	return (segments.find((s) => at < s.to) ?? segments[segments.length - 1]).tone;
 }
 
 /** A score's class by the help table: Recreational 1-24, Challenger 25-49 … Elite 95-100. */
 export function hillClassOf(score: number): string {
-	return HILL_CLASSES[HILL_LIMITS.filter((limit) => score >= limit).length]!;
+	return HILL_CLASSES[HILL_LIMITS.filter((limit) => score >= limit).length];
 }
 
 /** A day's class word: the class Garmin sends (`classId`, 1–6), else its score's. None while calibrating. */
@@ -244,7 +244,7 @@ export function vo2Factor(reading: Vo2Reading | undefined, ctx: Pick<HillScoreCo
 	const scale = ctx.age !== undefined && ctx.sex ? vo2Scale(ctx.age, ctx.sex) : undefined;
 	const sheet: HillFactorSheet = { title, gauge: vo2DialGauge(reading, scale) };
 	if (scale) sheet.copy = classCopy("running", topPercent(reading.value, scale));
-	const rating = scale ? VO2_CLASSES[vo2Class(reading.value, scale)]! : "";
+	const rating = scale ? VO2_CLASSES[vo2Class(reading.value, scale)] : "";
 	return { key: "vo2", title, detail: String(reading.shown), rating, sheet };
 }
 
@@ -461,7 +461,7 @@ export function monthPoints(span: Span, scores: ReadonlyMap<string, number>): { 
 		points,
 		axis: {
 			dots: months.map((month) => ({ x: x(month), large: true })),
-			labels: months.map((month) => ({ x: x(month), text: SHORT_MONTHS[Number(month.slice(5, 7)) - 1]!, rotated: true })),
+			labels: months.map((month) => ({ x: x(month), text: SHORT_MONTHS[Number(month.slice(5, 7)) - 1], rotated: true })),
 		},
 	};
 }

@@ -647,7 +647,7 @@ function axisOf(periods: readonly EndurancePeriod[], span: Span, unit: "week" | 
 	const first = periods[0]?.key ?? span.from;
 	const length = daysBetween(first, shiftDate(span.to, 1));
 	const x = (date: string) => (length > 0 ? daysBetween(first, date) / length : 0);
-	const text = (key: string) => (unit === "week" ? axisDay(key) : SHORT_MONTHS[Number(key.slice(5, 7)) - 1]!);
+	const text = (key: string) => (unit === "week" ? axisDay(key) : SHORT_MONTHS[Number(key.slice(5, 7)) - 1]);
 	return {
 		axis: {
 			dots: periods.map((p) => ({ x: x(p.key), large: true })),
@@ -660,7 +660,7 @@ function axisOf(periods: readonly EndurancePeriod[], span: Span, unit: "week" | 
 /** A block's header: the week, Monday to Sunday ("Oct 5 - 11"); the month, by name this year, else with its year. */
 function blockTitle(period: EndurancePeriod, unit: "week" | "month", today: string): string {
 	if (unit === "week") return periodLabel(period.from, period.to, today);
-	return period.key.slice(0, 4) === today.slice(0, 4) ? MONTHS[Number(period.key.slice(5, 7)) - 1]! : monthLabel(period.key);
+	return period.key.slice(0, 4) === today.slice(0, 4) ? MONTHS[Number(period.key.slice(5, 7)) - 1] : monthLabel(period.key);
 }
 
 /** A period's bar: its average split by its list, Miscellaneous at the bottom; none without an average or a list. */
@@ -690,7 +690,7 @@ function periodView(tab: EnduranceTab, range: "12w" | "1y", offset: number, rows
 	const points: EndurancePoint[] = periods.flatMap((p) => (p.average === undefined ? [] : [{ date: p.key, x: x(p.key), value: p.average }]));
 	const values = points.map((p) => p.value);
 	const lists = periods.map((p) => contributorsOf(p.shares, types));
-	const bars = periods.flatMap((p, i) => barOf(p, lists[i]!, x(p.key)) ?? []);
+	const bars = periods.flatMap((p, i) => barOf(p, lists[i], x(p.key)) ?? []);
 
 	const view: EndurancePeriodView = {
 		range,
@@ -704,7 +704,7 @@ function periodView(tab: EnduranceTab, range: "12w" | "1y", offset: number, rows
 		legend: legendOf(lists),
 		figures: enduranceFigures(periods),
 		blocks: periods
-			.map((p, i) => ({ date: p.key, title: blockTitle(p, unit, ctx.today), rows: lists[i]!.rows }))
+			.map((p, i) => ({ date: p.key, title: blockTitle(p, unit, ctx.today), rows: lists[i].rows }))
 			.filter((b) => b.rows.length)
 			.reverse(),
 	};
@@ -735,7 +735,7 @@ export interface EnduranceHelp {
  */
 export function enduranceHelp(rows: readonly EnduranceScoreRow[], ctx: Pick<EnduranceScoreContext, "today" | "days"> & { age?: number; sex?: Sex }): EnduranceHelp {
 	let latest: EnduranceScoreRow | undefined;
-	for (let i = rows.length - 1; i >= 0 && !latest; i--) if (rows[i]!.date <= ctx.today && rows[i]!.score !== undefined) latest = rows[i];
+	for (let i = rows.length - 1; i >= 0 && !latest; i--) if (rows[i].date <= ctx.today && rows[i].score !== undefined) latest = rows[i];
 	const scale = ctx.days?.length ? enduranceScaleOf(ctx.days, latest?.date ?? ctx.today) : undefined;
 	const help: EnduranceHelp = { title: HELP_TITLE, intro: HELP_CLASSES_INTRO, classes: [], sections: ENDURANCE_HELP };
 	const word = latest ? enduranceClassWord(latest, scale) : undefined;
@@ -747,7 +747,7 @@ export function enduranceHelp(rows: readonly EnduranceScoreRow[], ctx: Pick<Endu
 	if (wholeScale(scale)) {
 		const limits = scale.limits as number[];
 		const starts = [1, ...limits];
-		help.classes = ENDURANCE_CLASSES.map((name, i) => ({ name, range: i === starts.length - 1 ? `${scoreText(starts[i]!)} and above` : `${scoreText(starts[i]!)} - ${scoreText(starts[i + 1]! - 1)}` })).reverse();
+		help.classes = ENDURANCE_CLASSES.map((name, i) => ({ name, range: i === starts.length - 1 ? `${scoreText(starts[i])} and above` : `${scoreText(starts[i])} - ${scoreText(starts[i + 1] - 1)}` })).reverse();
 	}
 	return help;
 }

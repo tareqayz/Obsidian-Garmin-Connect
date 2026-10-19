@@ -252,7 +252,10 @@ export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "m
 
 	// Finished plans stay in Garmin's list for good; only the live ones are news.
 	const plans = asArray(p.plans?.trainingPlanList)
-		.filter((plan) => !/^completed$/i.test(String(obj(plan.trainingStatus)?.statusKey ?? "")))
+		.filter((plan) => {
+			const status = obj(plan.trainingStatus)?.statusKey;
+			return !(typeof status === "string" && /^completed$/i.test(status));
+		})
 		.map((plan) => {
 			const row: NonNullable<AccountInfo["trainingPlans"]>[number] = {};
 			text(row, "name", plan.name);

@@ -67,7 +67,7 @@ export interface AveragesPlot extends PlotBox {
 export function averagesPlot(view: RespirationPeriodView, width: number, pane: boolean): AveragesPlot {
 	const f = respirationFrame(view.range === "4w" ? "month" : "week", pane);
 	const { box, scale } = plotBox(f, width, view.ticks, view.axis);
-	const series = (key: "sleep" | "awake") => view.points.map((p): [number, number | null] => [scale.x(p.x), p[key] === null ? null : scale.y(p[key]!)]);
+	const series = (key: "sleep" | "awake") => view.points.map((p): [number, number | null] => [scale.x(p.x), p[key] === null ? null : scale.y(p[key])]);
 	const points: AveragesPlot["points"] = [];
 	// Awake last: where the two are equal its dot covers Sleep's, as on the web.
 	for (const key of ["sleep", "awake"] as const) {

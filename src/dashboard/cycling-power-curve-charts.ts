@@ -103,8 +103,8 @@ export type PowerPlotInput = Pick<CyclingPowerCurveView, "top" | "ticks" | "axis
 function curvePaths(vertices: readonly CurveVertex[], place: (v: CurveVertex) => { x: number; y: number }, foot: number): PowerCurvePaths {
 	const points = vertices.map(place);
 	if (!points.length) return { points, line: "", area: "" };
-	const first = points[0]!;
-	const last = points[points.length - 1]!;
+	const first = points[0];
+	const last = points[points.length - 1];
 	const along = (from: number) => points.slice(from).map((p) => `L${p.x} ${p.y}`);
 	return {
 		points,

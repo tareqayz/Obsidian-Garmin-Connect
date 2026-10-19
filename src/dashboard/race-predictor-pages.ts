@@ -319,8 +319,8 @@ function lineOf(distance: RaceDistance, places: readonly Place[], units: RaceUni
 		points.push({ date: row.date, slot, x, value: paceOf(seconds, distance.km, units), seconds, marker: every });
 	}
 	if (points.length) {
-		points[0]!.marker = true;
-		points[points.length - 1]!.marker = true;
+		points[0].marker = true;
+		points[points.length - 1].marker = true;
 	}
 	return { id: distance.id, label: distance.label, shape: distance.shape, points };
 }
@@ -383,7 +383,7 @@ export function raceChart(plotted: RaceLines, on: readonly RaceId[]): RaceChart 
 
 /** The newest row on or before `today`. */
 function newestRow(rows: readonly RacePredictionRow[], today: string): RacePredictionRow | undefined {
-	for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.date <= today) return rows[i];
+	for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= today) return rows[i];
 	return undefined;
 }
 

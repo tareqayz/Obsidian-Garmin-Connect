@@ -198,7 +198,7 @@ export const MAX_WINDOW_DAYS = 3660;
  * mistake fails the build's tests instead of a sync.
  */
 export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayIndexDef<R> {
-	const problem = problemWith(spec as unknown as DayIndexSpec<DayRow>);
+	const problem = problemWith(spec);
 	if (problem) throw new Error(`defineDayIndex(${JSON.stringify(spec.kind)}): ${problem}`);
 
 	const listKey = spec.listKey ?? "days";
@@ -213,7 +213,7 @@ export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayInde
 		const out: Record<string, unknown> = { date: row.date };
 		let any = false;
 		for (const key of keys) {
-			const value = cell(columns[key]!, row[key]);
+			const value = cell(columns[key], row[key]);
 			if (value === undefined) continue;
 			out[key] = value;
 			any = true;
@@ -345,7 +345,7 @@ export function extendSpan(held: { from?: string; to?: string } | null | undefin
 /** `YYYY-MM-DD` moved by whole days, on the calendar rather than the clock. */
 export function shiftDate(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
-	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 /* ------------------------------------------------------------------ */
@@ -376,7 +376,7 @@ function problemWith(spec: DayIndexSpec<DayRow>): string | null {
 	if (typeof spec.title !== "string" || !spec.title.trim()) return "title is empty";
 	if (!Number.isInteger(spec.version) || spec.version < 1) return "version must be a whole number from 1";
 	if (spec.listKey !== undefined && (!KEY.test(spec.listKey) || FILE_KEYS.has(spec.listKey))) return `listKey "${spec.listKey}" cannot be used`;
-	const columns = Object.entries((spec.columns ?? {}) as Record<string, ColumnSpec>);
+	const columns: Array<[string, ColumnSpec]> = Object.entries(spec.columns ?? {});
 	if (!columns.length) return "no columns";
 	for (const [key, column] of columns) {
 		if (!KEY.test(key) || FILE_KEYS.has(key)) return `column "${key}" cannot be used`;

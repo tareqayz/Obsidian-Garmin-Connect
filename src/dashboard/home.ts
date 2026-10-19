@@ -79,7 +79,7 @@ export const PRESETS: readonly Preset[] = [
 export const DEFAULT_PRESET: PresetId = "be-healthy";
 
 export function presetFor(id: string | undefined): Preset {
-	return PRESETS.find((p) => p.id === id) ?? PRESETS[0]!;
+	return PRESETS.find((p) => p.id === id) ?? PRESETS[0];
 }
 
 export function isPresetId(value: unknown): value is PresetId {
@@ -243,7 +243,7 @@ export function batteryView(input: HomeInput, row: DayRow | undefined): BatteryV
 	const latest = num(row, "body_battery_latest");
 	if (latest === undefined && !s?.bodyBattery?.length) return null;
 	const from = dayStart(input.date);
-	const sleepEnd = s?.sleepLevels?.length ? s.sleepLevels[s.sleepLevels.length - 1]!.end : undefined;
+	const sleepEnd = s?.sleepLevels?.length ? s.sleepLevels[s.sleepLevels.length - 1].end : undefined;
 	const snap = row?.snapshots?.[0]?.start;
 	return {
 		latest,
@@ -361,8 +361,8 @@ function workoutMinutes(row: DayRow | undefined): number {
 
 export function activitiesView(input: HomeInput): ActivitiesView {
 	const week = lastDays(input.rows, input.date, 7);
-	const first = week[0]!.date;
-	const last = week[week.length - 1]!.date;
+	const first = week[0].date;
+	const last = week[week.length - 1].date;
 	const sameMonth = first.slice(0, 7) === last.slice(0, 7);
 	const days = week.map(({ date, row }) => ({ label: weekdayLetter(date), minutes: workoutMinutes(row) }));
 	return {
@@ -552,7 +552,7 @@ export interface HomeModel {
 /** Today, or the newest synced day before it when today has not synced yet. */
 export function dayToShow(rows: readonly DayRow[], today: string): string {
 	for (let i = rows.length - 1; i >= 0; i--) {
-		if (rows[i]!.date <= today) return rows[i]!.date;
+		if (rows[i].date <= today) return rows[i].date;
 	}
 	return today;
 }

@@ -191,7 +191,7 @@ export const ENDURANCE_SCORE_INDEX = defineDayIndex<EnduranceScoreRow>({
 	fetchWindow: async (api, start, end) => rowsOfEnduranceStats(await api.enduranceStats(start, end, "daily"), start, end),
 	// Free on a routine sync: the day route the day sync asks anyway. A day
 	// without a score is HTTP 204, `endurance: null`: covered, with no row.
-	fromDay: { needs: ["endurance"], read: (day) => (day.endurance ? rowOfEnduranceDay(day.endurance as EnduranceScore) : null) },
+	fromDay: { needs: ["endurance"], read: (day) => (day.endurance ? rowOfEnduranceDay(day.endurance) : null) },
 });
 
 /* ------------------------------------------------------------------ */
@@ -233,7 +233,7 @@ export function enduranceDayOf(payload: EnduranceScore | null | undefined): Endu
 	if (low !== undefined) day.low = low;
 	if (high !== undefined) day.high = high;
 	const limits = LIMIT_FIELDS.map((field) => num(payload[field]));
-	if (limits.every((v) => v !== undefined)) day.limits = limits as number[];
+	if (limits.every((v) => v !== undefined)) day.limits = limits;
 	return day;
 }
 

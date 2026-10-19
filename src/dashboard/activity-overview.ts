@@ -130,7 +130,7 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 		const metres = numberOf(s.distance);
 		if (metres !== undefined && metres > 0) {
 			const [value, unit] = formatDistance(metres, units, 2, true).split(" ");
-			view.distance = { value: value!, unit: unit! };
+			view.distance = { value: value, unit: unit };
 		}
 	}
 	if (detail.sensors?.length) view.sensors = detail.sensors;
@@ -148,7 +148,7 @@ export function distanceHero(detail: ActivityDetail, units: Units): OverviewHero
 	const metres = numberOf(detail.summary.distance);
 	if (metres === undefined || !(metres > 0)) return null;
 	const [value, unit] = formatDistance(metres, units, 2, true).split(" ");
-	return { value: value!, unit: unit!, label: "Distance" };
+	return { value: value, unit: unit, label: "Distance" };
 }
 
 /** The total time as the big figure ("34:52"), as an activity without a distance shows it. */

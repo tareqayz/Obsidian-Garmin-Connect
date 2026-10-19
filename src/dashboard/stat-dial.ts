@@ -101,7 +101,7 @@ export function dialFraction(angle: number): number {
  * angles from −150 to 150 for n tones.
  */
 export function segmentsFromAngles(angles: readonly number[], tones: readonly Tone[]): GaugeSegment[] {
-	return tones.map((tone, i) => ({ from: dialFraction(angles[i]!), to: dialFraction(angles[i + 1]!), tone }));
+	return tones.map((tone, i) => ({ from: dialFraction(angles[i]), to: dialFraction(angles[i + 1]), tone }));
 }
 
 export interface DialBand {

@@ -67,7 +67,7 @@ export const SCALE_COPY_LINES: Readonly<Record<TeScaleKey, Readonly<Partial<Reco
 
 /** A band's title over a scale: "Highly Impacting Aerobic Fitness". */
 export function bandTitle(key: TeScaleKey, band: number): string {
-	return SCALE_BAND_TITLES[key][Math.max(0, Math.min(TOP_BAND, band))]!;
+	return SCALE_BAND_TITLES[key][Math.max(0, Math.min(TOP_BAND, band))];
 }
 
 /** A band's copy under a scale, as lines; none where its words are unseen. */

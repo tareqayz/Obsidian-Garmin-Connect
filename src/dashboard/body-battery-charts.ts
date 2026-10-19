@@ -50,17 +50,17 @@ export function batteryTimelinePlot(t: BatteryTimeline, width: number, pane = fa
 		if (!run.length) return;
 		let d = "";
 		for (const s of run) d += `${d ? "L" : "M"}${r2(scale.x(s.x0))} ${r2(scale.y(s.level))} H${r2(scale.x(s.x1))} `;
-		areas.push(`${d}V${f.baseline} H${r2(scale.x(run[0]!.x0))} Z`);
+		areas.push(`${d}V${f.baseline} H${r2(scale.x(run[0].x0))} Z`);
 		let part: BatteryTimeline["curve"] = [];
 		const out = () => {
 			if (!part.length) return;
 			let p = "";
 			for (const s of part) p += `${p ? "L" : "M"}${r2(scale.x(s.x0))} ${r2(scale.y(s.level))} H${r2(scale.x(s.x1))} `;
-			lines.push({ d: p.trim(), estimated: part[0]!.estimated === true });
+			lines.push({ d: p.trim(), estimated: part[0].estimated === true });
 			part = [];
 		};
 		for (const s of run) {
-			if (part.length && (part[0]!.estimated === true) !== (s.estimated === true)) out();
+			if (part.length && (part[0].estimated === true) !== (s.estimated === true)) out();
 			part.push(s);
 		}
 		out();

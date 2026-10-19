@@ -84,7 +84,7 @@ export const CATEGORIES: readonly Category[] = [
 ];
 
 export function categoryFor(id: CategoryId): Category {
-	return CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[CATEGORIES.length - 1]!;
+	return CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[CATEGORIES.length - 1];
 }
 
 export const METRIC_TITLE: Record<MetricId, string> = {
@@ -195,14 +195,14 @@ export function periodFor(range: RangeId, offset: number, today: string): Period
 		const last = shiftMonth(today.slice(0, 7), step * 12);
 		const slots = Array.from({ length: 12 }, (_, i) => {
 			const month = shiftMonth(last, i - 11);
-			return { from: `${month}-01`, to: lastDayOfMonth(month), label: MONTHS[Number(month.slice(5)) - 1]!.slice(0, 3) };
+			return { from: `${month}-01`, to: lastDayOfMonth(month), label: MONTHS[Number(month.slice(5)) - 1].slice(0, 3) };
 		});
-		const first = slots[0]!.from;
+		const first = slots[0].from;
 		return {
 			range,
 			offset: step,
 			from: first,
-			to: slots[11]!.to,
+			to: slots[11].to,
 			label: `${monthLabel(first.slice(0, 7), true)} - ${monthLabel(last, true)}`,
 			slots,
 		};
@@ -274,7 +274,7 @@ export function totalsBySlot(rows: readonly ActivityRow[], period: Period, metri
 		if (value === undefined) continue;
 		// Slots are in date order, so the first that ends on or after the day holds it.
 		const i = period.slots.findIndex((s) => day <= s.to);
-		if (i >= 0) totals[i]! += value;
+		if (i >= 0) totals[i] += value;
 	}
 	return totals.map((v) => chartUnit(v, metric, period.range, units));
 }
@@ -429,8 +429,8 @@ export interface CategoryInput {
 export function categoryView(input: CategoryInput): CategoryView {
 	const category = categoryFor(input.category);
 	const options = subTypeOptions(input.rows, input.category);
-	const option = options.find((o) => o.typeId === input.sub) ?? options[0]!;
-	const metric = category.metrics.includes(input.metric) ? input.metric : category.metrics[0]!;
+	const option = options.find((o) => o.typeId === input.sub) ?? options[0];
+	const metric = category.metrics.includes(input.metric) ? input.metric : category.metrics[0];
 	const period = periodFor(input.range, input.offset, input.today);
 
 	const all = rowsFor(input.rows, input.category, option.typeId);
@@ -499,8 +499,8 @@ export interface MonthView {
 export function monthView(input: Omit<CategoryInput, "range" | "offset" | "today"> & { month: string }): MonthView {
 	const category = categoryFor(input.category);
 	const options = subTypeOptions(input.rows, input.category);
-	const option = options.find((o) => o.typeId === input.sub) ?? options[0]!;
-	const metric = category.metrics.includes(input.metric) ? input.metric : category.metrics[0]!;
+	const option = options.find((o) => o.typeId === input.sub) ?? options[0];
+	const metric = category.metrics.includes(input.metric) ? input.metric : category.metrics[0];
 	const rows = rowsFor(input.rows, input.category, option.typeId).filter((r) => r.start.startsWith(input.month));
 	const what = `${option.typeId === null ? category.title : option.label} ${rows.length === 1 ? "Activity" : "Activities"}`;
 	return {

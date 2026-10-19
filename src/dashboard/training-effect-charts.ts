@@ -181,7 +181,7 @@ export interface TeScaleRow extends TrainingEffectScale {
 /** The run page's scale (`trainingEffectScales`) for one of the detail page's values, at the width of its cell. */
 export function teScaleRow(scale: Pick<TeScale, "label" | "value" | "colour" | "text">, width: number): TeScaleRow {
 	const [drawn] = trainingEffectScales({ kind: "training-effect", id: "training-effect", title: "", help: false, figures: [], scales: [scale] }, width);
-	return { ...drawn!, value: { x: drawn!.knob.x, text: scale.text } };
+	return { ...drawn, value: { x: drawn.knob.x, text: scale.text } };
 }
 
 /**

@@ -46,7 +46,7 @@ export class SyncRangeModal extends Modal {
 
 	onClose(): void {
 		if (this.form) {
-			unmount(this.form);
+			void unmount(this.form);
 			this.form = undefined;
 		}
 		this.contentEl.empty();

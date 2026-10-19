@@ -150,8 +150,8 @@ export function plotFor(spec: ChartSpec, width: number): Plot {
 		const d = `M${pts.join(" L")}`;
 		lines.push({ d, tone: line.tone });
 		if (line.area) {
-			const first = line.points[0]!;
-			const last = line.points[line.points.length - 1]!;
+			const first = line.points[0];
+			const last = line.points[line.points.length - 1];
 			areas.push(`${d} L${r1(x(last[0]))} ${r1(y(lo))} L${r1(x(first[0]))} ${r1(y(lo))} Z`);
 		}
 	}

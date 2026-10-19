@@ -69,7 +69,7 @@ export class ProbeModal extends Modal {
 
 	onClose(): void {
 		if (this.panel) {
-			unmount(this.panel);
+			void unmount(this.panel);
 			this.panel = undefined;
 		}
 		this.contentEl.empty();

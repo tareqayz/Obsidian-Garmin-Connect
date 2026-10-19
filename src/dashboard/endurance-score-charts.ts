@@ -257,8 +257,8 @@ const ROW_SHORTER = 22;
 /** The box for a phone legend of `rows` rows; a pane keeps its range's (`paneRows`). */
 export function barsDown(rows: number): BarsDown {
 	const n = Math.max(1, Math.round(rows));
-	if (n <= BARS_DOWN.length) return BARS_DOWN[n - 1]!;
-	const last = BARS_DOWN[BARS_DOWN.length - 1]!;
+	if (n <= BARS_DOWN.length) return BARS_DOWN[n - 1];
+	const last = BARS_DOWN[BARS_DOWN.length - 1];
 	const extra = n - BARS_DOWN.length;
 	const less = extra * ROW_SHORTER;
 	return {

@@ -354,7 +354,7 @@ export function positionSpans(detail: ActivityDetail): PositionSpan[] {
 		if (last && last.lane === lane && last.to === from) last.to = to;
 		else spans.push({ from, to, lane });
 	};
-	push(0, events[0]!.at, "seated");
+	push(0, events[0].at, "seated");
 	events.forEach((event, i) => push(event.at, events[i + 1]?.at ?? end, STANDING.has(event.position) ? "standing" : "seated"));
 	return spans;
 }
@@ -419,7 +419,7 @@ export const CYCLING_METRICS: Readonly<Record<ChartMetric, MetricDef>> = {
  * card, as the web's menus), and the Power Curve's W or W/kg.
  */
 export const CYCLING_PICKERS: Readonly<Record<CardId, PickerDef>> = {
-	"heart-rate": RUN_CHARTS.pickers["heart-rate"]!,
+	"heart-rate": RUN_CHARTS.pickers["heart-rate"],
 	"pp-start": {
 		key: "ppStart",
 		title: "Power Phase",
@@ -744,7 +744,7 @@ const powerCurveCard: CustomCardDef = (ctx, pick) => {
 	const card: Omit<CustomChart, "kind" | "id" | "help"> = { title: CURVE_TITLES[data.unit], figures: [], plot: "power-curve", data };
 	if ((ctx.detail.weightKg ?? 0) > 0) {
 		const picker: ChartPicker = {
-			key: CYCLING_PICKERS["power-curve"]!.key,
+			key: CYCLING_PICKERS["power-curve"].key,
 			options: [
 				{ value: "w", label: CURVE_TITLES.W },
 				{ value: "wkg", label: CURVE_TITLES["W/kg"] },

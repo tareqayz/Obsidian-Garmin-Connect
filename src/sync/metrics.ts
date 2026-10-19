@@ -1,5 +1,4 @@
 import type {
-	AcuteTrainingLoad,
 	Acclimation,
 	Activity,
 	BodyComposition,
@@ -642,9 +641,7 @@ export function mapDay(data: DayData, opts: MapOptions): Properties {
 			set("training_load_tunnel_min", roundOrUndefined(metric(status.loadTunnelMin)));
 			set("training_load_tunnel_max", roundOrUndefined(metric(status.loadTunnelMax)));
 		}
-		const load = (training?.acuteTrainingLoadDTO ?? asObject(status?.acuteTrainingLoadDTO)) as
-			| AcuteTrainingLoad
-			| undefined;
+		const load = training?.acuteTrainingLoadDTO ?? asObject(status?.acuteTrainingLoadDTO);
 		if (load) {
 			set("training_load_acute", roundOrUndefined(metric(load.dailyTrainingLoadAcute)));
 			set("training_load_chronic", roundOrUndefined(metric(load.dailyTrainingLoadChronic)));

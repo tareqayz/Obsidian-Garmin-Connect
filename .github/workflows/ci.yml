@@ -33,4 +33,7 @@ jobs:
 
       - run: npm ci
 
+      # The Community directory's review lints every release with these rules.
+      - run: npm run lint
+
       - run: npm run build

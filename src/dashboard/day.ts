@@ -12,12 +12,12 @@ export const DAY_MS = 86_400_000;
 /** Local midnight of a `YYYY-MM-DD` day, as epoch ms. */
 export function dayStart(date: string): number {
 	const [y, m, d] = date.split("-").map(Number);
-	return new Date(y!, m! - 1, d!).getTime();
+	return new Date(y, m - 1, d).getTime();
 }
 
 export function addDays(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
-	const next = new Date(y!, m! - 1, d! + days);
+	const next = new Date(y, m - 1, d + days);
 	return isoOf(next);
 }
 
@@ -66,8 +66,8 @@ export function clockText(minutes: number): string {
 
 export function rowOn(rows: readonly DayRow[], date: string): DayRow | undefined {
 	for (let i = rows.length - 1; i >= 0; i--) {
-		if (rows[i]!.date === date) return rows[i];
-		if (rows[i]!.date < date) break;
+		if (rows[i].date === date) return rows[i];
+		if (rows[i].date < date) break;
 	}
 	return undefined;
 }
@@ -94,7 +94,7 @@ export function str(row: DayRow | undefined, key: string): string | undefined {
 export function latestWith(rows: readonly DayRow[], date: string, key: string, maxAgeDays = Infinity): DayRow | undefined {
 	const oldest = Number.isFinite(maxAgeDays) ? addDays(date, -maxAgeDays) : "";
 	for (let i = rows.length - 1; i >= 0; i--) {
-		const r = rows[i]!;
+		const r = rows[i];
 		if (r.date > date) continue;
 		if (r.date < oldest) break;
 		if (num(r, key) !== undefined || str(r, key) !== undefined) return r;
@@ -114,7 +114,7 @@ export function lastDays(rows: readonly DayRow[], date: string, days: number): A
 const WEEKDAY = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function weekdayLetter(date: string): string {
-	return WEEKDAY[new Date(dayStart(date)).getDay()]!;
+	return WEEKDAY[new Date(dayStart(date)).getDay()];
 }
 
 /** Distance in the unit the note was written in. */
