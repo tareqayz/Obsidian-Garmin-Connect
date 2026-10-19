@@ -22,21 +22,25 @@
 		"iphone:build": "zsh scripts/iphone/build.sh",
 		"release:notes": "esbuild scripts/release/notes.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.release-notes.mjs --log-level=warning && node scripts/.release-notes.mjs",
 		"api:record-file": "esbuild scripts/api/record-from-file.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-record-file.mjs --log-level=warning && node scripts/.api-record-file.mjs",
-		"svelte-check": "svelte-check --tsconfig tsconfig.json"
+		"svelte-check": "svelte-check --tsconfig tsconfig.json",
+		"lint": "eslint ."
 	},
 	"license": "MIT",
 	"devDependencies": {
+		"@eslint/js": "9.39.5",
 		"@types/leaflet": "^1.9.22",
 		"@types/node": "^22.0.0",
 		"esbuild": "^0.25.5",
 		"esbuild-svelte": "^0.9.5",
-		"js-yaml": "^5.4.1",
+		"eslint": "9.39.5",
+		"eslint-plugin-obsidianmd": "0.4.2",
 		"leaflet": "1.9.4",
 		"obsidian": "^1.10.0",
 		"svelte": "^5.57.0",
 		"svelte-check": "^4.7.6",
 		"svelte-preprocess": "^6.0.5",
 		"tslib": "^2.8.1",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"typescript-eslint": "8.71.2"
 	}
 }
