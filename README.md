@@ -4,9 +4,8 @@
 
 # Garmin Connect for Obsidian
 
-**Garmin Connect, rebuilt inside Obsidian.**<br>
-Sync your Garmin health and activity data into your vault, and browse it on pages that mirror the
-phone app, on desktop and mobile.
+**Garmin Connect inside Obsidian.**<br>
+Sync all your Garmin health, performance and activity data into your vault, and browse it on the built-in dashboard. Compatible on desktop and mobile.
 
 [![Latest release](https://img.shields.io/github/v/release/tareqayz/Obsidian-Garmin-Connect?include_prereleases&sort=semver)](https://github.com/tareqayz/Obsidian-Garmin-Connect/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/tareqayz/Obsidian-Garmin-Connect/ci.yml?branch=main&label=CI)](https://github.com/tareqayz/Obsidian-Garmin-Connect/actions/workflows/ci.yml)
@@ -23,30 +22,21 @@ phone app, on desktop and mobile.
 </div>
 
 > [!IMPORTANT]
-> **Beta, and unofficial.** The plugin has met one Garmin account in depth, and yours will differ.
-> It is not affiliated with or endorsed by Garmin.
+> This plugin is not affiliated nor endorsed by Garmin.
 
 ## Features
 
-- **Home:** Garmin's three presets, In Focus and At a Glance, built to match the phone number for
-  number.
-- **Activities:**
-  - a page per sport, with totals and personal records;
-  - All Activities, with Garmin's search, filters and sort.
-- **A page for every activity:** a run's or a ride's map, stats, laps and charts, a pool swim's
-  intervals and lengths, and every other sport.
-- **Steps, Floors and Intensity Minutes,** and **Sleep** with the Sleep Coach.
-- **Health Stats:** Health Status, Heart Rate, Stress, Body Battery, Respiration, Pulse Ox and its
-  acclimation, Weight, Blood Pressure, Fitness Age and Health Snapshot.
-- **Performance Stats:**
-  - Training Status, Training Readiness, HRV Status, VO₂ Max and Race Predictor;
-  - Endurance Score, Hill Score, Running Tolerance, FTP and Running Lactate Threshold;
-  - Running Economy, Training Effect, Cycling Power Curve, Critical Swim Speed and HRV Stress;
-  - Load and Heat Acclimation.
-- **Your data stays yours:** plain JSON files in one folder of your vault. The sync writes no notes.
-- **Private by design:** the password is never stored, the session stays in Obsidian's keychain,
-  and there is no telemetry.
-- **Gentle with Garmin:** paced requests and an hourly budget, and it backs off when Garmin asks.
+- **Pages:** As of now, we have pages for home, activities, health stats and performance stats. *Most* of these have the full stats details. For anything missing that you think could be a bug or should be included, please submit a [bug report](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=bug_report.yml) or [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml).
+- **You own the data:** plain JSON files hold your synced data. This means you can look at stats even offline!
+- **Privacy and security:** we respect your privacy and security. This plugin never stores your password, instead storing your session as a `refreshToken` in Obsidian's [Secret Storage](https://docs.obsidian.md/plugins/guides/secret-storage). Learn more about how this plugin handles security [here](https://github.com/tareqayz/Obsidian-Garmin-Connect?tab=security-ov-file).
+
+## Planned features
+- **AI Coach/advisor**: Users can opt-in and use a pre-configured or custom-configured model to analyze their data. paste a model API key or enter an Ollama base URL. 
+- **Customizable layouts & theming**: The ability to customize layouts and component styles. This plugin hasn't yet been tested with popular themes. Please feel free to contribute some design ideas in [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml) - ideally pair it with a visual.
+- **Embed data within md notes**: beautiful health UI can be directly rendered in your notes. Perfect for a workout journal.
+
+> [!TIP]
+> Have any ideas? Please send a [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml) or learn how to [contribute](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/CONTRIBUTING.md).
 
 ## A closer look
 
@@ -72,7 +62,7 @@ phone app, on desktop and mobile.
 ## How it works
 
 The plugin signs in to Garmin Connect, syncs your data into plain JSON files in your vault, and draws
-Garmin's pages from those files. So the pages open offline, on every device your vault syncs to.
+Garmin's pages from those files. So the pages open offline, on every device your vault syncs to. 
 
 ```mermaid
 flowchart LR
@@ -108,23 +98,17 @@ Then sync with Home's ↻ button, **Sync recent days**, or **Sync on startup**. 
 ## Storage
 
 Everything is plain JSON in one data folder, `Garmin/data` by default. How much room it takes depends
-on how much history you keep:
+on how much history you keep. A year of data may vary for individuals, but should be around 50 MB per year on average.
 
-| Data set | Holds | Size |
-| --- | --- | --- |
-| **Charts & trends** | every page's 7-day, 4-week and 1-year history, always all of it | about 1 MB a year of history |
-| **Day details** | each day's numbers and its timelines | about 44 KB a day, 16 MB a year |
-| **Activity details** | an activity's map, charts and laps, every sport; by default only the activities you open | about 150 KB a run, less for most others |
-
-With Obsidian Sync, turn on **Sync all other types** so the JSON reaches your other devices. Every
-file and key is in the [Data reference](docs/properties.md).
+> [!IMPORTANT]
+> With Obsidian Sync, turn on **Sync all other types** so the JSON reaches your other devices. 
 
 ## Privacy and network use
 
-- **You need a Garmin Connect account.** The plugin signs in the way Garmin's mobile app does. Your
+- **Sign-in flow.** The plugin signs in the way Garmin's mobile app does. Your
   password is used for the sign-in and never stored, and the session stays on the device, in
   Obsidian's keychain, never in the vault.
-- **It talks to Garmin** at `sso.garmin.com`, `diauth.garmin.com` and `connectapi.garmin.com` (or
+- **API Calls** at `sso.garmin.com`, `diauth.garmin.com` and `connectapi.garmin.com` (or
   their `garmin.cn` counterparts), to sign in and to fetch your data.
 - **Activity maps** draw OpenStreetMap's map under an activity's route, from
   `tile.openstreetmap.org`. That server sees which part of the map you open, roughly where the
@@ -138,52 +122,13 @@ file and key is in the [Data reference](docs/properties.md).
 
 What is stored where, and how it is redacted, is in [Security](docs/SECURITY.md).
 
-## Known limitations
-
-- **Language and units:**
-  - English only, and the pages show times on a 12-hour clock whatever your account says.
-  - Imperial units are drawn but unverified; a UK account (`statute_uk`) shows pounds and °F.
-  - Weeks follow fixed starts (Monday for steps, Sunday for some performance charts), not your
-    account's first day of the week.
-- **Activities:** multisport activities get the generic page, without their legs
-  ([#23](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/23)).
-- **Untested:** Android, garmin.cn accounts, and multi-factor sign-in against a live challenge.
-- **Syncing:**
-  - With a scale or a second Garmin device, data a watch uploads days late may need **Sync a date
-    range…**.
-  - Data refreshes when you sync; there is no background interval.
-  - Sign in on one device if you can, usually the computer, and let your other devices show what it
-    syncs. Two devices syncing the same files at once is how sync services make conflict copies.
-
-<details>
-<summary>Worth testing</summary>
-
-Reports on any of these help the most:
-- signing in with multi-factor authentication;
-- Android, phones and tablets;
-- imperial and UK accounts, and accounts whose week starts on Monday;
-- five to ten years of history;
-- sports other than running.
-
-</details>
-
 ## Feedback and support
 
 - **Something broken?** Start with [Troubleshooting](docs/troubleshooting.md).
 - **Reporting a bug:** run **Copy debug info** and paste it into the
   [bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
-  - It needs no password, makes no request, and removes your email, tokens, IP address and Garmin
-    names.
-  - Don't paste screenshots of maps that show where you live.
 - **A security problem:** report it privately through the
   [security advisory form](https://github.com/tareqayz/Obsidian-Garmin-Connect/security/advisories/new).
-
-## Removing the plugin
-
-Uninstalling deletes the plugin's folder and your settings with it. Your synced data stays in the
-vault, and the device you uninstall from offers to keep it or move it to the trash. **Settings →
-Danger zone → Delete synced data** removes it without uninstalling. See
-[Security](docs/SECURITY.md#removing-the-plugin-and-its-data).
 
 ## Documentation
 

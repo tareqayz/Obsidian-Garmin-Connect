@@ -3,7 +3,7 @@
 	"name": "Garmin Connect",
 	"version": "0.1.0",
 	"minAppVersion": "1.11.4",
-	"description": "Sync your Garmin Connect health and activity data into your vault and browse it in Garmin-style Home, Activities, Sleep and Health Stats pages.",
+	"description": "Garmin Connect directly in your Obsidian vault. Data is synced, stored in your vault, and rendered in a dashboard. View your data fully offline, compatible on mobile and desktop.",
 	"author": "Tareq Alansari",
 	"authorUrl": "https://github.com/tareqayz",
 	"fundingUrl": "https://buymeacoffee.com/tareqayz",
