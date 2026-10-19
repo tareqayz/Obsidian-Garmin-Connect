@@ -22,7 +22,7 @@
 		"iphone:build": "zsh scripts/iphone/build.sh",
 		"release:notes": "esbuild scripts/release/notes.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.release-notes.mjs --log-level=warning && node scripts/.release-notes.mjs",
 		"api:record-file": "esbuild scripts/api/record-from-file.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-record-file.mjs --log-level=warning && node scripts/.api-record-file.mjs",
-		"svelte-check": "svelte-check --tsconfig tsconfig.json",
+		"svelte-check": "svelte-check --tsconfig src/tsconfig.json",
 		"lint": "eslint ."
 	},
 	"license": "MIT",
