@@ -8,6 +8,13 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-10-19
+
+### Fixed
+
+- **The plugin's description** no longer says "Obsidian" or starts with the plugin's name, which
+  the Community directory's release check rejected.
+
 ## [1.0.0] — 2026-10-19
 
 The first stable release, and the first in the Obsidian Community directory. It has the same
