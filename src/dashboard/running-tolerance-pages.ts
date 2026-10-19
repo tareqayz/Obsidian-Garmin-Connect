@@ -394,8 +394,8 @@ function weeksAxis(slots: readonly ToleranceSlot[], span: Span): PeriodAxis {
 	return {
 		dots: slots.map((s, k) => ({ x: s.x, large: k === 0 || k === n - 1 })),
 		labels: slots.some((s) => s.row) ? [
-			{ x: slots[0]!.x, text: axisDay(lastDayOf(slots[0]!, span)) },
-			{ x: slots[n - 1]!.x, text: axisDay(lastDayOf(slots[n - 1]!, span)) },
+			{ x: slots[0].x, text: axisDay(lastDayOf(slots[0], span)) },
+			{ x: slots[n - 1].x, text: axisDay(lastDayOf(slots[n - 1], span)) },
 		] : [],
 	};
 }
@@ -408,7 +408,7 @@ function monthsAxis(slots: readonly ToleranceSlot[], span: Span): PeriodAxis {
 		for (let day = slot.week; day <= last; day = shiftDate(day, 1)) {
 			if (day.slice(8, 10) !== "01") continue;
 			axis.dots.push({ x: slot.x, large: true });
-			axis.labels.push({ x: slot.x, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1]!, rotated: true });
+			axis.labels.push({ x: slot.x, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1], rotated: true });
 			break;
 		}
 	}
@@ -431,7 +431,7 @@ function stepRuns(levels: ReadonlyArray<number | undefined>): TolerancePoint[][]
 
 /** 1y's polyline through the slots' centres; it breaks only where a slot has no row. */
 function lineRuns(slots: readonly ToleranceSlot[], levels: ReadonlyArray<number | undefined>): TolerancePoint[][] {
-	return runsOf(levels, (k, value) => [{ x: slots[k]!.x, value }]);
+	return runsOf(levels, (k, value) => [{ x: slots[k].x, value }]);
 }
 
 /** Runs of consecutive slots with a level, each slot's points from `pointsOf`. */

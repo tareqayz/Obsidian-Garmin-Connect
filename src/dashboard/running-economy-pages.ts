@@ -121,7 +121,7 @@ export function readingClassIndex(reading: { score: number; classification?: str
 
 /** A class's name, as the help table writes it: "Intermediate", "Well-Trained". */
 export function economyClassNameAt(index: number): string {
-	return ECONOMY_CLASS_NAMES[ECONOMY_WORDS[index]!]!;
+	return ECONOMY_CLASS_NAMES[ECONOMY_WORDS[index]];
 }
 
 /**
@@ -231,7 +231,7 @@ export function economyCurrent(reading: EconomyReading | undefined, today: strin
 	const index = readingClassIndex(reading);
 	const current: EconomyCurrent = { label: reading.date ? readingLabel(reading.date, today) : null, dial: economyDial(reading), heading: economyClassNameAt(index) };
 	if (reading.date) current.date = reading.date;
-	const copy = ECONOMY_COPY[ECONOMY_WORDS[index]!];
+	const copy = ECONOMY_COPY[ECONOMY_WORDS[index]];
 	if (copy) current.copy = copy;
 	return current;
 }
@@ -354,7 +354,7 @@ export function economyTicks(values: readonly number[]): number[] {
 	};
 	for (const step of STEPS) {
 		const out = ticks(step);
-		if (out[0]! >= high) return out;
+		if (out[0] >= high) return out;
 	}
 	return ticks(Math.ceil((high - low + 1) / 4));
 }
@@ -384,7 +384,7 @@ export function economyYearAxis(span: Span): { axisSpan: Span; axis: PeriodAxis;
 		axisSpan,
 		axis: {
 			dots: months.map((m) => ({ x: x(m), large: true })),
-			labels: months.map((m) => ({ x: x(m), text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1]!, rotated: true })),
+			labels: months.map((m) => ({ x: x(m), text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1], rotated: true })),
 		},
 		x,
 	};
@@ -404,9 +404,9 @@ export function economyZones(values: readonly number[]): EconomyZone[] {
 	for (let k = worst; k <= best; k++) {
 		zones.push({
 			classIndex: k,
-			tone: ECONOMY_TONES[k]!,
-			above: k === worst ? null : ECONOMY_ZONE_EDGES[k - 1]!,
-			below: k === best ? null : ECONOMY_ZONE_EDGES[k]!,
+			tone: ECONOMY_TONES[k],
+			above: k === worst ? null : ECONOMY_ZONE_EDGES[k - 1],
+			below: k === best ? null : ECONOMY_ZONE_EDGES[k],
 		});
 	}
 	return zones;
@@ -414,7 +414,7 @@ export function economyZones(values: readonly number[]): EconomyZone[] {
 
 /** The points' classes, worse first, each once. */
 export function economyLegend(points: readonly Pick<EconomyPoint, "classIndex">[]): EconomyLegendItem[] {
-	return [...new Set(points.map((p) => p.classIndex))].sort((a, b) => a - b).map((i) => ({ name: economyClassNameAt(i), tone: ECONOMY_TONES[i]! }));
+	return [...new Set(points.map((p) => p.classIndex))].sort((a, b) => a - b).map((i) => ({ name: economyClassNameAt(i), tone: ECONOMY_TONES[i] }));
 }
 
 /** Avg (the points' mean, rounded half up) and Best (the lowest point). */
@@ -433,7 +433,7 @@ export function economyChart(range: PeriodRange, rows: readonly RunningEconomyRo
 	const last = Math.max(1, days.length - 1);
 	const point = (date: string, day: string, x: number, value: number): EconomyPoint => {
 		const classIndex = economyClassIndex(value);
-		return { date, day, x, value, classIndex, tone: ECONOMY_TONES[classIndex]! };
+		return { date, day, x, value, classIndex, tone: ECONOMY_TONES[classIndex] };
 	};
 	let points: EconomyPoint[];
 	let axis: PeriodAxis;

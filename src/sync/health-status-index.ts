@@ -1,4 +1,4 @@
-import type { HealthStatus, HealthStatusMetric } from "../garmin/endpoints";
+import type { HealthStatus } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
 
 /**
@@ -65,7 +65,7 @@ function cut1(value: unknown): unknown {
 /** A range row (or the single-day summary) as an index row. */
 export function rowOfHealthStatus(summary: HealthStatus | null | undefined): DayRowInput<HealthStatusRow> {
 	const row: Record<string, unknown> = { date: summary?.calendarDate, out: summary?.outliersCount };
-	for (const metric of (summary?.metrics ?? []) as HealthStatusMetric[]) {
+	for (const metric of summary?.metrics ?? []) {
 		const key = TYPE_KEY[metric?.type ?? ""];
 		if (!key) continue;
 		row[key] = key === "resp" ? cut1(metric.value) : metric.value;
@@ -74,7 +74,7 @@ export function rowOfHealthStatus(summary: HealthStatus | null | undefined): Day
 		row[`${key}Pct`] = metric.percentage;
 		row[`${key}St`] = metric.status;
 	}
-	return row as DayRowInput<HealthStatusRow>;
+	return row;
 }
 
 const whole = {};

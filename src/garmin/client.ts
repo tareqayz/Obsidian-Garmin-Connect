@@ -125,7 +125,7 @@ export class GarminClient {
 		this.store = opts.store;
 		this.domain = opts.domain ?? "garmin.com";
 		this.log = opts.log ?? silentLog;
-		this.wait = opts.wait ?? ((ms) => new Promise((done) => setTimeout(done, ms)));
+		this.wait = opts.wait ?? ((ms) => new Promise((done) => window.setTimeout(done, ms)));
 		this.now = opts.now ?? Date.now;
 		// `wait` paces the throttle only alongside an injected clock: an instant
 		// `wait` against the real one would spin until real time caught up.
@@ -159,7 +159,7 @@ export class GarminClient {
 
 	/** A request path as logs and error messages show it: no query, nothing that names the account. */
 	protected safePath(path: string): string {
-		let out = path.split("?")[0]!;
+		let out = path.split("?")[0];
 		for (const [value, as] of this.hidden) out = out.split(encodeURIComponent(value)).join(as).split(value).join(as);
 		return out;
 	}

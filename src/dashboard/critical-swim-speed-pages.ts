@@ -172,8 +172,8 @@ export function cssYAxis(paces: readonly number[]): CssYAxis {
 
 /** A pace's place on its axis: 0 at the top gridline (the fastest), 1 at the bottom one. */
 export function cssYFraction(axis: CssYAxis, pace: number): number {
-	const top = axis.ticks[0]!;
-	const bottom = axis.ticks[axis.ticks.length - 1]!;
+	const top = axis.ticks[0];
+	const bottom = axis.ticks[axis.ticks.length - 1];
 	return (pace - top) / (bottom - top);
 }
 

@@ -34,7 +34,7 @@ export function acclimationPlot(view: AcclimationView, width: number, pane: bool
 	let area = "";
 	let run: Array<[number, number]> = [];
 	const flush = () => {
-		if (run.length) area += `M${r2(run[0]![0])} ${f.baseline} ${run.map(([x, y]) => `L${r2(x)} ${r2(y)}`).join(" ")} L${r2(run[run.length - 1]![0])} ${f.baseline} Z `;
+		if (run.length) area += `M${r2(run[0][0])} ${f.baseline} ${run.map(([x, y]) => `L${r2(x)} ${r2(y)}`).join(" ")} L${r2(run[run.length - 1][0])} ${f.baseline} Z `;
 		run = [];
 	};
 	for (const e of view.elevation) {

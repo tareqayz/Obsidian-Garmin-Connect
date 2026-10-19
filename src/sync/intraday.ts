@@ -466,7 +466,7 @@ export function isEmptySeries(series: DaySeries): boolean {
 export function latestValue(points: readonly SeriesPoint[] | undefined): number | undefined {
 	if (!points) return undefined;
 	for (let i = points.length - 1; i >= 0; i--) {
-		const value = points[i]![1];
+		const value = points[i][1];
 		if (value !== null) return value;
 	}
 	return undefined;
@@ -487,7 +487,7 @@ export function parseSeries(text: string): DaySeries | null {
 		const parsed = JSON.parse(text) as Record<string, unknown>;
 		if (!parsed || typeof parsed !== "object") return null;
 		const { date: _date, version: _version, ...series } = parsed;
-		return series as DaySeries;
+		return series;
 	} catch {
 		return null;
 	}

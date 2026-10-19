@@ -22,7 +22,7 @@ export class GarminSettingTab extends PluginSettingTab {
 
 	hide(): void {
 		if (this.panel) {
-			unmount(this.panel);
+			void unmount(this.panel);
 			this.panel = undefined;
 		}
 		this.containerEl.empty();

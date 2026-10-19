@@ -60,7 +60,7 @@ export function snapshotRowOf(raw: HealthSnapshotSummary | null | undefined): Sn
 		if (max !== undefined) f.max = max;
 		row.summaries[type] = f;
 	}
-	const device = (raw.deviceMetaData ?? {}) as Record<string, unknown>;
+	const device = raw.deviceMetaData ?? {};
 	const deviceName = str(device.deviceName), deviceVersion = str(device.deviceVersion);
 	if (deviceName) row.deviceName = deviceName;
 	if (deviceVersion) row.deviceVersion = deviceVersion;
@@ -122,7 +122,7 @@ const reading = (v: unknown): number | null => (typeof v === "number" && Number.
 export function snapshotSamplesOf(payload: HealthSnapshotEpochs | null | undefined): SnapshotSample[] {
 	const cols = payload?.epochDescriptorDTOList;
 	const at = { t: columnOf(cols, "timestamp", 0), hr: columnOf(cols, "heartRate", 1), stress: columnOf(cols, "stress", 2), spo2: columnOf(cols, "spo2", 3), resp: columnOf(cols, "respiration", 4) };
-	const rows = (Array.isArray(payload?.epochArray) ? payload!.epochArray! : []).filter((r) => Array.isArray(r) && typeof r[at.t] === "number");
+	const rows = (Array.isArray(payload?.epochArray) ? payload.epochArray : []).filter((r) => Array.isArray(r) && typeof r[at.t] === "number");
 	rows.sort((a, b) => (a[at.t] as number) - (b[at.t] as number));
 	const first = rows[0]?.[at.t] as number | undefined;
 	return rows.map((r) => [Math.round(((r[at.t] as number) - first!) / 1000), reading(r[at.hr]), reading(r[at.stress]), reading(r[at.spo2]), reading(r[at.resp])]);

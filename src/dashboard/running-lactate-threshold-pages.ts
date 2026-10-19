@@ -386,8 +386,8 @@ export function ltYAxis(id: LtSeriesId, values: readonly number[]): LtYAxis | nu
 
 /** A value's place on its axis: 0 at the top gridline, 1 at the bottom one (pace's fastest at the top). */
 export function yFraction(axis: LtYAxis, value: number): number {
-	const top = axis.ticks[0]!;
-	const bottom = axis.ticks[axis.ticks.length - 1]!;
+	const top = axis.ticks[0];
+	const bottom = axis.ticks[axis.ticks.length - 1];
 	const at = (value - top) / (bottom - top);
 	// The top gridline's own value is 0, not the −0 a falling axis divides into.
 	return at === 0 ? 0 : at;
@@ -411,7 +411,7 @@ export function ltXAxis(range: LtRange, span: Span): PeriodAxis {
 	const x = (day: string) => daysBetween(span.from, day) / last;
 	let marks: Array<{ day: string; text: string }>;
 	if (range === "1y") {
-		marks = Array.from({ length: 13 }, (_, k) => addMonths(span.to, k - 12)).map((day) => ({ day, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1]! }));
+		marks = Array.from({ length: 13 }, (_, k) => addMonths(span.to, k - 12)).map((day) => ({ day, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1] }));
 	} else {
 		const starts = Array.from({ length: Math.ceil(days.length / BLOCK_DAYS) }, (_, k) => shiftDate(span.from, BLOCK_DAYS * k));
 		if (starts[starts.length - 1] !== span.to) starts.push(span.to);

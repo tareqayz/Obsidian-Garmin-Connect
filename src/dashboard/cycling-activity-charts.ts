@@ -88,7 +88,7 @@ export function positionPlot(data: PositionData, width: number, layout: ChartLay
 			const lane = laneOf(bar.lane);
 			const top = plot.top + lane * pitch;
 			const x = xOf(bar.from);
-			return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(plot.bottom - top), colour: data.lanes[lane]!.colour };
+			return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(plot.bottom - top), colour: data.lanes[lane].colour };
 		});
 	const dotY = r2(plot.bottom + f.dotGap);
 	return {
@@ -414,7 +414,7 @@ export interface CurvePlot {
 function curvePaths(vertices: readonly CurveVertex[], place: (v: CurveVertex) => { x: number; y: number }, base: number): CurvePaths {
 	const points = vertices.map(place);
 	if (!points.length) return { points, line: "", area: "" };
-	const first = points[0]!;
+	const first = points[0];
 	const last = points.at(-1)!;
 	const along = points.slice(points.length > 1 ? 1 : 0).map((p) => `L${p.x} ${p.y}`);
 	return {

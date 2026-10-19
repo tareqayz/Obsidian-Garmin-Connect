@@ -422,9 +422,9 @@ export async function runFitnessProbe(
 		log.step("What the mapper makes of it");
 		const mapped = mapDay(
 			{
-				maxMetrics: (maxMetrics[0] ?? null) as never,
-				races: (races[0] ?? null) as never,
-				endurance: (endurance[0] ?? null) as never,
+				maxMetrics: (maxMetrics[0] ?? null),
+				races: (races[0] ?? null),
+				endurance: (endurance[0] ?? null),
 			},
 			{ groups: ["fitness", "races"], units: "metric" },
 		);
@@ -473,7 +473,7 @@ async function inspect<T>(
 
 function shiftIso(iso: string, days: number): string {
 	const [y, m, d] = iso.split("-").map(Number);
-	return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1) + days * 86_400_000)
+	return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1) + days * 86_400_000)
 		.toISOString()
 		.slice(0, 10);
 }

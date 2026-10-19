@@ -444,7 +444,7 @@ export function exerciseView(route: TrainingLoadRoute, ctx: TrainingLoadContext)
 		canGoBack: canStepBack(oldestDay(rows.map((r) => r.start.slice(0, 10))), ctx.activitiesComplete ?? false, span.from),
 		canGoForward: route.offset < 0,
 		title: DAILY_TOTALS,
-		chart: { bars, ticks, top: ticks[0]!, axis: dayAxis(daysOf(span)) },
+		chart: { bars, ticks, top: ticks[0], axis: dayAxis(daysOf(span)) },
 		legend: LOAD_GROUPS.map((group) => ({ group, label: GROUP_LABELS[group] })),
 		list: exerciseRows(rows, span, ctx.units ?? "metric"),
 	};

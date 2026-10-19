@@ -226,7 +226,7 @@ export function stepAxis(days: readonly string[], steps: AxisSteps): PeriodAxis 
 	const n = days.length;
 	if (n < 2) return dayAxis(days);
 	const at = [...Array.from({ length: steps.count }, (_, k) => k * steps.every).filter((d) => d < n - 1), n - 1];
-	const marks = at.map((d, i) => ({ x: d / (n - 1), large: steps.labelled === "all" || i === 0 || i === at.length - 1, day: days[d]! }));
+	const marks = at.map((d, i) => ({ x: d / (n - 1), large: steps.labelled === "all" || i === 0 || i === at.length - 1, day: days[d] }));
 	return {
 		dots: marks.map(({ x, large }) => ({ x, large })),
 		labels: marks.filter((m) => m.large).map((m) => ({ x: m.x, text: axisDay(m.day) })),

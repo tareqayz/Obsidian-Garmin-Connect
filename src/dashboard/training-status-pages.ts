@@ -114,7 +114,7 @@ export function statusOf(row: Pick<TrainingStatusRow, "code" | "phrase" | "pause
 
 /** The index's newest row on or before `today`: Current's. */
 export function currentRow(rows: readonly TrainingStatusRow[], today: string): TrainingStatusRow | undefined {
-	for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.date <= today) return rows[i];
+	for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date <= today) return rows[i];
 	return undefined;
 }
 
@@ -196,7 +196,7 @@ export function vo2Value(rows: readonly Vo2MaxRow[], tab: Vo2Tab, ctx: Pick<Trai
 /** The HRV Status row: the index's newest row, "84 ms - Balanced"; the average alone without a status (onboarding). */
 export function hrvValue(rows: readonly HrvStatusRow[], today: string): string {
 	let row: HrvStatusRow | undefined;
-	for (let i = rows.length - 1; i >= 0 && !row; i--) if (rows[i]!.date <= today) row = rows[i];
+	for (let i = rows.length - 1; i >= 0 && !row; i--) if (rows[i].date <= today) row = rows[i];
 	if (row?.weekly === undefined) return DASH;
 	const word = statusLook(row.status)?.word;
 	return word ? `${row.weekly} ms - ${word}` : `${row.weekly} ms`;

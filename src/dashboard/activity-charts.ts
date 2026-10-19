@@ -371,8 +371,8 @@ export function marksOf(chart: SeriesChart, plot: PlotRect, markR: number): Char
 /** The zones line's gradient, between its highest and lowest stop, top first. */
 function zoneGradient(stops: NonNullable<SeriesChart["stops"]>, y: (v: number) => number): NonNullable<ChartMarks["zones"]> {
 	const sorted = [...stops].sort((a, b) => b.value - a.value);
-	const y1 = y(sorted[0]!.value);
-	const y2 = y(sorted[sorted.length - 1]!.value);
+	const y1 = y(sorted[0].value);
+	const y2 = y(sorted[sorted.length - 1].value);
 	const span = y2 - y1 || 1;
 	return {
 		y1: r2(y1),
@@ -428,8 +428,8 @@ export function areaPath(points: ChartPoints, xOf: (at: number) => number, yOf: 
 export function stepPath(points: ChartPoints, xOf: (at: number) => number, yOf: (v: number) => number, base: number): string {
 	return stepRuns(points, xOf, yOf)
 		.map((run) => {
-			const first = run[0]!;
-			const last = run[run.length - 1]!;
+			const first = run[0];
+			const last = run[run.length - 1];
 			return `M${first[0]} ${r2(base)} ${run.map(([x, y]) => `L${x} ${y}`).join(" ")} L${last[0]} ${r2(base)} Z`;
 		})
 		.join(" ");
@@ -453,14 +453,14 @@ function stepRuns(points: ChartPoints, xOf: (at: number) => number, yOf: (v: num
 		let level: number | null = null;
 		let end = 0;
 		while (i < n && !isGap(points.y[i])) {
-			const x = r2(xOf(points.x[i]!));
+			const x = r2(xOf(points.x[i]));
 			const y = r2(yOf(points.y[i]!));
 			if (y !== level) {
 				if (level !== null) run.push([x, level]);
 				run.push([x, y]);
 				level = y;
 			}
-			end = r2(xOf(points.x[Math.min(i + 1, n - 1)]!));
+			end = r2(xOf(points.x[Math.min(i + 1, n - 1)]));
 			i += 1;
 		}
 		run.push([end, level!]);
@@ -526,7 +526,7 @@ function lanesIn(chart: RunWalkChart, plot: PlotRect): Pick<RunWalkPlot, "lanes"
 		const lane = Math.max(0, chart.lanes.findIndex((l) => l.lane === b.lane));
 		const top = plot.top + lane * pitch;
 		const x = xOf(b.from);
-		return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(b.to) - x)), height: r2(plot.bottom - top), colour: chart.lanes[lane]!.colour };
+		return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(b.to) - x)), height: r2(plot.bottom - top), colour: chart.lanes[lane].colour };
 	});
 	return { lanes, bars };
 }
@@ -698,7 +698,7 @@ function laneSetIn(set: LaneSet, plot: PlotRect): Pick<RunWalkPlot, "lanes" | "b
 			const i = laneOf(bar.lane);
 			const top = plot.top + i * pitch;
 			const x = xOf(bar.from);
-			return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(plot.bottom - top), colour: set.lanes[i]!.colour };
+			return { x: r2(x), y: r2(top), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(plot.bottom - top), colour: set.lanes[i].colour };
 		});
 	return { lanes, bars };
 }
@@ -717,7 +717,7 @@ function laneBars(set: LaneSet, plot: PlotRect, lane: number): NonNullable<Expan
 			const i = laneOf(bar.lane);
 			const height = (set.lanes.length - i) * lane;
 			const x = xOf(bar.from);
-			return { x: r2(x), y: r2(plot.bottom - height), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(height), colour: set.lanes[i]!.colour };
+			return { x: r2(x), y: r2(plot.bottom - height), width: r2(Math.max(MIN_BAR, xOf(bar.to) - x)), height: r2(height), colour: set.lanes[i].colour };
 		});
 }
 

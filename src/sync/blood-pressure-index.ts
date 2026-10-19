@@ -42,14 +42,14 @@ export function rowOfBloodPressure(summary: Rec | null | undefined): DayRowInput
 	const dia = list.map((m) => num(m, "diastolic")).filter((v): v is number => v !== undefined);
 	const first = list[list.length - 1] ?? {};
 	return {
-		date: (s.startDate ?? s.calendarDate ?? s.summaryDate ?? first.calendarDate) as unknown,
+		date: (s.startDate ?? s.calendarDate ?? s.summaryDate ?? first.calendarDate),
 		sys: num(s, "highSystolic", "systolic") ?? (sys.length ? Math.max(...sys) : undefined),
 		dia: num(s, "highDiastolic", "diastolic") ?? (dia.length ? Math.max(...dia) : undefined),
 		sysLo: num(s, "lowSystolic") ?? (sys.length ? Math.min(...sys) : undefined),
 		diaLo: num(s, "lowDiastolic") ?? (dia.length ? Math.min(...dia) : undefined),
 		pulse: num(s, "pulse", "avgPulse") ?? num(first, "pulse"),
 		n: num(s, "numOfMeasurements", "totalMeasurementCount") ?? (list.length || undefined),
-		cat: (s.category ?? first.category) as unknown,
+		cat: (s.category ?? first.category),
 	};
 }
 

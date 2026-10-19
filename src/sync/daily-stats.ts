@@ -233,7 +233,7 @@ function withKeyOrder(row: DailyStatsRow): DailyStatsRow {
 
 function shift(date: string, days: number): string {
 	const [y, m, d] = date.split("-").map(Number);
-	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 const nextDay = (date: string) => shift(date, 1);

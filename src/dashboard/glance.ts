@@ -281,7 +281,7 @@ export function heartRateView(row: DayRow | undefined, series: DaySeries | null)
 	const points = series?.heartRate ?? [];
 	let current = num(row, "hr_latest");
 	for (let i = points.length - 1; i >= 0 && current === undefined; i--) {
-		const v = points[i]![1];
+		const v = points[i][1];
 		if (v !== null) current = v;
 	}
 	const resting = num(row, "resting_hr");
@@ -306,7 +306,7 @@ export function intensityView(input: HomeInput): IntensityView | null {
 	const week: IntensityView["week"] = [];
 	for (let i = 0; i < 7; i++) {
 		const date = addDays(monday, i);
-		const label = "MTWTFSS"[i]!;
+		const label = "MTWTFSS"[i];
 		if (date > input.date) {
 			week.push({ label, total: null, today: false });
 			continue;
@@ -557,7 +557,7 @@ export interface WeightView {
 export function weightView(input: HomeInput): WeightView | null {
 	const weighIns: Array<{ date: string; value: number; unit: string; bmi?: number }> = [];
 	for (let i = input.rows.length - 1; i >= 0 && weighIns.length < 2; i--) {
-		const r = input.rows[i]!;
+		const r = input.rows[i];
 		if (r.date > input.date) continue;
 		const kg = num(r, "weight_kg");
 		const lb = num(r, "weight_lb");
@@ -587,9 +587,10 @@ const WALKING = /run|walk|hik|trail|treadmill/;
 export function lastActivityView(input: HomeInput): LastActivityView | null {
 	let latest: Record<string, unknown> | undefined;
 	for (let i = input.rows.length - 1; i >= 0 && !latest; i--) {
-		const r = input.rows[i]!;
+		const r = input.rows[i];
 		if (r.date > input.date || !r.workouts?.length) continue;
-		latest = [...r.workouts].sort((a, b) => String(b.start ?? "").localeCompare(String(a.start ?? "")))[0];
+		const start = (w: Record<string, unknown>) => (typeof w.start === "string" ? w.start : "");
+		latest = [...r.workouts].sort((a, b) => start(b).localeCompare(start(a)))[0];
 	}
 	if (!latest) return null;
 	const type = typeof latest.type === "string" ? latest.type : "";

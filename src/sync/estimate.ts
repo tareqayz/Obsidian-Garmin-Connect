@@ -224,14 +224,14 @@ function charts(input: EstimateInput, start: string | undefined): Part {
 		const windows = Math.ceil(walk.days / 28);
 		const withSteps = Math.min(windows, Math.ceil(walk.withData / 28));
 		requests += walk.days ? withSteps * 3 + (windows - withSteps) + 4 : 0;
-		bytes += walk.withData * ROW_BYTES["daily-stats"]!;
-		rowBytes += ROW_BYTES["daily-stats"]!;
+		bytes += walk.withData * ROW_BYTES["daily-stats"];
+		rowBytes += ROW_BYTES["daily-stats"];
 	}
 	if (on.has("sleep")) {
 		const walk = toWalk("sleep");
 		requests += walk.days ? Math.ceil(walk.days / 28) + 4 : 0;
-		bytes += walk.withData * ROW_BYTES.sleep!;
-		rowBytes += ROW_BYTES.sleep!;
+		bytes += walk.withData * ROW_BYTES.sleep;
+		rowBytes += ROW_BYTES.sleep;
 	}
 	for (const def of DAY_INDEXES) {
 		if (!on.has(def.group)) continue;

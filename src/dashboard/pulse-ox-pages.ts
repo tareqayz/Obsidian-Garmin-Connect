@@ -210,7 +210,7 @@ export function pulseOxPeriodView(input: PulseOxInput): PulseOxPeriodView {
 	for (let g = 0; g < groups; g++) {
 		const x = (g + 0.5) / groups;
 		axis.dots.push({ x, large: true });
-		axis.labels.push({ x, text: range === "7d" ? WEEKDAY_SHORT(days[g]!) : axisDay(days[g * size + 3]!) });
+		axis.labels.push({ x, text: range === "7d" ? WEEKDAY_SHORT(days[g]) : axisDay(days[g * size + 3]) });
 	}
 	return {
 		range,

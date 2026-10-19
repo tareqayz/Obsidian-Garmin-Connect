@@ -35,7 +35,7 @@ export async function importDayNotes(app: App, store: VaultSeriesStore, legacy: 
 		for (const file of app.vault.getMarkdownFiles()) {
 			if (source.folder !== null && !file.path.startsWith(source.folder ? `${source.folder}/` : "")) continue;
 			const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-			const date = frontmatter?.[`${source.prefix}date`];
+			const date: unknown = frontmatter?.[`${source.prefix}date`];
 			if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
 			// Earlier sources win: the data folder was authoritative in "both" mode.
 			if (days.has(date)) continue;

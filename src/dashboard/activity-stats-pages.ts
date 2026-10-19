@@ -317,7 +317,7 @@ export function intervalRows(segments: readonly ActivitySegment[], units: Units,
 	if (!active.length) return [];
 	const seconds = active.reduce((sum, s) => sum + s.duration, 0);
 	const metres = active.reduce((sum, s) => sum + s.distance, 0);
-	const speed = (active.length === 1 ? active[0]!.speed : undefined) ?? (seconds > 0 ? metres / seconds : undefined);
+	const speed = (active.length === 1 ? active[0].speed : undefined) ?? (seconds > 0 ? metres / seconds : undefined);
 	return rows(
 		stat("Run Time", duration(seconds)),
 		metres > 0 ? distanceStat("Run Distance", metres, units) : null,

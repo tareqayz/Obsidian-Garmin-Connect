@@ -237,7 +237,7 @@ export interface CurveVertex {
  * (never seen: a ride with a long best has the shorter ones) is passed over.
  */
 function vertices(curve: readonly (CurvePoint | null)[], top: number): CurveVertex[] {
-	return curve.flatMap((point, i) => (point ? [{ seconds: point.seconds, x: CURVE_DURATIONS[i]!.x, watts: point.watts, at: point.watts / top }] : []));
+	return curve.flatMap((point, i) => (point ? [{ seconds: point.seconds, x: CURVE_DURATIONS[i].x, watts: point.watts, at: point.watts / top }] : []));
 }
 
 /* ------------------------------------------------------------------ */
@@ -307,7 +307,7 @@ export interface CyclingPowerCurveView {
 
 /** The range a route names, if the page has it; else the first, 4w. */
 function curveRange(range: PeriodRange): PowerCurveRange {
-	return (RANGES as readonly PeriodRange[]).includes(range) ? (range as PowerCurveRange) : RANGES[0]!;
+	return (RANGES as readonly PeriodRange[]).includes(range) ? (range as PowerCurveRange) : RANGES[0];
 }
 
 /** The page on its route: the period's curve over the Record, the records table and the explainer. */

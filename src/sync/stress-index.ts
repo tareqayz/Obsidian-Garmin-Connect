@@ -200,9 +200,9 @@ function readingsOf(rows: unknown, timeAt: number, valueAt: number, statusAt?: n
 	const out: Reading[] = [];
 	for (const row of Array.isArray(rows) ? rows : []) {
 		if (!Array.isArray(row)) continue;
-		const t = row[timeAt];
+		const t: unknown = row[timeAt];
 		if (typeof t !== "number" || !Number.isFinite(t)) continue;
-		const v = row[valueAt];
+		const v: unknown = row[valueAt];
 		const reading: Reading = [t, typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null];
 		if (statusAt !== undefined && typeof row[statusAt] === "string" && row[statusAt].trim()) reading[2] = row[statusAt].trim().toUpperCase();
 		out.push(reading);
@@ -309,7 +309,7 @@ function columnOf(descriptors: ValueDescriptor[] | null | undefined, key: string
 function commonGap(times: readonly number[]): number | undefined {
 	const counts = new Map<number, number>();
 	for (let i = 1; i < times.length; i++) {
-		const gap = times[i]! - times[i - 1]!;
+		const gap = times[i] - times[i - 1];
 		if (gap > 0) counts.set(gap, (counts.get(gap) ?? 0) + 1);
 	}
 	let best: number | undefined;

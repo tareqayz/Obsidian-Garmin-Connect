@@ -282,7 +282,7 @@ function lapPace(speed: number | undefined, metres: number, seconds: number, uni
 /* ------------------------------------------------------------------ */
 
 /** Heart Rate's card picks Heart Rate or Heart Rate Zones, the run's sheet. */
-const HEART_RATE_PICKER: Readonly<Record<string, PickerDef>> = { "heart-rate": RUN_CHARTS.pickers["heart-rate"]! };
+const HEART_RATE_PICKER: Readonly<Record<string, PickerDef>> = { "heart-rate": RUN_CHARTS.pickers["heart-rate"] };
 
 /** The "?" the phone puts on Pace, Training Effect and the zones. */
 const CHART_HELP = ["swim-pace", "training-effect", "time-in-hr-zones"];

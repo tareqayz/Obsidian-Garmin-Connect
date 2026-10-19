@@ -196,12 +196,12 @@ export function markerAngle(at: number): number {
 export function topPercent(value: number, scale: readonly number[]): number {
 	const index = vo2Class(value, scale);
 	const top = VO2_PERCENTILES.length - 1;
-	let percentile = VO2_PERCENTILES[top]!;
+	let percentile = VO2_PERCENTILES[top];
 	if (index < top) {
-		const lo = scale[index]!;
-		const hi = scale[index + 1]!;
+		const lo = scale[index];
+		const hi = scale[index + 1];
 		const t = Math.min(1, Math.max(0, (value - lo) / (hi - lo)));
-		percentile = VO2_PERCENTILES[index]! + t * (VO2_PERCENTILES[index + 1]! - VO2_PERCENTILES[index]!);
+		percentile = VO2_PERCENTILES[index] + t * (VO2_PERCENTILES[index + 1] - VO2_PERCENTILES[index]);
 	}
 	return Math.max(5, Math.ceil((100 - percentile) / 5 - 1e-9) * 5);
 }
@@ -222,9 +222,9 @@ export function vo2DialGauge(reading: Pick<Vo2Reading, "value" | "shown">, scale
 	const value = String(reading.shown);
 	if (!scale) return { value, segments };
 	const index = vo2Class(reading.value, scale);
-	const band = segments[index]!;
-	const lo = scale[index]!;
-	const hi = scale[index + 1]!;
+	const band = segments[index];
+	const lo = scale[index];
+	const hi = scale[index + 1];
 	const t = Math.min(1, Math.max(0, (reading.value - lo) / (hi - lo)));
 	return { value, label: VO2_CLASSES[index], segments, at: band.from + t * (band.to - band.from), tone: band.tone };
 }

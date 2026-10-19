@@ -2,9 +2,9 @@ import { ItemView, TAbstractFile, type ViewStateResult, type WorkspaceLeaf } fro
 import { mount, unmount, type Component } from "svelte";
 import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
-import type { DayIndexData, ReadIndex } from "../sync/day-index";
+import type { DayIndexData, IndexHistoryProgress, ReadIndex } from "../sync/day-index";
 import { dayIndex } from "../sync/day-indexes";
-import { describe } from "../sync/runner";
+import { describe, type BackfillProgress, type HistoryProgress, type SleepHistoryProgress, type StatsHistoryProgress } from "../sync/runner";
 import { VaultSeriesStore } from "../sync/series-store";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
@@ -37,6 +37,27 @@ const ACCOUNT = "#account";
 /** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
 const REMEMBERED_ACTIVITIES = 8;
 
+/**
+ * What Home.svelte exports. Spelled out because only svelte-check reads the component's own types:
+ * tsc and the lint see every `.svelte` import as untyped.
+ */
+interface HomeApi {
+	setCanSync(next: boolean): void;
+	setSetupCard(next: SetupCardKind | null): void;
+	setBackfill(next: BackfillProgress | null): void;
+	setModel(next: HomeModel, nextToday?: string): void;
+	setActivities(next: ActivitiesData): void;
+	setHistory(next: HistoryProgress | null): void;
+	setStats(next: StatsData): void;
+	setStatsHistory(next: StatsHistoryProgress | null): void;
+	setSleep(next: SleepData): void;
+	setSleepHistory(next: SleepHistoryProgress | null): void;
+	setIndexHistory(kind: string, next: IndexHistoryProgress | null): void;
+	setIndexVersion(kind: string, version: number): void;
+	setSeriesVersion(version: number): void;
+	navigate(next: Route[]): void;
+}
+
 /** While a backfill writes, Home rebuilds at most this often. */
 const BACKFILL_REFRESH_MS = 30_000;
 
@@ -58,7 +79,7 @@ const BACKFILL_REFRESH_MS = 30_000;
  */
 export class GarminHomeView extends ItemView {
 	private plugin: GarminPlugin;
-	private component: ReturnType<typeof Home> | undefined;
+	private component: HomeApi | undefined;
 	private pending = 0;
 	private stack: Route[] = [HOME];
 	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
@@ -195,7 +216,7 @@ export class GarminHomeView extends ItemView {
 				openSheet: (<P extends SheetBodyProps>(title: string, body: Component<P>, props: Omit<P, "onClose">) =>
 					new SheetModal(this.app, title, body, props).open()) as OpenSheet,
 			},
-		});
+		}) as HomeApi;
 
 		this.bindRunner();
 		// The first Garmin view after an update asks about what it offers, once.
@@ -291,7 +312,7 @@ export class GarminHomeView extends ItemView {
 		for (const timer of this.bumps.values()) window.clearTimeout(timer);
 		this.bumps.clear();
 		if (this.component) {
-			unmount(this.component);
+			void unmount(this.component);
 			this.component = undefined;
 		}
 	}

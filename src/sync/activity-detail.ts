@@ -473,8 +473,8 @@ export function parseActivityDetail(text: string): ActivityDetail | null {
 		if (typeof parsed.id !== "number") return null;
 		if (!parsed.summary || typeof parsed.summary !== "object" || !parsed.samples || typeof parsed.samples !== "object") return null;
 		const checked = (parsed.checked ?? []).filter((b): b is ActivityBlock => (ACTIVITY_BLOCKS as readonly string[]).includes(b));
-		if (parsed.version === ACTIVITY_DETAIL_VERSION) return { ...emptyDetail(parsed.id), ...parsed, checked } as ActivityDetail;
-		if (parsed.version === UPGRADED_VERSION && isRunFamily(parsed)) return upgradeRun({ ...emptyDetail(parsed.id), ...parsed, checked } as ActivityDetail);
+		if (parsed.version === ACTIVITY_DETAIL_VERSION) return { ...emptyDetail(parsed.id), ...parsed, checked };
+		if (parsed.version === UPGRADED_VERSION && isRunFamily(parsed)) return upgradeRun({ ...emptyDetail(parsed.id), ...parsed, checked });
 		return null;
 	} catch {
 		return null;
@@ -583,7 +583,7 @@ export async function loadActivity(
 	const fetchAll = async (blocks: ActivityBlock[], facts: SummaryFacts) => {
 		const settled = await Promise.allSettled(blocks.map((block) => FETCH[block](api, id, facts)));
 		settled.forEach((result, i) => {
-			const block = blocks[i]!;
+			const block = blocks[i];
 			if (result.status === "fulfilled") {
 				got[block] = result.value;
 			} else if (isFatal(result.reason)) {

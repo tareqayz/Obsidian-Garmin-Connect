@@ -77,7 +77,7 @@ function titleCase(key: string): string {
 		.toLowerCase()
 		.split(/[_\s]+/)
 		.filter(Boolean)
-		.map((word) => word[0]!.toUpperCase() + word.slice(1))
+		.map((word) => word[0].toUpperCase() + word.slice(1))
 		.join(" ");
 }
 
@@ -126,7 +126,7 @@ export interface Effort {
 export function effortOf(rpe: unknown): Effort | null {
 	if (typeof rpe !== "number" || !Number.isFinite(rpe)) return null;
 	const value = Math.max(0, Math.min(10, Math.round(rpe / 10)));
-	return { value, score: `${value}/10`, label: EFFORT[value]! };
+	return { value, score: `${value}/10`, label: EFFORT[value] };
 }
 
 /**
@@ -143,7 +143,7 @@ export function effortColor(value: number): string {
 		[7, "#eb6d0f"],
 		[9, "#e02c2c"],
 	];
-	let colour = stops[0]![1];
+	let colour = stops[0][1];
 	for (const [at, c] of stops) if (value >= at) colour = c;
 	return colour;
 }

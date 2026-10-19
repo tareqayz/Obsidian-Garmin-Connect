@@ -4,7 +4,7 @@ import { formatDistance } from "./activities";
 import { shortDate } from "./day";
 import { daysBetween, lastDayOfMonth, longDate, MONTHS, SHORT_MONTHS, shiftMonth, WEEKDAYS, weekdayOf, weekStartOf } from "./periods";
 import { shiftDate } from "./series";
-import type { BarTone, ChartSpec, FrameId } from "./stats-charts";
+import type { ChartSpec } from "./stats-charts";
 
 /**
  * Garmin Connect's Steps, Floors and Intensity Minutes pages, worked out from
@@ -169,7 +169,7 @@ function daysFrom(from: string, n: number): string[] {
 export function dayLabel(day: string, today: string): string {
 	if (day === today) return "Today";
 	if (day === shiftDate(today, -1)) return "Yesterday";
-	const weekday = WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]!.slice(0, 3);
+	const weekday = WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()].slice(0, 3);
 	return `${weekday}, ${shortDate(day)}${day.slice(0, 4) === today.slice(0, 4) ? "" : `, ${day.slice(0, 4)}`}`;
 }
 
@@ -215,7 +215,7 @@ function yearOfWeeks(offset: number, today: string, weekStart: number): Span {
 /* ------------------------------------------------------------------ */
 
 function roundUp(raw: number, units: ReadonlyArray<readonly [number, number]>): number {
-	const unit = (units.find(([limit]) => raw <= limit) ?? units[units.length - 1]!)[1];
+	const unit = (units.find(([limit]) => raw <= limit) ?? units[units.length - 1])[1];
 	return Math.max(unit, Math.ceil(raw / unit) * unit);
 }
 
@@ -246,7 +246,7 @@ export function floorsTicks(max: number, goal?: number): number[] {
 		[Infinity, 500],
 	];
 	let step = roundUp(max / 2, units);
-	const unit = (units.find(([limit]) => max / 2 <= limit) ?? units[units.length - 1]!)[1];
+	const unit = (units.find(([limit]) => max / 2 <= limit) ?? units[units.length - 1])[1];
 	while (goal !== undefined && goal > 0 && 2 * step <= goal) step += unit;
 	return [-2 * step, -step, 0, step, 2 * step];
 }
@@ -329,7 +329,7 @@ function monthMarks(from: string, to: string): Pick<ChartSpec, "dots" | "xLabels
 	const n = months.length;
 	return {
 		dots: months.map((_, i) => ({ x: n > 1 ? i / (n - 1) : 0, large: true })),
-		xLabels: months.map((m, i) => ({ x: n > 1 ? i / (n - 1) : 0, text: SHORT_MONTHS[Number(m.slice(5)) - 1]!, rotated: true })),
+		xLabels: months.map((m, i) => ({ x: n > 1 ? i / (n - 1) : 0, text: SHORT_MONTHS[Number(m.slice(5)) - 1], rotated: true })),
 	};
 }
 
@@ -529,7 +529,7 @@ function stepsView(input: StatsInput): StatsView {
 		const months = Array.from({ length: 12 }, (_, i) => shiftMonth(last, i - 11));
 		const from = `${months[0]}-01`;
 		const to = lastDayOfMonth(last);
-		const span: Span = { from, to, label: `${SHORT_MONTHS[Number(months[0]!.slice(5)) - 1]} ${months[0]!.slice(0, 4)} - ${SHORT_MONTHS[Number(last.slice(5)) - 1]} ${last.slice(0, 4)}` };
+		const span: Span = { from, to, label: `${SHORT_MONTHS[Number(months[0].slice(5)) - 1]} ${months[0].slice(0, 4)} - ${SHORT_MONTHS[Number(last.slice(5)) - 1]} ${last.slice(0, 4)}` };
 		const length = daysBetween(from, to);
 		const inYear = data.rows.filter((r) => r.date >= from && r.date <= to);
 		const total = inYear.reduce((s, r) => s + (r.steps ?? 0), 0);
@@ -545,10 +545,10 @@ function stepsView(input: StatsInput): StatsView {
 				title: "Monthly Totals",
 				ticks,
 				labels: ticks.map(kLabel),
-				bars: months.map((m, i) => ({ x: daysBetween(from, `${m}-01`) / length, from: 0, to: monthly[i]!, tone: "green" as BarTone })),
+				bars: months.map((m, i) => ({ x: daysBetween(from, `${m}-01`) / length, from: 0, to: monthly[i], tone: "green" })),
 				lines: [],
 				dots: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, large: true })),
-				xLabels: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, text: SHORT_MONTHS[Number(m.slice(5)) - 1]!, rotated: true })),
+				xLabels: months.map((m) => ({ x: daysBetween(from, `${m}-01`) / length, text: SHORT_MONTHS[Number(m.slice(5)) - 1], rotated: true })),
 				markers: [],
 			},
 			stats: [
@@ -560,7 +560,7 @@ function stepsView(input: StatsInput): StatsView {
 			records: true,
 			cards: [],
 			rows: months
-				.map((m, i) => ({ key: m, label: MONTHS[Number(m.slice(5)) - 1]!, value: whole(monthly[i]!) }))
+				.map((m, i) => ({ key: m, label: MONTHS[Number(m.slice(5)) - 1], value: whole(monthly[i]) }))
 				.reverse(),
 		};
 	}
@@ -581,7 +581,7 @@ function stepsView(input: StatsInput): StatsView {
 			title: "Weekly Totals",
 			ticks,
 			labels: ticks.map(kLabel),
-			bars: weekly.map((v, i) => ({ x: i / WEEK_SLOTS, from: 0, to: v, tone: "green" as BarTone })),
+			bars: weekly.map((v, i) => ({ x: i / WEEK_SLOTS, from: 0, to: v, tone: "green" })),
 			lines: [],
 			...monthMarks(span.from, span.to),
 			markers: [],
@@ -594,7 +594,7 @@ function stepsView(input: StatsInput): StatsView {
 		],
 		records: true,
 		cards: [],
-		rows: starts.map((w, i) => ({ key: w, label: weekLabel(w), value: whole(weekly[i]!) })).reverse(),
+		rows: starts.map((w, i) => ({ key: w, label: weekLabel(w), value: whole(weekly[i]) })).reverse(),
 	};
 }
 
@@ -623,8 +623,8 @@ function floorsView(input: StatsInput): StatsView {
 		const buckets = (series?.floors ?? []).filter((b) => hourOf(b.end, start) > 0 && hourOf(b.end, start) <= 24);
 		const up = staircase(0, buckets.map((b) => [hourOf(b.end, start) / 24, b.up] as [number, number]), until / 24);
 		const down = staircase(0, buckets.map((b) => [hourOf(b.end, start) / 24, -b.down] as [number, number]), until / 24);
-		const climbed = up[up.length - 1]![1];
-		const descended = -down[down.length - 1]![1];
+		const climbed = up[up.length - 1][1];
+		const descended = -down[down.length - 1][1];
 		const goal = r?.floorsGoal;
 		const ticks = floorsTicks(Math.max(climbed, descended, goal ?? 0, 1), goal);
 		const wake = wakeHour(series, start);
@@ -679,7 +679,7 @@ function floorsView(input: StatsInput): StatsView {
 		? undefined
 		: [...slots]
 				.reverse()
-				.map(([d]) => row(d!)?.floorsGoal)
+				.map(([d]) => row(d)?.floorsGoal)
 				.find((g) => g !== undefined);
 	const n = slots.length;
 	const x = (i: number) => (yearly ? i / FLOOR_WEEK_SLOTS : n > 1 ? i / (n - 1) : 0);
@@ -689,13 +689,13 @@ function floorsView(input: StatsInput): StatsView {
 	const bars: ChartSpec["bars"] = [];
 	ups.forEach((v, i) => {
 		if (v > 0) bars.push({ x: x(i), from: 0, to: v, tone: "blue" });
-		if (downs[i]! > 0) bars.push({ x: x(i), from: 0, to: -downs[i]!, tone: "faded" });
+		if (downs[i] > 0) bars.push({ x: x(i), from: 0, to: -downs[i], tone: "faded" });
 	});
 
 	return {
 		...header(input, span),
 		chart: {
-			frame: (yearly ? "floors-1y" : route.range === "7d" ? "floors-7d" : "floors-4w") as FrameId,
+			frame: (yearly ? "floors-1y" : route.range === "7d" ? "floors-7d" : "floors-4w"),
 			title: yearly ? "Weekly Totals" : "Daily Totals",
 			ticks,
 			labels: ticks.map((t) => whole(Math.abs(t))),
@@ -723,18 +723,18 @@ function floorsView(input: StatsInput): StatsView {
 		],
 		records: false,
 		cards: yearly
-			? slots.map((days, i) => ({ key: days[0]!, title: weekLabel(days[0]!), value: `${whole(ups[i]!)}↑` })).reverse()
+			? slots.map((days, i) => ({ key: days[0], title: weekLabel(days[0]), value: `${whole(ups[i])}↑` })).reverse()
 			: slots
 					.map(([d]) => {
-						const r = row(d!);
+						const r = row(d);
 						const ring = goalRing(r?.floorsUp, r?.floorsGoal);
 						return {
-							key: d!,
-							title: weekdayOf(d!),
-							detail: longDate(d!),
+							key: d,
+							title: weekdayOf(d),
+							detail: longDate(d),
 							value: r?.floorsUp !== undefined ? `${whole(r.floorsUp)}↑` : "--",
 							...(ring ? { ring } : {}),
-							day: d!,
+							day: d,
 						};
 					})
 					.reverse(),
@@ -778,7 +778,7 @@ function intensityView(input: StatsInput): StatsView {
 		// Without the day's readings, the day's minutes go in at its start.
 		if (!readings.length && own > 0) readings.push([0, own]);
 		const points = staircase(start, readings, until / 24);
-		const end = points[points.length - 1]![1];
+		const end = points[points.length - 1][1];
 		const ticks = intensityDayTicks(start, end, goal);
 		const wake = wakeHour(series, dayStart);
 
@@ -927,9 +927,9 @@ function intensityView(input: StatsInput): StatsView {
 	const bars: ChartSpec["bars"] = [];
 	totals.forEach((v, i) => {
 		const x = i / WEEK_SLOTS;
-		if (v >= goals[i]!) bars.push({ x, from: 0, to: v, tone: "green" });
+		if (v >= goals[i]) bars.push({ x, from: 0, to: v, tone: "green" });
 		else {
-			bars.push({ x, from: 0, to: goals[i]!, tone: "goal" });
+			bars.push({ x, from: 0, to: goals[i], tone: "goal" });
 			if (v > 0) bars.push({ x, from: 0, to: v, tone: "blue" });
 		}
 	});
@@ -955,11 +955,11 @@ function intensityView(input: StatsInput): StatsView {
 		records: false,
 		cards: weeks
 			.map((days, i) => ({
-				key: days[0]!,
-				title: weekLabel(days[0]!),
-				detail: `${percent(totals[i]!, goals[i]!)}% of Goal`,
-				value: whole(totals[i]!),
-				ring: { fraction: Math.min(1, totals[i]! / goals[i]!), complete: totals[i]! >= goals[i]! },
+				key: days[0],
+				title: weekLabel(days[0]),
+				detail: `${percent(totals[i], goals[i])}% of Goal`,
+				value: whole(totals[i]),
+				ring: { fraction: Math.min(1, totals[i] / goals[i]), complete: totals[i] >= goals[i] },
 			}))
 			.reverse(),
 		rows: [],

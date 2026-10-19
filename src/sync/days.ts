@@ -118,7 +118,7 @@ export class DayBuffer {
 		const years = [...new Set([...held.keys()].map((date) => date.slice(0, 4)))].sort();
 		for (const year of years) {
 			const text = await this.store.readYear(year);
-			let days: DayProperties = text ? parseDays(text) : new Map();
+			let days: DayProperties = text ? parseDays(text) : new Map<string, Properties>();
 			for (const [date, properties] of held) {
 				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
 			}

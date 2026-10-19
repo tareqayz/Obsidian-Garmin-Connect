@@ -346,7 +346,7 @@ function across(d: { start: number; end: number }, t: number): number {
 export function timelineOf(d: SleepDetail, levels: readonly SleepLevel[]): Timeline {
 	const bars: Timeline["bars"] = [];
 	for (const l of levels) {
-		const stage = STAGE_OF[Math.max(0, Math.min(3, Math.round(l.level)))]!;
+		const stage = STAGE_OF[Math.max(0, Math.min(3, Math.round(l.level)))];
 		const x0 = across(d, l.start);
 		const x1 = across(d, l.end);
 		if (x1 <= x0) continue;
@@ -769,8 +769,8 @@ function dayAxis(days: readonly string[]): XAxis {
 	return {
 		dots: days.map((_, i) => ({ x: spread(i, n), large: i === 0 || i === n - 1 })),
 		labels: [
-			{ x: 0, text: days[0]!.slice(5) },
-			{ x: 1, text: days[n - 1]!.slice(5) },
+			{ x: 0, text: days[0].slice(5) },
+			{ x: 1, text: days[n - 1].slice(5) },
 		],
 	};
 }
@@ -823,8 +823,8 @@ function daysView(input: SleepPeriodInput, range: "7d" | "4w"): SleepPeriodView 
 
 	return {
 		range,
-		label: periodLabel(days[0]!, days[n - 1]!, input.today),
-		canGoBack: !input.data.complete || !oldest || days[0]! > oldest,
+		label: periodLabel(days[0], days[n - 1], input.today),
+		canGoBack: !input.data.complete || !oldest || days[0] > oldest,
 		score: {
 			points: nights.map((night, i) => ({ x: spread(i, n), value: night.row?.score ?? null })),
 			dots: true,
@@ -994,7 +994,7 @@ export function weeksEnding(rows: readonly SleepRow[], end: string): SleepWeek[]
 function yearView(input: SleepPeriodInput): SleepPeriodView {
 	const end = shiftDate(input.today, 364 * Math.min(0, input.route.offset));
 	const weeks = weeksEnding(input.data.rows, end);
-	const from = weeks[0]!.from;
+	const from = weeks[0].from;
 	const n = weeks.length;
 	const oldest = input.data.rows[0]?.date;
 	const of = (key: keyof SleepWeek) => mean(weeks.map((w) => w[key]).filter((v): v is number => typeof v === "number"));
@@ -1010,7 +1010,7 @@ function yearView(input: SleepPeriodInput): SleepPeriodView {
 		for (let m = first; m <= last; m = nextMonth(m)) {
 			const x = daysBetween(first, m) / span;
 			dots.push({ x, large: true });
-			labels.push({ x, text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1]!, rotated: true });
+			labels.push({ x, text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1], rotated: true });
 		}
 		return { dots, labels };
 	};

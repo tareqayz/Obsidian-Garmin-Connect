@@ -4,8 +4,8 @@ import { pace } from "../sync/metrics";
 import { formatDistance, type Units } from "./activities";
 import type { ActivityAxis, ActivityRoute } from "./routes";
 import { duration } from "./series";
-import { CYCLING_COLOURS, CYCLING_FILLS, type CyclingColour, type CyclingFill } from "./sports/cycling-palette";
-import { SWIM_COLOURS, SWIM_FILLS, type SwimColour, type SwimFill } from "./sports/swim-palette";
+import { CYCLING_COLOURS, CYCLING_FILLS } from "./sports/cycling-palette";
+import { SWIM_COLOURS, SWIM_FILLS } from "./sports/swim-palette";
 
 /**
  * The activity page's Charts tab as data, and its full-screen (landscape)
@@ -37,9 +37,11 @@ import { SWIM_COLOURS, SWIM_FILLS, type SwimColour, type SwimFill } from "./spor
  * A colour a mark, a band, a key or a label takes, by name: the run's (the
  * core ones) and the sports' palettes (`sports/*-palette.ts`). The page maps
  * the names to its theme; `CHART_COLOURS` keeps Garmin's own, sampled off the
- * phone.
+ * phone. The sports' names come off their merged palettes, so a sport with
+ * none of its own (an empty palette) adds no `never` to the union.
  */
-export type ChartColour = CoreColour | CyclingColour | SwimColour;
+const SPORT_COLOURS = { ...CYCLING_COLOURS, ...SWIM_COLOURS };
+export type ChartColour = CoreColour | keyof typeof SPORT_COLOURS;
 
 export type CoreColour =
 	| "blue"
@@ -96,10 +98,11 @@ const CORE_COLOURS: Readonly<Record<CoreColour, string>> = {
 	"zone-7": "#815af7",
 };
 
-export const CHART_COLOURS: Readonly<Record<ChartColour, string>> = { ...CORE_COLOURS, ...CYCLING_COLOURS, ...SWIM_COLOURS };
+export const CHART_COLOURS: Readonly<Record<ChartColour, string>> = { ...CORE_COLOURS, ...SPORT_COLOURS };
 
 /** An area's, a block's or a step's fill: a vertical gradient over the plot. The sports' palettes add theirs. */
-export type ChartFill = CoreFill | CyclingFill | SwimFill;
+const SPORT_FILLS = { ...CYCLING_FILLS, ...SWIM_FILLS };
+export type ChartFill = CoreFill | keyof typeof SPORT_FILLS;
 
 export type CoreFill = "pace" | "heart-rate" | "elevation" | "power" | "stamina" | "impact" | "performance";
 
@@ -120,7 +123,7 @@ const CORE_FILLS: Readonly<Record<CoreFill, readonly [top: string, bottom: strin
 	performance: ["#7b7b7b", "#272727"],
 };
 
-export const CHART_FILLS: Readonly<Record<ChartFill, readonly [top: string, bottom: string]>> = { ...CORE_FILLS, ...CYCLING_FILLS, ...SWIM_FILLS };
+export const CHART_FILLS: Readonly<Record<ChartFill, readonly [top: string, bottom: string]>> = { ...CORE_FILLS, ...SPORT_FILLS };
 
 /** The landscape primary's opacity while an overlay is on. */
 export const DIM_OPACITY = 0.5;
@@ -837,7 +840,7 @@ export const RUN_CHARTS: ChartsSpec = {
 function pickerCard(ctx: Context, id: CardId, picker: PickerDef, wanted: string | undefined): SeriesChart | null {
 	const options = picker.options.filter((o) => hasMetric(ctx.detail, o.metric, ctx.spec));
 	if (!options.length) return null;
-	const chosen = options.find((o) => o.value === wanted) ?? options[0]!;
+	const chosen = options.find((o) => o.value === wanted) ?? options[0];
 	const chart = seriesChart(ctx, id, chosen.metric);
 	if (!chart) return null;
 	// One choice left is no choice: no "⌄".
@@ -917,7 +920,7 @@ function seriesChart(ctx: Context, id: CardId, metric: ChartMetric, opts: Series
 	const bands = bandsOf(metric, ctx.spec);
 	if (bands) chart.colours = points.y.map((v) => (v === null ? null : bandOf(bands, rawOf(metric, v, ctx.units, ctx.spec))));
 	// Each series' dots in its own colour, in the order drawn.
-	if (drawn && series) chart.colours = drawn.flatMap((p, i) => p.x.map(() => series[i]!.colour));
+	if (drawn && series) chart.colours = drawn.flatMap((p, i) => p.x.map(() => series[i].colour));
 	switch (metric) {
 		case "stride-length":
 			chart.colour = "blue";
@@ -1174,8 +1177,8 @@ export function firstAt(at: ReadonlyArray<number | null>, values: ReadonlyArray<
 
 function bandOf(bands: { cuts: readonly number[]; colours: readonly ChartColour[] }, value: number): ChartColour {
 	let i = 0;
-	while (i < bands.cuts.length && value >= bands.cuts[i]!) i += 1;
-	return bands.colours[i]!;
+	while (i < bands.cuts.length && value >= bands.cuts[i]) i += 1;
+	return bands.colours[i];
 }
 
 /* ------------------------------------------------------------------ */
@@ -1445,7 +1448,7 @@ function figuresOf(detail: ActivityDetail, metric: ChartMetric, units: Units, sp
 /** "10.59" "km": metres to 0.01 km (or mile), as the activity rows write distances. */
 function distanceFigure(metres: number, units: Units, label: string): ChartFigure {
 	const [value, unit] = formatDistance(metres, units, 2, true).split(" ");
-	return { value: value!, unit: unit!, label };
+	return { value: value, unit: unit, label };
 }
 
 /** The line at the summary's average, in the chart's unit. */
@@ -1578,7 +1581,7 @@ function trainingEffect(ctx: Pick<Context, "detail" | "spec">): TrainingEffectCh
 /** A value's segment colour: [0, 2) grey, [2, 3) blue, [3, 4) green, [4, 5) orange, 5 red (4.0 sits inside orange). */
 export function teColour(value: number): ChartColour {
 	if (value >= TE_MAX) return TE_CAP;
-	return TE_SEGMENTS[Math.max(0, Math.min(TE_SEGMENTS.length - 1, Math.floor(value)))]!;
+	return TE_SEGMENTS[Math.max(0, Math.min(TE_SEGMENTS.length - 1, Math.floor(value)))];
 }
 
 const LANES: RunWalkChart["lanes"] = [
@@ -1611,7 +1614,7 @@ function runWalk(ctx: Context, opts: RunWalkOptions = {}): RunWalkChart | null {
 	for (const s of segments) {
 		const from = clamp01(map(s.start) / end);
 		const to = clamp01(map(s.end) / end);
-		if (to > from) bars.push({ from, to, lane: LANE_OF[s.type]! });
+		if (to > from) bars.push({ from, to, lane: LANE_OF[s.type] });
 	}
 	return {
 		kind: "run-walk",
@@ -1645,15 +1648,15 @@ export function clockMap(detail: ActivityDetail, column: "time" | "distance"): (
 	}
 	return (at) => {
 		if (!pairs.length) return column === "time" ? at : 0;
-		if (at <= pairs[0]![0]) return pairs[0]![1];
+		if (at <= pairs[0][0]) return pairs[0][1];
 		for (let i = 1; i < pairs.length; i += 1) {
-			const [c1, v1] = pairs[i]!;
+			const [c1, v1] = pairs[i];
 			if (at <= c1) {
-				const [c0, v0] = pairs[i - 1]!;
+				const [c0, v0] = pairs[i - 1];
 				return c1 > c0 ? v0 + ((at - c0) / (c1 - c0)) * (v1 - v0) : v1;
 			}
 		}
-		return pairs[pairs.length - 1]![1];
+		return pairs[pairs.length - 1][1];
 	};
 }
 
@@ -1827,7 +1830,7 @@ export function expandedChartView(
 		right = overlay;
 	} else {
 		if (!hasMetric(detail, ref.base, spec)) return null;
-		const left = swapped ? overlay! : ref.base;
+		const left = swapped ? overlay : ref.base;
 		primary = seriesChart(ctx, cardFor(left, spec), left, { fromZero: true });
 		right = swapped ? ref.base : overlay;
 	}

@@ -164,7 +164,7 @@ function withData(ranges: readonly DateRange[], scan: AccountScan | null): strin
 		let found: string | undefined;
 		while (lo <= hi) {
 			const mid = (lo + hi) >> 1;
-			if (weekStarts[mid]! <= date) {
+			if (weekStarts[mid] <= date) {
 				found = weekStarts[mid];
 				lo = mid + 1;
 			} else hi = mid - 1;

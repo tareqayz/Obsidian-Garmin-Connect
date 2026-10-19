@@ -400,7 +400,7 @@ export function ftpXAxis(range: PeriodRange, span: Span): PeriodAxis {
 	const last = Math.max(1, days.length - 1);
 	const marks =
 		range === "1y"
-			? Array.from({ length: 12 }, (_, k) => addMonths(span.from, k)).map((day) => ({ day, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1]! }))
+			? Array.from({ length: 12 }, (_, k) => addMonths(span.from, k)).map((day) => ({ day, text: SHORT_MONTHS[Number(day.slice(5, 7)) - 1] }))
 			: Array.from({ length: Math.ceil(days.length / BLOCK_DAYS) }, (_, k) => shiftDate(span.from, BLOCK_DAYS * k)).map((day) => ({ day, text: blockLabel(day) }));
 	const x = (day: string) => daysBetween(span.from, day) / last;
 	return {

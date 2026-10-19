@@ -67,7 +67,7 @@ export function snapshotPlot(section: SnapshotSection, width: number): SnapshotP
 	const f = SECTION_FRAMES[section.id];
 	const values = section.series.flatMap(([, v]) => (v === null ? [] : [v]));
 	const ticks = snapshotTicks(section.id, values);
-	const hi = ticks[0]!, lo = ticks[ticks.length - 1]!;
+	const hi = ticks[0], lo = ticks[ticks.length - 1];
 	const right = Math.max(SNAPSHOT_LEFT + 60, width - SNAPSHOT_INSET);
 	const x = (s: number) => r2(SNAPSHOT_LEFT + (s / SNAPSHOT_SECONDS) * (right - SNAPSHOT_LEFT));
 	const y = (v: number) => r2(Math.min(f.floor, f.top + ((hi - v) / (hi - lo)) * (f.bottom - f.top)));
@@ -96,7 +96,7 @@ export function snapshotPlot(section: SnapshotSection, width: number): SnapshotP
 		});
 		if (!pts.length) continue;
 		const line = pts.map(([px, py], i) => `${i ? "L" : "M"}${px} ${py}`).join(" ");
-		path += (path ? " " : "") + (kind === "step-line" ? line : `${line} L${pts[pts.length - 1]![0]} ${f.floor} L${pts[0]![0]} ${f.floor} Z`);
+		path += (path ? " " : "") + (kind === "step-line" ? line : `${line} L${pts[pts.length - 1][0]} ${f.floor} L${pts[0][0]} ${f.floor} Z`);
 	}
 
 	const plot: SnapshotPlot = {

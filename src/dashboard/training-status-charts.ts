@@ -69,7 +69,7 @@ export function tableColumnCount(pane: boolean): number {
 /** Rows spread over `columns` columns row by row, newest left then right: a row's index in its column is its grid row. */
 export function tableColumns<T>(rows: readonly T[], columns: number): T[][] {
 	const out: T[][] = Array.from({ length: Math.max(1, columns) }, () => []);
-	rows.forEach((row, i) => out[i % out.length]!.push(row));
+	rows.forEach((row, i) => out[i % out.length].push(row));
 	return out;
 }
 

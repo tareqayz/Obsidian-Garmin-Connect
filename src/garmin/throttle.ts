@@ -47,7 +47,7 @@ export class Throttle {
 
 	constructor(opts: ThrottleOptions) {
 		this.now = opts.now ?? Date.now;
-		this.wait = opts.wait ?? ((ms) => new Promise((done) => setTimeout(done, ms)));
+		this.wait = opts.wait ?? ((ms) => new Promise((done) => window.setTimeout(done, ms)));
 		this.limits = { rate: opts.rate, burst: opts.burst, concurrency: opts.concurrency };
 		this.current = opts.rate;
 		this.tokens = opts.burst;

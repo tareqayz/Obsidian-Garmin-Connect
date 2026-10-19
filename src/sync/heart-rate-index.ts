@@ -233,7 +233,7 @@ function samplesOf(rows: unknown, timeAt: number, valueAt: number): Sample[] {
 	const out: Sample[] = [];
 	for (const row of Array.isArray(rows) ? rows : []) {
 		if (!Array.isArray(row)) continue;
-		const t = row[timeAt];
+		const t: unknown = row[timeAt];
 		if (!isFiniteNumber(t)) continue;
 		out.push([t, bpm(row[valueAt]) ?? null]);
 	}
@@ -257,7 +257,7 @@ function columnOf(descriptors: ValueDescriptor[] | null | undefined, key: string
 function commonGap(times: readonly number[]): number | undefined {
 	const counts = new Map<number, number>();
 	for (let i = 1; i < times.length; i++) {
-		const gap = times[i]! - times[i - 1]!;
+		const gap = times[i] - times[i - 1];
 		if (gap > 0) counts.set(gap, (counts.get(gap) ?? 0) + 1);
 	}
 	let best: number | undefined;

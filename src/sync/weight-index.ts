@@ -88,7 +88,7 @@ export function weighInsOf(row: Pick<WeightRow, "ins"> | null | undefined): Weig
 
 /** A range summary day as an index row. */
 export function rowOfWeighDay(day: NonNullable<WeighInRange["dailyWeightSummaries"]>[number] | null | undefined, height?: number): DayRowInput<WeightRow> {
-	const entries = entriesOf((day?.allWeightMetrics ?? (day?.latestWeight ? [day.latestWeight] : [])) as WeighIn[]);
+	const entries = entriesOf(day?.allWeightMetrics ?? (day?.latestWeight ? [day.latestWeight] : []));
 	const latest = entries[entries.length - 1];
 	const grams = entries.map((e) => e.grams);
 	return {

@@ -152,7 +152,7 @@ export function defineIntraday<P, B>(def: IntradayDef<P, B>): IntradayDef<P, B> 
 
 /** The keys of the extras a sync keeps itself (`fromDay`): the blocks a sync's own write of a day carries over. */
 export function keptKeys(extras: readonly IntradayDef[]): string[] {
-	return extras.filter((def) => def.fromDay).map((def) => def.key);
+	return extras.filter((def) => def.fromDay !== undefined).map((def) => def.key);
 }
 
 /**
@@ -236,7 +236,7 @@ export function keepBlocks(
 		for (const key of kept) if (stored?.extra?.[key] !== undefined) extra[key] = stored.extra[key];
 		Object.assign(extra, fresh);
 		if (Object.keys(extra).length) out.extra = extra;
-		return out as DaySeries;
+		return out;
 	}
 	if (written) {
 		const out: Record<string, unknown> = {};
@@ -247,7 +247,7 @@ export function keepBlocks(
 		const extra = { ...(stored?.extra ?? {}), ...fresh };
 		if (Object.keys(extra).length) out.extra = extra;
 		if (stored?.checked) out.checked = stored.checked;
-		return out as DaySeries;
+		return out;
 	}
 	if (!Object.keys(fresh).length) return null;
 	return { ...(stored ?? {}), extra: { ...(stored?.extra ?? {}), ...fresh } };
@@ -323,7 +323,7 @@ export function mergeBlocks(series: DaySeries | null | undefined, loaded: readon
 	if (Object.keys(extra).length) out.extra = extra;
 	else delete out.extra;
 	out.checked = [...checked].sort();
-	return out as DaySeries;
+	return out;
 }
 
 /** Where a day's series is read from and written to. `VaultSeriesStore` in the plugin. */
@@ -369,7 +369,7 @@ export async function loadDay(
 	let fatal: unknown;
 	let error: string | undefined;
 	settled.forEach((result, i) => {
-		const loader = allowed[i]!;
+		const loader = allowed[i];
 		if (result.status === "rejected") {
 			if (isFatal(result.reason)) {
 				if (fatal === undefined) fatal = result.reason;

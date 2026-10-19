@@ -152,7 +152,7 @@ export function consentKey(store: string, version: number): ConsentKey {
 /** A key's store and version, or null for one that isn't a key. */
 export function parseConsentKey(key: string): { store: string; version: number } | null {
 	const match = /^([a-z0-9:-]+)@(\d+)$/.exec(key);
-	return match ? { store: match[1]!, version: Number(match[2]) } : null;
+	return match ? { store: match[1], version: Number(match[2]) } : null;
 }
 
 /** The chart indexes' keys for the groups on: what Charts & trends is made of. */

@@ -197,7 +197,7 @@ export interface LtPlot {
 
 function ticksOf(axis: LtYAxis | null, y: (fraction: number) => number): Array<{ y: number; text: string }> {
 	if (!axis) return [];
-	return axis.ticks.map((value, i) => ({ y: r2(y(yFraction(axis, value)) - LABEL_LIFT), text: axis.labels[i]! }));
+	return axis.ticks.map((value, i) => ({ y: r2(y(yFraction(axis, value)) - LABEL_LIFT), text: axis.labels[i] }));
 }
 
 function seriesOf(line: LtLine, x: (fraction: number) => number, y: (fraction: number) => number): LtPlotSeries {

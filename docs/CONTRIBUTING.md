@@ -13,11 +13,18 @@ npm install
 npm run dev     # watch build
 npm test        # the suite: no network, no Obsidian
 npm run build   # tsc → svelte-check → tests → production bundle → mobile-safety check
+npm run lint    # the Community directory's review rules
 ```
 
 `npm run build` is the gate CI runs. Its last step, `scripts/check-mobile-safe.mjs`, fails if a node
 or electron import reaches `main.js`. That check is what backs `isDesktopOnly: false`: fix the
 import, not the check.
+
+`npm run lint` runs `eslint-plugin-obsidianmd`'s recommended rules, the ones the Community directory's
+automated review lints every release with, and CI runs it beside the build. `eslint.config.mjs`
+ignores what the directory's scanner ignores. Don't silence a rule with a disable comment: the
+review doesn't honour them all. Two things only the lint catches: a `<style>` or `<link>` the code
+adds to the page (CSS belongs in `styles.css`), and `any` reaching typed code.
 
 ## Branches and commits
 
@@ -46,7 +53,7 @@ merged by pull request:
 
 | Workflow | Runs | Does |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | every pull request, every push to `main` | `npm ci` and `npm run build` |
+| `.github/workflows/ci.yml` | every pull request, every push to `main` | `npm ci`, `npm run lint` and `npm run build` |
 | `.github/workflows/api-contract.yml` | daily at 06:17 UTC, by hand, and on pull requests that touch the API | the catalogue's offline checks on every run; the live contract check against Garmin daily and by hand, never on pull requests (see [api/README.md](../api/README.md)) |
 | `.github/workflows/release.yml` | every pushed tag | builds, checks the tag against the manifest, attests, then drafts (stable) or publishes (beta) a release |
 
@@ -206,6 +213,7 @@ a real vault. That has consequences:
 | `dev` | esbuild in watch mode |
 | `build` | the full gate: `tsc`, `svelte-check`, `test`, the production bundle, `check` |
 | `check` | `scripts/check-mobile-safe.mjs`: fails if a node or electron require reached `main.js` |
+| `lint` | ESLint with the Community directory's rules (`eslint.config.mjs`) |
 | `test` | bundles `tests/*.test.ts` into `tests/.build/` (cleared first) and runs Node's test runner |
 | `svelte-check` | type-checks the Svelte components |
 | `version` | npm's version hook: `version-bump.mjs` (see [Releasing](#releasing)) |

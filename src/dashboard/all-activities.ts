@@ -319,7 +319,7 @@ const GROUP_GLYPHS: Readonly<Record<number, SportGlyph>> = {
 };
 
 export function groupGlyph(group: number): SportGlyph {
-	return Object.prototype.hasOwnProperty.call(GROUP_GLYPHS, group) ? GROUP_GLYPHS[group]! : "activity";
+	return Object.prototype.hasOwnProperty.call(GROUP_GLYPHS, group) ? GROUP_GLYPHS[group] : "activity";
 }
 
 export interface TreeType {
@@ -446,7 +446,7 @@ function tidy(fields: Record<string, unknown>): AllDraft {
 		const value = fields[key];
 		if (value !== undefined && !(Array.isArray(value) && value.length === 0)) out[key] = value;
 	}
-	return out as AllDraft;
+	return out;
 }
 
 /* ------------------------------------------------------------------ */
@@ -475,7 +475,7 @@ export function eventLabel(key: string): string {
 	const known = EVENT_TYPES.find((e) => e.key === key);
 	if (known) return known.label;
 	const words = key.replace(/([a-z\d])([A-Z])/g, "$1 $2").split(/[_\s]+/).filter(Boolean);
-	return words.map((w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+	return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }
 
 /* ------------------------------------------------------------------ */

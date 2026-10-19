@@ -178,7 +178,7 @@ export function racePlot(range: RacePeriodView["range"], chart: RaceChart | null
 				shape: l.shape,
 				line: plotted.line,
 				points: plotted.points,
-				markers: plotted.points.flatMap((at, i) => (l.points[i]!.marker ? [{ x: at.x, y: at.y, d: markerPath(l.shape, at.x, at.y) }] : [])),
+				markers: plotted.points.flatMap((at, i) => (l.points[i].marker ? [{ x: at.x, y: at.y, d: markerPath(l.shape, at.x, at.y) }] : [])),
 			};
 		}),
 	};

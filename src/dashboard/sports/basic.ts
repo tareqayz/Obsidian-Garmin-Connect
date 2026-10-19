@@ -204,7 +204,7 @@ export const HEART_RATE_FIT: NonNullable<ChartsSpec["runOverrides"]> = {
 const CHARTS: ChartsSpec = {
 	cards: (detail) => ((numberOf(detail.summary.averageSpeed) ?? 0) > 0 ? ["pace", ...STILL] : STILL),
 	chips: ["pace", "heart-rate", "heart-rate-zones", "elevation"],
-	pickers: { pace: RUN_CHARTS.pickers.pace!, "heart-rate": RUN_CHARTS.pickers["heart-rate"]! },
+	pickers: { pace: RUN_CHARTS.pickers.pace, "heart-rate": RUN_CHARTS.pickers["heart-rate"] },
 	zoneTotal: "duration",
 	zoneColours: { hr: { 1: "text" } },
 	runOverrides: HEART_RATE_FIT,

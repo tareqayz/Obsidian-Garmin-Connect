@@ -104,14 +104,14 @@ export function addMonths(date: string, months: number): string {
 /** A `YYYY-MM` month moved by whole months. */
 export function shiftMonth(month: string, n: number): string {
 	const [y, m] = month.split("-").map(Number);
-	const t = y! * 12 + (m! - 1) + n;
+	const t = y * 12 + (m - 1) + n;
 	return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
 }
 
 /** A `YYYY-MM` month's last day, as `YYYY-MM-DD`. */
 export function lastDayOfMonth(month: string): string {
 	const [y, m] = month.split("-").map(Number);
-	return `${month}-${String(new Date(Date.UTC(y!, m!, 0)).getUTCDate()).padStart(2, "0")}`;
+	return `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
 }
 
 /** Periods back as an offset: never above 0, and never −0, which a saved route would keep. */
@@ -254,7 +254,7 @@ const yearOf = (date: string) => date.slice(0, 4);
 
 /** "Wednesday". */
 export function weekdayOf(date: string): string {
-	return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]!;
+	return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
 
 /** "October 7". */
@@ -345,8 +345,8 @@ export function dayAxis(days: readonly string[]): PeriodAxis {
 	return {
 		dots: days.map((_, i) => ({ x: spread(i, n), large: i === 0 || i === n - 1 })),
 		labels: n ? [
-			{ x: 0, text: axisDay(days[0]!) },
-			{ x: 1, text: axisDay(days[n - 1]!) },
+			{ x: 0, text: axisDay(days[0]) },
+			{ x: 1, text: axisDay(days[n - 1]) },
 		] : [],
 	};
 }
@@ -364,7 +364,7 @@ export function monthAxis(from: string): { axis: PeriodAxis; x: (date: string) =
 	return {
 		axis: {
 			dots: months.map((m) => ({ x: x(m), large: true })),
-			labels: months.map((m) => ({ x: x(m), text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1]!, rotated: true })),
+			labels: months.map((m) => ({ x: x(m), text: SHORT_MONTHS[Number(m.slice(5, 7)) - 1], rotated: true })),
 		},
 		x,
 	};

@@ -107,8 +107,8 @@ export function cssPlot(chart: CssChart, range: CssRange, width: number): CssPlo
 	const right = Math.max(b.plotLeft + 60, width - b.plotInset);
 	const x = (fraction: number) => r2(b.plotLeft + fraction * (right - b.plotLeft));
 	const ticks = chart.y.ticks;
-	const first = ticks[0]!;
-	const last = ticks[ticks.length - 1]!;
+	const first = ticks[0];
+	const last = ticks[ticks.length - 1];
 	const step = (f.baseline - f.top) / Math.max(1, ticks.length - 1);
 	const lo = Math.min(first, last);
 	const hi = Math.max(first, last);

@@ -141,7 +141,7 @@ export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpe
 	const bucketOf = overlay === "run-walk" ? runWalkBucket(detail) : overlayBucket(detail, overlay, spec);
 	const runs: RouteRun[] = [];
 	for (let i = 0; i < points.length; i += 1) {
-		const point = points[i]!;
+		const point = points[i];
 		const bucket = bucketOf(point.sample);
 		const last = runs.at(-1);
 		if (last && last.bucket === bucket) {
@@ -206,7 +206,7 @@ function zoneBucket(detail: ActivityDetail, zones: NonNullable<MapOverlayDef["zo
 		const value = values[sample];
 		if (typeof value !== "number" || !Number.isFinite(value)) return null;
 		let slot = 0;
-		for (let i = 0; i < floors.length; i += 1) if (value >= floors[i]!) slot = i;
+		for (let i = 0; i < floors.length; i += 1) if (value >= floors[i]) slot = i;
 		return Math.min(slot, slots - 1);
 	};
 }
@@ -263,7 +263,7 @@ export function lapMarkers(detail: ActivityDetail): LapMarker[] {
 /** The first and last point of the route. */
 export function routeEnds(points: readonly RoutePoint[]): { start: LatLon; end: LatLon } | null {
 	if (points.length < 2) return null;
-	return { start: points[0]!.at, end: points.at(-1)!.at };
+	return { start: points[0].at, end: points.at(-1)!.at };
 }
 
 /**
@@ -385,7 +385,7 @@ export function mapLegend(overlay: string, spec?: MapSpec): MapLegend | null {
 		case "run-walk":
 			return {
 				kind: "keys",
-				keys: ["Run", "Walk", "Idle"].map((label, i) => ({ label, color: RUN_WALK_RAMP[i]! })),
+				keys: ["Run", "Walk", "Idle"].map((label, i) => ({ label, color: RUN_WALK_RAMP[i] })),
 			};
 		default:
 			return { kind: "ramp", low: "Lower", high: "Higher", colors: PACE_RAMP };

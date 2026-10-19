@@ -28,7 +28,7 @@ export class SleepHistoryModal extends Modal {
 
 	onClose(): void {
 		if (this.sheet) {
-			unmount(this.sheet);
+			void unmount(this.sheet);
 			this.sheet = undefined;
 		}
 		this.contentEl.empty();

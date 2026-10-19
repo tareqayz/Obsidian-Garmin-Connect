@@ -73,7 +73,7 @@ export function rowsOfWindow(stats: readonly DailyStatRow[] | null | undefined, 
 		if (typeof row.date === "string") extra.set(row.date, row);
 	}
 	const rows: Array<DayRowInput<BatteryRow>> = [];
-	for (const stat of Array.isArray(stats) ? stats : []) {
+	for (const stat of stats ?? []) {
 		const row = rowOfStat(stat);
 		if (isLevel(row.high) || isLevel(row.low)) rows.push({ ...extra.get(row.date), ...row });
 	}
