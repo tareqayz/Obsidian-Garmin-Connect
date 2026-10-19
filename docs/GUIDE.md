@@ -6,7 +6,7 @@ and find your way around the pages.
 ## Set up
 
 Enabling the plugin in a vault that isn't set up opens Home with the setup over it. The setup also
-opens from **Set up Garmin Connect…** in the command palette, from Home's **Finish setting up**
+opens from **Garmin Connect: Set up…** in the command palette, from Home's **Finish setting up**
 card, and from **Settings → Data → Run setup again**. It has four steps:
 
 1. **Sign in.** Your password is used for the sign-in and never stored. If your account has MFA on,
@@ -396,8 +396,8 @@ All are in the command palette under **Garmin Connect:**.
 
 | Other | What it does |
 | --- | --- |
-| **Set up Garmin Connect…** | Opens the setup: sign in, scan your account, choose what to keep. |
-| **Sign in to Garmin Connect** | Signs in, asking for an MFA code if Garmin wants one. |
+| **Set up…** | Opens the setup: sign in, scan your account, choose what to keep. |
+| **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
 | **Copy debug info** | What a bug report needs, redacted, to paste into an issue. No password, no request. |
 | **Stop syncing** | Stops the sync or history walk you started after the day it is on, keeping what came in. |
 | **Pause the history download** / **Resume the history download** | What the pause button and Settings → Data do. Resume also lifts Garmin's own pauses. |

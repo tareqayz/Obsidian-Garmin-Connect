@@ -103,7 +103,7 @@ bar. What it says, and what to do:
 
 | On Home | Why | What to do |
 | --- | --- | --- |
-| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → Data** or **Sign in to Garmin Connect**. It carries on by itself. |
+| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → Data** or the **Sign in** command. It carries on by itself. |
 | Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin. |
 | Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device | Nothing. It waits half an hour, doubling up to twelve hours, because asking again soon keeps a block in place. Run diagnostics if it keeps happening. |
 | Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device. |

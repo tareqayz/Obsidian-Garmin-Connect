@@ -170,12 +170,12 @@ export default class GarminPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "sign-in",
-			name: "Sign in to Garmin Connect",
+			name: "Sign in",
 			callback: () => this.openLogin(),
 		});
 		this.addCommand({
 			id: "set-up",
-			name: "Set up Garmin Connect…",
+			name: "Set up…",
 			callback: () => this.openSetup(),
 		});
 		this.addCommand({
