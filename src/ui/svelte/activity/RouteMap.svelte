@@ -300,10 +300,15 @@
 	/* A fractional zoom (the Overview's 12.5) scales the tiles, and Chromium
 	   leaves hairlines between them. Leaflet's own fix, adding the tiles' edges
 	   together (plus-lighter), still shows a light line: each tile overlaps the
-	   next by a pixel instead, drawn over it normally. */
+	   next by a pixel instead, drawn over it normally. And Obsidian caps a pane's
+	   images at its width (`.workspace-leaf-content img:not([width])`), exactly
+	   as specific as Leaflet's max-width: none, which styles.css carries without
+	   its !important: this rule keeps the tiles whole whatever loads after it. */
 	.gc-route-map :global(.leaflet-tile-container img.leaflet-tile) {
 		width: 257px !important;
 		height: 257px !important;
+		max-width: none;
+		max-height: none;
 		mix-blend-mode: normal;
 	}
 	/* The dark theme's map: the tiles only, so the route keeps its colours. */

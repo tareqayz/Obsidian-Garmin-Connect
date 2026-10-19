@@ -1,9 +1,9 @@
 /* ==== Leaflet 1.9.4 (leaflet/dist/leaflet.css), for the activity maps ====
  * BSD 2-Clause License. Copyright (c) 2010-2023, Volodymyr Agafonkin;
  * copyright (c) 2010-2011, CloudMade. Copied here, since Obsidian loads only
- * this file, less the old-browser fallbacks and `!important` the Community
- * directory's review flags. tests/leaflet-styles.test.ts lists each edit and
- * fails if the copy drifts from the installed Leaflet. */
+ * this file, less the old-browser fallbacks and the important flags the
+ * Community directory's review reports. tests/leaflet-styles.test.ts lists
+ * each edit and fails if the copy drifts from the installed Leaflet. */
 /* required styles */
 
 .leaflet-pane,
