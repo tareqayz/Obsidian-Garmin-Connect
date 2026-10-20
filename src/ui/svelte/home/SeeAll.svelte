@@ -33,11 +33,18 @@
 		onSave: (list: GlanceId[]) => void;
 		/** Opens Add a Stat and resolves with the pick, or null. */
 		onPick: (current: GlanceId[]) => Promise<GlanceId | null>;
+		/** Whether the editor is open, so Home can hold the rail and the tabs still meanwhile. */
+		onEditing: (editing: boolean) => void;
 	}
 
-	let { model, list, onBack, onSave, onPick }: Props = $props();
+	let { model, list, onBack, onSave, onPick, onEditing }: Props = $props();
 
 	let editing = $state(false);
+	// Leaving the page closes the editor with it.
+	$effect(() => {
+		onEditing(editing);
+		return () => onEditing(false);
+	});
 	let draft = $state<GlanceId[]>([]);
 	let dragging = $state<GlanceId | null>(null);
 	let announce = $state("");
@@ -216,7 +223,7 @@
 </script>
 
 {#if editing}
-	<PageBar title="Edit At a Glance">
+	<PageBar title="Edit At a Glance" sync={false}>
 		{#snippet left()}<button class="link" onclick={cancel}>Cancel</button>{/snippet}
 		{#snippet right()}<button class="link" disabled={!changed} onclick={save}>Save</button>{/snippet}
 	</PageBar>

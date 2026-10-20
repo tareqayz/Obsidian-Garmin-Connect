@@ -15,10 +15,11 @@ import type { ActivityDetail, ActivityLoad } from "../sync/activity-detail";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
 import type { ActivitiesData } from "./activities";
+import { areaTitle, railFocus, type RailPref } from "./areas";
 import { unitsOf } from "./day";
 import { availableStats, type GlanceId } from "./glance";
 import { dayToShow, homeModel, type HomeModel, type MoreId, type PresetId } from "./home";
-import { HOME, readStack, type Route } from "./routes";
+import { HOME, readStack, routeKey, type Route } from "./routes";
 import type { DayRow } from "./series";
 import type { HistoryView, SleepData } from "./sleep-pages";
 import type { StatsData } from "./stats-pages";
@@ -56,6 +57,11 @@ interface HomeApi {
 	setIndexVersion(kind: string, version: number): void;
 	setSeriesVersion(version: number): void;
 	navigate(next: Route[]): void;
+	setRail(next: RailPref | null): void;
+}
+
+function sameStack(a: readonly Route[], b: readonly Route[]): boolean {
+	return a.length === b.length && a.every((route, i) => routeKey(route) === routeKey(b[i]));
 }
 
 /** While a backfill writes, Home rebuilds at most this often. */
@@ -82,6 +88,8 @@ export class GarminHomeView extends ItemView {
 	private component: HomeApi | undefined;
 	private pending = 0;
 	private stack: Route[] = [HOME];
+	/** The rail expanded or collapsed by hand; null follows the pane's width. */
+	private rail: RailPref | null = null;
 	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
 	private versions = new Map<string, number>();
 	private bumps = new Map<string, number>();
@@ -104,8 +112,9 @@ export class GarminHomeView extends ItemView {
 		return GARMIN_HOME_VIEW;
 	}
 
+	/** The area you are in: "Garmin Home", "Garmin Health Stats"… Obsidian also stores it for the tab it restores. */
 	getDisplayText(): string {
-		return "Garmin Home";
+		return `Garmin ${areaTitle(railFocus(this.stack).area)}`;
 	}
 
 	getIcon(): string {
@@ -113,17 +122,41 @@ export class GarminHomeView extends ItemView {
 	}
 
 	getState(): Record<string, unknown> {
-		return { ...super.getState(), stack: this.stack };
+		return { ...super.getState(), stack: this.stack, ...(this.rail ? { rail: this.rail } : {}) };
 	}
 
-	/** Restores the saved page, and is how a command opens one in a view that is already up. */
+	/**
+	 * Restores the saved page and rail, and is how a command opens a page in a
+	 * view that is already up. The same stack again (the tab's title being
+	 * redrawn) leaves the page as it is.
+	 */
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
-		const saved = (state as { stack?: unknown } | null)?.stack;
-		if (saved !== undefined) {
-			this.stack = readStack(saved);
-			this.component?.navigate(this.stack);
+		const saved = state as { stack?: unknown; rail?: unknown } | null;
+		if (saved?.rail === "expanded" || saved?.rail === "collapsed") {
+			this.rail = saved.rail;
+			this.component?.setRail(this.rail);
+		}
+		if (saved?.stack !== undefined) {
+			const next = readStack(saved.stack);
+			const same = sameStack(next, this.stack);
+			this.stack = next;
+			if (!same) this.component?.navigate(this.stack);
 		}
 		await super.setState(state, result);
+	}
+
+	/**
+	 * Redraws the tab's title for the area now open. Obsidian redraws a leaf's
+	 * header whenever its state is set, and the stack is already this one.
+	 */
+	private retitle(): void {
+		void this.leaf.setViewState({ type: GARMIN_HOME_VIEW, state: this.getState() });
+	}
+
+	/** The width the pages get: the pane inside Obsidian's padding. Whether a rail or tabs show follows it. */
+	private contentWidth(): number {
+		const style = getComputedStyle(this.contentEl);
+		return this.contentEl.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
 	}
 
 	async onOpen(): Promise<void> {
@@ -197,7 +230,15 @@ export class GarminHomeView extends ItemView {
 					void this.plugin.data.saveHome({ preset, hidden, ...(glance ? { glance } : {}) }),
 				onPick: (current: GlanceId[]) => pickStat(this.app, availableStats(current)),
 				onRoute: (stack: Route[]) => {
+					const area = railFocus(this.stack).area;
 					this.stack = stack;
+					this.app.workspace.requestSaveLayout();
+					if (railFocus(stack).area !== area) this.retitle();
+				},
+				initialRail: this.rail,
+				initialWidth: this.contentWidth(),
+				onRail: (rail: RailPref) => {
+					this.rail = rail;
 					this.app.workspace.requestSaveLayout();
 				},
 				onSyncHistory: () => void this.plugin.sync.syncActivityHistory(),

@@ -17,7 +17,6 @@ import { STAT_IDS, STAT_RANGES, type StatId, type StatRange, type StatTotals } f
 export type Route =
 	| { page: "home" }
 	| { page: "glance" }
-	| { page: "more" }
 	| { page: "activities" }
 	| { page: "category"; category: CategoryId; sub: number | null; range: RangeId; offset: number; metric: MetricId }
 	| { page: "month"; category: CategoryId; sub: number | null; month: string; metric: MetricId }
@@ -121,13 +120,28 @@ export type MapOverlay = (typeof MAP_OVERLAYS)[number];
 
 export const HOME: Route = { page: "home" };
 
-/** Deep enough for Home → More → Activities → Running → a month → a run → its map, with room. */
+/** The areas' own pages: the lists the rail and the phone's tabs open, kept right above Home. */
+export const AREA_ROOTS = ["activities", "health", "performance"] as const;
+export type AreaRoot = Extract<Route, { page: (typeof AREA_ROOTS)[number] }>;
+
+export function isAreaRoot(route: Route | undefined): route is AreaRoot {
+	return !!route && (AREA_ROOTS as readonly string[]).includes(route.page);
+}
+
+/** Deep enough for Home → Activities → Running → a month → a run → its map, with room. */
 const MAX_DEPTH = 8;
+
+/** How much of a stack's bottom a trim keeps: Home, and the area's page above it, so the rail's area stays put. */
+function base(stack: readonly Route[]): number {
+	return isAreaRoot(stack[1]) ? 2 : 1;
+}
 
 export function push(stack: readonly Route[], route: Route): Route[] {
 	const next = [...stack, route];
-	// Drop from just above Home rather than lose the way back to it.
-	return next.length > MAX_DEPTH ? [next[0], ...next.slice(next.length - MAX_DEPTH + 1)] : next;
+	if (next.length <= MAX_DEPTH) return next;
+	// Drop from just above Home and its area rather than lose the way back to them.
+	const keep = base(next);
+	return [...next.slice(0, keep), ...next.slice(next.length - MAX_DEPTH + keep)];
 }
 
 /** One page back. Home is never popped. */
@@ -176,12 +190,18 @@ export function top(stack: readonly Route[]): Route {
 	return stack[stack.length - 1] ?? HOME;
 }
 
-/** A stack read back from saved state: Home at the bottom, every page valid, or just Home. */
+/**
+ * A stack read back from saved state: Home at the bottom, every page valid, or
+ * just Home. A page this version no longer has is dropped: the More page,
+ * which the rail and the tabs replaced, leaves its area's page right above Home.
+ */
 export function readStack(value: unknown): Route[] {
 	if (!Array.isArray(value)) return [HOME];
 	const routes = value.map(readRoute).filter((r): r is Route => r !== null);
-	const rest = routes.filter((r) => r.page !== "home").slice(-(MAX_DEPTH - 1));
-	return [HOME, ...rest];
+	const rest = [HOME, ...routes.filter((r) => r.page !== "home")];
+	if (rest.length <= MAX_DEPTH) return rest;
+	const keep = base(rest);
+	return [...rest.slice(0, keep), ...rest.slice(rest.length - MAX_DEPTH + keep)];
 }
 
 const RANGES: readonly RangeId[] = ["7d", "4w", "1y"];
@@ -193,7 +213,6 @@ export function readRoute(value: unknown): Route | null {
 	switch (raw.page) {
 		case "home":
 		case "glance":
-		case "more":
 		case "activities":
 		case "health":
 		case "performance":

@@ -1,5 +1,6 @@
 import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
 import { categoryOf } from "./dashboard/activities";
+import { areaStack, inArea } from "./dashboard/areas";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
@@ -80,36 +81,43 @@ export default class GarminPlugin extends Plugin {
 		this.registerView(GARMIN_HOME_VIEW, (leaf: WorkspaceLeaf) => new GarminHomeView(leaf, this));
 		this.registerView(LEGACY_DASHBOARD_VIEW, (leaf: WorkspaceLeaf) => new LegacyDashboardView(leaf));
 
-		this.addRibbonIcon(GARMIN_ICON, "Open Garmin Home", () => void this.openView(GARMIN_HOME_VIEW));
+		// Home itself, even when the view sits on another page.
+		this.addRibbonIcon(GARMIN_ICON, "Open Garmin Home", () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("home") }));
 
+		// Each page opens inside its area, as the rail opens it: Back goes to the area's list.
 		this.addCommand({
 			id: "open-dashboard",
 			name: "Open home",
-			callback: () => void this.openView(GARMIN_HOME_VIEW),
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("home") }),
 		});
 		this.addCommand({
 			id: "open-activities",
 			name: "Open activities",
-			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, { page: "activities" }] }),
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("activities") }),
 		});
 		for (const stat of STAT_IDS) {
 			this.addCommand({
 				id: `open-${stat === "intensity" ? "intensity-minutes" : stat}`,
 				name: `Open ${STAT_TITLE[stat].toLowerCase()}`,
-				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, statsRoute(stat)] }),
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: inArea(statsRoute(stat)) }),
 			});
 		}
 		this.addCommand({
+			id: "open-health-stats",
+			name: "Open health stats",
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("health") }),
+		});
+		this.addCommand({
 			id: "open-sleep",
 			name: "Open sleep",
-			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, sleepRoute()] }),
+			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: inArea(sleepRoute()) }),
 		});
 		// One per Health Stats page built so far.
 		for (const stat of pageStats(Object.keys(HEALTH_PAGES))) {
 			this.addCommand({
 				id: `open-${stat.id}`,
 				name: `Open ${stat.title.toLowerCase()}`,
-				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, healthStatRoute(stat.id)] }),
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: inArea(healthStatRoute(stat.id)) }),
 			});
 		}
 		// Performance Stats once its hub has a page, and one per page the hub lists:
@@ -119,14 +127,14 @@ export default class GarminPlugin extends Plugin {
 			this.addCommand({
 				id: "open-performance-stats",
 				name: "Open performance stats",
-				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, { page: "performance" }] }),
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("performance") }),
 			});
 		}
 		for (const stat of performance) {
 			this.addCommand({
 				id: `open-${stat.id}`,
 				name: `Open ${commandTitle(stat.title)}`,
-				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: [{ page: "home" }, performanceStatRoute(stat.id)] }),
+				callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: inArea(performanceStatRoute(stat.id)) }),
 			});
 		}
 

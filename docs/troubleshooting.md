@@ -153,18 +153,20 @@ this device**, and **Not now** puts that away.
 ### Home still shows yesterday after midnight
 
 An open Home moves to the new day within a minute of midnight. If today's numbers aren't there yet,
-Home says "Today isn't synced yet" and shows the last day it has. Run **Sync recent days** (Home's ↻).
+Home says "Today isn't synced yet" and shows the last day it has. Run **Sync recent days** (↻ at the
+top right of the page, or beside the tabs on a phone).
 
 ### Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 
 As in the app, the card shows Garmin's onboarding prompt while **any** Health Status metric is still
 building its baseline. Pulse Ox is the usual one: its baseline never finishes if your watch's Pulse
-Ox mode is off during sleep. **More → Health Stats → Health Status** still shows each metric.
+Ox mode is off during sleep. **Health Stats → Health Status** still shows each metric.
 
 ### "This page isn't in this version of the plugin"
 
 Home remembers which page it was on. This appears when that page belongs to a version of the plugin
-that had it, typically after going back to an older build. Press **Back**, or update the plugin.
+that had it, typically after going back to an older build. Press **Back**, pick an area in the rail
+or the tabs, or update the plugin.
 
 ### A day page has figures but no chart
 

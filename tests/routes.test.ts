@@ -29,13 +29,12 @@ import {
 describe("route stack", () => {
 	it("pushes, replaces the top and pops back", () => {
 		let stack: Route[] = [HOME];
-		stack = push(stack, { page: "more" });
 		stack = push(stack, { page: "activities" });
 		stack = push(stack, categoryRoute("running"));
 		stack = replace(stack, { ...(categoryRoute("running") as Extract<Route, { page: "category" }>), range: "1y" });
 		assert.deepEqual(
 			stack.map((r) => r.page),
-			["home", "more", "activities", "category"],
+			["home", "activities", "category"],
 		);
 		assert.equal((top(stack) as Extract<Route, { page: "category" }>).range, "1y");
 		stack = pop(stack);
@@ -52,6 +51,18 @@ describe("route stack", () => {
 		for (let i = 0; i < 20; i++) stack = push(stack, { page: "all" });
 		assert.equal(stack.length, 8);
 		assert.equal(stack[0]!.page, "home");
+	});
+
+	it("keeps the area's own page above Home when the stack runs deep, so the rail stays on its area", () => {
+		let stack: Route[] = [HOME, { page: "health" }];
+		for (let i = 0; i < 20; i++) stack = push(stack, sleepRoute(-i));
+		assert.equal(stack.length, 8);
+		assert.deepEqual(stack.slice(0, 2), [HOME, { page: "health" }]);
+		assert.deepEqual(top(stack), sleepRoute(-19));
+		const saved = readStack([{ page: "health" }, ...Array.from({ length: 12 }, (_, i) => sleepRoute(-i))]);
+		assert.equal(saved.length, 8);
+		assert.deepEqual(saved.slice(0, 2), [HOME, { page: "health" }]);
+		assert.deepEqual(top(saved), sleepRoute(-11));
 	});
 
 	it("opens a category on its first tab", () => {
@@ -94,10 +105,17 @@ describe("readRoute", () => {
 
 describe("readStack", () => {
 	it("puts Home at the bottom and drops what it cannot read", () => {
-		assert.deepEqual(readStack([{ page: "more" }, { page: "nope" }, { page: "activities" }]), [HOME, { page: "more" }, { page: "activities" }]);
+		assert.deepEqual(readStack([{ page: "nope" }, { page: "activities" }]), [HOME, { page: "activities" }]);
 		assert.deepEqual(readStack([HOME, HOME, { page: "all" }]), [HOME, { page: "all" }]);
 		assert.deepEqual(readStack(undefined), [HOME]);
 		assert.deepEqual(readStack("all"), [HOME]);
+	});
+
+	it("drops the More page, which the rail and the tabs replaced, leaving its area above Home", () => {
+		assert.equal(readRoute({ page: "more" }), null);
+		const category = categoryRoute("running");
+		assert.deepEqual(readStack([HOME, { page: "more" }, { page: "activities" }, category]), [HOME, { page: "activities" }, category]);
+		assert.deepEqual(readStack([HOME, { page: "more" }]), [HOME]);
 	});
 });
 
@@ -187,7 +205,7 @@ describe("health-stat routes", () => {
 
 	it("survive a reload in a stack", () => {
 		const route = healthStatRoute("respiration", { range: "7d", offset: -1 });
-		assert.deepEqual(readStack([{ page: "more" }, { page: "health" }, route]), [HOME, { page: "more" }, { page: "health" }, route]);
+		assert.deepEqual(readStack([{ page: "health" }, route]), [HOME, { page: "health" }, route]);
 	});
 });
 
@@ -257,10 +275,10 @@ describe("performance-stat routes", () => {
 	it("survive a reload in a stack, and go back down to a page already open", () => {
 		const status = performanceStatRoute("training-status");
 		const load = performanceStatRoute("training-load", { tab: "focus" });
-		const stack = readStack([{ page: "more" }, { page: "performance" }, status, load]);
-		assert.deepEqual(stack, [HOME, { page: "more" }, { page: "performance" }, status, load]);
-		assert.deepEqual(pop(stack), [HOME, { page: "more" }, { page: "performance" }, status]);
-		assert.deepEqual(pushOrReturn([...stack, activityRoute(1)], status), [HOME, { page: "more" }, { page: "performance" }, status]);
+		const stack = readStack([{ page: "performance" }, status, load]);
+		assert.deepEqual(stack, [HOME, { page: "performance" }, status, load]);
+		assert.deepEqual(pop(stack), [HOME, { page: "performance" }, status]);
+		assert.deepEqual(pushOrReturn([...stack, activityRoute(1)], status), [HOME, { page: "performance" }, status]);
 	});
 });
 
