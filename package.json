@@ -35,7 +35,7 @@
 		"eslint": "9.39.5",
 		"eslint-plugin-obsidianmd": "0.4.2",
 		"leaflet": "1.9.4",
-		"obsidian": "^1.10.0",
+		"obsidian": "^1.13.0",
 		"svelte": "^5.57.0",
 		"svelte-check": "^4.7.6",
 		"svelte-preprocess": "^6.0.5",
