@@ -1,24 +1,19 @@
 <script lang="ts">
 	import { lucide } from "../home/lucide";
 
-	/**
-	 * A row that opens a page: the hub's sports, More's sections, "View
-	 * Personal Records". `icon` makes it More's taller row with a coloured icon.
-	 */
+	/** A row that opens a page: an area's list, "View Personal Records". */
 	interface Props {
 		label: string;
 		onclick: () => void;
-		icon?: string;
 		/** "link" is View Personal Records: full width on a phone, a card in a pane. */
-		kind?: "menu" | "more" | "link";
+		kind?: "menu" | "link";
 	}
 
-	let { label, onclick, icon, kind = "menu" }: Props = $props();
+	let { label, onclick, kind = "menu" }: Props = $props();
 </script>
 
 <!-- Not class "menu": Obsidian styles that as its context menu, position: fixed. -->
-<button class="row" class:more={kind === "more"} class:link={kind === "link"} {onclick}>
-	{#if icon}<span class="icon" use:lucide={icon}></span>{/if}
+<button class="row" class:link={kind === "link"} {onclick}>
 	<span class="label">{label}</span>
 	<span class="chev" use:lucide={"chevron-right"}></span>
 </button>
@@ -44,11 +39,6 @@
 	.row:hover {
 		background: var(--background-modifier-hover);
 	}
-	.more {
-		height: 56px;
-		gap: 13px;
-		padding: 0 21px 0 16px;
-	}
 	.link {
 		height: 48px;
 		padding: 0 17px 0 8px;
@@ -61,14 +51,6 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-	.icon {
-		display: inline-flex;
-		color: var(--color-blue);
-	}
-	.icon :global(svg) {
-		width: 24px;
-		height: 24px;
 	}
 	.chev {
 		display: inline-flex;

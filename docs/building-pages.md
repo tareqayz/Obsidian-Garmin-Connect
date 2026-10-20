@@ -34,9 +34,9 @@ Every file and key is in the [Data reference](properties.md).
 
 Home is one view, `garmin-home` (`GarminHomeView`, `src/dashboard/home-view.ts`), holding a stack
 of pages (`src/dashboard/routes.ts`). Home sits at the bottom. Above it can be `glance` (See All),
-`more`, `activities`, `category` (a sport), `month`, `records`, `all` (All Activities),
-`activity`, `activity-map`, `stats` (Steps, Floors, Intensity Minutes), `sleep`, `sleep-factor`,
-`health`, `health-stat`, `performance` or `performance-stat`.
+`activities`, `category` (a sport), `month`, `records`, `all` (All Activities), `activity`,
+`activity-map`, `stats` (Steps, Floors, Intensity Minutes), `sleep`, `sleep-factor`, `health`,
+`health-stat`, `performance` or `performance-stat`.
 
 - **Back** pops one page. A filter or a tab replaces the top page instead of adding a step.
 - A link to a page already on the stack goes back down to it (`pushOrReturn`). Routes compare by
@@ -49,7 +49,33 @@ of pages (`src/dashboard/routes.ts`). Home sits at the bottom. Above it can be `
   `power` into `picks`.
 - A saved route this version can't read is dropped from the stack. A stat route whose stat the
   registry knows but whose page isn't registered shows "This page isn't in this version of the
-  plugin" instead.
+  plugin" instead. The old More page (`more`) is dropped this way.
+
+### Areas and the navigation
+
+`src/dashboard/areas.ts` names the **areas**: Home, Activities (`activities`), Health Stats
+(`health`) and Performance Stats (`performance`). The last three's own pages, the area roots, sit
+right above Home.
+
+- **Where you get around.** `Home.svelte` measures the pane:
+  - From 640 px the view shows `AreaRail` down its left side. It is expanded from 1000 px,
+    collapsed to icons below, or as the user last left it (the view's `rail` state).
+  - Under 640 px, Home and the area roots show `AreaTabs` inside `AreaHeader`.
+  - Pages lay out in `.gch-main`, the page's column, and their `@container` rules measure that
+    column, not the pane.
+- **What each area holds.** `areaItems(area, built)` lists an area's pages, which both the rail and
+  the area's own list (`ActivitiesHub`, `HealthHub`, `PerformanceHub`) show.
+  - A registered hub stat joins its area there, with no other wiring.
+  - `itemKey(route)` names the row a page belongs to.
+  - `railFocus(stack)` picks the area to open and the row to light: the nearest listed page down
+    from the top of the stack.
+- **How pages open.**
+  - The rail, the tabs and every **Open …** command open a page inside its area
+    (`inArea(route)`: `[home, area, page]`).
+  - `push` and `readStack` trim above the area root, never through it.
+  - `getDisplayText` names the tab after the area.
+- **Adding an area:** add it to `AREAS`, give its root a `Route`, and add its pages to `pageArea`,
+  `areaItems` and `itemKey`. `tests/areas.test.ts` fails until every route kind has an area.
 
 ## Health and Performance Stats foundation
 
@@ -94,7 +120,7 @@ flowchart LR
   idx --> cmd["A Sync … history command"]
   idx --> read["readIndex(kind) for its pages"]
   extras["INTRADAY_EXTRAS"] --> load["loadIntraday(date, keys)"]
-  pages["HEALTH_PAGES or PERFORMANCE_PAGES"] --> hub["A row in the section's hub"]
+  pages["HEALTH_PAGES or PERFORMANCE_PAGES"] --> hub["A row in the area's list and the rail"]
   pages --> open["An Open … command"]
   pages --> card["Its Home card opens the page"]
   pages --> route["Home renders its route"]
@@ -104,8 +130,8 @@ flowchart LR
 | --- | --- |
 | `DAY_INDEXES` | Routine syncs feed the index. The backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to and its group is on. It also adds a `Sync <title> history` command and `readIndex(kind)`, and Home watches its folder |
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
-| `HEALTH_PAGES` | the stat's row in the hub, an `Open <stat>` command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
-| `PERFORMANCE_PAGES` | the same for the `performance-stat` route, and its In Focus card (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The hub, More's row and **Open performance stats** appear with the first hub stat |
+| `HEALTH_PAGES` | the stat's row in the area's list and the rail, an `Open <stat>` command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
+| `PERFORMANCE_PAGES` | the same for the `performance-stat` route, and its In Focus card (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The Performance Stats area (its rail row and tab) and **Open performance stats** appear with the first hub stat |
 
 ### The registry
 

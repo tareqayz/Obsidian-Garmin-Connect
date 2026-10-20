@@ -138,6 +138,7 @@ when adding to it.
 | `dashboard/home-view.ts` | `GarminHomeView`: the Home view; reads the files and hands each page its props |
 | `dashboard/legacy-view.ts` | turns a saved tab of the retired classic dashboard into Home |
 | `dashboard/routes.ts`, `home.ts`, `glance.ts` | the page stack; Home's presets and numbers; At a Glance — pure |
+| `dashboard/areas.ts` | the areas (Home, Activities, Health Stats, Performance Stats): each page's area, each area's pages, what the rail lights — pure. Drawn by `ui/svelte/home/AreaRail.svelte` (a wide pane) and `AreaTabs.svelte` (a phone) |
 | `dashboard/series.ts`, `day.ts`, `periods.ts` | day rows and date words; periods, spans and labels — pure |
 | `dashboard/stat-registry.ts`, `health-stats.ts`, `performance-stats.ts` | `StatDef`, `HEALTH_STATS`, `PERFORMANCE_STATS` — pure |
 | `dashboard/stat-charts.ts`, `stat-dial.ts`, `stat-controls.ts`, `gauges.ts` | chart parts the stat pages share — pure |
@@ -157,7 +158,7 @@ a workspace saved with that tab opens Home instead of a dead leaf.
 
 ## A sync, end to end
 
-**Sync recent days** (the command, Home's ↻, or **Sync on startup** five seconds after load) runs
+**Sync recent days** (the command, the view's ↻, or **Sync on startup** five seconds after load) runs
 through `SyncRunner.syncRecent`:
 1. It reads the mark in `sync-state.json` and asks `recentRange` for the days.
 2. It makes one `lastUsedDevice()` call for the watch's last upload.

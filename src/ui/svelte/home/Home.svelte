@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from "svelte";
 	import { activityIdFor, type ActivitiesData } from "../../../dashboard/activities";
+	import { areaItems, areaStack, atAreaRoot, inArea, railFocus, visibleAreas, type AreaEntry, type AreaId, type RailPref } from "../../../dashboard/areas";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
 	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
@@ -13,6 +14,7 @@
 		push,
 		pushOrReturn,
 		replace,
+		routeKey,
 		sleepRoute,
 		statsRoute,
 		top,
@@ -39,7 +41,6 @@
 	import AllActivitiesPage from "../activities/AllActivitiesPage.svelte";
 	import CategoryPage from "../activities/CategoryPage.svelte";
 	import MonthPage from "../activities/MonthPage.svelte";
-	import MorePage from "../activities/MorePage.svelte";
 	import RecordsPage from "../activities/RecordsPage.svelte";
 	import HealthHub from "../health/HealthHub.svelte";
 	import { HEALTH_PAGES } from "../health/pages";
@@ -48,6 +49,8 @@
 	import FactorPage from "../sleep/FactorPage.svelte";
 	import SleepPage from "../sleep/SleepPage.svelte";
 	import StatsPage from "../stats/StatsPage.svelte";
+	import AreaHeader from "./AreaHeader.svelte";
+	import AreaRail from "./AreaRail.svelte";
 	import EmptyCard from "./EmptyCard.svelte";
 	import FocusActivities from "./FocusActivities.svelte";
 	import FocusBattery from "./FocusBattery.svelte";
@@ -71,10 +74,14 @@
 	 * Which layout is decided by the pane's own width (a container query), not
 	 * the device, since an Obsidian leaf can be narrow on a desktop.
 	 *
-	 * The other pages — See All, More, Activities, Steps, Floors, Intensity
+	 * The other pages — See All, Activities, Steps, Floors, Intensity
 	 * Minutes, Health Stats, Sleep, Performance Stats and every stat
 	 * registered in `HEALTH_PAGES` or `PERFORMANCE_PAGES` — open on top of
 	 * Home inside the same view, as a stack that Back walks down.
+	 *
+	 * The areas (`areas.ts`) are how you get around: a rail down a wide pane's
+	 * left side, and tabs across the top of Home and the areas' own pages on a
+	 * phone. Which one shows follows the pane's width, as the pages' layouts do.
 	 */
 	interface Props {
 		initialModel: HomeModel;
@@ -115,6 +122,12 @@
 		onPick: (current: GlanceId[]) => Promise<GlanceId | null>;
 		/** Every page change, so the view can save where it is. */
 		onRoute: (stack: Route[]) => void;
+		/** The rail as last left: expanded or collapsed by hand, or null to follow the pane's width. */
+		initialRail: RailPref | null;
+		/** The pane's width at mount, so the first frame already has the right navigation. */
+		initialWidth: number;
+		/** The rail expanded or collapsed by hand, which the view saves. */
+		onRail: (rail: RailPref) => void;
 		onSyncHistory: () => void;
 		onSyncStatsHistory: () => void;
 		onSyncSleepHistory: () => void;
@@ -170,6 +183,9 @@
 		onChange,
 		onPick,
 		onRoute,
+		initialRail,
+		initialWidth,
+		onRail,
 		onSyncHistory,
 		onSyncStatsHistory,
 		onSyncSleepHistory,
@@ -324,9 +340,58 @@
 	async function show(next: Route[], restore: boolean) {
 		const scroller = root?.closest<HTMLElement>(".view-content");
 		stack = next;
+		// A page that threw keeps its error card until the boundary is new.
+		if (pageFailed) {
+			pageFailed = false;
+			boundary++;
+		}
 		onRoute(next);
 		await tick();
 		if (scroller) scroller.scrollTop = restore ? (scrolls[next.length - 1] ?? 0) : 0;
+	}
+
+	/* Getting around: the rail in a pane, the tabs on a phone. */
+	// svelte-ignore state_referenced_locally
+	let width = $state(initialWidth);
+	// svelte-ignore state_referenced_locally
+	let railPref = $state<RailPref | null>(initialRail);
+	let phone = $derived(width < 640);
+	let railCollapsed = $derived(railPref ? railPref === "collapsed" : width < 1000);
+	/** See All's editor is open: the rail and the tabs hold still until it is saved or cancelled. */
+	let editingGlance = $state(false);
+	/** A page threw: the next page change starts a new boundary, which clears its card. */
+	let pageFailed = false;
+	let boundary = $state(0);
+
+	/** The rail expanded or collapsed from outside: the view's saved state. */
+	export function setRail(next: RailPref | null) {
+		railPref = next;
+	}
+
+	/** An area's tab or rail row: its own page, at the top — or, for Home, back where it was scrolled. */
+	function select(area: AreaId) {
+		const next = areaStack(area);
+		const already = next.length === stack.length && next.every((r, i) => routeKey(r) === routeKey(stack[i]!));
+		leave();
+		void show(next, area === "home" && !already);
+	}
+
+	/** A page in the rail, opened inside its area so that Back goes to the area's list. */
+	function openItem(route: Route) {
+		leave();
+		void show(inArea(route), false);
+	}
+
+	/** Leaving for another area: the Layout sheet closes, and only Home keeps where it was scrolled. */
+	function leave() {
+		scrolls[stack.length - 1] = root?.closest<HTMLElement>(".view-content")?.scrollTop ?? 0;
+		scrolls.length = 1;
+		sheet = false;
+	}
+
+	function toggleRail() {
+		railPref = railCollapsed ? "expanded" : "collapsed";
+		onRail(railPref);
 	}
 
 	function go(route: Route) {
@@ -368,6 +433,19 @@
 
 	const healthPages = Object.keys(HEALTH_PAGES);
 	const performancePages = Object.keys(PERFORMANCE_PAGES);
+
+	const areas = visibleAreas(performancePages);
+	const built = { health: healthPages, performance: performancePages };
+	/** Each area's pages, as the rail and the areas' own lists show them: Sleep on the newest night. */
+	let items = $derived<Record<AreaId, AreaEntry[]>>({
+		home: [],
+		activities: areaItems("activities", built),
+		health: areaItems("health", built, latestNightOffset(sleep, today)),
+		performance: areaItems("performance", built),
+	});
+	/** The rail's open area and lit row. */
+	let railAt = $derived(railFocus(stack));
+	let atRoot = $derived(atAreaRoot(stack));
 
 	/** At a Glance cards with a page behind them, as in the app. In Focus's readiness and training status cards too. */
 	function glancePage(id: GlanceId): Route | null {
@@ -505,26 +583,45 @@
 	{/if}
 {/snippet}
 
-<div class="gch-root" bind:this={root}>
-	<!-- One page throwing on data it didn't expect shows a card, not a blank pane. -->
-	<svelte:boundary onerror={(error) => onPageError(error)}>
-	{#snippet failed(error, reset)}
-		<PageError
-			{error}
-			onSave={() => onSaveDebugInfo(error)}
-			onHome={() => {
-				stack = [{ page: "home" }];
-				onRoute(stack);
-				reset();
-			}}
+{#snippet areaHead(area: AreaId, title: string)}
+	<AreaHeader {title} {phone} {areas} current={area} locked={editingGlance} {canSync} {syncing} {syncMessage} onArea={select} onSync={sync} />
+{/snippet}
+
+<div class="gch-root" bind:this={root} bind:clientWidth={width}>
+	{#if !phone}
+		<AreaRail
+			{areas}
+			{items}
+			focus={railAt}
+			{atRoot}
+			collapsed={railCollapsed}
+			{canSync}
+			{syncing}
+			{syncMessage}
+			locked={editingGlance}
+			onArea={select}
+			onItem={openItem}
+			onToggle={toggleRail}
+			onSync={sync}
 		/>
+	{/if}
+	<div class="gch-main">
+	{#key boundary}
+	<!-- One page throwing on data it didn't expect shows a card, not a blank pane; the navigation stays usable. -->
+	<svelte:boundary
+		onerror={(error) => {
+			pageFailed = true;
+			onPageError(error);
+		}}
+	>
+	{#snippet failed(error)}
+		<PageError {error} onSave={() => onSaveDebugInfo(error)} onHome={() => void show(areaStack("home"), true)} />
 	{/snippet}
 	{#if current.page === "glance"}
-		<SeeAll {model} list={glanceList} onBack={back} onSave={saveGlance} {onPick} />
-	{:else if current.page === "more"}
-		<MorePage onBack={back} {go} />
+		<SeeAll {model} list={glanceList} onBack={back} onSave={saveGlance} {onPick} onEditing={(on) => (editingGlance = on)} />
 	{:else if current.page === "activities"}
-		<ActivitiesHub onBack={back} {go} />
+		{@render areaHead("activities", "Activities")}
+		<ActivitiesHub items={items.activities} {go} />
 	{:else if current.page === "category"}
 		<CategoryPage route={current} data={activities} {today} {history} {canSync} onBack={back} {go} {swap} {onSyncHistory} />
 	{:else if current.page === "month"}
@@ -538,7 +635,8 @@
 	{:else if current.page === "activity-map"}
 		<ActivityMapPage route={current} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {swap} />
 	{:else if current.page === "health"}
-		<HealthHub onBack={back} {go} openSleep={() => go(sleepRoute(latestNightOffset(sleep, today)))} />
+		{@render areaHead("health", "Health Stats")}
+		<HealthHub items={items.health} {go} />
 	{:else if current.page === "health-stat"}
 		{@const Page = HEALTH_PAGES[current.stat]}
 		{#if Page}
@@ -549,7 +647,8 @@
 			<div class="unbuilt">This page isn’t in this version of the plugin.</div>
 		{/if}
 	{:else if current.page === "performance"}
-		<PerformanceHub onBack={back} {go} />
+		{@render areaHead("performance", "Performance Stats")}
+		<PerformanceHub items={items.performance} {go} />
 	{:else if current.page === "performance-stat"}
 		{@const Page = PERFORMANCE_PAGES[current.stat]}
 		{#if Page}
@@ -589,26 +688,27 @@
 			{readSeries}
 		/>
 	{:else}
-		<header class="pane-header">
-			<div class="title">
-				<span class="watch" use:lucide={"watch"}></span>
-				<strong>Garmin Connect</strong>
-				<span class="muted">Home · {dateLabel}</span>
-			</div>
-			<div class="actions">
-				{#if syncMessage}<span class="faint">{syncMessage}</span>{/if}
+		<AreaHeader
+			title="Home"
+			subtitle={dateLabel}
+			{phone}
+			{areas}
+			current="home"
+			locked={editingGlance}
+			{canSync}
+			{syncing}
+			{syncMessage}
+			onArea={select}
+			onSync={sync}
+		>
+			{#snippet actions()}
 				<button class="preset" onclick={() => (sheet = !sheet)} aria-label="Change the Home layout">
-					Layout: {preset.name}
+					{phone ? preset.name : `Layout: ${preset.name}`}
 					<span class="chev" use:lucide={"chevron-down"}></span>
 				</button>
-				<button class="clickable-icon" aria-label="Sync recent days" disabled={!canSync || syncing} onclick={sync}>
-					<span class:spin={syncing} use:lucide={"refresh-cw"}></span>
-				</button>
-				<button class="clickable-icon" aria-label="More" onclick={() => go({ page: "more" })}>
-					<span use:lucide={"ellipsis"}></span>
-				</button>
-			</div>
-		</header>
+			{/snippet}
+		</AreaHeader>
+		{#if phone}<div class="date-line">{dateLabel}</div>{/if}
 
 		{#if sheet}
 			<div class="content">
@@ -758,51 +858,32 @@
 		{/if}
 	{/if}
 	</svelte:boundary>
+	{/key}
+	</div>
 </div>
 
 <style>
+	/* The view: the rail beside the page in a pane. The page's column is the
+	   container every page's own @container rules measure, so a page lays out
+	   for the room the rail leaves it. */
 	.gch-root {
-		container-type: inline-size;
+		display: flex;
+		align-items: flex-start;
 		color: var(--text-normal);
 		font-family: var(--font-interface);
 		--gch-gap: 8px;
 	}
-	.pane-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 8px 16px;
-		padding: 10px 16px;
-		border-bottom: 1px solid var(--background-modifier-border);
-	}
-	.title,
-	.actions {
-		display: flex;
-		align-items: center;
-		gap: 10px;
+	.gch-main {
+		flex: 1 1 auto;
 		min-width: 0;
-	}
-	.title strong {
-		font-size: 17px;
-	}
-	.watch {
-		display: inline-flex;
-		color: var(--text-muted);
-	}
-	.muted {
-		color: var(--text-muted);
-		font-size: 14px;
-	}
-	.faint {
-		color: var(--text-faint);
-		font-size: 11px;
+		container-type: inline-size;
 	}
 	.preset {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
 		font-size: 13px;
+		white-space: nowrap;
 	}
 	.chev {
 		display: inline-flex;
@@ -812,14 +893,11 @@
 		width: 14px;
 		height: 14px;
 	}
-	.spin {
-		display: inline-flex;
-		animation: gch-spin 1s linear infinite;
-	}
-	@keyframes gch-spin {
-		to {
-			transform: rotate(360deg);
-		}
+	/* A phone's Home: its day, under the tabs. */
+	.date-line {
+		padding: 10px 16px 0;
+		font-size: 14px;
+		color: var(--text-muted);
 	}
 	.content {
 		display: flex;
@@ -944,9 +1022,6 @@
 		.content {
 			--gch-gap: 16px;
 			padding: 16px 32px 32px;
-		}
-		.pane-header {
-			padding: 10px 24px 10px 32px;
 		}
 		.top-row,
 		.more {

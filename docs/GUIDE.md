@@ -148,9 +148,20 @@ everything on, a day costs nine requests, plus six for its timelines inside Day 
 
 ## Home
 
-**Open home**, or the ribbon icon, opens Home: a copy of Garmin Connect's home screen, built so you
-can hold your phone next to it and check that every number arrived.
+**Open home**, or the ribbon icon, opens Home, from whichever page the view was on: a copy of Garmin
+Connect's home screen, built so you can hold your phone next to it and check that every number
+arrived.
 
+- **Getting around.** In a wide pane, a rail down the left lists **Home**, **Activities**,
+  **Health Stats** and **Performance Stats**. The area you're in opens to its pages, with the page
+  you're on lit, so any page is one click away.
+  - **«** collapses the rail to its icons, and **»** brings it back. Below 1000 px it starts
+    collapsed.
+  - **↻** at its foot runs **Sync recent days**.
+- **On a phone** the four areas are tabs across the top of Home and of each area's own page, next
+  to ↻. Deeper pages keep Back and their title.
+- **Obsidian's tab** is named after the area you're in: **Garmin Home**, **Garmin Health Stats**,
+  and so on.
 - **Layout** in the header picks one of Garmin's three presets: **Be healthy**, **Stay active** or
   **Track my training**, each with the cards the app gives it. **Reset Home**, at the bottom, opens
   the same choice and brings back any section you hid with its **Hide** link.
@@ -164,8 +175,6 @@ can hold your phone next to it and check that every number arrived.
   | **Sign in to Garmin Connect** | not signed in on this device, and either no data has arrived here or this device's session ended |
   | **Not signed in on this device** | the data reached this device through your vault sync, but it never signed in. **Not now** puts the card away |
   | **No Garmin data on this device** | signed in here, but the data folder is empty: the settings arrived and the data didn't |
-- **The header:** ↻ runs **Sync recent days**; **⋯** opens **More**, which holds **Activities**,
-  **Health Stats** and **Performance Stats**.
 - **Cards open their pages,** as in the app: In Focus's Sleep, Steps, All Activities, Training
   Readiness and Training Status; the Sleep Coach row; Today's Activity; and the At a Glance cards
   that have a page.
@@ -182,10 +191,13 @@ can hold your phone next to it and check that every number arrived.
   card, as the app does. Challenges aren't synced, so that section only shows Garmin's empty state.
 - **Layout by pane width.** A narrow pane gets the phone layout, where In Focus swipes. From 640 px
   the sections sit side by side and At a Glance runs four across; from 1000 px, three and six.
+  These are the page's own widths, beside the rail: a 1190 px pane leaves Home 950 px, so two
+  columns.
 
 ## Activities
 
-Garmin Connect's Activities section, under **More → Activities** or **Open activities**.
+Garmin Connect's Activities section: **Activities** in the rail or the phone's tabs, or **Open
+activities**.
 
 - **The hub** lists Running, Cycling, Gym & Fitness Equipment, Swimming, Hiking, Multisport and
   Other, sorted the way Garmin sorts them, then All Activities. Yoga, stair climbing and mobility
@@ -304,8 +316,8 @@ a year. Day charts come from the timelines, so they cover the days inside Day de
 
 ## Sleep
 
-From Home's sleep cards, **More → Health Stats → Sleep**, or **Open sleep**, with **1d / 7d / 4w /
-1y** and **‹ ›**.
+From Home's sleep cards, **Health Stats → Sleep**, or **Open sleep**, with **1d / 7d / 4w / 1y**
+and **‹ ›**.
 
 - **A night** has two tabs:
   - **Sleep Score:** the score and its verdict, the stages, the timeline and the factor cards, each
@@ -319,9 +331,9 @@ timeline, factors and coach come from that day's timelines.
 
 ## Health Stats
 
-**More → Health Stats** lists Sleep and these pages, in the app's order. Each has an **Open …**
-command, and all but Pulse Ox Acclimation and Health Snapshot open from an At a Glance card. A page
-needs its metric group on.
+**Health Stats**, in the rail or the phone's tabs, lists Sleep and these pages, in the app's order.
+**Open health stats** opens that list. Each page has an **Open …** command, and all but Pulse Ox
+Acclimation and Health Snapshot open from an At a Glance card. A page needs its metric group on.
 
 | Page | Ranges | Group |
 | --- | --- | --- |
@@ -347,8 +359,8 @@ needs its metric group on.
 
 ## Performance Stats
 
-**More → Performance Stats** lists Garmin's performance pages in the app's order. Each has an
-**Open …** command. All but Race Predictor, Training Effect, Cycling Power Curve and HRV Stress also
+**Performance Stats**, in the rail or the phone's tabs, lists Garmin's performance pages in the
+app's order. Each has an **Open …** command. All but Race Predictor, Training Effect, Cycling Power Curve and HRV Stress also
 open from a card on Home.
 
 | Page | Ranges | Group |
@@ -381,12 +393,13 @@ Status's, the day files and the activity list.
 
 ## Commands
 
-All are in the command palette under **Garmin Connect:**.
+All are in the command palette under **Garmin Connect:**. A page opens inside its area, so Back
+goes to the area's list.
 
 | Opens | Commands |
 | --- | --- |
-| Home and its sections | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes**, **Open sleep** |
-| A Health Stats page | **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
+| Home and Activities | **Open home**, **Open activities**, **Open steps**, **Open floors**, **Open intensity minutes** |
+| Health Stats | **Open health stats**, **Open sleep**, **Open health status**, **Open lifestyle logging**, **Open weight**, **Open pulse ox**, **Open pulse ox acclimation**, **Open respiration**, **Open heart rate**, **Open blood pressure**, **Open stress**, **Open body battery**, **Open fitness age**, **Open health snapshot** |
 | Performance Stats | **Open performance stats**, **Open training status**, **Open training readiness**, **Open HRV status**, **Open race predictor**, **Open VO₂ max**, **Open running economy**, **Open training effect**, **Open cycling power curve**, **Open FTP**, **Open critical swim speed**, **Open running tolerance**, **Open running lactate threshold**, **Open endurance score**, **Open hill score**, **Open HRV stress** |
 
 | Syncs | Commands |
