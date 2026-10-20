@@ -105,8 +105,8 @@
 		onHideSignIn: () => void;
 		/** A page threw while drawing: the view saves a safe page for the next launch. */
 		onPageError: (error: unknown) => void;
-		/** Copy debug info, from the error card, with the error. */
-		onCopyDebugInfo: (error: unknown) => void;
+		/** Save debug info, from the error card, with the error. */
+		onSaveDebugInfo: (error: unknown) => void;
 		onPauseBackfill: () => void;
 		onResumeBackfill: () => void;
 		onSync: () => Promise<string | null>;
@@ -163,7 +163,7 @@
 		onSignIn,
 		onHideSignIn,
 		onPageError,
-		onCopyDebugInfo,
+		onSaveDebugInfo,
 		onPauseBackfill,
 		onResumeBackfill,
 		onSync,
@@ -511,7 +511,7 @@
 	{#snippet failed(error, reset)}
 		<PageError
 			{error}
-			onCopy={() => onCopyDebugInfo(error)}
+			onSave={() => onSaveDebugInfo(error)}
 			onHome={() => {
 				stack = [{ page: "home" }];
 				onRoute(stack);

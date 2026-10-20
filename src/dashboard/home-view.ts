@@ -139,7 +139,7 @@ export class GarminHomeView extends ItemView {
 		}
 	}
 
-	/** What a pane shows when Home couldn't be built at all: the error, Copy debug info and Try again. */
+	/** What a pane shows when Home couldn't be built at all: the error, Save debug info and Try again. */
 	private showOpenError(err: unknown): void {
 		this.contentEl.empty();
 		const card = this.contentEl.createDiv({ cls: "gch-open-error" });
@@ -147,7 +147,7 @@ export class GarminHomeView extends ItemView {
 		card.createEl("p", { text: "Something in your Garmin data didn't look the way Home expected. Nothing was lost." });
 		card.createEl("code", { text: err instanceof Error ? err.message : String(err) });
 		const actions = card.createDiv({ cls: "gch-open-error-actions" });
-		actions.createEl("button", { text: "Copy debug info", cls: "mod-cta" }).addEventListener("click", () => void this.plugin.copyDebugInfo(err));
+		actions.createEl("button", { text: "Save debug info", cls: "mod-cta" }).addEventListener("click", () => void this.plugin.saveDebugInfo(err));
 		actions.createEl("button", { text: "Try again" }).addEventListener("click", () => void this.onOpen());
 	}
 
@@ -186,7 +186,7 @@ export class GarminHomeView extends ItemView {
 					this.stack = [HOME];
 					this.app.workspace.requestSaveLayout();
 				},
-				onCopyDebugInfo: (error: unknown) => void this.plugin.copyDebugInfo(error),
+				onSaveDebugInfo: (error: unknown) => void this.plugin.saveDebugInfo(error),
 				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
 				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {

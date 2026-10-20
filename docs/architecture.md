@@ -77,14 +77,14 @@ when adding to it.
 | File | Role |
 | --- | --- |
 | `main.ts` | `GarminPlugin`: the views, commands, ribbon, settings tab, status bar and the uninstall watch |
-| `settings.ts` | `GarminSettingTab`, which mounts `SettingsPanel.svelte` |
+| `settings.ts` | `GarminSettingTab`: every setting as a declarative definition, for Obsidian's settings search |
 | `settings-data.ts` | `GarminSettings`, `DEFAULT_SETTINGS`, `SETTINGS_VERSION` — pure |
 | `plugin-data.ts` | `PluginData`: owns `data.json` (settings and Home's state), its migrations, and moving an old session to the keychain |
 | `http.ts` | `HttpClient`, `CookieJar`, `splitSetCookie` — imports nothing |
 | `obsidian-http.ts` | `ObsidianHttpClient`, the `requestUrl` adapter |
 | `log.ts` | the `Log` interface, the diagnostics renderer, redaction |
 | `probe.ts` | **Run diagnostics**: network fingerprint, test login, session persistence, fitness endpoints |
-| `debug-info.ts` | **Copy debug info**: the redacted bug-report text |
+| `debug-info.ts` | **Save debug info**: the redacted bug-report text, saved as a note |
 | `uninstall-watch.ts` | after `onunload`, whether the plugin's folder is gone (an uninstall) — pure |
 | `types.d.ts` | Leaflet's ES module build, typed as `leaflet` |
 
@@ -453,7 +453,7 @@ As above, plus:
    - or `FREE_GROUPS` when it rides along in the daily summary;
    - `REQUESTS_PER_SYNC` for a once-a-sync group;
    - `RANGE_GROUPS` for one range request a sync.
-3. Its label in `GROUP_LABELS` (`src/ui/svelte/SettingsPanel.svelte`).
+3. Its label in `GROUP_LABELS` (`src/settings.ts`).
 4. Bump `SETTINGS_VERSION` (`src/settings-data.ts`) and switch the group on in
    `PluginData.migrate` (`src/plugin-data.ts`), so an existing vault gets it once while a group
    someone turned off stays off. Extend `tests/plugin-data.test.ts`.

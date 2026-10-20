@@ -28,7 +28,6 @@
 		) => Promise<Verdict>;
 		runFitness: (log: ProbeLog) => Promise<Verdict>;
 		onSaveLog: (text: string, quiet: boolean) => Promise<void>;
-		onCopyLog: (text: string) => void;
 		onFinished: (verdict: Verdict) => void;
 		autoSaveLog: boolean;
 		platformReport: (log: ProbeLog) => void;
@@ -43,7 +42,6 @@
 		runPersistence,
 		runFitness,
 		onSaveLog,
-		onCopyLog,
 		onFinished,
 		autoSaveLog,
 		platformReport,
@@ -178,7 +176,6 @@
 <pre class="log">{text}</pre>
 
 <div class="actions">
-	<button onclick={() => onCopyLog(log.render())}>Copy log</button>
 	<button onclick={() => onSaveLog(log.render(), false)}>Save to vault</button>
 	<button onclick={onClose}>Close</button>
 </div>

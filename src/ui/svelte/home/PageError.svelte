@@ -5,10 +5,10 @@
 	interface Props {
 		error: unknown;
 		onHome: () => void;
-		onCopy: () => void;
+		onSave: () => void;
 	}
 
-	let { error, onHome, onCopy }: Props = $props();
+	let { error, onHome, onSave }: Props = $props();
 	let detail = $derived(error instanceof Error ? error.message : String(error));
 </script>
 
@@ -19,7 +19,7 @@
 		<span>Something in your Garmin data didn't look the way this page expected. Nothing was lost. The debug info in a bug report helps fix it.</span>
 		<code>{detail}</code>
 		<div class="actions">
-			<button class="mod-cta" onclick={onCopy}>Copy debug info</button>
+			<button class="mod-cta" onclick={onSave}>Save debug info</button>
 			<button onclick={onHome}>Back to Home</button>
 		</div>
 	</div>

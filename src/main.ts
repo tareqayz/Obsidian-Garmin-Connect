@@ -21,7 +21,7 @@ import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
 import { registerSportIcons } from "./ui/sport-icons";
 import { LoginModal } from "./ui/login-modal";
-import { copyDebugInfo } from "./debug-info";
+import { saveDebugInfo } from "./debug-info";
 import { ProbeModal } from "./ui/probe-modal";
 import { SyncRangeModal } from "./ui/sync-range-modal";
 import { SetupModal } from "./ui/setup-modal";
@@ -194,8 +194,8 @@ export default class GarminPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "copy-debug-info",
-			name: "Copy debug info",
-			callback: () => void this.copyDebugInfo(),
+			name: "Save debug info",
+			callback: () => void this.saveDebugInfo(),
 		});
 		this.addCommand({
 			id: "run-probe",
@@ -487,9 +487,9 @@ export default class GarminPlugin extends Plugin {
 	}
 
 	/** For a bug report: versions, settings without the email, the last sync and its warnings — see `debug-info.ts`. */
-	async copyDebugInfo(error?: unknown): Promise<void> {
+	async saveDebugInfo(error?: unknown): Promise<void> {
 		try {
-			new Notice(await copyDebugInfo(this, error === undefined ? {} : { error }), 8000);
+			new Notice(await saveDebugInfo(this, error === undefined ? {} : { error }), 8000);
 		} catch (err) {
 			new Notice(`Couldn't gather the debug info: ${err instanceof Error ? err.message : String(err)}`);
 		}

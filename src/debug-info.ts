@@ -103,23 +103,20 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 }
 
 /**
- * Copies the debug info to the clipboard, or — where there is no clipboard —
- * saves it as a note in the log folder, which the vault syncs to a computer.
+ * Saves the debug info as a note in the log folder and opens it. A note works
+ * the same on every device, the vault syncs it to a computer, and the plugin
+ * never touches the clipboard.
  */
-export async function copyDebugInfo(plugin: GarminPlugin, opts: { error?: unknown } = {}): Promise<string> {
+export async function saveDebugInfo(plugin: GarminPlugin, opts: { error?: unknown } = {}): Promise<string> {
 	const text = await debugInfo(plugin, opts);
-	try {
-		await navigator.clipboard.writeText(text);
-		return "Garmin debug info copied. Paste it into your bug report.";
-	} catch {
-		const folder = normalizePath(plugin.data.settings.logFolder);
-		const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-		const path = normalizePath(`${folder}/garmin-debug-${stamp}.md`);
-		if (folder && !plugin.app.vault.getFolderByPath(folder)) await plugin.app.vault.createFolder(folder);
-		const fence = "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
-		await plugin.app.vault.create(path, [fence, text, fence, ""].join("\n"));
-		return `No clipboard here: the debug info is in ${path}.`;
-	}
+	const folder = normalizePath(plugin.data.settings.logFolder);
+	const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+	const path = normalizePath(`${folder}/garmin-debug-${stamp}.md`);
+	if (folder && !plugin.app.vault.getFolderByPath(folder)) await plugin.app.vault.createFolder(folder);
+	const fence = "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+	const file = await plugin.app.vault.create(path, [fence, text, fence, ""].join("\n"));
+	await plugin.app.workspace.getLeaf("tab").openFile(file);
+	return `Garmin debug info saved to ${path}. Attach it or paste it into your bug report.`;
 }
 
 function platformName(): string {

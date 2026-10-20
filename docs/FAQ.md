@@ -171,5 +171,5 @@ run to the vault** is on (it is off by default). They go in the **Log folder**, 
 vaults set up since 0.2, and they are redacted before they are written. See
 [Security](SECURITY.md#diagnostics-logs).
 
-For a bug report, **Copy debug info** is usually what's wanted: it needs no password and makes no
+For a bug report, **Save debug info** is usually what's wanted: it needs no password and makes no
 request.
