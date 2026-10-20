@@ -74,14 +74,13 @@ flowchart LR
 
 ## Install
 
-The plugin is in beta and installs with [BRAT](https://github.com/TfTHacker/obsidian42-brat). It
-needs Obsidian 1.13.0 or later.
+The plugin is in Obsidian's [community plugin directory](https://community.obsidian.md/plugins/garmin-connect).
+It needs Obsidian 1.13.0 or later.
 
-1. Install **BRAT** from Obsidian's community plugins.
-2. In BRAT, choose **Add a beta plugin** and enter `tareqayz/Obsidian-Garmin-Connect`.
-3. Enable **Garmin Connect** in **Settings → Community plugins**.
+1. In Obsidian, open **Settings → Community plugins** and choose **Browse**.
+2. Search for **Garmin Connect**, then choose **Install** and **Enable**.
 
-To install by hand or from source, see [Installation](docs/INSTALLATION.md).
+To try betas with BRAT, install by hand or build from source, see [Installation](docs/INSTALLATION.md).
 
 ## Get started
 
@@ -134,7 +133,7 @@ What is stored where, and how it is redacted, is in [Security](docs/SECURITY.md)
 
 | Using the plugin | |
 | --- | --- |
-| [Installation](docs/INSTALLATION.md) | BRAT, by hand, a second device, from source |
+| [Installation](docs/INSTALLATION.md) | Community plugins, BRAT betas, by hand, a second device, from source |
 | [Guide](docs/GUIDE.md) | setup, syncing, what to keep, every page and command |
 | [Troubleshooting](docs/troubleshooting.md) | problems by symptom, and the diagnostics |
 | [FAQ](docs/FAQ.md) | short answers |

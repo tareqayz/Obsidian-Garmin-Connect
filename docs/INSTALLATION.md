@@ -1,20 +1,28 @@
 # Installation
 
-How to install the plugin, with BRAT or by hand. It works on **desktop and mobile** and needs
-**Obsidian 1.13.0 or later**.
+How to install the plugin: from Obsidian's community plugins, with BRAT for betas, or by hand. It
+works on **desktop and mobile** and needs **Obsidian 1.13.0 or later**.
 
-> [!NOTE]
-> The plugin isn't in Obsidian's [community plugin directory](https://community.obsidian.md/search?type=plugin)
-> yet. Until it is, every release is a beta: a GitHub pre-release.
+## From the community plugins (recommended)
 
-## With BRAT (recommended)
+The plugin is in Obsidian's [community plugin directory](https://community.obsidian.md/plugins/garmin-connect).
 
+1. In Obsidian, open **Settings → Community plugins**. If asked, turn on community plugins.
+2. Choose **Browse** and search for **Garmin Connect**.
+3. Choose **Install**, then **Enable**.
+
+Obsidian updates it with your other plugins: **Settings → Community plugins → Check for updates**.
+
+## Betas with BRAT
+
+Betas are GitHub pre-releases, which the directory doesn't offer. To get them:
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from the community plugins.
 2. In BRAT, choose **Add a beta plugin** and enter `tareqayz/Obsidian-Garmin-Connect`.
 3. Enable **Garmin Connect** in **Settings → Community plugins**.
 
 BRAT installs the newest release, pre-releases included, and keeps you on the newest one when it
-checks for updates.
+checks for updates. To return to stable releases only, remove the plugin from BRAT's list; Obsidian
+then updates it from the directory.
 
 ### Going back to an earlier beta
 
@@ -31,7 +39,7 @@ need.
 ## By hand
 
 1. Open the [Releases](https://github.com/tareqayz/Obsidian-Garmin-Connect/releases) page and pick
-   the newest release. It is marked *Pre-release*.
+   the newest release, or the newest *Pre-release* for a beta.
 2. Download `main.js`, `manifest.json` and `styles.css` from its assets.
 3. Put them in `<your vault>/.obsidian/plugins/garmin-connect/`, creating the folder if it isn't
    there.
