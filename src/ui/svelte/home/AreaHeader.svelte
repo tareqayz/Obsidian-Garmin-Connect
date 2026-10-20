@@ -2,13 +2,15 @@
 	import type { Snippet } from "svelte";
 	import type { Area, AreaId } from "../../../dashboard/areas";
 	import AreaTabs from "./AreaTabs.svelte";
+	import SyncButton from "./SyncButton.svelte";
 	import { lucide } from "./lucide";
 
 	/**
 	 * The top of Home and of each area's own page. On a phone: the plugin's
 	 * name, the page's actions and Sync, then the area tabs, and Sync's last
-	 * word under them. In a pane, where the rail navigates and holds Sync: the
-	 * page's title and its actions.
+	 * word under them. In a pane, where the rail navigates: the page's title,
+	 * then its actions and Sync at the right, Sync's last word faint before
+	 * them.
 	 */
 	interface Props {
 		title: string;
@@ -37,9 +39,7 @@
 			<strong>Garmin Connect</strong>
 			<span class="fill"></span>
 			{@render actions?.()}
-			<button class="clickable-icon" aria-label="Sync recent days" disabled={!canSync || syncing} onclick={onSync}>
-				<span class:spin={syncing} use:lucide={"refresh-cw"}></span>
-			</button>
+			<SyncButton {canSync} {syncing} {onSync} />
 		</div>
 		<AreaTabs {areas} {current} {locked} {onArea} />
 		{#if syncMessage}<div class="sync-line">{syncMessage}</div>{/if}
@@ -49,7 +49,11 @@
 		<strong class="title">{title}</strong>
 		{#if subtitle}<span class="sub">{subtitle}</span>{/if}
 		<span class="fill"></span>
-		{@render actions?.()}
+		<div class="pane-actions">
+			{#if syncMessage}<span class="sync-status">{syncMessage}</span>{/if}
+			{@render actions?.()}
+			<SyncButton {canSync} {syncing} {onSync} />
+		</div>
 	</header>
 {/if}
 
@@ -98,18 +102,18 @@
 		text-overflow: ellipsis;
 		min-width: 0;
 	}
-	.spin {
-		display: inline-flex;
-		animation: head-spin 1s linear infinite;
+	.pane-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
 	}
-	@keyframes head-spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
-		}
+	.sync-status {
+		font-size: 11px;
+		color: var(--text-faint);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
 	}
 </style>

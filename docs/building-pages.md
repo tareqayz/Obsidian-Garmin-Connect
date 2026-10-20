@@ -63,6 +63,10 @@ right above Home.
   - Under 640 px, Home and the area roots show `AreaTabs` inside `AreaHeader`.
   - Pages lay out in `.gch-main`, the page's column, and their `@container` rules measure that
     column, not the pane.
+  - Sync sits at the top right of every page in a pane: in `AreaHeader` on Home and the area roots,
+    and after the `right` snippet in every other page's `PageBar`, which reaches it through
+    `useSync()` (`home/sync-control.ts`) rather than a prop. A bar that closes a state instead of
+    leaving a page (See All's Cancel and Save, the chart's Close) passes `sync={false}`.
 - **What each area holds.** `areaItems(area, built)` lists an area's pages, which both the rail and
   the area's own list (`ActivitiesHub`, `HealthHub`, `PerformanceHub`) show.
   - A registered hub stat joins its area there, with no other wiring.

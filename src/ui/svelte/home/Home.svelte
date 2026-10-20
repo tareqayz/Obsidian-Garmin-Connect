@@ -66,6 +66,7 @@
 	import SectionHeader from "./SectionHeader.svelte";
 	import SeeAll from "./SeeAll.svelte";
 	import { lucide } from "./lucide";
+	import { provideSync } from "./sync-control";
 
 	/**
 	 * Garmin Connect's Home, rebuilt section for section so the two can be read
@@ -524,6 +525,23 @@
 		}
 	}
 
+	// Every page's bar reaches Sync through this: a pane shows it there, a phone keeps back and title.
+	provideSync({
+		get inBars() {
+			return !phone;
+		},
+		get canSync() {
+			return canSync;
+		},
+		get syncing() {
+			return syncing;
+		},
+		get message() {
+			return syncMessage;
+		},
+		sync: () => void sync(),
+	});
+
 	let dateLabel = $derived(
 		new Date(`${model.date}T12:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }),
 	);
@@ -595,14 +613,10 @@
 			focus={railAt}
 			{atRoot}
 			collapsed={railCollapsed}
-			{canSync}
-			{syncing}
-			{syncMessage}
 			locked={editingGlance}
 			onArea={select}
 			onItem={openItem}
 			onToggle={toggleRail}
-			onSync={sync}
 		/>
 	{/if}
 	<div class="gch-main">

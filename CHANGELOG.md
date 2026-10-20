@@ -18,7 +18,8 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 - **Finding your way around.** The ⋯ button and its More page are gone.
   - **In a wide pane,** a rail down the left lists Home, Activities, Health Stats and Performance
     Stats. The area you're in opens to its pages, with the one you're on lit, so any page is one
-    click away. It collapses to icons (« / »), and Sync moved to its foot.
+    click away. It collapses to icons (« / ») and has the page's own background. Sync (↻) sits at
+    the top right of every page, beside Layout on Home.
   - **On a phone,** the four areas are tabs across the top of Home and of each area's page.
 - **Obsidian's tab is named after the area you're in:** Garmin Home, Garmin Health Stats, and so on.
 - **Open commands open a page inside its area,** so Back goes to the area's list. **Open home** and

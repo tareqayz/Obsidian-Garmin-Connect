@@ -223,7 +223,7 @@
 </script>
 
 {#if editing}
-	<PageBar title="Edit At a Glance">
+	<PageBar title="Edit At a Glance" sync={false}>
 		{#snippet left()}<button class="link" onclick={cancel}>Cancel</button>{/snippet}
 		{#snippet right()}<button class="link" disabled={!changed} onclick={save}>Save</button>{/snippet}
 	</PageBar>

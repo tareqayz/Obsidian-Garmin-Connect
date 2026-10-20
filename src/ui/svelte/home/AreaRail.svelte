@@ -5,9 +5,10 @@
 
 	/**
 	 * A wide pane's navigation, down its left side: Home and the three areas,
-	 * the one you are in opened to its pages with the page you are on lit, and
-	 * Sync in the footer. Collapsed it is a column of icons, named by Obsidian's
-	 * tooltips. It stays put while the page scrolls, edge to edge in the pane.
+	 * the one you are in opened to its pages with the page you are on lit.
+	 * Collapsed it is a column of icons, named by Obsidian's tooltips. It stays
+	 * put while the page scrolls, edge to edge in the pane. Sync is at the top
+	 * right of each page instead.
 	 */
 	interface Props {
 		areas: Area[];
@@ -16,18 +17,14 @@
 		/** On Home or an area's own page: that area's row is the one lit. */
 		atRoot: boolean;
 		collapsed: boolean;
-		canSync: boolean;
-		syncing: boolean;
-		syncMessage: string | null;
 		/** See All's editor is open: nothing here may leave it unsaved. */
 		locked: boolean;
 		onArea: (area: AreaId) => void;
 		onItem: (route: Route) => void;
 		onToggle: () => void;
-		onSync: () => void;
 	}
 
-	let { areas, items, focus, atRoot, collapsed, canSync, syncing, syncMessage, locked, onArea, onItem, onToggle, onSync }: Props = $props();
+	let { areas, items, focus, atRoot, collapsed, locked, onArea, onItem, onToggle }: Props = $props();
 
 	/* The rail fills the pane's height and reaches through the view's padding to
 	   its edges: the scroller's own size and padding, measured. */
@@ -112,13 +109,6 @@
 			{/if}
 		{/each}
 	</div>
-
-	<div class="rail-foot">
-		{#if !collapsed}<span class="rail-status">{syncMessage ?? ""}</span>{/if}
-		<button class="clickable-icon" aria-label={syncMessage ?? "Sync recent days"} disabled={!canSync || syncing} onclick={onSync}>
-			<span class:spin={syncing} use:lucide={"refresh-cw"}></span>
-		</button>
-	</div>
 </nav>
 
 <style>
@@ -135,7 +125,9 @@
 		height: var(--rail-height);
 		/* Through the view's padding to the pane's edges, adding nothing to the scroll. */
 		margin: calc(-1 * var(--rail-pad-top)) 0 calc(-1 * var(--rail-pad-bottom)) calc(-1 * var(--rail-pad-left));
-		background: var(--background-secondary);
+		/* Its rows start where the page does, below the view's padding, so the brand lines up with the page's title. */
+		padding-top: var(--rail-pad-top);
+		/* No background of its own: the view's shows through, as it does behind the page. */
 		border-right: 1px solid var(--background-modifier-border);
 		color: var(--text-normal);
 	}
@@ -160,14 +152,17 @@
 		outline: 2px solid var(--interactive-accent);
 		outline-offset: -2px;
 	}
+	/* As tall as the page header beside it, so the two titles line up. */
 	.rail-brand {
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding: 14px 10px 12px 18px;
+		box-sizing: border-box;
+		min-height: 49px;
+		padding: 0 10px 0 18px;
 	}
 	.collapsed .rail-brand {
-		padding: 12px 0 8px;
+		padding: 0;
 	}
 	.rail-brand strong {
 		flex: 1;
@@ -185,7 +180,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		padding: 0 10px 8px;
+		padding: 4px 10px 8px;
 	}
 	.collapsed .rail-areas {
 		gap: 4px;
@@ -271,39 +266,5 @@
 		height: 1px;
 		margin: 4px 0 4px 10px;
 		background: var(--background-modifier-border);
-	}
-	.rail-foot {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 10px 8px 18px;
-		border-top: 1px solid var(--background-modifier-border);
-	}
-	.collapsed .rail-foot {
-		padding: 8px 0;
-		border-top: none;
-	}
-	.rail-status {
-		flex: 1;
-		min-width: 0;
-		font-size: 11px;
-		color: var(--text-faint);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.spin {
-		display: inline-flex;
-		animation: rail-spin 1s linear infinite;
-	}
-	@keyframes rail-spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
-		}
 	}
 </style>

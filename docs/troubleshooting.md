@@ -154,7 +154,7 @@ this device**, and **Not now** puts that away.
 
 An open Home moves to the new day within a minute of midnight. If today's numbers aren't there yet,
 Home says "Today isn't synced yet" and shows the last day it has. Run **Sync recent days** (↻ at the
-foot of the rail, or beside the tabs on a phone).
+top right of the page, or beside the tabs on a phone).
 
 ### Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 

@@ -28,7 +28,7 @@ to Garmin Connect** or use the button in **Settings → Connection**.
 
 | Command | What it does |
 | --- | --- |
-| **Sync recent days** | Everything since the watch's last upload as of the last recent sync, from the day before it through today. Home's ↻ button runs the same thing. |
+| **Sync recent days** | Everything since the watch's last upload as of the last recent sync, from the day before it through today. The view's ↻ button runs the same thing. |
 | **Sync today** | Just today. |
 | **Sync a date range…** | Any stretch of days, back as far as 2010, with each day's timelines. Shows the request count and the time it will take before you start. |
 
@@ -154,10 +154,10 @@ arrived.
 
 - **Getting around.** In a wide pane, a rail down the left lists **Home**, **Activities**,
   **Health Stats** and **Performance Stats**. The area you're in opens to its pages, with the page
-  you're on lit, so any page is one click away.
-  - **«** collapses the rail to its icons, and **»** brings it back. Below 1000 px it starts
-    collapsed.
-  - **↻** at its foot runs **Sync recent days**.
+  you're on lit, so any page is one click away. **«** collapses the rail to its icons, and **»**
+  brings it back. Below 1000 px it starts collapsed.
+- **↻** runs **Sync recent days**. In a wide pane it sits at the top right of every page, beside
+  **Layout** on Home, with the last sync's result before it.
 - **On a phone** the four areas are tabs across the top of Home and of each area's own page, next
   to ↻. Deeper pages keep Back and their title.
 - **Obsidian's tab** is named after the area you're in: **Garmin Home**, **Garmin Health Stats**,

@@ -58,7 +58,7 @@
 
 <div class="expanded-chart" bind:this={host}>
 	<div bind:clientHeight={barHeight}>
-		<PageBar title={view?.title ?? "Chart"}>
+		<PageBar title={view?.title ?? "Chart"} sync={false}>
 			{#snippet left()}
 				<button class="close-chart" onclick={onClose}>Close</button>
 			{/snippet}
