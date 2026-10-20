@@ -309,8 +309,9 @@ Each of these would fail the automated review, or the guidelines it checks:
 - [x] `manifest.json`'s `name` has no `(probe)`.
 - [x] Its `description` is user-facing: under 250 characters, opens with a verb, ends in a period, and
       doesn't say "Obsidian".
-- [x] `minAppVersion` is honest: 1.11.4, for SecretStorage (`app.secretStorage`), which keeps the
-      Garmin session in the keychain.
+- [x] `minAppVersion` is honest: 1.13.0, for the declarative settings API (`getSettingDefinitions`),
+      which puts the settings in Obsidian's settings search. SecretStorage (`app.secretStorage`, which
+      keeps the Garmin session in the keychain) needs 1.11.4.
 - [x] `isDesktopOnly: false` still holds: `scripts/check-mobile-safe.mjs` runs in `npm run build`,
       and CI runs that on every pull request.
 - [x] `release.yml` can create releases: it asks for `contents: write`, and it has published every

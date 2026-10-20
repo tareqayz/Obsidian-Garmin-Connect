@@ -8,6 +8,19 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings show up in Obsidian's settings search.** The tab is now drawn by Obsidian from a list
+  of its rows, so it looks like Obsidian's own settings, with the same rows and text as before.
+- **Needs Obsidian 1.13.0 or later,** the first version that can search plugin settings.
+- **Copy debug info is now Save debug info.** It saves the debug info as a note in the Log folder
+  and opens it, on every device. The command id is unchanged, so hotkeys keep working.
+
+### Removed
+
+- **The diagnostics' Copy log button.** Save to vault does the same job. The plugin no longer touches
+  the clipboard.
+
 ## [1.0.2] — 2026-10-19
 
 ### Changed

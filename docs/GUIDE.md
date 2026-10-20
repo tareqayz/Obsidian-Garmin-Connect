@@ -398,7 +398,7 @@ All are in the command palette under **Garmin Connect:**.
 | --- | --- |
 | **Set up…** | Opens the setup: sign in, scan your account, choose what to keep. |
 | **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
-| **Copy debug info** | What a bug report needs, redacted, to paste into an issue. No password, no request. |
+| **Save debug info** | What a bug report needs, redacted, saved as a note in the **Log folder** and opened, to attach to an issue. No password, no request. |
 | **Stop syncing** | Stops the sync or history walk you started after the day it is on, keeping what came in. |
 | **Pause the history download** / **Resume the history download** | What the pause button and Settings → Data do. Resume also lifts Garmin's own pauses. |
 | **Run diagnostics** | Four checks of sign-in and connectivity; see [Troubleshooting](troubleshooting.md#diagnostics). |

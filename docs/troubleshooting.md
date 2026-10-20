@@ -4,7 +4,7 @@ Problems by symptom. If signing in is the problem, run the diagnostics first: th
 four layers broke, which is most of the diagnosis.
 
 > [!TIP]
-> **Reporting a bug?** Run **Copy debug info** and paste it into the
+> **Reporting a bug?** Run **Save debug info** and attach the note it opens, or paste its text, to the
 > [bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose). It needs
 > no password and makes no request, and it removes your email, tokens, IP addresses and Garmin names.
 > A page that couldn't be drawn has the same button on its error card.

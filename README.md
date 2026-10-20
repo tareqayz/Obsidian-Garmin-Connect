@@ -75,7 +75,7 @@ flowchart LR
 ## Install
 
 The plugin is in beta and installs with [BRAT](https://github.com/TfTHacker/obsidian42-brat). It
-needs Obsidian 1.11.4 or later.
+needs Obsidian 1.13.0 or later.
 
 1. Install **BRAT** from Obsidian's community plugins.
 2. In BRAT, choose **Add a beta plugin** and enter `tareqayz/Obsidian-Garmin-Connect`.
@@ -125,7 +125,7 @@ What is stored where, and how it is redacted, is in [Security](docs/SECURITY.md)
 ## Feedback and support
 
 - **Something broken?** Start with [Troubleshooting](docs/troubleshooting.md).
-- **Reporting a bug:** run **Copy debug info** and paste it into the
+- **Reporting a bug:** run **Save debug info** and attach the note it opens to the
   [bug report form](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new/choose).
 - **A security problem:** report it privately through the
   [security advisory form](https://github.com/tareqayz/Obsidian-Garmin-Connect/security/advisories/new).

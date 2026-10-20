@@ -1,7 +1,7 @@
 # Installation
 
 How to install the plugin, with BRAT or by hand. It works on **desktop and mobile** and needs
-**Obsidian 1.11.4 or later**.
+**Obsidian 1.13.0 or later**.
 
 > [!NOTE]
 > The plugin isn't in Obsidian's [community plugin directory](https://community.obsidian.md/search?type=plugin)

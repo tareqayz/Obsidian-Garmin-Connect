@@ -156,7 +156,7 @@ stays off, and an empty selection stays empty.
 | Sync speed | `syncSpeed` | `gentle` | `gentle`, `normal` or `fast`: how hard a sync leans on Garmin. See below. |
 | Stop after empty days | `stopAfterEmptyDays` | `45` | **Sync a date range…** gives up after this many days in a row with nothing in them; `0` walks the whole range. The slider runs 0–120 in steps of 5. A value typed into `data.json` may go up to 365. |
 | Save every diagnostics run to the vault | `autoSaveLog` | off | Saves each **Run diagnostics** check that ends in a verdict as a note. Check 1, **Network fingerprint**, has no verdict and isn't saved. Off by default, because a log is about your account and the vault syncs. |
-| Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes, and **Copy debug info**'s note when there is no clipboard, go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. The folder rules are the same as the data folder's. |
+| Log folder | `logFolder` | `Garmin/diagnostics` | Where those notes, and **Save debug info**'s notes, go. Vaults set up before 0.2 keep the `garmin-probe-logs` they were given. The folder rules are the same as the data folder's. |
 
 **Sync speed** paces every request to Garmin (syncs, the history download and pages loading on view)
 and sets how many days a sync fetches at once:

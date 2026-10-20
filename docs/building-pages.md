@@ -504,13 +504,14 @@ the build, with components mounted with `mount()` and torn down with `unmount()`
     copied to the top of `styles.css`, less the old-browser fallbacks and `!important` the
     Community directory's review flags; `tests/leaflet-styles.test.ts` lists each edit and fails if
     the copy drifts from the installed Leaflet.
-- **Settings keep native controls.** The settings panel is a Svelte component, but every row is
-  built with Obsidian's own `Setting` API through a small action (`src/ui/svelte/obsidian-setting.ts`).
-  Svelte decides which rows exist, so a row can come and go without rebuilding the pane or losing
-  the scroll position.
-- **Obsidian comes into the components through actions** (`obsidian-setting.ts`, `home/lucide.ts`,
-  `activity/map/toggle.ts`). A few components import it directly: `SettingsPanel.svelte` and
-  `settings/DataSection.svelte` for `Notice` and `normalizePath`, `ChartsTab.svelte` for `Platform`,
+- **Settings are declared, not drawn.** `GarminSettingTab.getSettingDefinitions()` (`src/settings.ts`)
+  lists every row, so Obsidian draws them natively and its settings search finds them. Plain values
+  are `control` rows bound through `getControlValue`/`setControlValue`; rows with side effects or
+  live text use `render`, and the Data rows share `SettingsDataRows` (`src/ui/settings-data-rows.ts`),
+  which listens to the sync only while one of them is on screen. The download block is the one Svelte
+  component in the tab (`settings/DataStatus.svelte`).
+- **Obsidian comes into the components through actions** (`home/lucide.ts`,
+  `activity/map/toggle.ts`). A few components import it directly: `ChartsTab.svelte` for `Platform`,
   and the menus (the sub-type picker, All Activities' Sort, the Charts pickers).
 - **Avoid Obsidian's global class names** (`.card`, `.prompt`, `.message`, `.notice`, `.menu`):
   Obsidian styles them. Pages use container queries at 640 and 1000.

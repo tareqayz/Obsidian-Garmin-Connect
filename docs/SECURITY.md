@@ -145,12 +145,12 @@ syncs back to your desktop. The folder is the **Log folder** in the Advanced set
 (`Garmin/diagnostics` in a new vault). A run is saved only when you press **Save to vault**, unless
 **Save every diagnostics run to the vault** is on, which it isn't by default.
 
-**Copy debug info** gathers what a bug report needs, with no network request and no sign-in:
+**Save debug info** gathers what a bug report needs, with no network request and no sign-in:
 versions, platform, the settings without the email, the history download's state, the last sync
-with its warnings, request counts and what the data folder holds. Where there is no clipboard, it
-saves a note in the **Log folder** instead.
+with its warnings, request counts and what the data folder holds. It saves them as a note in the
+**Log folder** and opens it; the plugin never reads or writes the clipboard.
 
-Both are **redacted before anything is written or copied:**
+Both are **redacted before anything is written:**
 - Email addresses are masked to their first three characters and their domain.
 - Tokens keep their first 10 characters and their length: enough to tell runs apart, not enough to
   use. Service tickets aren't logged at all.
