@@ -55,12 +55,6 @@ export class ProbeModal extends Modal {
 				) => this.alone(log, () => runPersistenceProbe(this.plugin.garmin, log, { email, password, requestMfaCode })),
 				runFitness: (log: ProbeLog) => this.alone(log, () => runFitnessProbe(this.plugin.garmin, log)),
 				onFinished: (verdict: Verdict) => new Notice(`Garmin probe: ${verdict}`),
-				onCopyLog: (text: string) => {
-					navigator.clipboard
-						.writeText(text)
-						.then(() => new Notice("Probe log copied."))
-						.catch(() => new Notice("Clipboard unavailable — use “Save to vault”."));
-				},
 				onSaveLog: (text: string, quiet: boolean) => this.saveLog(text, quiet),
 				onClose: () => this.close(),
 			},

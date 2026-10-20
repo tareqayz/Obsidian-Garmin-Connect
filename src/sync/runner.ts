@@ -173,7 +173,7 @@ export class SyncRunner {
 	private unitFailures = 0;
 	/** Set by Stop syncing: the sync or history walk in progress stops after the day or window it is on. */
 	private foregroundCancel = false;
-	/** The last sync someone started this session, for Copy debug info. */
+	/** The last sync someone started this session, for Save debug info. */
 	lastSync: { at: string; from: string; to: string; report: SyncReport } | null = null;
 	/** When this device last wrote its lease. */
 	private leaseWrittenAt = 0;
