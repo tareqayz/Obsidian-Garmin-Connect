@@ -6,6 +6,14 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Changed
+
+- **Install from Obsidian's community plugins.** The plugin is now listed in the
+  [community plugin directory](https://community.obsidian.md/plugins/garmin-connect); the docs
+  describe that install first, and BRAT for betas.
+
 ## [1.0.3] — 2026-10-20
 
 ### Changed

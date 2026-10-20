@@ -134,7 +134,7 @@ day, which is why a recent sync always covers yesterday too.
 
 Another device updated the plugin and wrote its files in a newer format. This device stops rather
 than write its older format over them, which would make the two devices undo each other's work.
-Update the plugin here (in BRAT, **Check for updates**), and the sync and the history download carry
+Update the plugin here (**Settings → Community plugins → Check for updates**, or in BRAT, **Check for updates**), and the sync and the history download carry
 on.
 
 ## Pages and charts
