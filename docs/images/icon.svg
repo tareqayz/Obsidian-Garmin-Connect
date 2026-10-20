@@ -1,16 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Garmin Connect for Obsidian">
-  <!-- Lucide "watch", ISC, https://lucide.dev/license — the plugin's ribbon icon, white on Obsidian purple. -->
+  <!-- Lucide "watch", ISC, https://lucide.dev/license — the plugin's ribbon icon. The tile copies the
+       Community directory's icon (community.obsidian.md/plugins/garmin-connect): #027aff with a
+       #8b5cf6 glow from the bottom and a soft-light sheen, so the README and the listing match. -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="48" cy="124.8" r="133.7">
       <stop offset="0" stop-color="#8B5CF6"/>
-      <stop offset="1" stop-color="#6D28D9"/>
+      <stop offset="0.9" stop-color="#8B5CF6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.18"/>
     </linearGradient>
+    <clipPath id="tile"><rect width="96" height="96" rx="19.2"/></clipPath>
   </defs>
-  <rect width="96" height="96" rx="22" fill="url(#tile)"/>
-  <g transform="translate(18 18) scale(2.5)" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 10v2.2l1.6 1"/>
-    <path d="m16.13 7.66-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05"/>
-    <path d="m7.88 16.36.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05"/>
-    <circle cx="12" cy="12" r="6"/>
+  <g clip-path="url(#tile)">
+    <rect width="96" height="96" fill="#027AFF"/>
+    <rect width="96" height="96" fill="url(#glow)"/>
+    <rect width="96" height="96" fill="url(#sheen)" style="mix-blend-mode:soft-light"/>
+  </g>
+  <rect x="0.6" y="0.6" width="94.8" height="94.8" rx="18.6" fill="none" stroke="#fff" stroke-opacity="0.1" stroke-width="1.2"/>
+  <g transform="translate(24 24) scale(2)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(0 0.6)" stroke="#000" stroke-opacity="0.2">
+      <path d="M12 10v2.2l1.6 1"/>
+      <path d="m16.13 7.66-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05"/>
+      <path d="m7.88 16.36.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05"/>
+      <circle cx="12" cy="12" r="6"/>
+    </g>
+    <g stroke="#fff">
+      <path d="M12 10v2.2l1.6 1"/>
+      <path d="m16.13 7.66-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05"/>
+      <path d="m7.88 16.36.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05"/>
+      <circle cx="12" cy="12" r="6"/>
+    </g>
   </g>
 </svg>

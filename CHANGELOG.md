@@ -10,9 +10,10 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ### Changed
 
-- **Install from Obsidian's community plugins.** The plugin is now listed in the
+- **README and INSTALLATION docs** The plugin is now listed in the
   [community plugin directory](https://community.obsidian.md/plugins/garmin-connect); the docs
   describe that install first, and BRAT for betas.
+- **README SVG Plugin icon**
 
 ## [1.0.3] — 2026-10-20
 
