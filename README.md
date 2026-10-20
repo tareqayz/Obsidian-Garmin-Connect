@@ -74,13 +74,12 @@ flowchart LR
 
 ## Install
 
-The plugin is in Obsidian's [community plugin directory](https://community.obsidian.md/plugins/garmin-connect).
-It needs Obsidian 1.13.0 or later.
+Install the plugin from Obsidian's [community plugin directory](https://community.obsidian.md/plugins/garmin-connect). Requires **Obsidian 1.13.0 or later**.
 
 1. In Obsidian, open **Settings → Community plugins** and choose **Browse**.
 2. Search for **Garmin Connect**, then choose **Install** and **Enable**.
 
-To try betas with BRAT, install by hand or build from source, see [Installation](docs/INSTALLATION.md).
+For beta releases through BRAT, manual installation or building from source, see the [installation guide](docs/INSTALLATION.md).
 
 ## Get started
 
