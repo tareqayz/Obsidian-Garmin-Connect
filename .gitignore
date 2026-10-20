@@ -17,3 +17,4 @@ scripts/.api-record-file.mjs
 tests/.build-*/
 ref/
 scripts/.release-notes.mjs
+brag-output
