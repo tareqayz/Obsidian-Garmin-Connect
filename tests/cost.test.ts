@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import type { Task } from "../src/sync/backfill";
 import {
 	asObserved,
+	calibrate,
+	CALIBRATE_MIN,
 	chunkDays,
 	costContext,
 	dayUnit,
@@ -11,6 +13,7 @@ import {
 	detailUnit,
 	freshHour,
 	listRequests,
+	MEASURED_SIZES,
 	nextUnit,
 	observe,
 	requestsOn,
@@ -190,6 +193,26 @@ describe("the timelines' horizon in the cost", () => {
 		assert.equal(requestsOn(old, ctx()), 11);
 		assert.equal(requestsOn(old, ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } })), 15);
 		assert.equal(requestsOn(shiftDate(MEASURED.today, -60), ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: 50 } })), 11);
+	});
+});
+
+describe("the vault's own sizes", () => {
+	const series = (n: number, date: string, bytes: number) => Array.from({ length: n }, () => [date, bytes] as const);
+
+	it("stand in for the measured ones once the vault holds enough files of a kind", () => {
+		const cut = "2026-06-01";
+		const files = {
+			series: [...series(CALIBRATE_MIN.series, "2026-09-01", 40_000), ...series(CALIBRATE_MIN.series - 1, "2026-01-01", 1_000)],
+			details: Array.from({ length: CALIBRATE_MIN.details }, (_, i) => [i, 90_000] as const),
+		};
+		const sizes = calibrate(MEASURED_SIZES, files, { cut, profileOf: (id) => (id < 5 ? "run" : id < 10 ? "run" : undefined) });
+		assert.equal(sizes.timelines, 40_000);
+		// One file short of enough: the measured size stays.
+		assert.equal(sizes.oldTimelines, MEASURED_SIZES.oldTimelines);
+		assert.equal(sizes.details.run, 90_000);
+		assert.equal(sizes.details.ride, MEASURED_SIZES.details.ride);
+		// A vault just set up holds nothing of its own.
+		assert.deepEqual(calibrate(MEASURED_SIZES, { series: [], details: [] }, { cut, profileOf: () => undefined }), MEASURED_SIZES);
 	});
 });
 

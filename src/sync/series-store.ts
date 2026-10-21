@@ -63,11 +63,12 @@ import {
 	type Span,
 } from "./coverage";
 import { parseScan, serializeScan, type AccountScan, type Learned } from "./scan";
-import { parseHorizon } from "./horizons";
+import { parseHorizon, plannedCut } from "./horizons";
 import { DAY_DETAILS_VERSION } from "./datasets";
 import { factSpan, factStores, type DayFacts, type FactSpans, type Masks, type MaskVerdicts } from "./day-facts";
+import { calibrate, MEASURED_SIZES, type MeasuredFiles, type SizeModel } from "./cost";
 import type { MetricGroup } from "./metrics";
-import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
+import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta, type DetailCandidate } from "./backfill";
 import { NewerDataError, asideName, isConflictCopy, isReadable, versionOf } from "./file-health";
 
 /**
@@ -440,6 +441,42 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 			}
 		}
 		return usage;
+	}
+
+	/**
+	 * What the vault's own series files and activity pages weigh, for the
+	 * estimate (`calibrate`): from the vault's file list alone, nothing read.
+	 */
+	measuredFiles(): MeasuredFiles {
+		const series: Array<[string, number]> = [];
+		const details: Array<[number, number]> = [];
+		const walk = (folder: TFolder, take: (file: TFile) => void) => {
+			for (const child of folder.children) {
+				if (child instanceof TFolder) walk(child, take);
+				else if (child instanceof TFile) take(child);
+			}
+		};
+		const seriesFolder = this.app.vault.getAbstractFileByPath(this.join(SERIES_FOLDER));
+		if (seriesFolder instanceof TFolder) {
+			walk(seriesFolder, (file) => {
+				const date = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(file.name)?.[1];
+				if (date) series.push([date, file.stat.size]);
+			});
+		}
+		const detailsFolder = this.app.vault.getAbstractFileByPath(this.join(ACTIVITY_DETAILS_FOLDER));
+		if (detailsFolder instanceof TFolder) {
+			walk(detailsFolder, (file) => {
+				const id = /^(\d+)\.json$/.exec(file.name)?.[1];
+				if (id) details.push([Number(id), file.stat.size]);
+			});
+		}
+		return { series, details };
+	}
+
+	/** The size model for this vault's estimates: the measured sizes, with its own averages where it holds enough files (`calibrate`). */
+	sizesFor(masks: Masks, activities: readonly DetailCandidate[], today: string): SizeModel {
+		const profiles = new Map(activities.map((a) => [a.id, a.profile]));
+		return calibrate(MEASURED_SIZES, this.measuredFiles(), { cut: plannedCut(masks.horizon, today), profileOf: (id) => profiles.get(id) });
 	}
 
 	/** Whether any day or activity has reached this device's data folder. */

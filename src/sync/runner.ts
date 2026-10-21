@@ -1306,7 +1306,7 @@ export class SyncRunner {
 		const activities = index.rows.map((row) => this.candidateOf(row));
 		const masks = await store.readMasks(settings.groups, charts, scan);
 		this.backfillMasks = masks;
-		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles, masks });
+		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles, masks }, { sizes: store.sizesFor(masks, activities, today) });
 		const tasks = planBackfill({
 			today,
 			groups: settings.groups,
@@ -1692,7 +1692,7 @@ export class SyncRunner {
 			return { days, requests, bytes: Math.round(at.reduce((n, u) => n + u.bytes, 0)), seconds: at.reduce((n, u) => n + u.seconds, 0), background: false };
 		}
 		const masks = await store.readMasks(settings.groups, charts, scan);
-		const later = unitsOf([task], costContext({ ...input, masks }));
+		const later = unitsOf([task], costContext({ ...input, masks }, { sizes: store.sizesFor(masks, activities, today) }));
 		return {
 			days,
 			requests: later.reduce((n, u) => n + u.requests, 0),

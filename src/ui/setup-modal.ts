@@ -99,6 +99,7 @@ export class SetupModal extends Modal {
 		}
 		const held = { days, activities: [...detailFiles.values()].filter((v) => v === ACTIVITY_DETAILS_VERSION).length, bytes: store.diskUsage().total };
 		const today = toIsoDate();
+		const sizes = store.sizesFor(masks, activities, today);
 		const budget = this.plugin.sync.budgetOutlook();
 		return {
 			held,
@@ -115,6 +116,7 @@ export class SetupModal extends Modal {
 					activities,
 					detailFiles,
 					masks,
+					sizes,
 					since: settings.setup?.completedAt.slice(0, 10) ?? today,
 					budget,
 					now: Date.now(),

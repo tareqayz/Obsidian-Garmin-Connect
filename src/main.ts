@@ -352,8 +352,11 @@ export default class GarminPlugin extends Plugin {
 			store.readDetailCoverage(),
 			store.readBackfill(),
 		]);
+		const today = toIsoDate();
+		const activities = index.rows.map((row) => this.candidateOf(row));
+		const masks = await store.readMasks(settings.groups, charts, scan);
 		return {
-			today: toIsoDate(),
+			today,
 			groups: settings.groups,
 			accepted: settings.data.accepted,
 			deferred: settings.data.deferred,
@@ -363,9 +366,10 @@ export default class GarminPlugin extends Plugin {
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			activities: index.rows.map((row) => this.candidateOf(row)),
+			activities,
 			detailFiles,
-			masks: await store.readMasks(settings.groups, charts, scan),
+			masks,
+			sizes: store.sizesFor(masks, activities, today),
 			...(backfill.ranges ? { ranges: backfill.ranges } : {}),
 			budget: this.sync.budgetOutlook(),
 			now: Date.now(),

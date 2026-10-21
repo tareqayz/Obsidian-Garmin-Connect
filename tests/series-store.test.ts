@@ -334,3 +334,18 @@ describe("VaultSeriesStore: two writes making the same file", () => {
 		assert.ok(vault.text(`${DATA}/scan.json`));
 	});
 });
+
+describe("VaultSeriesStore: what the vault's own files weigh", () => {
+	it("lists each series file by its date and each activity's page by its id, from the file list alone", () => {
+		const { vault, store } = setup();
+		vault.seed(`${DATA}/series/2026-10-01.json`, "x".repeat(500));
+		vault.seed(`${DATA}/activity-details/123.json`, "y".repeat(2_000));
+		vault.seed(`${DATA}/activity-details/index.json`, "{}");
+		const reads = vault.reads.length;
+		const files = store.measuredFiles();
+		assert.deepEqual(files.series, [["2026-10-01", 500]]);
+		assert.deepEqual(files.details, [[123, 2_000]]);
+		assert.equal(vault.reads.length, reads);
+	});
+});
+

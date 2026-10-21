@@ -42,6 +42,44 @@ export interface SizeModel {
 	details: Record<DetailProfile, number>;
 }
 
+/** What the vault's own files weigh, from its file list (`VaultSeriesStore.measuredFiles`): series files by date, activity pages by id. */
+export interface MeasuredFiles {
+	series: ReadonlyArray<readonly [date: string, bytes: number]>;
+	details: ReadonlyArray<readonly [id: number, bytes: number]>;
+}
+
+/** Files of a kind the vault must hold before its own average stands in for the measured one: a few odd files mustn't move the estimate. */
+export const CALIBRATE_MIN = { series: 30, details: 10 } as const;
+
+/**
+ * The size model with the vault's own averages wherever it holds enough files
+ * of a kind: series files either side of the timelines' horizon (`cut`, the
+ * newest day past it), and activity pages by profile. A vault just set up
+ * holds none, and keeps the measured sizes.
+ */
+export function calibrate(base: SizeModel, files: MeasuredFiles, ctx: { cut: string | null; profileOf: (id: number) => DetailProfile | undefined }): SizeModel {
+	const recent: number[] = [];
+	const old: number[] = [];
+	for (const [date, bytes] of files.series) (ctx.cut !== null && date <= ctx.cut ? old : recent).push(bytes);
+	const pages = new Map<DetailProfile, number[]>();
+	for (const [id, bytes] of files.details) {
+		const profile = ctx.profileOf(id);
+		if (!profile) continue;
+		const list = pages.get(profile);
+		if (list) list.push(bytes);
+		else pages.set(profile, [bytes]);
+	}
+	const mean = (xs: readonly number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
+	const details = { ...base.details };
+	for (const [profile, xs] of pages) if (xs.length >= CALIBRATE_MIN.details) details[profile] = mean(xs);
+	return {
+		...base,
+		timelines: recent.length >= CALIBRATE_MIN.series ? mean(recent) : base.timelines,
+		oldTimelines: old.length >= CALIBRATE_MIN.series ? mean(old) : base.oldTimelines,
+		details,
+	};
+}
+
 export const MEASURED_SIZES: SizeModel = {
 	dayFile: 4_780,
 	emptyDay: 1_560,
