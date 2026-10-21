@@ -4,61 +4,47 @@ import type { GarminDomain } from "./garmin/constants";
 import type GarminPlugin from "./main";
 import { DEFAULT_SETTINGS, type GarminSettings } from "./settings-data";
 import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, isActivityDetailsRange, isDayDetailsRange } from "./sync/datasets";
-import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "./sync/metrics";
+import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { folderProblem } from "./sync/vault-paths";
 import { DeleteDataModal } from "./ui/delete-data-modal";
 import { SettingsDataRows } from "./ui/settings-data-rows";
 import DataStatus from "./ui/svelte/settings/DataStatus.svelte";
 
 /**
- * Each metric group's row: a short name, what it holds in a few words, and
- * the words the longer list used to say, kept as search aliases.
+ * Each metric group's row: a short name, what it holds in one sentence, and
+ * the words the longer list used to say, kept as search aliases. What a group
+ * costs in requests is for the docs (`docs/settings.md`, Metrics), not here.
  */
-const GROUPS: Record<MetricGroup, { name: string; holds: string; aliases: string[] }> = {
-	activity: { name: "Activity", holds: "Steps, distance, calories, floors, intensity minutes.", aliases: ["active minutes"] },
-	heart: { name: "Heart rate", holds: "Resting, min and max.", aliases: ["seven-day resting"] },
-	sleep: { name: "Sleep", holds: "Stages, score, need, SpO2.", aliases: ["sleep coach", "respiration", "restlessness"] },
-	stress: { name: "Stress and Body Battery", holds: "Levels, peaks, charge and drain.", aliases: ["body battery"] },
-	hrv: { name: "HRV", holds: "Overnight average, status, baseline.", aliases: ["heart rate variability"] },
-	readiness: { name: "Training readiness", holds: "Score, recovery time, factors.", aliases: ["recovery"] },
+const GROUPS: Record<MetricGroup, { name: string; desc: string; aliases: string[] }> = {
+	activity: { name: "Activity", desc: "Steps, distance, calories, floors and intensity minutes.", aliases: ["active minutes"] },
+	heart: { name: "Heart rate", desc: "Resting, lowest and highest heart rate.", aliases: ["seven-day resting", "min", "max"] },
+	sleep: { name: "Sleep", desc: "Sleep score, stages, need and SpO2.", aliases: ["sleep coach", "respiration", "restlessness"] },
+	stress: { name: "Stress and Body Battery", desc: "Stress levels and Body Battery charge and drain.", aliases: ["body battery"] },
+	hrv: { name: "HRV", desc: "Overnight HRV, its status and your baseline.", aliases: ["heart rate variability"] },
+	readiness: { name: "Training readiness", desc: "Readiness score, recovery time and its factors.", aliases: ["recovery"] },
 	fitness: {
 		name: "Fitness",
-		holds: "VO2 Max, fitness age, endurance, hill score.",
+		desc: "VO2 Max, fitness age, endurance and hill scores.",
 		aliases: ["vo2 max", "fitness age", "endurance score", "hill score", "heat acclimation", "altitude acclimation"],
 	},
-	races: { name: "Race predictions", holds: "5K to marathon.", aliases: ["race predictor", "10k", "half marathon"] },
-	respiration: { name: "Respiration", holds: "Waking average, low, high.", aliases: ["breathing"] },
-	spo2: { name: "Pulse ox", holds: "Average, lowest, latest SpO2.", aliases: ["spo2", "oxygen"] },
-	body: { name: "Body composition", holds: "Weight, BMI, body fat, muscle, bone.", aliases: ["weight", "bmi", "body fat"] },
+	races: { name: "Race predictions", desc: "Predicted race times from 5K to marathon.", aliases: ["race predictor", "10k", "half marathon"] },
+	respiration: { name: "Respiration", desc: "Breathing rate while awake: average, low and high.", aliases: ["breathing", "waking"] },
+	spo2: { name: "Pulse ox", desc: "Blood oxygen: average, lowest and latest.", aliases: ["spo2", "oxygen"] },
+	body: { name: "Body composition", desc: "Weight, BMI, body fat, muscle and bone mass.", aliases: ["weight", "bmi", "body fat"] },
 	training: {
 		name: "Training load",
-		holds: "Status, load, focus, running tolerance.",
+		desc: "Training status, load, load focus and running tolerance.",
 		aliases: ["training status", "acute load", "chronic load", "load ratio", "load focus", "running tolerance"],
 	},
-	workouts: { name: "Workouts", holds: "The day's activities.", aliases: ["activities"] },
-	intraday: { name: "Intraday charts", holds: "Heart rate, stress, steps and sleep through the day.", aliases: ["timelines", "body battery", "sleep stages"] },
-	health: { name: "Health status", holds: "Overnight vitals against your baseline.", aliases: ["health snapshot", "skin temperature"] },
+	workouts: { name: "Workouts", desc: "Your activities, with their maps, laps and charts.", aliases: ["activities"] },
+	intraday: { name: "Intraday charts", desc: "Heart rate, stress, steps and sleep through the day.", aliases: ["timelines", "body battery", "sleep stages"] },
+	health: { name: "Health status", desc: "Overnight vitals against your baseline.", aliases: ["health snapshot", "skin temperature"] },
 	profile: {
 		name: "Profile",
-		holds: "Watch, thresholds, FTP, events, records.",
+		desc: "Your watch, thresholds, FTP, race events and records.",
 		aliases: ["lactate threshold", "ftp", "running economy", "cycling ability", "coach plan", "personal records", "avatar"],
 	},
 };
-
-// Five of these ride along in the daily summary, so turning them on is free.
-// Saying which is the difference between an informed choice and a guess.
-const freeGroups = new Set<MetricGroup>(FREE_GROUPS);
-const rangeGroups = new Set<MetricGroup>(RANGE_GROUPS);
-
-function costOf(group: MetricGroup): string {
-	if (freeGroups.has(group)) return "Free.";
-	if (group === "intraday") return `${REQUESTS_PER_DAY.intraday} requests a day.`;
-	const perSync = REQUESTS_PER_SYNC[group];
-	if (perSync) return `About ${perSync} requests a sync.`;
-	if (rangeGroups.has(group)) return "1 request a sync.";
-	const n = REQUESTS_PER_DAY[group] ?? 1;
-	return n === 1 ? "1 request a day." : `${n} requests a day.`;
-}
 
 /** The settings a `control` row edits. A metric group's toggle is `group:<id>`. */
 type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "autoSaveLog" | `group:${MetricGroup}`;
@@ -246,7 +232,7 @@ export class GarminSettingTab extends PluginSettingTab {
 		];
 	}
 
-	/** One switch per metric group, each with what it holds and costs. */
+	/** One switch per metric group, each with what it holds. */
 	private metricsPage(): SettingDefinitionItem<ControlKey>[] {
 		return [
 			{
@@ -256,11 +242,11 @@ export class GarminSettingTab extends PluginSettingTab {
 						// A row without a name, control or render isn't drawn at all.
 						name: "",
 						searchable: false,
-						render: (setting) => void setting.setDesc("Turn off what you don't need. Free groups share one daily request."),
+						render: (setting) => void setting.setDesc("Turn off what you don't need."),
 					},
 					...ALL_GROUPS.map((group) => ({
 						name: GROUPS[group].name,
-						desc: `${GROUPS[group].holds} ${costOf(group)}`,
+						desc: GROUPS[group].desc,
 						aliases: GROUPS[group].aliases,
 						control: { type: "toggle" as const, key: `group:${group}` as const },
 					})),

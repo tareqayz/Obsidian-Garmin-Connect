@@ -63,36 +63,6 @@ export const ALL_GROUPS: MetricGroup[] = [
 	"profile",
 ];
 
-/** Groups that ride on the daily summary request and cost nothing extra, for the budget note in settings. */
-export const FREE_GROUPS: MetricGroup[] = ["activity", "heart", "stress", "respiration", "spo2"];
-
-/**
- * Per-day requests a group adds on its own, for the budget note in settings.
- * `intraday` is the expensive one, which is why a sync spends it only on the
- * days inside Day details (`SyncOptions.intradayDays`).
- */
-export const REQUESTS_PER_DAY: Partial<Record<MetricGroup, number>> = {
-	sleep: 1,
-	hrv: 1,
-	readiness: 1,
-	fitness: 2,
-	body: 1,
-	training: 1,
-	intraday: 6,
-	health: 1,
-};
-
-/**
- * Groups whose only request is a range one: a single call covers a sync's whole
- * window (one per year of a longer backfill), for the budget note in settings.
- */
-export const RANGE_GROUPS: MetricGroup[] = ["races", "workouts"];
-
-/** Groups billed per sync rather than per day, for the budget note in settings. */
-export const REQUESTS_PER_SYNC: Partial<Record<MetricGroup, number>> = {
-	profile: 9,
-};
-
 export type PropertyValue = number | string | Array<Record<string, unknown>>;
 export type Properties = Record<string, PropertyValue>;
 
