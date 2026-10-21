@@ -5,7 +5,7 @@
 	/**
 	 * Plugin-only: asked once after an update that adds data for the history
 	 * the vault already holds. Every line starts ticked; Later puts them all
-	 * off, to Settings → Data.
+	 * off, to Settings → History.
 	 */
 	interface Props {
 		lines: UpdateLine[];
@@ -31,7 +31,7 @@
 </script>
 
 <div class="gch-update">
-	<div class="intro">This version of Garmin Connect can fill in more of your history.</div>
+	<div class="intro">This update can add more to your history.</div>
 	<ul>
 		{#each lines as line (line.key)}
 			<li>

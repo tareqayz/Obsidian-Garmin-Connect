@@ -32,8 +32,8 @@
 
 <div class="gc-removed">
 	<div class="body">
-		Its synced data is still in your vault: {folder} ({formatBytes(bytes)}). This device's map tiles and Garmin session were
-		cleared. Moving the data to the trash removes it from every device your vault syncs to.
+		Its data is still in {folder} ({formatBytes(bytes)}). Trashing it removes it from every synced device. This device's
+		session and map tiles are already cleared.
 	</div>
 	{#if notes}
 		<label class="check">

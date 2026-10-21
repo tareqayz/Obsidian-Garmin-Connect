@@ -14,18 +14,18 @@
 	let { kind, onSetUp, onSignIn, onHide }: Props = $props();
 
 	const COPY: Record<SetupCardKind, { icon: string; title: string; body: string; action: string }> = {
-		finish: { icon: "history", title: "Finish setting up", body: "Choose how much of your history to keep in this vault.", action: "Set up" },
+		finish: { icon: "history", title: "Finish setting up", body: "Download your Garmin history into this vault.", action: "Set up" },
 		"signed-out": { icon: "lock", title: "Sign in to Garmin Connect", body: "Sign in to sync your health data and activities.", action: "Sign in" },
 		"this-device": {
 			icon: "monitor-smartphone",
 			title: "Not signed in on this device",
-			body: "Your Garmin data reaches this device through your vault sync. Sign in here as well to sync from this device too.",
+			body: "Your data arrives through your vault sync. Sign in to sync from this device too.",
 			action: "Sign in",
 		},
 		"no-data": {
 			icon: "folder-x",
 			title: "No Garmin data on this device",
-			body: "Your settings are here, but the data folder is empty. If you use Obsidian Sync, turn on Sync all other types — or download your history on this device.",
+			body: "The data folder is empty here. With Obsidian Sync, turn on Sync all other types, or download your history on this device.",
 			action: "Set up",
 		},
 	};

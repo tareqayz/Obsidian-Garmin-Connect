@@ -65,24 +65,20 @@
 		{days} day{days === 1 ? "" : "s"} · roughly {requests.toLocaleString()} requests
 		{#if minutes >= 1}· about {minutes} min{/if}
 	{:else}
-		That range is empty — the end date is before the start.
+		The end date is before the start.
 	{/if}
 </div>
 
 {#if valid && large}
 	<div class="caution">
-		Long backfills get rate limited. The sync runs newest first, so if it stops early you
-		still have the recent days.
+		Long ranges can hit Garmin's rate limit. Newest days come first, so a stop keeps them.
 		{#if requests > hourly}
-			This is more than the history download asks of Garmin in an hour. For a long stretch,
-			choose it under Day details in Settings → Data instead: the download spreads it over hours.
+			For months of days, use Settings → History → Day details: it spreads the work over hours.
 		{/if}
 		{#if stopAfterEmptyDays > 0}
-			It also gives up once it hits {stopAfterEmptyDays} days running with nothing in them,
-			so reaching back past the start of your Garmin history costs little.
+			It stops after {stopAfterEmptyDays} empty days in a row.
 		{:else}
-			“Stop after empty days” is off, so it will ask for every day in this range even if
-			your Garmin history does not go back that far.
+			Stop after empty days is off: every day is asked for.
 		{/if}
 	</div>
 {/if}
