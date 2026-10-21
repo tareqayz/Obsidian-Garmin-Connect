@@ -596,7 +596,10 @@ describe("fetchAllActivities", () => {
 		const got = await fetchAllActivities(source, { pause: 250, wait: async (ms) => void waits.push(ms), onPage: (n) => seen.push(n) });
 
 		assert.deepEqual(source.calls, ["0:100", "100:100", "200:100"]);
-		assert.equal(got.activities.length, 250);
+		assert.equal(got.listed, 250);
+		// Kept as the index's rows, not the list's objects.
+		assert.equal(got.rows.length, 250);
+		assert.deepEqual(Object.keys(got.rows[0]!).sort(), ["begin", "id", "start", "type"]);
 		assert.equal(got.complete, true);
 		assert.equal(got.requests, 3);
 		assert.deepEqual(seen, [100, 200, 250]);
@@ -605,14 +608,14 @@ describe("fetchAllActivities", () => {
 
 	it("stops on a 429 and keeps what came before it", async () => {
 		const got = await fetchAllActivities(paged(100), { wait: async () => {} });
-		assert.equal(got.activities.length, 100);
+		assert.equal(got.listed, 100);
 		assert.equal(got.complete, false);
 		assert.ok(got.fatal instanceof GarminRateLimitError);
 	});
 
 	it("reports any other failure without calling it fatal", async () => {
 		const got = await fetchAllActivities(paged(200, new GarminApiError("HTTP 500", 500, "")), { wait: async () => {} });
-		assert.equal(got.activities.length, 200);
+		assert.equal(got.listed, 200);
 		assert.equal(got.fatal, undefined);
 		assert.match(got.error!, /500/);
 	});
@@ -620,7 +623,7 @@ describe("fetchAllActivities", () => {
 	it("gives up on a list that ignores the page it was asked for", async () => {
 		const stuck = { async activities() { return history.slice(0, 100); } };
 		const got = await fetchAllActivities(stuck, { wait: async () => {} });
-		assert.equal(got.activities.length, 100);
+		assert.equal(got.listed, 100);
 		assert.equal(got.complete, false);
 		assert.match(got.error!, /stopped advancing/);
 	});

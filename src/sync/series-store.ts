@@ -540,7 +540,14 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	 * current year, and only when an activity was added or edited.
 	 */
 	async mergeActivities(listing: readonly Activity[], opts: MergeOptions): Promise<number> {
-		const listed = listing.map(rowOf).filter((r): r is ActivityRow => r !== null);
+		return this.mergeActivityRows(
+			listing.map(rowOf).filter((r): r is ActivityRow => r !== null),
+			opts,
+		);
+	}
+
+	/** `mergeActivities` for a listing already made rows, as the history walk keeps it. */
+	async mergeActivityRows(listed: readonly ActivityRow[], opts: MergeOptions): Promise<number> {
 		// A short page partway down reads as the end of the list, so only a
 		// listing about as long as Garmin's count may replace the index.
 		const expected = opts.total ?? (await this.readActivitiesMeta())?.total;

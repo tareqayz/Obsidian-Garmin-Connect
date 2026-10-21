@@ -644,13 +644,13 @@ export class SyncRunner {
 		requests += got.requests;
 		// Even cut short, what came back is the newest stretch with no gaps,
 		// which is what a routine sync merges too.
-		await store.mergeActivities(got.activities, {
+		await store.mergeActivityRows(got.rows, {
 			complete: got.complete,
 			units,
-			...(total !== undefined ? { total } : got.complete ? { total: got.activities.length } : {}),
+			...(total !== undefined ? { total } : got.complete ? { total: got.listed } : {}),
 		});
 		return {
-			fetched: got.activities.length,
+			fetched: got.listed,
 			complete: got.complete,
 			requests,
 			...(got.fatal ? { fatal: got.fatal } : {}),

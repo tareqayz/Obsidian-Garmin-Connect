@@ -27,6 +27,7 @@ import {
 import { GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { isFatal } from "./fatal";
+import { rowOf, type ActivityRow } from "./activity-index";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
@@ -1642,8 +1643,14 @@ export interface HistoryOptions {
 }
 
 export interface HistoryFetch {
-	/** Newest first, from the first page down, with nothing missing in between. */
-	activities: Activity[];
+	/**
+	 * Newest first, from the first page down, with nothing missing in between,
+	 * as the activity index keeps them: a few hundred bytes each rather than
+	 * the list's few kilobytes, as a long history comes in.
+	 */
+	rows: ActivityRow[];
+	/** Activities listed, rows or not: what Garmin's count is held against. */
+	listed: number;
 	requests: number;
 	/** The list ran out: this is the whole history. */
 	complete: boolean;
@@ -1662,7 +1669,7 @@ export async function fetchAllActivities(
 ): Promise<HistoryFetch> {
 	const size = Math.max(1, opts.pageSize ?? 100);
 	const wait = opts.wait ?? defaultWait;
-	const out: HistoryFetch = { activities: [], requests: 0, complete: false };
+	const out: HistoryFetch = { rows: [], listed: 0, requests: 0, complete: false };
 	const seen = new Set<unknown>();
 
 	for (let page = 0; ; page++) {
@@ -1684,9 +1691,13 @@ export async function fetchAllActivities(
 			out.error = "the activity list stopped advancing";
 			return out;
 		}
-		for (const a of fresh) seen.add(a.activityId);
-		out.activities.push(...fresh);
-		opts.onPage?.(out.activities.length);
+		for (const a of fresh) {
+			seen.add(a.activityId);
+			const row = rowOf(a);
+			if (row) out.rows.push(row);
+		}
+		out.listed += fresh.length;
+		opts.onPage?.(out.listed);
 
 		if (batch.length < size) {
 			out.complete = true;
