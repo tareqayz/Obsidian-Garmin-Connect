@@ -169,7 +169,7 @@ describe("PluginData", () => {
 	it("keeps values a slider can show", async () => {
 		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.stopAfterEmptyDays, 365);
-		assert.equal(data.settings.syncSpeed, "gentle");
+		assert.equal(data.settings.syncSpeed, "normal");
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
 	});
@@ -183,8 +183,8 @@ describe("PluginData", () => {
 		assert.equal(await speedFor(250), "normal");
 		assert.equal(await speedFor(0), "fast");
 		assert.equal(await speedFor(2000), "gentle");
-		// No pause saved at all: the default, Gentle.
-		assert.equal(await speedFor(undefined), "gentle");
+		// No pause saved at all: the default, Normal.
+		assert.equal(await speedFor(undefined), "normal");
 	});
 
 	it("drops the Days to sync setting a build before smart sync saved", async () => {

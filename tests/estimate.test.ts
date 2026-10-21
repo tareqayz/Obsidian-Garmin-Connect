@@ -132,6 +132,15 @@ describe("estimates — Activity details and Charts", () => {
 		assert.equal(set(estimate(input({ activities, activityDetails: "all" })), "activity-details").bytesPerYear, 122 * 154_000);
 	});
 
+	it("counts every activity from the scan when the activity list came up short", () => {
+		const held = { details: new Map([[1, ACTIVITY_DETAILS_VERSION]]) };
+		// The scan counted 150; the list holds 40 of them, its download having given way to a sync.
+		const short = { scan: account(4000, 150), activities: activities.slice(0, 40) };
+		assert.equal(set(estimate(input({ ...short, activityDetails: "all", held })), "activity-details").units, 149);
+		// A narrower range still counts the rows: the scan doesn't say when the missing ones were.
+		assert.equal(set(estimate(input({ ...short, activityDetails: "1y" })), "activity-details").units, 40);
+	});
+
 	it("walks every chart index over the history it lacks, and nothing over one already complete", () => {
 		const charts = set(estimate(input({ scan: account(365, 300) })), "charts");
 		assert.ok(charts.requests > 100 && charts.requests < 200, String(charts.requests));

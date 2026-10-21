@@ -10,13 +10,14 @@ import type { AccountScan, ScanStep } from "../sync/scan";
 import { VaultSeriesStore } from "../sync/series-store";
 import type { SyncSpeed } from "../sync/speed";
 import { explainSignIn } from "./login-modal";
-import { agreement, newDaysOnly, type Choices, type Prepared } from "./setup-flow";
+import { agreement, type Choices, type Prepared } from "./setup-flow";
 import Setup from "./svelte/setup/Setup.svelte";
 
 /**
- * The setup wizard: sign in, scan the account, choose what to keep, start
- * the download. Opens on the first enable, from Home's card, the command and
- * Settings → Data. On a phone it is a sheet on the bottom edge.
+ * The setup wizard: sign in, scan the account, then download all of it or
+ * choose under Advanced options. Opens on the first enable, from Home's card,
+ * the command and Settings → History. On a phone it is a sheet on the bottom
+ * edge.
  */
 export class SetupModal extends Modal {
 	private body: ReturnType<typeof mount> | undefined;
@@ -40,13 +41,12 @@ export class SetupModal extends Modal {
 				initialEmail: settings.email,
 				initialDomain: settings.domain,
 				onDomainChange: (domain: GarminDomain) => this.plugin.setDomain(domain),
-				onEmailChange: (email: string) => {
-					settings.email = email;
-					void this.plugin.data.saveSettings();
-				},
 				onSignIn: async (email: string, password: string, prompt: MfaPrompt) => {
 					try {
 						await this.plugin.garmin.login(email, password, { onMfaRequired: prompt });
+						// Saved once it signs in, so Settings names the account that did.
+						settings.email = email;
+						await this.plugin.data.saveSettings();
 						this.plugin.authChanged();
 						return null;
 					} catch (err) {
@@ -64,14 +64,9 @@ export class SetupModal extends Modal {
 					return got;
 				},
 				prepare: (scan: AccountScan) => this.prepare(scan),
-				initialChoices: { dayDetails: settings.data.dayDetails, activityDetails: settings.data.activityDetails },
+				kept: settings.setup ? { dayDetails: settings.data.dayDetails, activityDetails: settings.data.activityDetails } : null,
 				initialSpeed: settings.syncSpeed,
-				today: toIsoDate(),
-				onStart: (choices: Choices, speed: SyncSpeed) => void this.finish(choices, speed, agreement(settings.groups)),
-				onNewDaysOnly: (speed: SyncSpeed) => {
-					const only = newDaysOnly(settings.groups);
-					void this.finish(only.choices, speed, only);
-				},
+				onStart: (choices: Choices, speed: SyncSpeed, downloads: boolean) => void this.finish(choices, speed, agreement(settings.groups), downloads),
 				onCancel: () => this.close(),
 			},
 		});
@@ -120,7 +115,7 @@ export class SetupModal extends Modal {
 	}
 
 	/** Saves the choices and what they agree to, and starts the download in the background. */
-	private async finish(choices: Choices, speed: SyncSpeed, keys: { accepted: ConsentKey[]; deferred: ConsentKey[] }): Promise<void> {
+	private async finish(choices: Choices, speed: SyncSpeed, keys: { accepted: ConsentKey[]; deferred: ConsentKey[] }, downloads: boolean): Promise<void> {
 		const settings = this.plugin.data.settings;
 		const accepted = [...new Set([...settings.data.accepted, ...keys.accepted])];
 		settings.syncSpeed = speed;
@@ -135,6 +130,6 @@ export class SetupModal extends Modal {
 		this.plugin.setupChanged();
 		this.plugin.sync.kickBackfill();
 		this.close();
-		new Notice("Garmin Connect is set up. Your history downloads in the background.");
+		new Notice(downloads ? "Garmin Connect is set up. Your history is downloading." : "Garmin Connect is set up.");
 	}
 }

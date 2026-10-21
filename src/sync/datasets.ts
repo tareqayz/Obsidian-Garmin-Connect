@@ -110,6 +110,12 @@ export const ACTIVITY_DETAILS_RANGES: ReadonlyArray<{ id: ActivityDetailsRange; 
 	{ id: "all", label: "All activities" },
 ];
 
+/**
+ * The fallbacks for a range that was never chosen, or that `data.json` holds
+ * in a form this build can't read. Narrow, so a fallback never widens a
+ * download that is already agreed to. The setup recommends all of it
+ * (`RECOMMENDED` in `ui/setup-flow.ts`).
+ */
 export const DEFAULT_DAY_DETAILS: DayDetailsRange = "90d";
 export const DEFAULT_ACTIVITY_DETAILS: ActivityDetailsRange = "opened";
 

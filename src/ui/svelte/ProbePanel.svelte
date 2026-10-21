@@ -10,8 +10,8 @@
 	import type { Verdict } from "../../probe";
 
 	interface Props {
+		/** The signed-in account's email, to fill the field: a check never saves one. */
 		initialEmail: string;
-		onEmailChange: (email: string) => void;
 		/** Each runner is handed the log and the MFA prompt it may need. */
 		runFingerprint: (log: ProbeLog) => Promise<void>;
 		runLogin: (
@@ -36,7 +36,6 @@
 
 	let {
 		initialEmail,
-		onEmailChange,
 		runFingerprint,
 		runLogin,
 		runPersistence,
@@ -108,19 +107,13 @@
 <h2>Garmin Connect — diagnostics</h2>
 
 <div class="caution">
-	<strong>Before you run this.</strong> Garmin rate-limits login attempts per IP and can lock an
-	account after repeated failures. Run these deliberately, not in a loop, and leave 15-30 minutes
-	between attempts if you see a 429.
+	Garmin can lock an account after repeated sign-ins. Run one check at a time, and wait 15–30
+	minutes after a 429.
 </div>
 
 <div class="field">
 	<label for="gcp-email">Email</label>
-	<input
-		id="gcp-email"
-		type="email"
-		bind:value={email}
-		oninput={() => onEmailChange(email.trim())}
-	/>
+	<input id="gcp-email" type="email" bind:value={email} />
 </div>
 <div class="field">
 	<label for="gcp-password">Password</label>

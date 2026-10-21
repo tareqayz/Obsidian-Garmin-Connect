@@ -30,15 +30,14 @@ export class LoginModal extends Modal {
 				initialEmail: this.plugin.data.settings.email,
 				initialDomain: this.plugin.data.settings.domain,
 				onDomainChange: (domain: GarminDomain) => this.plugin.setDomain(domain),
-				onEmailChange: (email: string) => {
-					this.plugin.data.settings.email = email;
-					void this.plugin.data.saveSettings();
-				},
 				onSubmit: async (email: string, password: string, onMfaRequired: MfaPrompt) => {
 					try {
 						// The form owns the code prompt and hands it over here, so the
 						// whole sign-in stays one await and the SSO cookies survive it.
 						await this.plugin.garmin.login(email, password, { onMfaRequired });
+						// Saved once it signs in, so Settings names the account that did.
+						this.plugin.data.settings.email = email;
+						await this.plugin.data.saveSettings();
 						new Notice("Signed in to Garmin Connect.");
 						this.plugin.authChanged();
 						this.onDone?.();
@@ -65,17 +64,17 @@ export class LoginModal extends Modal {
 /** A failed sign-in, in words, for the sign-in form and the setup's. */
 export function explainSignIn(err: unknown): string {
 	if (err instanceof GarminMfaCancelledError) {
-		return "Sign-in cancelled at the verification code step.";
+		return "Sign-in cancelled.";
 	}
 	if (err instanceof GarminMfaRequiredError) {
 		// Only reachable if this modal ever stops passing a prompt down.
-		return `Garmin asked for a verification code (${err.method}) and nothing offered one.`;
+		return `Garmin asked for a verification code (${err.method}) this sign-in can't take.`;
 	}
 	if (err instanceof GarminRateLimitError) {
-		return "Garmin is rate limiting this network. Wait 15–30 minutes before trying again.";
+		return "Garmin is limiting this network. Try again in 15–30 minutes.";
 	}
 	if (err instanceof GarminBlockedError) {
-		return "Garmin's edge refused the request — a bot challenge, not your password. Wait an hour, then try again; Run diagnostics says more.";
+		return "Garmin's bot check refused this sign-in. It's not your password. Try again in an hour.";
 	}
 	return err instanceof Error ? err.message : String(err);
 }

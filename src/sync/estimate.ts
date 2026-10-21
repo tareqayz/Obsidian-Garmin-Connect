@@ -11,7 +11,7 @@ import { secondsPerDay, SYNC_SPEEDS, type SyncSpeed } from "./speed";
 
 /**
  * How much a choice of data sets stores and how long its backfill takes, for
- * the setup and Settings → Data. Sizes were measured on a vault of 439 days
+ * the setup and Settings → History. Sizes were measured on a vault of 439 days
  * and 233 run pages on 2026-10-14; times follow the sync speed and the backfill's
  * hourly budget. Every figure is an estimate, shown as "about".
  *
@@ -289,7 +289,13 @@ function dayDetails(input: EstimateInput, start: string | undefined): Part {
 function activityDetails(input: EstimateInput, start: string | undefined): Part {
 	const from = rangeStart(input.activityDetails, input.today, start);
 	const held = input.held?.details;
-	const units = from ? input.activities.filter((a) => a.date >= from && held?.get(a.id) !== ACTIVITY_DETAILS_VERSION).length : 0;
+	let units = from ? input.activities.filter((a) => a.date >= from && held?.get(a.id) !== ACTIVITY_DETAILS_VERSION).length : 0;
+	// The list comes up short of the scan's count when its download gave way to a
+	// sync. Every activity is then counted from the scan instead.
+	if (from && input.activityDetails === "all" && input.activities.length < input.scan.activities) {
+		const heldNow = held ? [...held.values()].filter((version) => version === ACTIVITY_DETAILS_VERSION).length : 0;
+		units = Math.max(units, input.scan.activities - heldNow);
+	}
 	const lastYear = shiftDate(input.today, -364);
 	const perYear = input.activities.filter((a) => a.date >= lastYear).length;
 	const requests = units * DETAIL_REQUESTS;

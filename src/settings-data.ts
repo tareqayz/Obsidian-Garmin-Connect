@@ -38,7 +38,7 @@ export interface DataChoices {
 	activityDetails: ActivityDetailsRange;
 	/** Agreed to: their gaps fill without asking. */
 	accepted: ConsentKey[];
-	/** Put off with Later: listed in Settings → Data, not asked about again. */
+	/** Put off with Later: listed in Settings → History, not asked about again. */
 	deferred: ConsentKey[];
 }
 
@@ -88,15 +88,15 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	dataFolder: "Garmin/data",
 	syncOnStartup: false,
 	setup: null,
-	// Runs only when opened: ten requests a run, every run in the history, is
-	// a lot to ask of Garmin unprompted. The setup offers more.
+	// Narrow on purpose: these also stand in for a saved range that can't be
+	// read, which must never widen a download. The setup recommends all of it.
 	data: defaultData(),
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,
-	// Gentle until the plugin has met more accounts than one: every install
-	// looks alike to Garmin.
-	syncSpeed: "gentle",
+	// Normal for a new vault, so the history the setup recommends comes in about
+	// twice as fast as at Gentle. A vault that saved Gentle keeps it.
+	syncSpeed: "normal",
 	// A backfill that reaches past the start of your Garmin history would
 	// otherwise keep asking, four requests a day, until Garmin rate-limits it.
 	stopAfterEmptyDays: 45,
