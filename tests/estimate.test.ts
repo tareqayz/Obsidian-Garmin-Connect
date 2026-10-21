@@ -1,158 +1,100 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { ACTIVITY_DETAILS_VERSION } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_KEY, chartKeys, DAY_DETAILS_KEY } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
-import {
-	chunkDays,
-	costOf,
-	DETAIL_BYTES,
-	estimate,
-	formatBytes,
-	formatDuration,
-	requestsPerChunk,
-	requestsPerDay,
-	UPGRADE_REQUESTS,
-	withBudget,
-	type EstimateInput,
-} from "../src/sync/estimate";
+import { estimate, estimateDelta, formatBytes, formatDuration, type EstimateInput } from "../src/sync/estimate";
 import { ALL_GROUPS } from "../src/sync/metrics";
-import type { AccountScan } from "../src/sync/scan";
+import { MEASURED, TEN_YEARS } from "./support/account-fixture";
 
-const TODAY = "2026-10-14";
+const NOW = Date.parse("2026-10-21T08:00:00Z");
+const EVERYTHING = [...chartKeys(ALL_GROUPS), DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY];
 
-/** An account with data every day for `days` days up to today, weeks ending today. */
-function account(days: number, activities = 0): AccountScan {
-	const first = shiftDate(TODAY, -(days - 1));
-	const weeks: Array<[string, number]> = [];
-	for (let end = TODAY; end >= first; end = shiftDate(end, -7)) {
-		const week = shiftDate(end, -6);
-		weeks.unshift([week, week >= first ? 7 : Math.round((Date.parse(end) - Date.parse(first)) / 86_400_000) + 1]);
-	}
-	return { scannedAt: "2026-10-14T06:00:00.000Z", firstDay: first, days, weeks, activities, complete: true };
-}
-
-const input = (over: Partial<EstimateInput> = {}): EstimateInput => ({
-	today: TODAY,
+/** A fresh setup of an account like `account`, downloading all of it. */
+const input = (account: typeof MEASURED, over: Partial<EstimateInput> = {}): EstimateInput => ({
+	today: account.today,
 	groups: ALL_GROUPS,
-	scan: account(4000),
-	dayDetails: "new",
-	activityDetails: "opened",
-	activities: [],
+	accepted: EVERYTHING,
+	dayDetails: "all",
+	activityDetails: "all",
+	since: account.today,
+	scan: account.scan,
+	daySpans: [],
+	charts: new Map(),
+	activities: account.activities,
+	detailFiles: new Map(),
+	now: NOW,
 	...over,
 });
 
 const set = (got: ReturnType<typeof estimate>, id: string) => got.sets.find((s) => s.id === id)!;
 
-describe("costOf: Activity details", () => {
-	it("prices a run saved by the version before at two requests and no new bytes", () => {
-		const whole = costOf({ set: "activity-details", store: "activity-details", units: 3 }, []);
-		const upgraded = costOf({ set: "activity-details", store: "activity-details", units: 3, upgrades: 2 }, []);
-		assert.deepEqual([whole.requests, whole.bytes], [33, 3 * DETAIL_BYTES]);
-		assert.deepEqual([upgraded.requests, upgraded.bytes], [11 + 2 * UPGRADE_REQUESTS, DETAIL_BYTES]);
-		assert.equal(UPGRADE_REQUESTS, 2);
-		assert.ok(upgraded.seconds < whole.seconds);
+describe("estimates — the measured vault, from scratch", () => {
+	const got = estimate(input(MEASURED));
+
+	it("asks what the download asks: the charts, 445 days, 344 activities", () => {
+		// The list (5) and every walk; the days through yesterday, 15 each and 6 a chunk; each activity by its sport.
+		assert.deepEqual([set(got, "charts").requests, set(got, "day-details").units, set(got, "day-details").requests], [248, 445, 445 * 15 + 35 * 6]);
+		assert.deepEqual([set(got, "activity-details").units, set(got, "activity-details").requests], [344, 3_498]);
+	});
+
+	it("comes to what that vault holds: 55.1 MB against 55.3 MB on disk", () => {
+		// Days: 140 recent ones with every timeline, 300 older without them, and the five empty ones.
+		assert.equal(set(got, "day-details").bytes, 140 * (4_780 + 52_100) + 300 * (4_780 + 9_300) + 5 * 1_560);
+		assert.equal(set(got, "activity-details").bytes, 41_804_800);
+		assert.equal(set(got, "charts").bytes, 441 * 2_382);
+		assert.equal(formatBytes(got.bytes), "55 MB");
+	});
+
+	it("takes past an hour: one hour's 8,000 requests, then the activities left, a pause before each", () => {
+		assert.equal(got.requests, 10_631);
+		assert.equal(formatDuration(got.seconds), "about 1.5 hours");
+		assert.ok(got.seconds > 3_600, String(got.seconds));
 	});
 });
 
-describe("estimates — the request arithmetic", () => {
-	it("counts a day's requests and a chunk's from the groups on", () => {
-		assert.equal(requestsPerDay(ALL_GROUPS), 15);
-		assert.equal(requestsPerDay(["activity"]), 1);
-		assert.equal(requestsPerDay(["activity", "heart", "stress", "respiration", "spo2"]), 1);
-		assert.equal(requestsPerDay(["intraday"]), 6);
-		assert.equal(requestsPerChunk(ALL_GROUPS), 6);
-		assert.equal(requestsPerChunk(["activity"]), 0);
-	});
-
-	it("sizes a chunk to about ten seconds at the pace", () => {
-		assert.equal(chunkDays(ALL_GROUPS), 13);
-	});
-
-	it("holds a long backfill to the hourly budget", () => {
-		assert.equal(withBudget(4_000, 600), 600);
-		// 12,000: a full hour of 8,000, then the last 4,000 at the pace.
-		assert.equal(withBudget(12_000, 1_200), 3600 + 400);
-		assert.equal(withBudget(20_000, 1_200), 2 * 3600 + 240);
-	});
-});
-
-describe("estimates — Day details", () => {
-	it("90 days: 1,392 requests, 3.93 MB, about a minute", () => {
-		const day = set(estimate(input({ dayDetails: "90d" })), "day-details");
-		assert.deepEqual([day.units, day.requests, day.bytes], [90, 1_392, 3_933_000]);
-		assert.ok(Math.abs(day.seconds - 69.6) < 0.05, String(day.seconds));
-		assert.equal(day.bytesPerYear, 15_950_500);
-	});
-
-	it("a year: 5,649 requests, 15.95 MB", () => {
-		const day = set(estimate(input({ dayDetails: "1y" })), "day-details");
-		assert.deepEqual([day.units, day.requests, day.bytes], [365, 5_649, 15_950_500]);
-	});
-
-	it("ten years: 56,436 requests, held by the budget to about seven hours", () => {
-		const day = set(estimate(input({ scan: account(3_650), dayDetails: "all" })), "day-details");
-		assert.deepEqual([day.units, day.requests], [3_650, 56_436]);
-		assert.equal(formatDuration(day.seconds), "about 7 hours");
-	});
-
-	it("counts only days with data, and not the days already held at today's version", () => {
-		// The history starts 60 days ago: a 90-day range has 60 days to fetch.
-		assert.equal(set(estimate(input({ scan: account(60), dayDetails: "90d" })), "day-details").units, 60);
-		const held = { daySpans: [[shiftDate(TODAY, -29), TODAY, 1] as const, [shiftDate(TODAY, -59), shiftDate(TODAY, -30), 0] as const] };
-		// Thirty held now; the thirty held at an older version still count.
-		assert.equal(set(estimate(input({ dayDetails: "90d", held })), "day-details").units, 60);
-		assert.equal(set(estimate(input({ dayDetails: "new" })), "day-details").units, 0);
-	});
-
-	it("without intraday a day is its file alone, a request a day for the summary groups", () => {
-		const day = set(estimate(input({ groups: ["activity"], dayDetails: "90d" })), "day-details");
-		assert.deepEqual([day.requests, day.bytes, day.bytesPerYear], [90, 333_000, 1_350_500]);
-	});
-});
-
-describe("estimates — Activity details and Charts", () => {
-	const activities = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, date: shiftDate(TODAY, -i * 3), run: i % 2 === 0 }));
-
-	it("120 activities: 1,320 requests, 18.5 MB, about six minutes", () => {
-		const run = set(estimate(input({ activities: activities.slice(0, 120), activityDetails: "all" })), "activity-details");
-		assert.deepEqual([run.units, run.requests, run.bytes], [120, 1_320, 18_480_000]);
-		assert.ok(Math.abs(run.seconds - 342) < 0.01);
-	});
-
-	it("takes the range's activities without a file of today's version, and nothing for those opened", () => {
-		const held = { details: new Map([[1, ACTIVITY_DETAILS_VERSION], [2, 1]]) };
-		// The last 90 days hold activities 1..30; 1 is current, 2's file is old.
-		assert.equal(set(estimate(input({ activities, activityDetails: "90d", held })), "activity-details").units, 29);
-		const opened = set(estimate(input({ activities, activityDetails: "opened" })), "activity-details");
-		assert.deepEqual([opened.units, opened.bytesPerYear], [0, 0]);
-		// Downloading new activities grows the vault by the activities of a year, every sport.
-		assert.equal(set(estimate(input({ activities, activityDetails: "all" })), "activity-details").bytesPerYear, 122 * 154_000);
-	});
-
-	it("counts every activity from the scan when the activity list came up short", () => {
-		const held = { details: new Map([[1, ACTIVITY_DETAILS_VERSION]]) };
-		// The scan counted 150; the list holds 40 of them, its download having given way to a sync.
-		const short = { scan: account(4000, 150), activities: activities.slice(0, 40) };
-		assert.equal(set(estimate(input({ ...short, activityDetails: "all", held })), "activity-details").units, 149);
-		// A narrower range still counts the rows: the scan doesn't say when the missing ones were.
-		assert.equal(set(estimate(input({ ...short, activityDetails: "1y" })), "activity-details").units, 40);
-	});
-
-	it("walks every chart index over the history it lacks, and nothing over one already complete", () => {
-		const charts = set(estimate(input({ scan: account(365, 300) })), "charts");
-		assert.ok(charts.requests > 100 && charts.requests < 250, String(charts.requests));
-		assert.ok(charts.bytes > 800_000 && charts.bytes < 1_100_000, String(charts.bytes));
-		// Critical Swim Speed is the workouts group's index.
-		const all = new Map<string, { complete: boolean }>(["activities", "daily-stats", "sleep", "index:critical-swim-speed"].map((store) => [store, { complete: true }]));
-		const done = set(estimate(input({ scan: account(365, 300), groups: ["activity", "sleep", "workouts"], held: { charts: all } })), "charts");
-		assert.deepEqual([done.requests, done.bytes], [0, 0]);
-	});
-
-	it("adds the sets up, the budget over the whole backfill", () => {
-		const got = estimate(input({ scan: account(3_650, 2_000), activities, dayDetails: "all", activityDetails: "all" }));
+describe("estimates — ten years and 3,000 activities", () => {
+	it("holds the download to the budget across every set, not set by set", () => {
+		const got = estimate(input(TEN_YEARS));
+		assert.equal(set(got, "day-details").units, 3_649);
+		assert.equal(set(got, "activity-details").requests, 30_506);
 		assert.equal(got.requests, got.sets.reduce((n, s) => n + s.requests, 0));
-		assert.ok(got.seconds >= Math.max(...got.sets.map((s) => s.seconds)));
-		assert.equal(got.largestFile, 365 * 3_700);
+		// Each set alone fits more of itself into its first hour than the whole download does.
+		assert.ok(got.seconds > Math.max(...got.sets.map((s) => s.seconds)));
+		assert.equal(formatDuration(got.seconds), formatDuration((Math.ceil(got.requests / 8_000) - 1) * 3_600 + 600));
+	});
+});
+
+describe("estimates — choices and what the vault holds", () => {
+	it("counts only what is chosen", () => {
+		const none = estimate(input(MEASURED, { dayDetails: "new", activityDetails: "opened" }));
+		assert.deepEqual([set(none, "day-details").units, set(none, "activity-details").units], [0, 0]);
+		const recent = estimate(input(MEASURED, { dayDetails: "90d", activityDetails: "90d" }));
+		// The last 90 days end yesterday: 89 of them.
+		assert.equal(set(recent, "day-details").units, 89);
+		assert.ok(set(recent, "activity-details").units > 50 && set(recent, "activity-details").units < 80);
+	});
+
+	it("leaves out what the vault holds at today's version, and counts what an older one saved", () => {
+		const yesterday = shiftDate(MEASURED.today, -1);
+		const daySpans = [[shiftDate(MEASURED.today, -30), yesterday, 1] as const, [shiftDate(MEASURED.today, -60), shiftDate(MEASURED.today, -31), 0] as const];
+		assert.equal(set(estimate(input(MEASURED, { dayDetails: "90d", daySpans })), "day-details").units, 89 - 30);
+		const held = new Map(MEASURED.activities.slice(0, 100).map((a) => [a.id, 6]));
+		assert.equal(set(estimate(input(MEASURED, { detailFiles: held })), "activity-details").units, 244);
+	});
+
+	it("plans no activity pages with Workouts off", () => {
+		const got = estimate(input(MEASURED, { groups: ALL_GROUPS.filter((g) => g !== "workouts") }));
+		assert.equal(set(got, "activity-details").units, 0);
+	});
+
+	it("prices an update's line by what it adds, and its lines together as one download", () => {
+		const base = input(MEASURED, { accepted: [...chartKeys(ALL_GROUPS), DAY_DETAILS_KEY] });
+		const details = estimateDelta(base, [ACTIVITY_DETAILS_KEY]);
+		assert.deepEqual([details.requests, details.bytes], [3_498, 41_804_800]);
+		// Agreed already: nothing to add.
+		assert.equal(estimateDelta(base, [DAY_DETAILS_KEY]).requests, 0);
+		const both = estimateDelta(input(MEASURED, { accepted: [] }), [DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY]);
+		assert.equal(both.requests, 445 * 15 + 35 * 6 + 3_498);
 	});
 });
 

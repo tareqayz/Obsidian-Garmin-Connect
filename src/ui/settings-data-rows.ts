@@ -1,10 +1,10 @@
 import type GarminPlugin from "../main";
 import { rangeStart } from "../sync/datasets";
-import { estimate, formatBytes, formatDuration, withBudget, type Estimate } from "../sync/estimate";
+import { toIsoDate } from "../garmin/endpoints";
+import { estimate, formatBytes, formatDuration, type Estimate } from "../sync/estimate";
 import type { BackfillProgress } from "../sync/runner";
 import { historyStart } from "../sync/scan";
 import { VaultSeriesStore, type DiskUsage } from "../sync/series-store";
-import { PACE } from "../sync/pace";
 import type { UpdateLine } from "./setup-flow";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -81,17 +81,19 @@ export class SettingsDataRows {
 		]);
 		this.start = historyStart(scan);
 		this.est = estimate({
-			today: new Date().toISOString().slice(0, 10),
+			today: toIsoDate(),
 			groups: s.groups,
-			scan,
+			accepted: s.data.accepted,
 			dayDetails: s.data.dayDetails,
 			activityDetails: s.data.activityDetails,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: plugin.isRun(row) })),
-			held: {
-				daySpans: coverage.spans,
-				details: detailFiles,
-				charts: new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null)),
-			},
+			...(s.setup ? { since: s.setup.completedAt.slice(0, 10) } : {}),
+			scan,
+			daySpans: coverage.spans,
+			charts,
+			activities: index.rows.map((row) => plugin.candidateOf(row)),
+			detailFiles,
+			budget: plugin.sync.budgetOutlook(),
+			now: Date.now(),
 		});
 		this.paint();
 	}
@@ -149,8 +151,7 @@ export class SettingsDataRows {
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
 		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;
 		if (p.status === "elsewhere") return `Downloading on ${p.device ?? "another device"}. This device leaves it to that one.`;
-		const left = withBudget(p.remaining, p.remaining / PACE.limits.rate);
-		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(left)} left`;
+		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(p.seconds ?? 0)} left`;
 	}
 }
 

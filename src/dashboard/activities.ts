@@ -2,6 +2,7 @@ import type { AccountInfo } from "../sync/account";
 import { groupOf, typeName } from "./activity-types";
 import { PR_TYPES } from "../sync/account";
 import type { ActivityRow } from "../sync/activity-index";
+import type { DetailProfile } from "../sync/cost";
 import { shortDate } from "./day";
 import { lastDayOfMonth, MONTHS, shiftMonth } from "./periods";
 import { duration, shiftDate } from "./series";
@@ -120,6 +121,30 @@ export function categoryOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTyp
 	if (key === "multi_sport") return "multisport";
 	if (/strength|yoga|pilates|stair|elliptical|rowing|cardio|hiit|mobility|fitness/.test(key)) return "gym";
 	return "other";
+}
+
+/**
+ * What an activity's page records, for what downloading it costs
+ * (`sync/cost.ts`): a run or ride with a track, one indoors, a pool swim, a
+ * gym session's few samples, or another sport with a track.
+ */
+export function detailProfileOf(row: Pick<ActivityRow, "type" | "typeId" | "parentTypeId">): DetailProfile {
+	const key = row.type;
+	switch (categoryOf(row)) {
+		case "running":
+			return /treadmill|indoor|virtual/.test(key) ? "indoorRun" : "run";
+		case "cycling":
+			return /indoor|virtual/.test(key) ? "other" : "ride";
+		case "swimming":
+			return /lap|pool/.test(key) ? "pool" : "gpsOther";
+		case "hiking":
+		case "multisport":
+			return "gpsOther";
+		case "gym":
+			return "gym";
+		default:
+			return /walk/.test(key) ? "gpsOther" : /meditation|breathwork|yoga|pilates|mobility/.test(key) ? "gym" : "other";
+	}
 }
 
 /** Garmin's own names where its key says something else. */

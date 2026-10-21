@@ -1,5 +1,5 @@
 import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
-import { categoryOf } from "./dashboard/activities";
+import { categoryOf, detailProfileOf } from "./dashboard/activities";
 import { areaStack, inArea } from "./dashboard/areas";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -32,7 +32,8 @@ import { watchForUninstall } from "./uninstall-watch";
 import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
 import { debtItems, pendingItems, type DebtItem } from "./sync/debt";
-import { costOf } from "./sync/estimate";
+import { estimateDelta } from "./sync/estimate";
+import type { DetailCandidate } from "./sync/backfill";
 import { PACE } from "./sync/pace";
 import type { UpdateLine } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
@@ -366,11 +367,12 @@ export default class GarminPlugin extends Plugin {
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			activities: index.rows.map((row) => this.candidateOf(row)),
 			detailFiles,
 		};
 		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
-		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...costOf(item, settings.groups) }));
+		const estimating = { ...input, budget: this.sync.budgetOutlook(), now: Date.now() };
+		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...estimateDelta(estimating, [item.key]) }));
 	}
 
 	/** The first Garmin view after an update: one dialog for whatever the update offers. */
@@ -391,6 +393,11 @@ export default class GarminPlugin extends Plugin {
 		await this.data.saveSettings();
 		this.setupChanged();
 		if (keys.length) this.sync.kickBackfill();
+	}
+
+	/** An activity on the index as the history download plans it: its day, whether it's a run, and what its page costs. */
+	candidateOf(row: ActivityRow): DetailCandidate {
+		return { id: row.id, date: row.start.slice(0, 10), run: this.isRun(row), profile: detailProfileOf(row), ...(row.power ? { power: true } : {}) };
 	}
 
 	/** The rows that are runs: all an older Run details agreement downloads, before Activity details is agreed to. */
@@ -469,7 +476,7 @@ export default class GarminPlugin extends Plugin {
 			domain: this.data.settings.domain,
 			limits: PACE.limits,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.candidateOf(row), this.device());
 	}
 
 	/** This device for the backfill's lease: an id kept in this vault's local storage, and a name a person knows it by. */

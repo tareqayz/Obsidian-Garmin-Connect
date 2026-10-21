@@ -33,12 +33,22 @@ export const HOURLY_BUDGET = 8_000;
 export const HALVING_MS = 24 * 3_600_000;
 
 /**
- * Measured 2026-10-12: a day's requests go out together and the day lands with
- * the slowest, about 0.85 s at Garmin's usual response times.
+ * How long Garmin takes to answer, in seconds, measured 2026-10-12 against the
+ * routes a download asks (`docs/garmin-api.md`, Request pace): what a time
+ * estimate adds to the pace. A running download measures its own.
  */
-export const DAY_SECONDS = 0.85;
+export interface Latency {
+	/** A request on its own: a history window or a list page, its merge included. */
+	window: number;
+	/** Requests sent together, which land with the slowest: a day's, an activity's. */
+	batch: number;
+	/** A unit's own file work around its requests. */
+	overhead: number;
+}
+
+export const LATENCY: Latency = { window: 0.6, batch: 0.85, overhead: 0.3 };
 
 /** Roughly how long a day takes: the pace caps it, or latency split across the days fetched at once. */
-export function secondsPerDay(requestsPerDay: number): number {
-	return Math.max(requestsPerDay / PACE.limits.rate, DAY_SECONDS / PACE.parallel);
+export function secondsPerDay(requestsPerDay: number, latency: Latency = LATENCY): number {
+	return Math.max(requestsPerDay / PACE.limits.rate, latency.batch / PACE.parallel);
 }

@@ -1,3 +1,4 @@
+import type { DetailProfile } from "./cost";
 import { gaps, stale, type DateRange, type Span } from "./coverage";
 import {
 	ACTIVITY_DETAILS_STORE,
@@ -48,6 +49,10 @@ export interface DetailCandidate {
 	date: string;
 	/** A run: all an older Run details agreement downloads. */
 	run: boolean;
+	/** What its page records, for what downloading it costs (`cost.ts`). */
+	profile: DetailProfile;
+	/** It recorded power: its page asks the power zones and a weigh-in too. */
+	power?: boolean;
 }
 
 /** A chart index as the vault holds it. */
@@ -80,7 +85,8 @@ export interface PlanInput {
 /**
  * Everything left to fetch, in the order it is fetched: the activity list,
  * the chart walks, then Day details newest first, then Activity details
- * newest first — only what was agreed to.
+ * newest first — only what was agreed to. Day details end yesterday: today
+ * keeps changing until it ends, and the routine sync keeps it current.
  *
  * - A chart index is walked once its key at today's version is agreed to: a
  *   version bump reads as no index at all, a whole history to fetch again.
@@ -105,10 +111,11 @@ export function planBackfill(input: PlanInput): Task[] {
 
 	const start = historyStart(input.scan);
 	const daysAt = agreedVersion(input.accepted, "days");
+	const yesterday = shiftDate(input.today, -1);
 	if (daysAt !== undefined) {
 		const from = input.dayDetails === "new" ? input.since : rangeStart(input.dayDetails, input.today, start);
-		if (from && from <= input.today) {
-			const range = { from, to: input.today };
+		if (from && from <= yesterday) {
+			const range = { from, to: yesterday };
 			const wanted = [...gaps(input.daySpans, range), ...(daysAt >= DAY_DETAILS_VERSION ? stale(input.daySpans, range, DAY_DETAILS_VERSION) : [])];
 			const days = withData(wanted, input.scan).filter((d) => !input.skip?.days?.has(d));
 			for (const stretch of stretchesOf(days).reverse()) tasks.push({ kind: "days", ...stretch });
@@ -118,7 +125,8 @@ export function planBackfill(input: PlanInput): Task[] {
 	const detailsAt = agreedVersion(input.accepted, ACTIVITY_DETAILS_STORE);
 	const runsOnly = detailsAt === undefined;
 	const agreedAt = detailsAt ?? agreedVersion(input.accepted, LEGACY_RUNS_STORE);
-	if (agreedAt !== undefined) {
+	// With Workouts off an activity's page loads nothing (`loadActivity`): none is planned.
+	if (agreedAt !== undefined && input.groups.includes("workouts")) {
 		const from = rangeStart(input.activityDetails, input.today, start);
 		if (from) {
 			const due = (id: number) => {

@@ -60,9 +60,9 @@ describe("what an update offers", () => {
 
 	it("offers activity details only when they download, missing or older ones as the agreement allows", () => {
 		const activities = [
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		const base = { accepted: chartKeys(["sleep", "fitness"]), charts: complete(ALL_CHARTS), activities, detailFiles };
@@ -82,10 +82,10 @@ describe("what an update offers", () => {
 
 	it("counts the runs saved by the version before as upgrades, which the estimate prices apart", () => {
 		const activities = [
-			{ id: 4, date: "2026-10-03", run: true },
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 4, date: "2026-10-03", run: true, profile: "run" as const },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		// A run at the version before (upgraded in place), a ride at it (fetched whole), a run older still, and a gap.
 		const detailFiles = new Map([[1, UPGRADED_VERSION], [2, UPGRADED_VERSION - 1], [3, UPGRADED_VERSION]]);

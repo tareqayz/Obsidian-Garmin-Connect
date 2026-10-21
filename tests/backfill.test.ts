@@ -61,9 +61,9 @@ describe("backfill plan", () => {
 	it("lists the activities first, then the chart walks, then days newest first, then activity details", () => {
 		const accepted = [...chartKeys(GROUPS), "days@1", ACTIVITY_DETAILS_KEY];
 		const activities = [
-			{ id: 3, date: "2026-10-12", run: true },
-			{ id: 2, date: "2026-09-01", run: false },
-			{ id: 1, date: "2025-09-01", run: true },
+			{ id: 3, date: "2026-10-12", run: true, profile: "run" as const },
+			{ id: 2, date: "2026-09-01", run: false, profile: "other" as const },
+			{ id: 1, date: "2025-09-01", run: true, profile: "run" as const },
 		];
 		const tasks = planBackfill(input({ accepted, activityDetails: "1y", activities, daySpans: [[shiftDate(TODAY, -9), TODAY, 1]] }));
 		assert.deepEqual(
@@ -96,11 +96,11 @@ describe("backfill plan", () => {
 			[shiftDate(TODAY, -19), TODAY, 1],
 		];
 		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], daySpans })), [{ kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -20) }]);
-		// The history starts ten days ago: nothing older is asked.
-		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -9)) })), [{ kind: "days", from: shiftDate(TODAY, -9), to: TODAY }]);
+		// The history starts ten days ago: nothing older is asked. Nor today, which the routine sync keeps.
+		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -9)) })), [{ kind: "days", from: shiftDate(TODAY, -9), to: shiftDate(TODAY, -1) }]);
 		// A day after the scan is asked: the scan could not see it.
 		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -40), shiftDate(TODAY, -5)), daySpans: [[shiftDate(TODAY, -29), shiftDate(TODAY, -6), 1]] })), [
-			{ kind: "days", from: shiftDate(TODAY, -5), to: TODAY },
+			{ kind: "days", from: shiftDate(TODAY, -5), to: shiftDate(TODAY, -1) },
 		]);
 	});
 
@@ -126,9 +126,9 @@ describe("backfill plan", () => {
 
 	it("fetches missing activities under an older agreement, and those of an older file only under today's", () => {
 		const activities = [
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: false },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: false, profile: "other" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		assert.deepEqual(planBackfill(input({ accepted: [DETAILS_BEFORE], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3, 2] }]);
@@ -138,10 +138,10 @@ describe("backfill plan", () => {
 
 	it("keeps fetching runs, and only runs, under Run details until Activity details is agreed to", () => {
 		const activities = [
-			{ id: 4, date: "2026-10-03", run: false },
-			{ id: 3, date: "2026-10-02", run: true },
-			{ id: 2, date: "2026-10-01", run: false },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 4, date: "2026-10-03", run: false, profile: "other" as const },
+			{ id: 3, date: "2026-10-02", run: true, profile: "run" as const },
+			{ id: 2, date: "2026-10-01", run: false, profile: "other" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		// Gaps only under an older Run details, and old files too at today's version.
@@ -156,7 +156,7 @@ describe("backfill plan", () => {
 	});
 
 	it("leaves out what failed this session", () => {
-		const activities = [{ id: 2, date: "2026-10-01", run: true }];
+		const activities = [{ id: 2, date: "2026-10-01", run: true, profile: "run" as const }];
 		const plan = planBackfill(
 			input({ accepted: ["days@1", ACTIVITY_DETAILS_KEY], activityDetails: "all", activities, dayDetails: "30d", skip: { days: new Set([TODAY]), details: new Set([2]) } }),
 		);

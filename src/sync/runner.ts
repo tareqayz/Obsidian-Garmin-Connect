@@ -34,8 +34,8 @@ import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetOutlook, type BudgetStore, type PauseReason, type Task } from "./backfill";
-import { chunkDays, DETAIL_REQUESTS, requestsPerChunk, requestsPerDay } from "./estimate";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
+import { chunkDays, costContext, detailUnit, nextUnit, timeFor, unitsOf, type CostContext } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -78,6 +78,8 @@ export interface BackfillProgress {
 	/** Requests spent this session, and about how many are left: the progress bar. */
 	done: number;
 	remaining: number;
+	/** About how long what is left takes from now, held to the hourly budget. */
+	seconds?: number;
 	/** For Day details, the oldest day still to fetch. */
 	reached?: string;
 }
@@ -150,6 +152,8 @@ export class SyncRunner {
 	private draining = false;
 	/** The backfill's plan, worked out again once used up or when what it depends on changes. */
 	private backfillTasks: Task[] | null = null;
+	/** What the plan's units cost, worked out with the plan (`cost.ts`). */
+	private backfillCtx: CostContext | null = null;
 	/** Whether the plan may have work: the drain asks for a unit only then. */
 	private backfillPending = false;
 	/** Days and activities that failed this session, and walks that kept failing: left for the next. */
@@ -187,14 +191,15 @@ export class SyncRunner {
 	private indexHistoryListeners = new Set<(kind: string, progress: IndexHistoryProgress | null) => void>();
 
 	/**
-	 * `isRun` picks the index rows that are runs: all an older Run details
-	 * agreement downloads, before Activity details is agreed to.
+	 * `candidateOf` reads an index row as the history download plans it:
+	 * whether it is a run (all an older Run details agreement downloads) and
+	 * what its page costs.
 	 */
 	constructor(
 		app: App,
 		api: GarminApi,
 		settings: () => RunnerSettings,
-		private readonly isRun: (row: ActivityRow) => boolean = () => false,
+		private readonly candidateOf: (row: ActivityRow) => DetailCandidate = (row) => ({ id: row.id, date: row.start.slice(0, 10), run: false, profile: "other" }),
 		private readonly device: DeviceIdentity = { id: "this-device", label: "this device" },
 	) {
 		this.app = app;
@@ -770,13 +775,11 @@ export class SyncRunner {
 	/**
 	 * Books the days a run fetched whole in the day coverage. A failure costs a
 	 * day fetched again later. Today goes on changing until it ends, so it is
-	 * never booked: the history download fetches it again in a later session —
-	 * not straight after the sync that just did.
+	 * never booked, and the history download never plans it (`planBackfill`).
 	 */
 	private async recordDays(store: VaultSeriesStore, report: SyncReport, log?: Log): Promise<void> {
 		const today = toIsoDate();
 		const full = report.days.filter((day) => day.full).map((day) => day.date);
-		if (full.includes(today)) this.backfillSkip.days.add(today);
 		try {
 			await store.recordDays(full.filter((date) => date < today), DAY_DETAILS_VERSION, this.settings().groups.includes("intraday"));
 		} catch (err) {
@@ -1144,6 +1147,8 @@ export class SyncRunner {
 			store.readActivities(),
 			store.readDetailCoverage(),
 		]);
+		const activities = index.rows.map((row) => this.candidateOf(row));
+		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles });
 		const tasks = planBackfill({
 			today,
 			groups: settings.groups,
@@ -1153,7 +1158,7 @@ export class SyncRunner {
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			activities,
 			detailFiles,
 			...(settings.setup ? { since: settings.setup.completedAt.slice(0, 10) } : {}),
 			skip: this.backfillSkip,
@@ -1161,17 +1166,12 @@ export class SyncRunner {
 		return tasks.filter((task) => task.kind !== "walk" || !this.backfillSkip.walks.has(task.store));
 	}
 
-	/** About how many requests the plan has left, for the progress bar. */
-	private remainingRequests(tasks: readonly Task[]): number {
-		const groups = this.settings().groups;
-		let n = 0;
-		for (const task of tasks) {
-			if (task.kind === "activities") n += 10;
-			else if (task.kind === "walk") n += 20;
-			else if (task.kind === "details") n += task.ids.length * DETAIL_REQUESTS;
-			else n += spanDays(task.from, task.to) * requestsPerDay(groups);
-		}
-		return n;
+	/** About how many requests the plan has left and how long they take from now: the progress bar and its time left. */
+	private left(tasks: readonly Task[]): { remaining: number; seconds?: number } {
+		if (!this.backfillCtx) return { remaining: 0 };
+		const units = unitsOf(tasks, this.backfillCtx);
+		const now = Date.now();
+		return { remaining: units.reduce((n, unit) => n + unit.requests, 0), seconds: timeFor(units, this.budget.outlook(now), now) };
 	}
 
 	/**
@@ -1226,11 +1226,10 @@ export class SyncRunner {
 			this.setBackfill(null);
 			return;
 		}
-		const cost = this.unitCost(task);
-		const wait = this.budget.waitFor(cost, now);
+		const wait = this.budget.waitFor(nextUnit(this.backfillTasks, this.backfillCtx!)?.requests ?? 0, now);
 		if (wait > 0) {
 			this.backfillLater(wait);
-			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (now - this.leaseWrittenAt > 60_000 || state.lease?.device !== this.device.id) {
@@ -1241,7 +1240,7 @@ export class SyncRunner {
 			status: "running",
 			task: task.kind,
 			done: this.backfillDone,
-			remaining: this.remainingRequests(this.backfillTasks),
+			...this.left(this.backfillTasks),
 			...(task.kind === "days" ? { reached: task.to } : {}),
 		});
 
@@ -1259,7 +1258,7 @@ export class SyncRunner {
 		if (fatal instanceof GarminAuthError) {
 			await store.writeBackfill({ paused: { reason: "sign-in" } });
 			this.backfillPending = false;
-			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRateLimitError) {
@@ -1269,7 +1268,7 @@ export class SyncRunner {
 			const until = new Date(Date.now() + rateLimitWait(this.rateLimits)).toISOString();
 			await store.writeBackfill({ paused: { reason: "rate-limit", until } });
 			this.backfillLater(rateLimitWait(this.rateLimits));
-			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminBlockedError) {
@@ -1280,7 +1279,7 @@ export class SyncRunner {
 			const until = new Date(Date.now() + wait).toISOString();
 			await store.writeBackfill({ paused: { reason: "blocked", until } });
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRefreshError) {
@@ -1290,7 +1289,7 @@ export class SyncRunner {
 			const wait = rateLimitWait(this.refreshFailures);
 			const until = new Date(Date.now() + wait).toISOString();
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof NewerDataError) {
@@ -1298,7 +1297,7 @@ export class SyncRunner {
 			// pause stays on this device: backfill.json would stop that one too.
 			this.backfillPending = false;
 			new Notice(`Garmin: ${fatal.message}`, 15000);
-			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal !== undefined && ++this.unitFailures >= MAX_UNIT_FAILURES) {
@@ -1316,7 +1315,7 @@ export class SyncRunner {
 			const until = new Date(Date.now() + 10 * 60_000).toISOString();
 			await store.writeBackfill({ paused: { reason: "error", until } });
 			this.backfillLater(10 * 60_000);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
 			return;
 		}
 		this.rateLimits = 0;
@@ -1331,7 +1330,7 @@ export class SyncRunner {
 						status: "running",
 						task: next?.kind ?? task.kind,
 						done: this.backfillDone,
-						remaining: this.remainingRequests(left),
+						...this.left(left),
 						...(next?.kind === "days" ? { reached: next.to } : {}),
 					}
 				: null,
@@ -1359,16 +1358,6 @@ export class SyncRunner {
 			const at = tasks.indexOf(task);
 			if (at >= 0) tasks.splice(at, 1);
 		} else if (tasks[0] === task) tasks.shift();
-	}
-
-	/** Requests a unit of `task` is about to spend, for the budget. */
-	private unitCost(task: Task): number {
-		const groups = this.settings().groups;
-		if (task.kind === "activities") return 10;
-		if (task.kind === "walk") return 20 * PACE.parallel;
-		if (task.kind === "details") return DETAIL_REQUESTS;
-		const chunk = nextChunk(task, chunkDays(groups));
-		return spanDays(chunk.from, chunk.to) * requestsPerDay(groups) + requestsPerChunk(groups);
 	}
 
 	/** Runs one unit of a task, and moves the plan on past it. */
@@ -1404,11 +1393,12 @@ export class SyncRunner {
 		if (task.kind === "details") {
 			const id = task.ids[0];
 			const load = await this.loadActivityFor(id, true);
-			if (load.fatal) return { requests: DETAIL_REQUESTS, fatal: load.fatal };
+			const requests = detailUnit([id], this.backfillCtx!).requests;
+			if (load.fatal) return { requests, fatal: load.fatal };
 			task.ids.shift();
 			if (load.reason) this.backfillSkip.details.add(id);
 			if (!task.ids.length) tasks.shift();
-			return { requests: DETAIL_REQUESTS };
+			return { requests };
 		}
 		const chunk = nextChunk(task, chunkDays(settings.groups));
 		const report = await this.chunkSync(store, chunk);

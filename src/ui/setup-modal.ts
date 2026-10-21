@@ -88,7 +88,7 @@ export class SetupModal extends Modal {
 			store.readDetailCoverage(),
 			store.readChartMetas(),
 		]);
-		const activities = index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.plugin.isRun(row) }));
+		const activities = index.rows.map((row) => this.plugin.candidateOf(row));
 		let days = 0;
 		for (const [from, to, version] of coverage.spans) {
 			if (version !== DAY_DETAILS_VERSION) continue;
@@ -96,17 +96,24 @@ export class SetupModal extends Modal {
 		}
 		const held = { days, activities: [...detailFiles.values()].filter((v) => v === ACTIVITY_DETAILS_VERSION).length, bytes: store.diskUsage().total };
 		const today = toIsoDate();
-		const heldCharts = new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null));
+		const budget = this.plugin.sync.budgetOutlook();
 		return {
 			held,
+			// What starting would download: the plan with what the setup agrees to, from where the hour stands now.
 			estimate: (choices: Choices) =>
 				estimate({
 					today,
 					groups: settings.groups,
-					scan,
+					accepted: [...new Set([...settings.data.accepted, ...agreement(settings.groups).accepted])],
 					...choices,
+					scan,
+					daySpans: coverage.spans,
+					charts,
 					activities,
-					held: { daySpans: coverage.spans, details: detailFiles, charts: heldCharts },
+					detailFiles,
+					since: settings.setup?.completedAt.slice(0, 10) ?? today,
+					budget,
+					now: Date.now(),
 				}),
 		};
 	}

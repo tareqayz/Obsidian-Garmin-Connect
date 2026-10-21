@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
 import { EMPTY_DAYS_STOP, FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
-import { requestsPerDay } from "../sync/estimate";
+import { requestsPerDay } from "../sync/cost";
 import { HOURLY_BUDGET, secondsPerDay } from "../sync/pace";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
 
