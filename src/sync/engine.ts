@@ -24,7 +24,7 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminRateLimitError } from "../garmin/errors";
+import { GarminApiError, GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { isFatal } from "./fatal";
 import { routeEmpty, type MaskRoute } from "./day-facts";
@@ -709,6 +709,7 @@ export async function syncRange(
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
 		const writing = series && !isEmptySeries(series) ? series : null;
+		let seriesFailed = false;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
 				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") {
@@ -722,6 +723,7 @@ export async function syncRange(
 					for (const run of runs) if (!early.has(run)) await feed(run, false);
 					return stopNow(err);
 				}
+				seriesFailed = true;
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
 			}
@@ -748,8 +750,10 @@ export async function syncRange(
 			}
 		}
 
-		// A route the masks left out is known empty: the day is as whole as one that asked it.
-		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched || fetched.masked.has("summary"))) result.full = true;
+		// A route the masks left out is known empty, and one Garmin answered 400 or 404 has nothing:
+		// the day is as whole as one that asked and heard everything.
+		const short = fetched.blocking > 0 || seriesFailed;
+		if (result.status !== "failed" && !short && (!withSeries || fetched.intradayFetched || fetched.masked.has("summary"))) result.full = true;
 		report.days.push(result);
 
 		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
@@ -1421,6 +1425,12 @@ interface DayFetch {
 	masked: ReadonlySet<MaskRoute>;
 	/** Past the horizon: the four timelines Garmin no longer keeps weren't asked. */
 	pastHorizon: boolean;
+	/**
+	 * Failures that leave the day short: anything but a 400 or 404, which is
+	 * Garmin saying it has nothing for that route on that day — asking again
+	 * would only hear it again.
+	 */
+	blocking: number;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1440,6 +1450,11 @@ const NO_ROUTES: ReadonlySet<MaskRoute> = new Set();
 
 /** The payload a masked route's answer lands in. */
 const ROUTE_PART: Record<MaskRoute, keyof DayData> = { body: "body", health: "health", hrv: "hrv", readiness: "readiness", training: "training", summary: "summary" };
+
+/** Garmin's way of saying a route has nothing for a day: a 400 or a 404. A 403 is something else, and blocks. */
+function nothingThere(err: unknown): boolean {
+	return err instanceof GarminApiError && (err.status === 400 || err.status === 404);
+}
 
 /** What a day asks once the masks have left routes out. The summary takes the day's timelines with it. */
 function withoutRoutes<W extends ReturnType<typeof endpointsFor>>(wanted: W, skip: ReadonlySet<MaskRoute>): W {
@@ -1499,6 +1514,7 @@ async function fetchDay(
 		intradayFetched: Boolean(wanted.intraday),
 		masked,
 		pastHorizon: pastHorizon && Boolean(wanted.intraday),
+		blocking: 0,
 	};
 	settled.forEach((result, i) => {
 		const name = jobs[i].name;
@@ -1514,7 +1530,10 @@ async function fetchDay(
 		// One endpoint being unavailable for one day must not lose the rest of
 		// the day — but a 429 or a dead session means every later call fails too.
 		if (isFatal(result.reason) && !out.fatal) out.fatal = result.reason;
-		else out.warnings.push(`${name}: ${message(result.reason)}`);
+		else {
+			out.warnings.push(`${name}: ${message(result.reason)}`);
+			if (!nothingThere(result.reason)) out.blocking += 1;
+		}
 	});
 
 	return out;

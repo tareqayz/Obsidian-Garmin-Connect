@@ -1669,3 +1669,23 @@ describe("syncRange — the history download's masks", () => {
 		assert.ok(report.days.find((d) => d.date === "2026-09-10")?.full);
 	});
 });
+
+describe("syncRange — what leaves a day short", () => {
+	const whole = async (err: unknown) => {
+		const source = new FakeSource();
+		source.failWith.hrv = err;
+		const report = await syncRange(source, new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"])), options({ groups: ALL_GROUPS }));
+		return report.days.map((d) => d.full === true);
+	};
+
+	it("keeps a day whole when a route answers 400 or 404: Garmin has nothing for it there", async () => {
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 404", 404, "")), [true, true, true]);
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 400", 400, "")), [true, true, true]);
+	});
+
+	it("leaves it short for a 403, a server error or an answer that never came, so the next session asks again", async () => {
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 403", 403, "")), [false, false, false]);
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 500", 500, "")), [false, false, false]);
+		assert.deepEqual(await whole(new Error("socket hang up")), [false, false, false]);
+	});
+});
