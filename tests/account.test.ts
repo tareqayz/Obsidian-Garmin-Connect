@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { fetchAccount, mapAccount, type AccountSource } from "../src/sync/account";
+import { fetchAccount, mapAccount, mergeAccount, type AccountSource } from "../src/sync/account";
 import { GarminApiError, GarminRateLimitError } from "../src/garmin/errors";
 import { LATEST_2026_10_11 } from "./ftp-fixture";
 
@@ -212,3 +212,33 @@ describe("fetchAccount", () => {
 		assert.ok(got.account, "the payloads that came back are still mapped");
 	});
 });
+
+describe("mergeAccount", () => {
+	const previous = {
+		displayName: "abc",
+		device: { name: "Forerunner 965", lastUpload: "2026-10-20T06:00:00.000Z" },
+		personalRecords: [{ type: "fastest_5k", value: 1_380 }],
+		lactateThreshold: { heartRate: 182 },
+	};
+
+	it("keeps the fields of a request that failed as the file had them", async () => {
+		const got = await fetchAccount(
+			source({ lastUsedDevice: async () => { throw new GarminApiError("HTTP 500", 500, ""); }, personalRecords: async () => { throw new GarminApiError("HTTP 502", 502, ""); } }),
+			"2026-09-25",
+			"metric",
+		);
+		assert.deepEqual([...got.failed].sort(), ["device", "records"]);
+		const merged = mergeAccount(previous, got.account, got.failed)!;
+		assert.deepEqual(merged.device, previous.device);
+		assert.deepEqual(merged.personalRecords, previous.personalRecords);
+		// What came back is the new answer.
+		assert.equal(merged.lactateThreshold?.heartRate, 182);
+	});
+
+	it("keeps the lactate threshold when the settings it needs failed, and takes the answer whole when nothing did", () => {
+		assert.deepEqual(mergeAccount(previous, { displayName: "abc" }, new Set(["settings"]))!.lactateThreshold, { heartRate: 182 });
+		assert.deepEqual(mergeAccount(previous, { displayName: "new" }, new Set()), { displayName: "new" });
+		assert.deepEqual(mergeAccount(null, { displayName: "new" }, new Set(["device"])), { displayName: "new" });
+	});
+});
+

@@ -19,7 +19,7 @@ import {
 	type SleepSink,
 	type SyncReport,
 } from "./engine";
-import { fetchAccount } from "./account";
+import { fetchAccount, mergeAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, type ActivityDetailStore, type ActivityLoad } from "./activity-detail";
@@ -442,12 +442,12 @@ export class SyncRunner {
 				const got = await fetchAccount(this.api, toIsoDate(), units, log);
 				report.requests += got.requests;
 				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
-				if (got.account) {
-					try {
-						await series.writeAccount(got.account);
-					} catch (err) {
-						log?.warn(`account file failed: ${explain(err)}`);
-					}
+				try {
+					// A request that failed keeps what the file held for its fields.
+					const account = mergeAccount(got.failed.size ? await series.readAccount() : null, got.account, got.failed);
+					if (account) await series.writeAccount(account);
+				} catch (err) {
+					log?.warn(`account file failed: ${explain(err)}`);
 				}
 			}
 

@@ -121,6 +121,8 @@ export interface AccountFetch {
 	account: AccountInfo | null;
 	requests: number;
 	warnings: string[];
+	/** The payloads whose request failed: their fields keep what the file held (`mergeAccount`). */
+	failed: ReadonlySet<keyof AccountPayloads>;
 	/** A 429 or a dead session: stop, as the day sync does. */
 	fatal?: unknown;
 }
@@ -137,6 +139,7 @@ export async function fetchAccount(
 ): Promise<AccountFetch> {
 	const payloads: AccountPayloads = {};
 	const warnings: string[] = [];
+	const failed = new Set<keyof AccountPayloads>();
 	let requests = 0;
 
 	const steps: Array<[keyof AccountPayloads, () => Promise<unknown>]> = [
@@ -161,6 +164,7 @@ export async function fetchAccount(
 				if (!(name === "profile" && source.profile)) requests += 1;
 				(payloads as Record<string, unknown>)[name] = await run();
 			} catch (err) {
+				failed.add(name);
 				if (err instanceof GarminRateLimitError || err instanceof GarminAuthError) {
 					fatal ??= err;
 					return;
@@ -172,7 +176,38 @@ export async function fetchAccount(
 		}),
 	);
 
-	return { account: mapAccount(payloads, units), requests, warnings, ...(fatal ? { fatal } : {}) };
+	return { account: mapAccount(payloads, units), requests, warnings, failed, ...(fatal ? { fatal } : {}) };
+}
+
+/** The fields each payload fills, for what a failed request leaves as the file had it. */
+const FIELDS_OF: Record<keyof AccountPayloads, ReadonlyArray<keyof AccountInfo>> = {
+	profile: ["displayName", "fullName", "avatar"],
+	settings: ["sex", "lactateThreshold"],
+	device: ["device"],
+	lactate: ["lactateThreshold"],
+	ftp: ["ftp"],
+	runningEconomy: ["runningEconomy"],
+	cyclingAbility: ["cyclingAbility"],
+	plans: ["trainingPlans"],
+	events: ["events"],
+	records: ["personalRecords"],
+};
+
+/**
+ * The account file after a fetch: what came back, and for each request that
+ * failed, the fields it fills as the file had them. A failed request must not
+ * blank what an earlier sync knew — the watch, the records — until the next
+ * one that works.
+ */
+export function mergeAccount(previous: AccountInfo | null, next: AccountInfo | null, failed: ReadonlySet<keyof AccountPayloads>): AccountInfo | null {
+	if (!previous || !failed.size) return next;
+	const out: Record<string, unknown> = { ...(next ?? {}) };
+	for (const name of failed) {
+		for (const field of FIELDS_OF[name]) {
+			if (previous[field] !== undefined) out[field] = previous[field];
+		}
+	}
+	return Object.keys(out).length ? out : null;
 }
 
 export function mapAccount(p: AccountPayloads, units: "metric" | "imperial" = "metric"): AccountInfo | null {
