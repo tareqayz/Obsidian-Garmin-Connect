@@ -34,3 +34,12 @@ function section(changelog: string, name: string): string | null {
 function hasContent(body: string): boolean {
 	return body.split("\n").some((line) => line.trim() !== "" && !/^#{1,6}\s/.test(line));
 }
+
+/** The newest released version: the first `## [x]` heading after `[Unreleased]`. */
+export function latestVersion(changelog: string): string | null {
+	for (const line of changelog.split(/\r?\n/)) {
+		const name = /^## \[([^\]]+)\]/.exec(line)?.[1];
+		if (name && name !== "Unreleased") return name;
+	}
+	return null;
+}

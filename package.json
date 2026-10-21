@@ -21,6 +21,7 @@
 		"test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --target=node20 --alias:obsidian=./tests/support/obsidian.ts --outdir=tests/.build --out-extension:.js=.mjs --log-level=warning && node --test \"tests/.build/*.mjs\"",
 		"iphone:build": "zsh scripts/iphone/build.sh",
 		"release:notes": "esbuild scripts/release/notes.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.release-notes.mjs --log-level=warning && node scripts/.release-notes.mjs",
+		"release:beta": "esbuild scripts/release/beta.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.release-beta.mjs --log-level=warning && node scripts/.release-beta.mjs",
 		"api:record-file": "esbuild scripts/api/record-from-file.ts --bundle --platform=node --format=esm --target=node20 --outfile=scripts/.api-record-file.mjs --log-level=warning && node scripts/.api-record-file.mjs",
 		"svelte-check": "svelte-check --tsconfig src/tsconfig.json",
 		"lint": "eslint ."
