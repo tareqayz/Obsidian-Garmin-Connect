@@ -348,6 +348,16 @@ describe("extras kept at sync time", () => {
 		assert.deepEqual(keepBlocks(null, written, {}, ["nightly"], INTRADAY), written);
 	});
 
+	it("keeps what a page loaded when a re-sync brings the day back unchanged", () => {
+		const stored: DaySeries = { stress: [[1, 20]], heartRate: [[1, 51]], extra: { respiration: [[1, 14]], nightly: { avg: 40 } }, checked: ["respiration"] };
+		const same: DaySeries = { stress: [[1, 20]], heartRate: [[1, 51]] };
+		// Nothing changed for the page: its extras and `checked` stay, and the file's text with them.
+		assert.deepEqual(keepBlocks(stored, same, {}, ["nightly"], INTRADAY), stored);
+		assert.equal(serializeSeries("2026-10-11", keepBlocks(stored, same, {}, ["nightly"], INTRADAY)!), serializeSeries("2026-10-11", stored));
+		// A fresh kept block still goes in.
+		assert.deepEqual(keepBlocks(stored, same, { nightly: { avg: 42 } }, ["nightly"], INTRADAY)!.extra, { respiration: [[1, 14]], nightly: { avg: 42 } });
+	});
+
 	/** A day with every block a sync writes, plus what a page loaded on view. */
 	const FULL: DaySeries = {
 		stress: [[1, 20]],

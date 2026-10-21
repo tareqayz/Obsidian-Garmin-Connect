@@ -211,8 +211,10 @@ export interface KeepOptions {
  *   asked Garmin for. A block Garmin no longer sends keeps the file's copy:
  *   Garmin drops old intraday data, and a re-sync must not erase it.
  *   - A write that fetched the day's intraday requests starts the rest
- *     afresh: on-view extras and `checked` go, so a page asks again, but the
- *     kept blocks (`kept`) stay unless `fresh` brings them again.
+ *     afresh when the day changed: on-view extras and `checked` go, so a page
+ *     asks again, but the kept blocks (`kept`) stay unless `fresh` brings
+ *     them again. When every block came back as the file had it, nothing
+ *     changed for the page either: its extras and `checked` stay.
  *   - A write without them changes only the night's blocks. Everything else
  *     the file held, on-view extras and `checked` included, stays.
  * - Without one, the file keeps everything and only `fresh` goes in under
@@ -232,10 +234,13 @@ export function keepBlocks(
 			const value = written[key] ?? stored?.[key];
 			if (value !== undefined) out[key] = value;
 		}
+		const same = !!stored && BLOCK_KEYS.every((key) => JSON.stringify(out[key]) === JSON.stringify(stored[key]));
 		const extra: Record<string, unknown> = {};
-		for (const key of kept) if (stored?.extra?.[key] !== undefined) extra[key] = stored.extra[key];
+		if (same) Object.assign(extra, stored.extra ?? {});
+		else for (const key of kept) if (stored?.extra?.[key] !== undefined) extra[key] = stored.extra[key];
 		Object.assign(extra, fresh);
 		if (Object.keys(extra).length) out.extra = extra;
+		if (same && stored.checked) out.checked = stored.checked;
 		return out;
 	}
 	if (written) {
