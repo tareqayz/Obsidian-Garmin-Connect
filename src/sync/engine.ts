@@ -27,6 +27,7 @@ import {
 import { GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { isFatal } from "./fatal";
+import { routeEmpty, type MaskRoute } from "./day-facts";
 import { rowOf, type ActivityRow } from "./activity-index";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
@@ -210,6 +211,12 @@ export interface SyncOptions {
 	activityRange?: boolean;
 	/** The newest page of the activity list as a probe already fetched it, and the page size it asked: the list starts from it. */
 	firstPage?: { page: readonly Activity[]; limit: number };
+	/**
+	 * The history download's masks (`day-facts.ts`): the routes a day leaves
+	 * out, and the masked routes asked anyway to check them, each reported
+	 * with whether it came back empty. A routine sync has none.
+	 */
+	masks?: DayMasks;
 	/**
 	 * How many of the newest days in a run get intraday series: six requests a
 	 * day. The runner passes the run's days inside Day details, or all of them
@@ -478,7 +485,8 @@ export async function syncRange(
 		if (index >= due.length) return undefined;
 		let pending = fetching.get(index);
 		if (!pending) {
-			pending = fetchDay(source, due[index], { ...wanted, intraday: withSeries && index < intradayDays });
+			const skip = opts.masks?.skip(due[index]) ?? NO_ROUTES;
+			pending = fetchDay(source, due[index], withoutRoutes({ ...wanted, intraday: withSeries && index < intradayDays }, skip), skip);
 			fetching.set(index, pending);
 		}
 		return pending;
@@ -632,6 +640,17 @@ export async function syncRange(
 			for (const run of runs) if (!early.has(run)) await feed(run, false);
 			return stopNow(fetched.fatal);
 		}
+		if (opts.masks) {
+			// A masked route asked anyway, to check the mask: did it come back empty?
+			for (const route of opts.masks.audit(date)) {
+				if (!fetched.ok.has(ROUTE_PART[route]) || fetched.masked.has(route)) continue;
+				try {
+					opts.masks.heard(route, routeEmpty(route, fetched.data, fetched.intraday, { groups: opts.groups, units: opts.units, date }));
+				} catch {
+					// An answer the mappers can't read checks nothing.
+				}
+			}
+		}
 		// Reading Garmin's answers: a payload in a shape the mappers don't expect
 		// fails this day alone, which stays unfetched for the next sync, rather
 		// than the whole run (and a backfill unit retried forever).
@@ -720,7 +739,8 @@ export async function syncRange(
 			}
 		}
 
-		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched)) result.full = true;
+		// A route the masks left out is known empty: the day is as whole as one that asked it.
+		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched || fetched.masked.has("summary"))) result.full = true;
 		report.days.push(result);
 
 		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
@@ -1388,14 +1408,44 @@ interface DayFetch {
 	ok: Set<keyof DayData>;
 	/** Whether the day's intraday requests went out, so its series write may refresh more than the night. */
 	intradayFetched: boolean;
+	/** The routes the masks left out: known empty, not asked. */
+	masked: ReadonlySet<MaskRoute>;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
+}
+
+/** The history download's masks for a run (`SyncOptions.masks`). */
+export interface DayMasks {
+	skip(date: string): ReadonlySet<MaskRoute>;
+	audit(date: string): ReadonlySet<MaskRoute>;
+	heard(route: MaskRoute, empty: boolean): void;
+}
+
+const NO_ROUTES: ReadonlySet<MaskRoute> = new Set();
+
+/** The payload a masked route's answer lands in. */
+const ROUTE_PART: Record<MaskRoute, keyof DayData> = { body: "body", health: "health", hrv: "hrv", readiness: "readiness", training: "training", summary: "summary" };
+
+/** What a day asks once the masks have left routes out. The summary takes the day's timelines with it. */
+function withoutRoutes<W extends ReturnType<typeof endpointsFor>>(wanted: W, skip: ReadonlySet<MaskRoute>): W {
+	if (!skip.size) return wanted;
+	return {
+		...wanted,
+		summary: wanted.summary && !skip.has("summary"),
+		intraday: wanted.intraday && !skip.has("summary"),
+		body: wanted.body && !skip.has("body"),
+		health: wanted.health && !skip.has("health"),
+		hrv: wanted.hrv && !skip.has("hrv"),
+		readiness: wanted.readiness && !skip.has("readiness"),
+		training: wanted.training && !skip.has("training"),
+	};
 }
 
 async function fetchDay(
 	source: SyncSource,
 	date: string,
 	wanted: ReturnType<typeof endpointsFor>,
+	masked: ReadonlySet<MaskRoute> = NO_ROUTES,
 ): Promise<DayFetch> {
 	const jobs: Array<{ name: keyof DayData | IntradayJob; run: () => Promise<unknown> }> = [];
 	if (wanted.summary) jobs.push({ name: "summary", run: () => source.dailySummary(date) });
@@ -1426,6 +1476,7 @@ async function fetchDay(
 		summaryFetched: false,
 		ok: new Set(),
 		intradayFetched: Boolean(wanted.intraday),
+		masked,
 	};
 	settled.forEach((result, i) => {
 		const name = jobs[i].name;

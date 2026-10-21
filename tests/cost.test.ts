@@ -13,6 +13,7 @@ import {
 	listRequests,
 	nextUnit,
 	observe,
+	requestsOn,
 	requestsPerDay,
 	ROW_BYTES,
 	timeFor,
@@ -155,6 +156,26 @@ describe("cost — the time left, from the download's own pace", () => {
 		const [got] = asObserved([unit], observe({}, unit, 5, 201));
 		assert.deepEqual([got!.seconds, got!.requests], [5, 201]);
 		assert.deepEqual(asObserved([unit], {}), [unit]);
+	});
+});
+
+describe("a masked day's cost", () => {
+	it("leaves out the routes the facts say are empty, and the summary's timelines with it, unless the mask was turned off", () => {
+		const date = "2026-03-02";
+		const facts = { body: new Set<string>(), summary: new Set<string>() };
+		assert.equal(requestsOn(date, ctx()), 15);
+		assert.equal(requestsOn(date, ctx({ masks: { facts, spans: {}, verdicts: {} } })), 15 - 1 - 1 - 6);
+		assert.equal(requestsOn(date, ctx({ masks: { facts, spans: {}, verdicts: { summary: "off" } } })), 15 - 1);
+		// A day the indexes list asks everything.
+		assert.equal(requestsOn(date, ctx({ masks: { facts: { body: new Set([date]), summary: new Set([date]) }, spans: {}, verdicts: {} } })), 15);
+	});
+
+	it("prices a chunk by its days' own routes, and a day the summary shows empty as an empty day", () => {
+		const facts = { summary: new Set(["2026-03-02"]) };
+		const unit = dayUnit("2026-03-01", "2026-03-02", ctx({ masks: { facts, spans: {}, verdicts: {} } }));
+		const plain = dayUnit("2026-03-01", "2026-03-02", ctx());
+		assert.equal(plain.requests - unit.requests, 7);
+		assert.ok(unit.bytes < plain.bytes);
 	});
 });
 

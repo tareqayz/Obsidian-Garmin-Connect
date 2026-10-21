@@ -295,3 +295,33 @@ describe("VaultSeriesStore: Home's reads of the day files", () => {
 		assert.equal(dayReads(), 5);
 	});
 });
+
+describe("VaultSeriesStore: what the indexes say about each day", () => {
+	const rows = (dates: string[]) => dates.map((date) => ({ date, steps: 1_000 }));
+
+	it("lists a chart store's days, read again only once its files change", async () => {
+		const { vault, store } = setup();
+		await store.mergeDailyStats({ rows: rows(["2026-10-01", "2026-10-03"]), dates: ["2026-10-01", "2026-10-02", "2026-10-03"] }, { covered: { from: "2026-10-01", to: "2026-10-03" }, complete: true });
+		assert.deepEqual([...(await store.datesIn("daily-stats"))], ["2026-10-01", "2026-10-03"]);
+		const reads = vault.reads.length;
+		await store.datesIn("daily-stats");
+		assert.equal(vault.reads.length, reads);
+		await store.mergeDailyStats({ rows: rows(["2026-10-04"]), dates: ["2026-10-04"] }, { covered: { from: "2026-10-04", to: "2026-10-04" } });
+		assert.ok((await store.datesIn("daily-stats")).has("2026-10-04"));
+	});
+
+	it("keeps the masks' verdicts in scan.json, through a scan run again", async () => {
+		const { store } = setup();
+		const scan = { scannedAt: "2026-10-01T00:00:00.000Z", days: 1, weeks: [["2026-09-28", 1]] as Array<[string, number]>, activities: 0, complete: true };
+		await store.writeScan(scan);
+		await store.writeVerdicts({ body: "trusted" });
+		assert.deepEqual((await store.readScan())?.learned, { masks: { body: "trusted" } });
+		await store.writeScan({ ...scan, scannedAt: "2026-10-21T00:00:00.000Z" });
+		assert.deepEqual((await store.readScan())?.learned, { masks: { body: "trusted" } });
+		const masks = await store.readMasks(["body"], new Map([["index:weight", { complete: true, from: "2026-01-01", to: "2026-10-20" }]]), await store.readScan());
+		assert.deepEqual(masks.verdicts, { body: "trusted" });
+		assert.deepEqual([...masks.facts.body!], []);
+		assert.deepEqual(masks.spans.body, { from: "2026-01-01", to: "2026-10-20" });
+	});
+});
+

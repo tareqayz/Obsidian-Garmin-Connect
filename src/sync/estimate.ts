@@ -1,6 +1,7 @@
 import { planBackfill, type BudgetOutlook, type PlanInput, type Task } from "./backfill";
 import { costContext, freshHour, ROW_BYTES, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
 import { rangeStart, type ConsentKey, type DataSetId } from "./datasets";
+import type { Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
 import type { Latency } from "./pace";
@@ -17,6 +18,8 @@ import { daysSince, historyStart } from "./scan";
  */
 
 export interface EstimateInput extends PlanInput {
+	/** What the complete indexes say about each day: the routes a day leaves out (`day-facts.ts`). */
+	masks?: Masks;
 	/** Bytes per day and per activity: measured, or the vault's own (`calibrate`). */
 	sizes?: SizeModel;
 	latency?: Latency;

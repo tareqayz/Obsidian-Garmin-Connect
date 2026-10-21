@@ -63,6 +63,8 @@ import {
 	type Span,
 } from "./coverage";
 import { parseScan, serializeScan, type AccountScan } from "./scan";
+import { factSpan, factStores, type DayFacts, type FactSpans, type Masks, type MaskVerdicts } from "./day-facts";
+import type { MetricGroup } from "./metrics";
 import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
 import { NewerDataError, asideName, isConflictCopy, isReadable, versionOf } from "./file-health";
 
@@ -337,8 +339,61 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return file instanceof TFile ? parseScan(await this.app.vault.cachedRead(file)) : null;
 	}
 
+	/** A new scan keeps what the download learned of the account: a scan run again doesn't make it learn twice. */
 	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
-		return this.put(this.scanPath, serializeScan(scan));
+		const learned = scan.learned ?? (await this.readScan())?.learned;
+		return this.put(this.scanPath, serializeScan({ ...scan, ...(learned ? { learned } : {}) }));
+	}
+
+	/** Saves the masks' verdicts in scan.json, keeping the rest of it. Nothing without a scan. */
+	async writeVerdicts(masks: MaskVerdicts): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(this.scanPath);
+		if (!(file instanceof TFile)) return;
+		const text = await this.app.vault.read(file);
+		const scan = parseScan(text);
+		if (!scan) return;
+		await this.put(this.scanPath, serializeScan({ ...scan, learned: { ...scan.learned, masks } }), text);
+	}
+
+	/**
+	 * What the complete chart indexes say about each day, for the history
+	 * download's masks (`day-facts.ts`), with the verdicts scan.json keeps.
+	 */
+	async readMasks(groups: readonly MetricGroup[], charts: ReadonlyMap<string, ChartMeta | null>, scan: AccountScan | null): Promise<Masks> {
+		const facts: DayFacts = {};
+		const spans: FactSpans = {};
+		for (const [route, stores] of factStores(groups, charts)) {
+			const days = new Set<string>();
+			for (const store of stores) for (const date of await this.datesIn(store)) days.add(date);
+			facts[route] = days;
+			spans[route] = factSpan(stores, charts);
+		}
+		return { facts, spans, verdicts: scan?.learned?.masks ?? {} };
+	}
+
+	/**
+	 * The days a chart store lists a row for — daily stats, sleep or a
+	 * registered index — kept with its files' modified times and sizes and
+	 * read again only once one changed: the download asks before each unit.
+	 */
+	async datesIn(store: string): Promise<ReadonlySet<string>> {
+		const def = store.startsWith("index:") ? DAY_INDEXES.find((d) => `index:${d.kind}` === store) : undefined;
+		const folder = store === "daily-stats" ? DAILY_STATS_FOLDER : store === "sleep" ? SLEEP_FOLDER : def?.folder;
+		if (!folder) return new Set();
+		const dir = this.app.vault.getAbstractFileByPath(this.join(folder));
+		if (!(dir instanceof TFolder)) return new Set();
+		const stamp = dir.children
+			.filter((child): child is TFile => child instanceof TFile && isYearFile(child.name))
+			.map((child) => `${child.name}:${child.stat.mtime}:${child.stat.size}`)
+			.sort()
+			.join("|");
+		const key = this.join(folder);
+		const held = storeDates.get(key);
+		if (held?.stamp === stamp) return held.dates;
+		const rows: ReadonlyArray<{ date: string }> = store === "daily-stats" ? (await this.readDailyStats()).rows : store === "sleep" ? (await this.readSleep()).rows : def ? (await this.readDayIndex(def)).rows : [];
+		const dates = new Set(rows.map((row) => row.date));
+		storeDates.set(key, { stamp, dates });
+		return dates;
 	}
 
 	/**
@@ -412,11 +467,12 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		const out = new Map<string, ChartMeta | null>();
 		const [activities, daily, sleep] = await Promise.all([this.readActivitiesMeta(), this.readDailyStatsMeta(), this.readSleepMeta()]);
 		out.set("activities", activities ? { complete: activities.complete === true } : null);
-		out.set("daily-stats", daily ? { complete: daily.complete === true, ...(daily.from ? { from: daily.from } : {}) } : null);
-		out.set("sleep", sleep ? { complete: sleep.complete === true, ...(sleep.from ? { from: sleep.from } : {}) } : null);
+		const span = (m: { from?: string; to?: string }) => ({ ...(m.from ? { from: m.from } : {}), ...(m.to ? { to: m.to } : {}) });
+		out.set("daily-stats", daily ? { complete: daily.complete === true, ...span(daily) } : null);
+		out.set("sleep", sleep ? { complete: sleep.complete === true, ...span(sleep) } : null);
 		for (const def of DAY_INDEXES) {
 			const meta = await this.readDayIndexMeta(def);
-			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...(meta.from ? { from: meta.from } : {}) } : null);
+			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...span(meta) } : null);
 		}
 		return out;
 	}
@@ -934,6 +990,9 @@ interface HeldFiles {
 	years: string[];
 	texts: Map<string, string>;
 }
+
+/** Each chart store's days, by folder, with its year files' stamps (`datesIn`). */
+const storeDates = new Map<string, { stamp: string; dates: ReadonlySet<string> }>();
 
 /** Each day year file's days as Home reads them, with the file's modified time and size: parsed again only once it changes. */
 const parsedDays = new Map<string, { stamp: string; rows: HomeDayRow[] }>();

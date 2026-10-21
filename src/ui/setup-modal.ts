@@ -57,6 +57,8 @@ export class SetupModal extends Modal {
 					if (got && !got.fatal) {
 						// The activity list, for Activity details' count: the first of the charts' walks anyway.
 						await this.plugin.sync.syncActivityHistory({ auto: true });
+						// The few indexes that show which days a route is empty on, for the estimate.
+						await this.plugin.sync.prepareHistory();
 						// Today and the days since the last sync while the user chooses, so Home has them.
 						void this.plugin.sync.syncRecent("setup");
 					}
@@ -89,6 +91,7 @@ export class SetupModal extends Modal {
 			store.readChartMetas(),
 		]);
 		const activities = index.rows.map((row) => this.plugin.candidateOf(row));
+		const masks = await store.readMasks(settings.groups, charts, scan);
 		let days = 0;
 		for (const [from, to, version] of coverage.spans) {
 			if (version !== DAY_DETAILS_VERSION) continue;
@@ -111,6 +114,7 @@ export class SetupModal extends Modal {
 					charts,
 					activities,
 					detailFiles,
+					masks,
 					since: settings.setup?.completedAt.slice(0, 10) ?? today,
 					budget,
 					now: Date.now(),

@@ -59,6 +59,8 @@ export interface DetailCandidate {
 export interface ChartMeta {
 	complete: boolean;
 	from?: string;
+	/** The last day it covers: past it, its rows say nothing (`day-facts.ts`). */
+	to?: string;
 }
 
 export interface PlanInput {

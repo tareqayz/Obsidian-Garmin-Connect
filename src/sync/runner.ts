@@ -38,6 +38,7 @@ import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, typ
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
+import { auditedRoutes, MASK_STORES, PREPARED_STORES, skippedRoutes, tally, type MaskRoute, type Masks } from "./day-facts";
 import { asObserved, chunkDays, costContext, detailBatch, detailUnit, nextUnit, observe, timeFor, unitsOf, type CostContext, type Observed } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
@@ -167,6 +168,8 @@ export class SyncRunner {
 	private backfillTasks: Task[] | null = null;
 	/** What the plan's units cost, worked out with the plan (`cost.ts`). */
 	private backfillCtx: CostContext | null = null;
+	/** What the complete indexes say about each day, and this account's verdicts: what a chunk of days leaves out (`day-facts.ts`). */
+	private backfillMasks: Masks | null = null;
 	/** Whether the plan may have work: the drain asks for a unit only then. */
 	private backfillPending = false;
 	/** Days and activities that failed this session, and walks that kept failing: left for the next. */
@@ -1289,7 +1292,9 @@ export class SyncRunner {
 			store.readDetailCoverage(),
 		]);
 		const activities = index.rows.map((row) => this.candidateOf(row));
-		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles });
+		const masks = await store.readMasks(settings.groups, charts, scan);
+		this.backfillMasks = masks;
+		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles, masks });
 		const tasks = planBackfill({
 			today,
 			groups: settings.groups,
@@ -1502,8 +1507,9 @@ export class SyncRunner {
 					}
 				: null,
 		);
-		// Used up: plan once more, for whatever arrived meanwhile.
-		if (!left.length) this.backfillTasks = null;
+		// Used up: plan once more, for whatever arrived meanwhile. So too once the
+		// last walk is done: the indexes now vouch for days the chunks may leave out.
+		if (!left.length || (task.kind === "walk" && !left.some((t) => t.kind === "walk"))) this.backfillTasks = null;
 	}
 
 	/** Leaves the unit of `task` that keeps failing for the next session, and moves the plan past it. */
@@ -1639,6 +1645,45 @@ export class SyncRunner {
 	}
 
 	/** One segment of a chart index's walk, by its store name. */
+	/**
+	 * The setup's history check, before you choose: the five indexes that
+	 * vouch for the masks (`PREPARED_STORES`), walked whole. A request or a
+	 * few each — about 40 for ten years — so the setup's estimate already
+	 * leaves out the days they show empty. They are the download's first walks
+	 * anyway. Quiet: a failure only leaves the estimate without them.
+	 */
+	async prepareHistory(): Promise<void> {
+		const settings = this.settings();
+		if (!this.api.isAuthenticated) return;
+		const release = await this.claim("foreground");
+		if (!release) return;
+		try {
+			const store = new VaultSeriesStore(this.app, settings.dataFolder);
+			const charts = await store.readChartMetas();
+			const notBefore = await this.notBefore(store);
+			const stores = PREPARED_STORES.filter((name) => {
+				const group = Object.values(MASK_STORES)
+					.flat()
+					.find((s) => s.store === name)?.group;
+				return group !== undefined && settings.groups.includes(group) && charts.get(name)?.complete !== true;
+			});
+			await Promise.all(
+				stores.map(async (name) => {
+					let emptyStreak = 0;
+					for (let segment = 0; segment < 20; segment++) {
+						const got = await this.walkSegment(name, store, { ...(notBefore ? { notBefore } : {}), emptyStreak, shouldStop: () => this.foregroundCancel });
+						emptyStreak = got.emptyStreak;
+						if (got.complete || got.requests === 0 || got.error || got.fatal) return;
+					}
+				}),
+			);
+		} catch {
+			// The estimate goes without them.
+		} finally {
+			release();
+		}
+	}
+
 	private walkSegment(name: string, store: VaultSeriesStore, walk: SegmentOptions): Promise<Segment> {
 		if (name === "daily-stats") return this.dailyStatsSegment(store, walk);
 		if (name === "sleep") return this.sleepSegment(store, walk);
@@ -1656,6 +1701,9 @@ export class SyncRunner {
 		const settings = this.settings();
 		const units = await this.resolveUnits(settings.units);
 		const days = store.dayBuffer();
+		const masks = this.backfillMasks;
+		// The masked routes asked anyway, to check them, and what came back.
+		const heard: Array<{ route: MaskRoute; empty: boolean }> = [];
 		const report = await syncDays(days, () =>
 			syncRange(this.api, days, {
 				from: chunk.from,
@@ -1669,9 +1717,29 @@ export class SyncRunner {
 				intradayDays: spanDays(chunk.from, chunk.to),
 				parallelDays: PACE.parallel,
 				shouldStop: this.unitShouldStop,
+				...(masks
+					? {
+							masks: {
+								skip: (date: string) => skippedRoutes(date, masks),
+								audit: (date: string) => auditedRoutes(date, masks),
+								heard: (route: MaskRoute, empty: boolean) => void heard.push({ route, empty }),
+							},
+						}
+					: {}),
 			}),
 		);
 		await this.recordDays(store, report);
+		if (masks && heard.length) {
+			const verdicts = tally(masks.verdicts, heard);
+			if (JSON.stringify(verdicts) !== JSON.stringify(masks.verdicts)) {
+				masks.verdicts = verdicts;
+				try {
+					await store.writeVerdicts(verdicts);
+				} catch {
+					// Kept for this session; the check runs again in the next.
+				}
+			}
+		}
 		return report;
 	}
 

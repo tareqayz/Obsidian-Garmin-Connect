@@ -1,5 +1,6 @@
 import type { Activity, ActivityCount, DailyStepStat, WeeklyStepsRow } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { parseVerdicts, type MaskVerdicts } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { localDateOf } from "./metrics";
 import { deviceUploadOf } from "./sync-state";
@@ -51,6 +52,8 @@ export interface AccountScan {
 	firstActivity?: string;
 	/** The weeks were walked back past the start of the history. False when a request failed first. */
 	complete: boolean;
+	/** What the history download learned of this account, kept across scans (`day-facts.ts`). */
+	learned?: { masks?: MaskVerdicts };
 }
 
 /** A step of the scan, for the setup's checklist. */
@@ -209,9 +212,11 @@ export function parseScan(text: string): AccountScan | null {
 		const weeks = raw.weeks.filter(
 			(w): w is [string, number] => Array.isArray(w) && typeof w[0] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(w[0]) && Number.isInteger(w[1]),
 		);
-		const { version: _version, ...scan } = raw;
+		const { version: _version, learned: _learned, ...scan } = raw;
+		const masks = parseVerdicts((raw.learned as { masks?: unknown } | undefined)?.masks);
 		return {
 			...(scan as AccountScan),
+			...(Object.keys(masks).length ? { learned: { masks } } : {}),
 			weeks,
 			days: typeof raw.days === "number" ? raw.days : weeks.reduce((n, [, d]) => n + d, 0),
 			activities: typeof raw.activities === "number" ? raw.activities : 0,

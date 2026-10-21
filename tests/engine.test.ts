@@ -1602,3 +1602,41 @@ describe("syncRange — what starts together", () => {
 		assert.equal(target.written.size, 3);
 	});
 });
+
+describe("syncRange — the history download's masks", () => {
+	it("leaves out what a day's masks skip, counts the day whole, and reports the routes it checks", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const heard: Array<[string, boolean]> = [];
+		const report = await syncRange(
+			source,
+			target,
+			options({
+				groups: ALL_GROUPS,
+				series: new FakeSeries(),
+				intradayDays: 3,
+				masks: {
+					// The 11th had no weigh-in and no wear; the 12th's weigh-in is asked anyway, to check the mask.
+					skip: (date) => new Set(date === "2026-09-11" ? (["body", "summary"] as const) : []),
+					audit: (date) => new Set(date === "2026-09-12" ? (["body"] as const) : []),
+					heard: (route, empty) => void heard.push([route, empty]),
+				},
+			}),
+		);
+		const on = (date: string) => source.calls.filter((c) => c.endsWith(`:${date}`)).map((c) => c.split(":")[0]).sort();
+		assert.ok(!on("2026-09-11").includes("bodyComposition"));
+		assert.ok(!on("2026-09-11").includes("dailySummary"));
+		// The summary takes the day's timelines with it; the other days ask theirs.
+		assert.ok(!on("2026-09-11").includes("stress") && !on("2026-09-11").includes("stepsChart"));
+		assert.ok(on("2026-09-10").includes("stress") && on("2026-09-10").includes("stepsChart"));
+		assert.ok(on("2026-09-11").includes("sleep") && on("2026-09-11").includes("fitnessAge"));
+		assert.ok(on("2026-09-12").includes("bodyComposition"));
+		// The fake's weigh-in holds a weight: the check heard data.
+		assert.deepEqual(heard, [["body", false]]);
+		// The weigh-in, the summary and its six timelines fewer than the same run without masks.
+		const plain = await syncRange(new FakeSource(), new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"])), options({ groups: ALL_GROUPS, series: new FakeSeries(), intradayDays: 3 }));
+		assert.equal(report.requests, plain.requests - 8);
+		// A masked day is as whole as one that asked everything.
+		assert.equal(report.days.find((d) => d.date === "2026-09-11")?.full, report.days.find((d) => d.date === "2026-09-10")?.full);
+	});
+});

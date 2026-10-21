@@ -385,6 +385,7 @@ export default class GarminPlugin extends Plugin {
 			charts,
 			activities: index.rows.map((row) => this.candidateOf(row)),
 			detailFiles,
+			masks: await store.readMasks(settings.groups, charts, scan),
 			budget: this.sync.budgetOutlook(),
 			now: Date.now(),
 		};

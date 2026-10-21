@@ -1,5 +1,6 @@
 import { CHANGED_IN_6, UPGRADED_VERSION } from "./activity-detail";
 import { nextChunk, RequestBudget, type BudgetOutlook, type ChartMeta, type DetailCandidate, type Task } from "./backfill";
+import { emptyRoutes, plannedSkips, type MaskRoute, type Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
 import { endpointsFor, type MetricGroup } from "./metrics";
@@ -155,6 +156,8 @@ export interface CostContext {
 	activitiesOn: ReadonlyMap<string, number>;
 	/** Each downloaded activity page's version. */
 	detailFiles: ReadonlyMap<number, number>;
+	/** What the complete indexes say about each day, and this account's verdicts: the routes a day leaves out (`day-facts.ts`). */
+	masks?: Masks;
 	sizes: SizeModel;
 	latency: Latency;
 }
@@ -167,6 +170,7 @@ export interface CostInput {
 	/** Every activity on the index, newest first. */
 	activities: readonly DetailCandidate[];
 	detailFiles: ReadonlyMap<number, number>;
+	masks?: Masks;
 }
 
 export function costContext(input: CostInput, opts: { sizes?: SizeModel; latency?: Latency } = {}): CostContext {
@@ -183,6 +187,7 @@ export function costContext(input: CostInput, opts: { sizes?: SizeModel; latency
 		activities: new Map(input.activities.map((a) => [a.id, a])),
 		activitiesOn,
 		detailFiles: input.detailFiles,
+		...(input.masks ? { masks: input.masks } : {}),
 		sizes: opts.sizes ?? MEASURED_SIZES,
 		latency: opts.latency ?? LATENCY,
 	};
@@ -274,26 +279,57 @@ function listUnit(ctx: CostContext): Unit {
 export function dayUnit(from: string, to: string, ctx: CostContext): Extract<Unit, { kind: "days" }> {
 	const w = endpointsFor(ctx.groups);
 	const days = spanDays(from, to);
-	const perDay = requestsPerDay(ctx.groups);
 	let listed = 0;
 	for (let date = from; date <= to; date = shiftDate(date, 1)) listed += ctx.activitiesOn.get(date) ?? 0;
 	const pages = w.workouts ? 1 + Math.floor(listed / 100) : 0;
 	const years = Math.ceil(days / 365);
 	const ranges = [w.maxMetrics, w.races, w.hillScores, w.runningTolerance].filter(Boolean).length * years + (w.healthSnapshots ? Math.ceil(days / 28) : 0);
-	const dayRequests = days * perDay;
+	let dayRequests = 0;
 	let bytes = 0;
-	for (let date = from; date <= to; date = shiftDate(date, 1)) bytes += dayBytes(date, ctx);
+	for (let date = from; date <= to; date = shiftDate(date, 1)) {
+		dayRequests += requestsOn(date, ctx);
+		bytes += dayBytes(date, ctx);
+	}
 	const latency = ctx.latency;
 	const seconds =
 		pages * latency.window + (ranges ? latency.window : 0) + Math.max(dayRequests / PACE.limits.rate, Math.ceil(days / PACE.parallel) * latency.batch) + latency.overhead;
 	return { kind: "days", from, to, days, requests: dayRequests + pages + ranges, bytes, seconds };
 }
 
-/** What a day of Day details writes, weighed by how likely the scan says it has data. */
+/**
+ * The requests a day of Day details sends: its routes and its timelines,
+ * less the routes the masks leave out (`plannedSkips`). The summary's mask
+ * takes the timelines with it.
+ */
+export function requestsOn(date: string, ctx: CostContext): number {
+	const w = endpointsFor(ctx.groups);
+	const skip = ctx.masks ? plannedSkips(date, ctx.masks) : NONE;
+	const routes = [
+		w.summary && !skip.has("summary"),
+		w.sleep,
+		w.hrv && !skip.has("hrv"),
+		w.readiness && !skip.has("readiness"),
+		w.endurance,
+		w.training && !skip.has("training"),
+		w.body && !skip.has("body"),
+		w.fitnessAge,
+		w.health && !skip.has("health"),
+	].filter(Boolean).length;
+	return routes + (w.intraday && !skip.has("summary") ? 6 : 0);
+}
+
+const NONE: ReadonlySet<MaskRoute> = new Set();
+
+/**
+ * What a day of Day details writes. With the summary's facts a day has data
+ * or it doesn't; without them, weighed by how likely the scan's weeks say.
+ */
 function dayBytes(date: string, ctx: CostContext): number {
 	const sizes = ctx.sizes;
+	const masked = ctx.masks ? emptyRoutes(date, ctx.masks.facts, ctx.masks.spans) : NONE;
+	const known = ctx.masks?.facts.summary !== undefined && (masked.has("summary") || ctx.masks.facts.summary.has(date));
+	const p = known ? (masked.has("summary") ? 0 : 1) : dataChance(date, ctx.scan);
 	const timelines = ctx.groups.includes("intraday") ? (date >= shiftDate(ctx.today, -TIMELINE_DAYS) ? sizes.timelines : sizes.oldTimelines) : 0;
-	const p = dataChance(date, ctx.scan);
 	return p * (sizes.dayFile + timelines) + (1 - p) * sizes.emptyDay;
 }
 

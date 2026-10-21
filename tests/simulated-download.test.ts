@@ -35,6 +35,10 @@ interface Scenario {
 	activityDetails: ActivityDetailsRange;
 	/** Requests the hour spent already, and how long ago. */
 	spent?: { requests: number; ago: number };
+	/** The weight index whole, with weigh-ins on these days, and its mask trusted: the other days ask no weigh-in. */
+	weighIns?: string[];
+	/** The mask not yet trusted: the download checks it first. */
+	unchecked?: boolean;
 }
 
 interface Snapshot {
@@ -43,7 +47,7 @@ interface Snapshot {
 	seconds?: number;
 }
 
-async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[] }> {
+async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[]; weighIns: string[]; verdicts: Record<string, unknown> }> {
 	const clock = new VirtualClock(Date.now());
 	clock.install();
 	try {
@@ -59,6 +63,12 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		const store = new VaultSeriesStore(app, "Garmin/data");
 		const scan = scanOf(first, today, new Set(), activities.length);
 		await store.writeScan(scan);
+		if (s.weighIns) {
+			const weight = DAY_INDEXES.find((d) => d.kind === "weight")!;
+			const rows = s.weighIns.map((date) => weight.normalize({ date, w: 72_000 })!);
+			await store.mergeDayIndex(weight, { rows, dates: s.weighIns }, { covered: { from: first, to: today }, complete: true });
+			if (!s.unchecked) await store.writeVerdicts({ body: "trusted" });
+		}
 		await store.mergeActivities(activities.map(listRow) as unknown as Activity[], { complete: true, units: "metric", total: activities.length });
 
 		const settings: GarminSettings = {
@@ -76,6 +86,7 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 
 		// What the setup would say, from the files the download plans from.
 		const [coverage, charts, index, detailFiles] = await Promise.all([store.readDayCoverage(true), store.readChartMetas(), store.readActivities(), store.readDetailCoverage()]);
+		const masks = await store.readMasks(settings.groups, charts, await store.readScan());
 		const predicted = estimate({
 			today,
 			groups: settings.groups,
@@ -88,6 +99,7 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 			charts,
 			activities: index.rows.map((row) => byId.get(row.id)!),
 			detailFiles,
+			masks,
 			budget: runner.budgetOutlook(),
 			now: clock.now(),
 			latency: { window: LATENCY, batch: LATENCY, overhead: 0 },
@@ -106,7 +118,10 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		await clock.runUntil(() => done, 48 * 3_600_000);
 		// The account's profile is looked up once a session, not once a download: counted apart.
 		const lookups = http.asked.filter((url) => url.includes("/socialProfile")).length;
-		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots };
+		// The days a weigh-in was asked for: the route takes the day in its path.
+		const weighIns = http.asked.map((url) => /\/weight-service\/weight\/dayview\/(\d{4}-\d{2}-\d{2})/.exec(url)?.[1]).filter((d): d is string => !!d);
+		const verdicts = (await store.readScan())?.learned?.masks ?? {};
+		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots, weighIns, verdicts };
 	} finally {
 		clock.uninstall();
 	}
@@ -122,6 +137,27 @@ describe("a simulated download against its estimate", () => {
 		assert.equal(got.requests, got.predicted.requests);
 		assert.equal(got.lookups, 1);
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
+	});
+
+	it("Day details with the weigh-in mask trusted: no weigh-in asked but on weigh-in days, and the requests still exact", async () => {
+		const today = toIsoDate();
+		const weighIns = [shiftDate(today, -3), shiftDate(today, -40)];
+		const got = await simulate({ days: 60, activities: { run: 5 }, accepted: [DAY_DETAILS_KEY], dayDetails: "all", activityDetails: "opened", weighIns });
+		assert.equal(got.requests, got.predicted.requests);
+		assert.deepEqual(got.weighIns.sort(), [...weighIns].sort());
+	});
+
+	it("checks a mask before it trusts it: the first chunk asks every day, then only the weigh-in days", async () => {
+		const today = toIsoDate();
+		const weighIns = [shiftDate(today, -3), shiftDate(today, -40)];
+		const got = await simulate({ days: 60, activities: { run: 5 }, accepted: [DAY_DETAILS_KEY], dayDetails: "all", activityDetails: "opened", weighIns, unchecked: true });
+		assert.equal(got.verdicts.body, "trusted");
+		// The first chunk's days, newest first, then the older weigh-in alone.
+		const first = got.weighIns.filter((d) => d !== shiftDate(today, -40));
+		assert.ok(first.length >= 5 && first.length <= 13, String(first.length));
+		assert.ok(got.weighIns.includes(shiftDate(today, -40)));
+		// The estimate reckoned the mask trusted from the start: the check is the difference.
+		assert.equal(got.requests - got.predicted.requests, got.weighIns.length - weighIns.length);
 	});
 
 	it("learns the download's own pace: halfway, the time left is within 10%", async () => {
