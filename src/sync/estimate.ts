@@ -1,5 +1,5 @@
-import { planBackfill, type BudgetOutlook, type PlanInput, type Task } from "./backfill";
-import { costContext, freshHour, ROW_BYTES, spanDays, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
+import { planBackfill, type PlanInput, type Task } from "./backfill";
+import { costContext, ROW_BYTES, spanDays, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
 import { rangeStart, type ConsentKey, type DataSetId } from "./datasets";
 import type { Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
@@ -11,8 +11,7 @@ import { daysSince, historyStart } from "./scan";
  * How much a choice of data sets stores and how long its download takes, for
  * the setup, Settings → History and the update dialog: the plan the download
  * would run (`planBackfill`), costed a unit at a time as the download runs
- * it, through the same hourly budget (`cost.ts`). Every figure is an
- * estimate, shown as "about".
+ * it (`cost.ts`). Every figure is an estimate, shown as "about".
  *
  * Pure.
  */
@@ -23,10 +22,6 @@ export interface EstimateInput extends PlanInput {
 	/** Bytes per day and per activity: measured, or the vault's own (`calibrate`). */
 	sizes?: SizeModel;
 	latency?: Latency;
-	/** The hour as it stands (`RequestBudget.outlook`); a fresh one without it. */
-	budget?: BudgetOutlook;
-	/** Epoch ms the download would start at. */
-	now?: number;
 }
 
 export interface SetEstimate {
@@ -55,8 +50,6 @@ const SETS: readonly DataSetId[] = ["charts", "day-details", "activity-details"]
 export function estimate(input: EstimateInput): Estimate {
 	const ctx = contextOf(input);
 	const units = unitsOf(planBackfill(input), ctx);
-	const outlook = input.budget ?? freshHour();
-	const now = input.now ?? Date.now();
 	const sets = SETS.map((id): SetEstimate => {
 		const mine = units.filter((unit) => setOf(unit) === id);
 		return {
@@ -65,7 +58,7 @@ export function estimate(input: EstimateInput): Estimate {
 			bytes: Math.round(sum(mine, (u) => u.bytes)),
 			requests: sum(mine, (u) => u.requests),
 			// A set alone, as if the others were done.
-			seconds: timeFor(mine, outlook, now),
+			seconds: timeFor(mine),
 			bytesPerYear: Math.round(perYear(id, input, ctx)),
 		};
 	});
@@ -75,8 +68,7 @@ export function estimate(input: EstimateInput): Estimate {
 		// Every unit, the date ranges asked for included: they belong to no set.
 		bytes: Math.round(sum(units, (u) => u.bytes)),
 		requests: sum(units, (u) => u.requests),
-		// The budget holds across the whole download, not set by set.
-		seconds: timeFor(units, outlook, now),
+		seconds: timeFor(units),
 		bytesPerYear: sum(sets, (s) => s.bytesPerYear),
 		largestFile: Math.max(365 * ctx.sizes.dayFile, activitiesPerYear * ctx.sizes.activityRow),
 	};
@@ -93,7 +85,7 @@ export function estimateDelta(input: EstimateInput, keys: readonly ConsentKey[])
 	return {
 		requests: sum(units, (u) => u.requests),
 		bytes: Math.round(sum(units, (u) => u.bytes)),
-		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+		seconds: timeFor(units),
 	};
 }
 
@@ -102,7 +94,7 @@ export interface RangeEstimate {
 	days: number;
 	requests: number;
 	bytes: number;
-	/** At once, about how long it takes; in the download, until it is done, after what the download takes first and held to the hour's budget. */
+	/** At once, about how long it takes; in the download, until it is done, after what the download takes first. */
 	seconds: number;
 	/** Too long to sync at once: it goes to the history download (`SyncRunner.queueRange`). */
 	background: boolean;
@@ -136,7 +128,7 @@ export function estimateRange(input: EstimateInput, from: string, to: string, op
 		days,
 		requests: sum(mine, (u) => u.requests),
 		bytes: Math.round(sum(mine, (u) => u.bytes)),
-		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+		seconds: timeFor(units),
 		background: true,
 	};
 }

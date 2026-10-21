@@ -87,8 +87,8 @@ Enabling the plugin opens a setup over Home:
 1. **Sign in** to your Garmin account. Multi-factor authentication is asked for in the same dialog.
 2. **Scan:** a few requests find where your Garmin history starts.
 3. **Download all of it:** the setup recommends your whole history and shows its size and how long it
-   takes. It downloads in the background, under an hourly request limit, and carries on after a
-   restart. **Advanced options** lets you keep less.
+   takes. It downloads in the background and carries on after a restart. **Advanced options** lets
+   you keep less.
 
 After that it syncs on its own when Obsidian starts and when you open Home, and Home's ↻ button
 syncs whenever you like. The [Guide](docs/GUIDE.md) covers every page and command.

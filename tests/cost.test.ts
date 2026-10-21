@@ -11,7 +11,6 @@ import {
 	detailBatch,
 	detailRequests,
 	detailUnit,
-	freshHour,
 	listRequests,
 	MEASURED_SIZES,
 	nextUnit,
@@ -118,28 +117,16 @@ describe("cost — history walks", () => {
 	});
 });
 
-describe("cost — time under the hourly budget", () => {
-	const now = Date.parse("2026-10-21T08:00:00Z");
+describe("cost — time", () => {
 	const units = (n: number, requests: number, seconds: number): Unit[] => Array.from({ length: n }, () => ({ kind: "activities", requests, bytes: 0, seconds }));
 
-	it("adds the units up while the hour has room", () => {
-		assert.equal(timeFor(units(8, 1_000, 10), freshHour(), now), 80);
+	it("adds the units up, one after another", () => {
+		assert.equal(timeFor(units(8, 1_000, 10)), 80);
+		assert.equal(timeFor([]), 0);
 	});
 
-	it("waits for the hour to free up past 8,000", () => {
-		// The ninth unit waits for the first to leave the hour, 3,610 s in; the tenth fits after it.
-		assert.equal(timeFor(units(10, 1_000, 10), freshHour(), now), 3_630);
-	});
-
-	it("starts from what the hour spent already", () => {
-		const spent = { entries: [{ at: now - 600_000, requests: 7_500 }], perHour: 8_000 };
-		// 1,000 more needs the 7,500 to leave the hour: 50 minutes, then the unit's 10 s.
-		assert.equal(timeFor(units(1, 1_000, 10), spent, now), 3_010);
-	});
-
-	it("holds half the hour while a 429's halving lasts", () => {
-		const halved = { entries: [], perHour: 8_000, halvedUntil: now + 24 * 3_600_000 };
-		assert.equal(timeFor(units(5, 1_000, 10), halved, now), 3_620);
+	it("never stops to wait, past 8,000 requests or any other count", () => {
+		assert.equal(timeFor(units(10, 1_000, 10)), 100);
 	});
 });
 

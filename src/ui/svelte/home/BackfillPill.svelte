@@ -3,9 +3,8 @@
 	import { lucide } from "./lucide";
 
 	/**
-	 * Plugin-only: the history download, under Home's title. Running — the
-	 * hourly rest included, which is part of the download's pace — paused (by
-	 * you, or after a 429), on another device, waiting for a sign-in, and a
+	 * Plugin-only: the history download, under Home's title. Running, paused
+	 * (by you, or after a 429), on another device, waiting for a sign-in, and a
 	 * moment of "up to date" once done.
 	 */
 	interface Props {
@@ -25,7 +24,7 @@
 	let last: BackfillProgress | null = null;
 	$effect(() => {
 		const now = progress;
-		const finished = !now && (last?.status === "running" || last?.status === "waiting");
+		const finished = !now && last?.status === "running";
 		last = now;
 		if (now) done = false;
 		if (!finished) return undefined;
@@ -39,13 +38,13 @@
 	let until = $derived(progress?.until ? time.format(new Date(progress.until)) : "");
 </script>
 
-{#if progress?.status === "running" || progress?.status === "waiting"}
+{#if progress?.status === "running"}
 	<div class="pill" role="status">
 		<svg class="ring" viewBox="0 0 16 16" aria-hidden="true">
 			<circle cx="8" cy="8" r="6" />
 			<circle class="arc" cx="8" cy="8" r="6" style:stroke-dasharray="{(percent / 100) * 37.7} 37.7" />
 		</svg>
-		<span>Downloading history{percent ? ` · ${percent}%` : ""}{progress.status === "waiting" && until ? ` · continues ${until}` : reached ? ` · ${reached}` : ""}</span>
+		<span>Downloading history{percent ? ` · ${percent}%` : ""}{reached ? ` · ${reached}` : ""}</span>
 		<button class="clickable-icon" aria-label="Pause the download" onclick={onPause}><span use:lucide={"pause"}></span></button>
 	</div>
 {:else if progress?.status === "paused" && progress.reason === "sign-in"}

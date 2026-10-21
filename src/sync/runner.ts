@@ -25,7 +25,7 @@ import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, type ActivityDetailStore, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
-import { HOURLY_BUDGET, PACE } from "./pace";
+import { PACE } from "./pace";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
@@ -37,7 +37,7 @@ import { fingerprintOf, listKey, markFor, nextSyncState, PROBE_PAGE, shouldSkip,
 import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, type SyncTrigger } from "./sync-outcome";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type QueuedRange, type Task } from "./backfill";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, stillPaused, type BackfillState, type DetailCandidate, type PauseReason, type QueuedRange, type Task } from "./backfill";
 import { cutOf, learn, type HorizonStreak, type TimelineVerdict } from "./horizons";
 import { auditedRoutes, MASK_STORES, PREPARED_STORES, skippedRoutes, tally, type MaskRoute, type Masks } from "./day-facts";
 import { asObserved, chunkDays, costContext, detailBatch, detailUnit, nextUnit, observe, timeFor, unitsOf, type CostContext, type Observed } from "./cost";
@@ -70,12 +70,11 @@ export interface BackfillProgress {
 	 * - `paused`: by the user, for a sign-in, after a 429 until `until`, or
 	 *   (`update`, this device only) until the plugin is updated because
 	 *   another device's newer build wrote the files.
-	 * - `waiting`: inside the hourly budget, until `until`.
 	 * - `elsewhere`: another device runs it (`device`).
 	 */
-	status: "running" | "paused" | "waiting" | "elsewhere";
+	status: "running" | "paused" | "elsewhere";
 	reason?: PauseReason | "update";
-	/** ISO: when a 429's pause or the budget's wait ends. */
+	/** ISO: when a pause ends. */
 	until?: string;
 	device?: string;
 	/** What it is fetching. */
@@ -83,7 +82,7 @@ export interface BackfillProgress {
 	/** Requests spent this session, and about how many are left: the progress bar. */
 	done: number;
 	remaining: number;
-	/** About how long what is left takes from now, held to the hourly budget. */
+	/** About how long what is left takes from now. */
 	seconds?: number;
 	/** For Day details, the oldest day still to fetch. */
 	reached?: string;
@@ -211,7 +210,6 @@ export class SyncRunner {
 	lastSync: { at: string; from: string; to: string; report: SyncReport } | null = null;
 	/** When this device last wrote its lease. */
 	private leaseWrittenAt = 0;
-	private budget: RequestBudget;
 	private historyState: HistoryProgress | null = null;
 	private historyListeners = new Set<(progress: HistoryProgress | null) => void>();
 	private statsHistoryState: StatsHistoryProgress | null = null;
@@ -238,7 +236,6 @@ export class SyncRunner {
 		this.app = app;
 		this.api = api;
 		this.settings = settings;
-		this.budget = new RequestBudget(() => HOURLY_BUDGET, localBudget(app));
 	}
 
 	get isRunning(): boolean {
@@ -251,9 +248,9 @@ export class SyncRunner {
 	}
 
 	/**
-	 * The runner, for `priority` (see `RunnerLock`). The release counts what was
-	 * asked meanwhile against the hour, hands the runner on, and then starts any
-	 * loads still waiting. Null when another sync holds it or waits for it.
+	 * The runner, for `priority` (see `RunnerLock`). The release hands the
+	 * runner on, then starts any loads still waiting. Null when another sync
+	 * holds it or waits for it.
 	 */
 	private async claim(priority: Priority): Promise<Release | null> {
 		const release = this.applied(await this.lock.acquire(priority));
@@ -301,11 +298,7 @@ export class SyncRunner {
 
 	private applied(release: Release | null): Release | null {
 		if (!release) return null;
-		const since = Date.now();
 		return () => {
-			// Whatever Garmin was asked while the runner was held — a sync, a
-			// download unit, a page's load, every retry — counts against the hour.
-			this.budget.add(this.api.stats.since(since).length, Date.now());
 			release();
 			if (!this.lock.busy && this.loadsWaiting) window.setTimeout(() => this.kickIntraday(), 0);
 		};
@@ -1205,11 +1198,6 @@ export class SyncRunner {
 	/*  The backfill                                                     */
 	/* ---------------------------------------------------------------- */
 
-	/** What the history download's hour has spent and allows, for Save debug info. */
-	budgetOutlook(): BudgetOutlook {
-		return this.budget.outlook(Date.now());
-	}
-
 	/** The backfill in progress, or null when there is none. */
 	get backfillProgress(): BackfillProgress | null {
 		return this.backfillState;
@@ -1278,7 +1266,7 @@ export class SyncRunner {
 		this.backfillTimer = null;
 	}
 
-	/** Tries the backfill again in `ms`: after a 429's pause, the budget's wait, or to see whether another device let go. */
+	/** Tries the backfill again in `ms`: after a pause, or to see whether another device let go. */
 	private backfillLater(ms: number): void {
 		this.clearBackfillTimer();
 		this.backfillTimer = window.setTimeout(() => {
@@ -1338,8 +1326,7 @@ export class SyncRunner {
 	private left(tasks: readonly Task[]): { remaining: number; seconds?: number } {
 		if (!this.backfillCtx) return { remaining: 0 };
 		const units = asObserved(unitsOf(tasks, this.backfillCtx), this.observed);
-		const now = Date.now();
-		return { remaining: units.reduce((n, unit) => n + unit.requests, 0), seconds: timeFor(units, this.budget.outlook(now), now) };
+		return { remaining: units.reduce((n, unit) => n + unit.requests, 0), seconds: timeFor(units) };
 	}
 
 	/**
@@ -1399,12 +1386,6 @@ export class SyncRunner {
 			return;
 		}
 		const predicted = nextUnit(this.backfillTasks, this.backfillCtx!);
-		const wait = this.budget.waitFor(predicted?.requests ?? 0, now);
-		if (wait > 0) {
-			this.backfillLater(wait);
-			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
-			return;
-		}
 		if (now - this.leaseWrittenAt > 60_000 || state.lease?.device !== this.device.id) {
 			const lease = { device: this.device.id, label: this.device.label, heartbeat: new Date(now).toISOString() };
 			await store.updateBackfill((fresh) => ({ ...fresh, lease, progress: this.progressFrom(fresh, now) }));
@@ -1438,8 +1419,7 @@ export class SyncRunner {
 			return;
 		}
 		if (fatal instanceof GarminRateLimitError) {
-			// Garmin said the pace was too much: half the hour for a day, as well as the pause.
-			this.budget.halve(Date.now());
+			// Garmin said the pace was too much: pause, longer for each 429 in a row.
 			this.rateLimits += 1;
 			const until = new Date(Date.now() + rateLimitWait(this.rateLimits)).toISOString();
 			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "rate-limit", until }, progress: this.progressFrom(fresh, Date.now()) }));
@@ -2074,16 +2054,6 @@ function unitName(task: Task, chunk: number): string {
 	if (task.kind === "details") return `activity ${task.ids[0] ?? ""}`.trim();
 	if (task.kind === "walk") return `the ${task.store.replace(/^index:/, "")} history`;
 	return "the activity list";
-}
-
-/** Where the hourly budget is kept: this device's local storage for the vault, never synced. */
-export const BUDGET_KEY = "garmin-connect-budget";
-
-function localBudget(app: App): BudgetStore {
-	return {
-		load: () => app.loadLocalStorage(BUDGET_KEY) as unknown,
-		save: (ledger) => app.saveLocalStorage(BUDGET_KEY, ledger),
-	};
 }
 
 function explain(err: unknown): string {

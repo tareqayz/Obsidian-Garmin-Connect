@@ -14,7 +14,7 @@ import { estimate } from "../src/sync/estimate";
 import { MISSES_TO_LEARN } from "../src/sync/horizons";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { PACE } from "../src/sync/pace";
-import { BUDGET_KEY, SyncRunner } from "../src/sync/runner";
+import { SyncRunner } from "../src/sync/runner";
 import { VaultSeriesStore } from "../src/sync/series-store";
 import { activitiesOf, MEASURED, scanOf } from "./support/account-fixture";
 import { FakeGarmin, listRow } from "./support/fake-garmin";
@@ -22,9 +22,9 @@ import { MemoryVault } from "./support/memory-vault";
 import { VirtualClock } from "./support/virtual-clock";
 
 /**
- * The estimate against the download itself: the real runner, engine, client,
- * throttle and hourly budget, run against a Garmin that answers every request
- * in `LATENCY` seconds, on a clock that only moves when nothing else can.
+ * The estimate against the download itself: the real runner, engine, client
+ * and throttle, run against a Garmin that answers every request in `LATENCY`
+ * seconds, on a clock that only moves when nothing else can.
  */
 const LATENCY = 0.25;
 
@@ -34,8 +34,6 @@ interface Scenario {
 	accepted: string[];
 	dayDetails: DayDetailsRange;
 	activityDetails: ActivityDetailsRange;
-	/** Requests the hour spent already, and how long ago. */
-	spent?: { requests: number; ago: number };
 	/** The weight index whole, with weigh-ins on these days, and its mask trusted: the other days ask no weigh-in. */
 	weighIns?: string[];
 	/** The mask not yet trusted: the download checks it first. */
@@ -61,7 +59,6 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 
 		const vault = new MemoryVault();
 		const local = new Map<string, unknown>();
-		if (s.spent) local.set(BUDGET_KEY, { entries: [{ at: clock.now() - s.spent.ago, requests: s.spent.requests }] });
 		const app = { vault, loadLocalStorage: (key: string) => local.get(key) ?? null, saveLocalStorage: (key: string, value: unknown) => local.set(key, value) } as unknown as App;
 		const store = new VaultSeriesStore(app, "Garmin/data");
 		const scan = scanOf(first, today, new Set(), activities.length);
@@ -108,8 +105,6 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 			detailFiles,
 			masks,
 			...(queued ? { ranges: queued } : {}),
-			budget: runner.budgetOutlook(),
-			now: clock.now(),
 			latency: { window: LATENCY, batch: LATENCY, overhead: 0 },
 		});
 
@@ -208,19 +203,19 @@ describe("a simulated download against its estimate", () => {
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
 	});
 
-	it("both, starting from an hour nearly spent: it waits as the estimate says", async () => {
+	it("both together, past 8,000 requests: no hour to wait out, and the time within 10%", async () => {
 		const got = await simulate({
-			days: 60,
-			activities: { run: 30, pool: 10 },
+			days: 120,
+			activities: { run: 600, pool: 100 },
 			accepted: [DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY],
 			dayDetails: "all",
 			activityDetails: "all",
-			spent: { requests: 7_800, ago: 30 * 60_000 },
 		});
+		assert.ok(got.requests > 8_000, String(got.requests));
 		assert.equal(got.requests, got.predicted.requests);
 		assert.equal(got.lookups, 1);
-		// Half an hour's wait for the hour to free up, then the download.
-		assert.ok(got.seconds > 30 * 60, String(got.seconds));
+		// At the pace: well inside the hour an hourly cap would have waited for.
+		assert.ok(got.seconds < 3_600, String(got.seconds));
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
 	});
 });

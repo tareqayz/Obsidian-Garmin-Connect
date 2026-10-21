@@ -38,12 +38,12 @@
 <div class="status">
 	{#if progress}
 		<div class="backfill" role="status">
-			{#if progress.status === "running" || progress.status === "waiting" || (progress.status === "paused" && progress.reason === "user")}
+			{#if progress.status === "running" || (progress.status === "paused" && progress.reason === "user")}
 				<div class="bar"><span style:width="{percent}%"></span></div>
 			{/if}
 			<div class="row">
 				<span class="line">{line}</span>
-				{#if progress.status === "running" || progress.status === "waiting"}
+				{#if progress.status === "running"}
 					<button onclick={() => void plugin.sync.pauseBackfill()}>Pause</button>
 				{:else if progress.status === "paused" && progress.reason === "sign-in"}
 					<button class="mod-cta" onclick={() => plugin.openLogin()}>Sign in</button>

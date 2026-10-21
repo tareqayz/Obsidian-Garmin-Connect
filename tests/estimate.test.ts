@@ -6,7 +6,6 @@ import { estimate, estimateDelta, estimateRange, formatBytes, formatDuration, ty
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { MEASURED, TEN_YEARS } from "./support/account-fixture";
 
-const NOW = Date.parse("2026-10-21T08:00:00Z");
 const EVERYTHING = [...chartKeys(ALL_GROUPS), DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY];
 
 /** A fresh setup of an account like `account`, downloading all of it. */
@@ -22,7 +21,6 @@ const input = (account: typeof MEASURED, over: Partial<EstimateInput> = {}): Est
 	charts: new Map(),
 	activities: account.activities,
 	detailFiles: new Map(),
-	now: NOW,
 	...over,
 });
 
@@ -47,22 +45,22 @@ describe("estimates — the measured vault, from scratch", () => {
 		assert.equal(formatBytes(got.bytes), "55 MB");
 	});
 
-	it("takes about an hour: one hour's 8,000 requests, then the few minutes the rest take", () => {
+	it("takes about 10 minutes at the plugin's pace, with no hour to wait out", () => {
 		assert.equal(got.requests, 9_417);
-		assert.equal(formatDuration(got.seconds), "about 1 hour");
-		assert.ok(got.seconds > 3_600 && got.seconds < 3_600 + 15 * 60, String(got.seconds));
+		assert.equal(formatDuration(got.seconds), "about 10 minutes");
+		assert.ok(got.seconds > 9 * 60 && got.seconds < 11 * 60, String(got.seconds));
 	});
 });
 
 describe("estimates — ten years and 3,000 activities", () => {
-	it("holds the download to the budget across every set, not set by set", () => {
+	it("takes its sets one after another at the pace: about an hour and a half", () => {
 		const got = estimate(input(TEN_YEARS));
 		assert.equal(set(got, "day-details").units, 3_649);
 		assert.equal(set(got, "activity-details").requests, 30_506);
 		assert.equal(got.requests, got.sets.reduce((n, s) => n + s.requests, 0));
-		// Each set alone fits more of itself into its first hour than the whole download does.
-		assert.ok(got.seconds > Math.max(...got.sets.map((s) => s.seconds)));
-		assert.equal(formatDuration(got.seconds), formatDuration((Math.ceil(got.requests / 8_000) - 1) * 3_600 + 600));
+		// Nothing waits between them: the whole is its sets' time added up.
+		assert.ok(Math.abs(got.seconds - got.sets.reduce((n, s) => n + s.seconds, 0)) < 1e-6, String(got.seconds));
+		assert.equal(formatDuration(got.seconds), "about 1.5 hours");
 	});
 });
 
@@ -127,14 +125,14 @@ describe("estimates — a date range", () => {
 		assert.equal(later.bytes, atOnce.bytes);
 	});
 
-	it("runs until the range is done: after the walks and the ranges queued before it, held to the hour", () => {
+	it("runs until the range is done: after the walks and the ranges queued before it", () => {
 		const alone = estimateRange(input(MEASURED, { accepted: [] }), "2025-10-21", "2026-10-20", { download: true });
 		const afterWalks = estimateRange(set, "2025-10-21", "2026-10-20", { download: true });
 		const queued = [{ from: "2025-01-01", to: "2025-06-30", next: "2025-06-30", at: "2026-10-21T07:00:00.000Z" }];
 		const behind = estimateRange(input(MEASURED, { accepted: [], ranges: queued }), "2025-10-21", "2026-10-20", { download: true });
 		assert.ok(afterWalks.seconds > alone.seconds && behind.seconds > alone.seconds, `${alone.seconds} ${afterWalks.seconds} ${behind.seconds}`);
 		assert.deepEqual([behind.requests, behind.bytes], [alone.requests, alone.bytes]);
-		// Ten years' worth is more than an hour's budget.
-		assert.ok(estimateRange(input(TEN_YEARS), shiftDate(TEN_YEARS.today, -3_000), shiftDate(TEN_YEARS.today, -1), { download: true }).seconds > 3_600);
+		// Ten years' worth runs at the pace, with no hour to wait out.
+		assert.equal(formatDuration(estimateRange(input(TEN_YEARS), shiftDate(TEN_YEARS.today, -3_000), shiftDate(TEN_YEARS.today, -1), { download: true }).seconds), "about 40 minutes");
 	});
 });
