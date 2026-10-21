@@ -31,11 +31,11 @@ import { RemovedDataModal } from "./ui/removed-data-modal";
 import { watchForUninstall } from "./uninstall-watch";
 import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
-import { debtItems, pendingItems, type DebtInput, type DebtItem } from "./sync/debt";
+import type { DebtInput } from "./sync/debt";
 import { estimateDelta, type EstimateInput } from "./sync/estimate";
 import type { DetailCandidate } from "./sync/backfill";
 import { PACE } from "./sync/pace";
-import type { UpdateLine, UpdateTotal } from "./ui/setup-flow";
+import { updateLinesOf, type UpdateLine, type UpdateTotal } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
 
@@ -341,9 +341,13 @@ export default class GarminPlugin extends Plugin {
 	private askedForUpdates = false;
 
 	/** What the update lines and their total are worked out from, read once: null before the setup or without data here. */
-	private async updateInput(): Promise<(DebtInput & EstimateInput) | null> {
+	/**
+	 * What the history download and the update lines are worked out from, in
+	 * one read of the vault: the scan, the coverage, the chart metas, the
+	 * activity index and the detail files. Null when the data folder is empty.
+	 */
+	async historyInput(): Promise<(DebtInput & EstimateInput) | null> {
 		const settings = this.data.settings;
-		if (!settings.setup) return null;
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		if (!store.hasData()) return null;
 		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
@@ -360,7 +364,7 @@ export default class GarminPlugin extends Plugin {
 			deferred: settings.data.deferred,
 			dayDetails: settings.data.dayDetails,
 			activityDetails: settings.data.activityDetails,
-			since: settings.setup.completedAt.slice(0, 10),
+			...(settings.setup ? { since: settings.setup.completedAt.slice(0, 10) } : {}),
 			scan,
 			daySpans: coverage.spans,
 			charts,
@@ -376,18 +380,13 @@ export default class GarminPlugin extends Plugin {
 	 * something to fetch, or only those not put off yet — as dialog lines.
 	 */
 	async updateLines(only: "pending" | "all"): Promise<UpdateLine[]> {
-		const input = await this.updateInput();
-		if (!input) return [];
-		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
-		return items.map((item) => {
-			const { bytes, seconds } = estimateDelta(input, [item.key]);
-			return { key: item.key, title: item.title, detail: item.detail, bytes, seconds };
-		});
+		const input = this.data.settings.setup ? await this.historyInput() : null;
+		return input ? updateLinesOf(input, only) : [];
 	}
 
 	/** What picked update lines add together, as one download under one hourly budget. */
 	async updateTotal(): Promise<UpdateTotal> {
-		const input = await this.updateInput();
+		const input = this.data.settings.setup ? await this.historyInput() : null;
 		return (keys) => (input && keys.length ? estimateDelta(input, keys) : { bytes: 0, seconds: 0 });
 	}
 

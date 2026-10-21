@@ -1,5 +1,6 @@
 import { ACTIVITY_DETAILS_KEY, chartKeys, DAY_DETAILS_KEY, type ActivityDetailsRange, type ConsentKey, type DayDetailsRange } from "../sync/datasets";
-import type { Estimate } from "../sync/estimate";
+import { estimateDelta, type Estimate, type EstimateInput } from "../sync/estimate";
+import { debtItems, pendingItems, type DebtInput } from "../sync/debt";
 import type { MetricGroup } from "../sync/metrics";
 import type { ScanResult } from "../sync/scan";
 
@@ -94,3 +95,16 @@ export interface UpdateLine {
 
 /** What picked lines add together: one download, so one hour's budget across them all. */
 export type UpdateTotal = (keys: readonly string[]) => { bytes: number; seconds: number };
+
+/**
+ * What the data sets offer that hasn't been agreed to — every item with
+ * something to fetch, or only those not put off yet — as dialog lines, priced
+ * from one read of the vault.
+ */
+export function updateLinesOf(input: DebtInput & EstimateInput, only: "pending" | "all"): UpdateLine[] {
+	const items = only === "pending" ? pendingItems(input) : debtItems(input);
+	return items.map((item) => {
+		const { bytes, seconds } = estimateDelta(input, [item.key]);
+		return { key: item.key, title: item.title, detail: item.detail, bytes, seconds };
+	});
+}

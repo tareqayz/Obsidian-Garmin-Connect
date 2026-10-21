@@ -1,11 +1,11 @@
 import type GarminPlugin from "../main";
 import { rangeStart } from "../sync/datasets";
-import { toIsoDate } from "../garmin/endpoints";
 import { estimate, formatBytes, formatDuration, type Estimate } from "../sync/estimate";
 import type { BackfillProgress } from "../sync/runner";
 import { historyStart } from "../sync/scan";
 import { VaultSeriesStore, type DiskUsage } from "../sync/series-store";
-import type { UpdateLine } from "./setup-flow";
+import { Coalesced } from "./coalesced";
+import { updateLinesOf, type UpdateLine } from "./setup-flow";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
@@ -26,6 +26,8 @@ export class SettingsDataRows {
 	private start: string | undefined;
 	private readonly painters = new Set<() => void>();
 	private unsubscribe: Array<() => void> = [];
+	/** During a download the progress moves every few seconds: one refresh at a time, at most every 3 s. */
+	private readonly refreshing = new Coalesced(() => this.load(), 3_000);
 
 	constructor(private readonly plugin: GarminPlugin) {
 		this.usage = new VaultSeriesStore(plugin.app, plugin.data.settings.dataFolder).diskUsage();
@@ -61,40 +63,24 @@ export class SettingsDataRows {
 	}
 
 	/** What is missing for the ranges chosen, from the last scan and what the vault holds. */
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		return this.refreshing.run();
+	}
+
+	/** One read of the vault for the update lines and the estimate both. */
+	private async load(): Promise<void> {
 		const plugin = this.plugin;
 		const s = plugin.data.settings;
-		const store = new VaultSeriesStore(plugin.app, s.dataFolder);
-		this.usage = store.diskUsage();
-		this.updates = await plugin.updateLines("all");
-		const scan = await store.readScan();
-		if (!scan) {
+		this.usage = new VaultSeriesStore(plugin.app, s.dataFolder).diskUsage();
+		const input = await plugin.historyInput();
+		this.updates = input && s.setup ? updateLinesOf(input, "all") : [];
+		if (!input?.scan) {
 			this.est = null;
 			this.paint();
 			return;
 		}
-		const [index, coverage, detailFiles, charts] = await Promise.all([
-			store.readActivities(),
-			store.readDayCoverage(s.groups.includes("intraday")),
-			store.readDetailCoverage(),
-			store.readChartMetas(),
-		]);
-		this.start = historyStart(scan);
-		this.est = estimate({
-			today: toIsoDate(),
-			groups: s.groups,
-			accepted: s.data.accepted,
-			dayDetails: s.data.dayDetails,
-			activityDetails: s.data.activityDetails,
-			...(s.setup ? { since: s.setup.completedAt.slice(0, 10) } : {}),
-			scan,
-			daySpans: coverage.spans,
-			charts,
-			activities: index.rows.map((row) => plugin.candidateOf(row)),
-			detailFiles,
-			budget: plugin.sync.budgetOutlook(),
-			now: Date.now(),
-		});
+		this.start = historyStart(input.scan);
+		this.est = estimate(input);
 		this.paint();
 	}
 

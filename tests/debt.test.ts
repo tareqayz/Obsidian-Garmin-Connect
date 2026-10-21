@@ -6,6 +6,7 @@ import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION,
 import { shiftDate } from "../src/sync/day-index";
 import { chartTitle, debtItems, pendingItems, type DebtInput } from "../src/sync/debt";
 import type { AccountScan } from "../src/sync/scan";
+import { updateLinesOf } from "../src/ui/setup-flow";
 
 const TODAY = "2026-10-14";
 const scan: AccountScan = { scannedAt: `${TODAY}T06:00:00.000Z`, firstDay: "2025-08-02", days: 432, weeks: [["2025-07-31", 5]], activities: 341, complete: true };
@@ -113,3 +114,14 @@ describe("what an update offers", () => {
 		]);
 	});
 });
+
+describe("the update lines Settings and the update dialog show", () => {
+	it("price each item in size and time, never in requests", () => {
+		const charts = complete(ALL_CHARTS.filter((s) => s !== "index:heat-acclimation"));
+		const lines = updateLinesOf({ ...input({ accepted: chartKeys(["sleep"]), charts }), now: Date.parse(`${TODAY}T12:00:00Z`) }, "all");
+		assert.deepEqual(lines.map((l) => [l.key, l.title]), [["index:heat-acclimation@1", "Heat acclimation history"]]);
+		assert.ok(lines[0]!.bytes > 0 && lines[0]!.seconds > 0);
+		assert.deepEqual(Object.keys(lines[0]!).sort(), ["bytes", "detail", "key", "seconds", "title"]);
+	});
+});
+
