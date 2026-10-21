@@ -132,6 +132,8 @@ export const WEIGHT_INDEX = defineDayIndex<WeightRow>({
 	emptyWindowsToStop: 1,
 	// A weigh-in can be added or deleted for a past day; a week back is refetched.
 	refreshDays: 7,
+	// The weigh-ins, and the profile for the height that BMI needs.
+	requestsPerWindow: 2,
 	fetchWindow: async (api, start, end) => {
 		let height: number | undefined;
 		try {

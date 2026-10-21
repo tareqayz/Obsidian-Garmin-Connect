@@ -140,7 +140,7 @@ describe("estimates — Activity details and Charts", () => {
 
 	it("walks every chart index over the history it lacks, and nothing over one already complete", () => {
 		const charts = set(estimate(input({ scan: account(365, 300) })), "charts");
-		assert.ok(charts.requests > 100 && charts.requests < 200, String(charts.requests));
+		assert.ok(charts.requests > 100 && charts.requests < 250, String(charts.requests));
 		assert.ok(charts.bytes > 800_000 && charts.bytes < 1_100_000, String(charts.bytes));
 		// Critical Swim Speed is the workouts group's index.
 		const all = new Map<string, { complete: boolean }>(["activities", "daily-stats", "sleep", "index:critical-swim-speed"].map((store) => [store, { complete: true }]));
