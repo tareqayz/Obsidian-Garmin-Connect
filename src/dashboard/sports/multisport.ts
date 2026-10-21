@@ -1,6 +1,7 @@
 import { pace } from "../../sync/metrics";
 import type { ActivityDetail } from "../../sync/activity-detail";
 import { formatDistance, type Units } from "../activities";
+import { hasMetric, type ChartsSpec } from "../activity-chart-pages";
 import { LEG_RAMP, legsOf, type Leg } from "../activity-legs";
 import { ROUTE_BASE, type MapSpec } from "../activity-map";
 import { distanceHero, groupLink, timeHero, type OverviewFigure, type OverviewLeg, type OverviewLink } from "../activity-overview";
@@ -9,7 +10,8 @@ import { elevationOf, fixed, MPH_PER_MS, numberOf, summaryOf, timeOf } from "../
 import type { SportProfile } from "../activity-sports";
 import { inUnit, perHundred, swimPace, swimUnit } from "../swim-metrics";
 import { duration } from "../series";
-import { BASIC } from "./basic";
+import { CYCLING_METRICS } from "../cycling-metrics";
+import { BASIC, BASIC_CHARTS } from "./basic";
 import { SWIM_ROUTE } from "./swimming";
 
 /**
@@ -118,19 +120,34 @@ export const MULTISPORT: SportProfile = {
 /* ------------------------------------------------------------------ */
 
 /**
+ * The basic page's charts, and the ride's Speed, which the transition's Avg
+ * Speed badge opens; its Charts tab keeps the basic page's cards (Inferred:
+ * not shot).
+ */
+const TRANSITION_CHARTS: ChartsSpec = {
+	...BASIC_CHARTS,
+	chips: [...BASIC_CHARTS.chips, "speed"],
+	metrics: { speed: CYCLING_METRICS.speed },
+};
+
+/**
  * Total Time, Avg Speed, Total Ascent and Total Calories (shot 1212): the
  * basic page's four with the time in place of the heart rate, which Garmin
- * sends (127 bpm) and the phone leaves out.
+ * sends (127 bpm) and the phone leaves out. Avg Speed and Total Ascent carry
+ * their chart badges, as on the phone, when the leg recorded them.
  */
 function transitionFigures(detail: ActivityDetail, units: Units): OverviewFigure[] {
 	const v = summaryOf(detail);
 	const imperial = units === "imperial";
 	const out: OverviewFigure[] = [];
+	const badge = (chart: string) => (hasMetric(detail, chart, TRANSITION_CHARTS) ? { chart } : {});
 	const time = timeOf(v("duration"));
 	if (time !== undefined) out.push({ value: time, label: "Total Time" });
 	const speed = v("averageSpeed");
-	if (speed !== undefined && speed >= 0) out.push({ value: fixed(speed * (imperial ? MPH_PER_MS : 3.6), 1), unit: imperial ? "mph" : "km/h", label: "Avg Speed" });
-	out.push({ value: elevationOf(v("elevationGain"), units) ?? "--", unit: imperial ? "ft" : "m", label: "Total Ascent" });
+	if (speed !== undefined && speed >= 0) {
+		out.push({ value: fixed(speed * (imperial ? MPH_PER_MS : 3.6), 1), unit: imperial ? "mph" : "km/h", label: "Avg Speed", ...badge("speed") });
+	}
+	out.push({ value: elevationOf(v("elevationGain"), units) ?? "--", unit: imperial ? "ft" : "m", label: "Total Ascent", ...badge("elevation") });
 	const kcal = v("calories");
 	if (kcal !== undefined) out.push({ value: Math.round(kcal).toLocaleString("en-US"), label: "Total Calories" });
 	return out;
@@ -145,5 +162,6 @@ export const TRANSITION: SportProfile = {
 	...BASIC,
 	id: "transition",
 	overview: { ...BASIC.overview, figures: transitionFigures },
+	charts: TRANSITION_CHARTS,
 	map: SWIM_ROUTE,
 };

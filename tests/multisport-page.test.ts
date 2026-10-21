@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { expandedChartView } from "../src/dashboard/activity-chart-pages";
 import { legAt, legsOf, LEG_COLOURS } from "../src/dashboard/activity-legs";
 import { hasRoute, lapMarkers, legPins, mapOverlays, overlayFor, overviewOverlay, rampOf, routeRuns } from "../src/dashboard/activity-map";
 import { overviewView } from "../src/dashboard/activity-overview";
@@ -193,6 +194,14 @@ describe("a multisport's leg page", () => {
 			{ value: "17", label: "Total Calories" },
 		]);
 		assert.equal(view.benefit?.label, "Base (Low Aerobic)");
+	});
+
+	it("badges Avg Speed and Total Ascent when the leg recorded them, and the badge opens its chart", () => {
+		assert.deepEqual(view.figures.map((f) => f.chart), [undefined, undefined, undefined, undefined]);
+		const recorded = { ...leg, samples: { clock: [0, 60, 120], time: [0, 60, 120], distance: [0, 60, 130], speed: [0.8, 1.2, 0.6], elevation: [9, 10, 12] } };
+		const figures = overviewView(recorded, "metric", TODAY, TRANSITION.overview).figures;
+		assert.deepEqual(figures.map((f) => f.chart), [undefined, "speed", "elevation", undefined]);
+		assert.equal(expandedChartView(recorded, { axis: "time", sub: "chart:speed" }, "metric", TRANSITION.charts)?.title, "Speed");
 	});
 
 	it("draws a transition's route plain red, as the phone, without the pace colours", () => {
