@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type * as L from "leaflet";
 	import type { Snippet } from "svelte";
-	import { baseOf, lapMarkers, rampOf, routeBounds, routeEnds, routePoints, routeRuns, type MapSpec } from "../../../dashboard/activity-map";
+	import { baseOf, lapMarkers, legPins, rampOf, routeBounds, routeEnds, routePoints, routeRuns, type MapSpec } from "../../../dashboard/activity-map";
 	import type { ActivityDetail } from "../../../sync/activity-detail";
 	import { loadLeaflet, type Leaflet } from "../../map/leaflet";
 	import type { TileSource } from "../../map/tile-source";
-	import { LAP_ANCHOR, LAP_SIZE, PIN_ANCHOR, PIN_SIZE, PIN_Z, lapZ, pinHtml, type PinKind } from "./map/markers";
+	import { LAP_ANCHOR, LAP_SIZE, PIN_ANCHOR, PIN_SIZE, PIN_Z, lapZ, legPinHtml, pinHtml, type PinKind } from "./map/markers";
 
 	/**
 	 * An activity's route on a map: OpenStreetMap's tiles when there are any,
@@ -26,7 +26,8 @@
 	 * the full-screen one until someone moves it.
 	 *
 	 * The overlay's colours and the plain route's are the sport's (`map`, its
-	 * profile's map spec), the run's without one.
+	 * profile's map spec), the run's without one. A multisport pins where each
+	 * leg began with the leg's figure, in the start pin's place.
 	 */
 	interface Props {
 		detail: ActivityDetail;
@@ -197,6 +198,12 @@
 			}
 		}
 		const ends = routeEnds(points);
+		const legs = legPins(detail, points);
+		// Over the laps and the end, each other as Leaflet stacks them: the lower on the screen on top, as the phone's.
+		for (const leg of legs) {
+			const icon = leaflet.divIcon({ className: "gc-map-pin is-start", html: legPinHtml(leg.glyph), iconSize: PIN_SIZE, iconAnchor: PIN_ANCHOR });
+			leaflet.marker(leg.at, { icon, interactive: false, keyboard: false, zIndexOffset: PIN_Z.start }).addTo(group);
+		}
 		if (ends) {
 			const pin = (kind: PinKind) =>
 				leaflet.marker(kind === "start" ? ends.start : ends.end, {
@@ -207,7 +214,7 @@
 				});
 			// The start over the end, which a loop puts in the same place.
 			pin("end").addTo(group);
-			pin("start").addTo(group);
+			if (!legs.length) pin("start").addTo(group);
 		}
 		group.addTo(m);
 		return () => {

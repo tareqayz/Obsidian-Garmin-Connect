@@ -113,6 +113,15 @@ export interface ActivityDetail {
 	badges?: ActivityBadge[];
 	/** A ride's rider positions on the clock: where each stretch of standing or sitting began. */
 	positions?: RiderPosition[];
+	/**
+	 * A multisport's legs, in order (`metadataDTO.childIds`): each a separate
+	 * activity with its own page. Its laps are the legs' totals, one each, and
+	 * its samples the whole race's track (`lat`, `lon`, `clock`) rather than
+	 * Garmin's rows, which hold the first leg's only.
+	 */
+	legs?: ActivityLegRef[];
+	/** On a multisport's leg: the multisport it belongs to. */
+	parentId?: number;
 	/** The newest weigh-in on or before the activity's day, for Power (W/kg). */
 	weightKg: number | null;
 	/** Blocks fetched, data or not. One not listed failed, and the next view asks again. */
@@ -130,6 +139,12 @@ export interface ActivitySensor {
 	firmware?: string;
 	/** "OK", "Low", or "73%". */
 	battery?: string;
+}
+
+/** A multisport's leg: its activity and that activity's typeKey. */
+export interface ActivityLegRef {
+	id: number;
+	type: string;
 }
 
 export interface ActivityBadge {
@@ -436,7 +451,10 @@ export function buildActivityDetail(id: number, got: ActivityPayloads, base: Act
 	const out: ActivityDetail = base ? { ...base, checked: [...base.checked] } : emptyDetail(id);
 	if (summary) Object.assign(out, headerOf(summary));
 	const clockStart = epochOfGmt(out.startGmt);
-	if (got.samples !== undefined) out.samples = samplesOf(got.samples as ActivityDetails | null, clockStart);
+	if (got.samples !== undefined) {
+		const details = got.samples as ActivityDetails | null;
+		out.samples = (out.legs?.length && trackOf(details, clockStart)) || samplesOf(details, clockStart);
+	}
 	if (got.laps !== undefined) {
 		out.laps = lapsOf(got.laps as ActivitySplits | null, clockStart);
 		const positions = positionsOf(got.laps as ActivitySplits | null, clockStart);
@@ -473,12 +491,28 @@ export function parseActivityDetail(text: string): ActivityDetail | null {
 		if (typeof parsed.id !== "number") return null;
 		if (!parsed.summary || typeof parsed.summary !== "object" || !parsed.samples || typeof parsed.samples !== "object") return null;
 		const checked = (parsed.checked ?? []).filter((b): b is ActivityBlock => (ACTIVITY_BLOCKS as readonly string[]).includes(b));
-		if (parsed.version === ACTIVITY_DETAIL_VERSION) return { ...emptyDetail(parsed.id), ...parsed, checked };
+		if (parsed.version === ACTIVITY_DETAIL_VERSION) return withLegs({ ...emptyDetail(parsed.id), ...parsed, checked });
 		if (parsed.version === UPGRADED_VERSION && isRunFamily(parsed)) return upgradeRun({ ...emptyDetail(parsed.id), ...parsed, checked });
 		return null;
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * A multisport saved before its legs were kept drew the first leg's samples
+ * as its map: its summary (the legs) and samples (the race's track) read as
+ * unfetched, so its next view asks those two again. Same version: no other
+ * file changes, and nothing in the update dialog for one activity's page.
+ */
+function withLegs(detail: ActivityDetail): ActivityDetail {
+	if (!isMultisport(detail) || detail.legs?.length) return detail;
+	return { ...detail, checked: detail.checked.filter((block) => block !== "summary" && block !== "samples") };
+}
+
+/** A multisport activity (Garmin's type 89), whose legs are activities of their own. */
+export function isMultisport(detail: Pick<ActivityDetail, "type" | "typeId">): boolean {
+	return detail.typeId === 89 || detail.type === "multi_sport";
 }
 
 /**
@@ -693,6 +727,21 @@ function headerOf(summary: ActivitySummary): Partial<ActivityDetail> {
 	if (pool) out.pool = pool;
 	const sensors = sensorsOf(summary.metadataDTO?.sensors);
 	if (sensors.length) out.sensors = sensors;
+	const legs = legsOf(summary.metadataDTO?.childIds, summary.metadataDTO?.childActivityTypes);
+	if (legs.length) out.legs = legs;
+	if (typeof summary.parentId === "number" && Number.isSafeInteger(summary.parentId) && summary.parentId > 0) out.parentId = summary.parentId;
+	return out;
+}
+
+/** A multisport's legs: its children's ids beside their types, in race order. */
+function legsOf(ids: unknown, types: unknown): ActivityLegRef[] {
+	if (!Array.isArray(ids)) return [];
+	const keys: unknown[] = Array.isArray(types) ? types : [];
+	const out: ActivityLegRef[] = [];
+	ids.forEach((id, i) => {
+		const type = keys[i];
+		if (typeof id === "number" && Number.isSafeInteger(id) && id > 0) out.push({ id, type: typeof type === "string" ? type : "" });
+	});
 	return out;
 }
 
@@ -824,6 +873,29 @@ function samplesOf(details: ActivityDetails | null, clockStart: number | undefin
 		});
 	}
 	return out;
+}
+
+/**
+ * A multisport's track: Garmin's polyline, which runs through every leg where
+ * the rows stop after the first, as `lat`, `lon` and `clock` columns. Null
+ * without one, and the rows are kept.
+ */
+function trackOf(details: ActivityDetails | null, clockStart: number | undefined): Record<string, Array<number | null>> | null {
+	const points = details?.geoPolylineDTO?.polyline ?? [];
+	if (points.length < 2 || clockStart === undefined) return null;
+	const [, places] = SAMPLE_COLUMNS.directLatitude;
+	const lat: Array<number | null> = [];
+	const lon: Array<number | null> = [];
+	const clock: Array<number | null> = [];
+	for (const point of points) {
+		const a = point?.lat;
+		const b = point?.lon;
+		const time = point?.time;
+		lat.push(typeof a === "number" && Number.isFinite(a) ? round(a, places) : null);
+		lon.push(typeof b === "number" && Number.isFinite(b) ? round(b, places) : null);
+		clock.push(typeof time === "number" && Number.isFinite(time) ? Math.round((time - clockStart) / 1000) : null);
+	}
+	return { lat, lon, clock };
 }
 
 function lapsOf(splits: ActivitySplits | null, clockStart: number | undefined): ActivityLap[] {

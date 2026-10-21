@@ -39,6 +39,11 @@ const TABLER: Record<Exclude<SportGlyph, "activity">, string> = {
 	"chevrons-right": '<path d="M7 7l5 5l-5 5"/><path d="M13 7l5 5l-5 5"/>',
 };
 
+/** A glyph's paths on Tabler's 24-unit grid, for drawing it in an SVG of one's own (a map pin); none for Lucide's `activity`. */
+export function sportPaths(glyph: SportGlyph): string | undefined {
+	return glyph === "activity" ? undefined : TABLER[glyph];
+}
+
 /** The Obsidian icon id for a glyph. `activity` is Lucide's own. */
 export function sportIcon(glyph: SportGlyph): string {
 	return glyph === "activity" ? "activity" : `garmin-sport-${glyph}`;

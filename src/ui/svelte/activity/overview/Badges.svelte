@@ -38,8 +38,8 @@
 		display: flex;
 		align-items: flex-start;
 		box-sizing: border-box;
-		height: 80px;
-		padding: 18px 16px 0 17px;
+		min-height: 80px;
+		padding: 18px 16px 14px 17px;
 		background: var(--background-secondary);
 	}
 	.gc-badge-medal {
@@ -72,14 +72,13 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
+	/* Wrapped, as the phone wraps the Brick's two lines (multisport shot 1210); the row grows with it. */
 	.gc-badge-description {
 		margin-top: 1.22px;
 		font-size: 13px;
 		line-height: 16px;
 		color: var(--text-muted);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	/* 640 pt and up: a rounded list in its column. */

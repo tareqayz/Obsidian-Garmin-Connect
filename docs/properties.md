@@ -513,6 +513,8 @@ file per activity:
 | `samples` | the recorded samples as columns of equal length, in Garmin's units (listed below). A column the watch didn't record is left out; `null` is a gap | `/details` |
 | `laps` | each lap's figures, unrounded; a pool swim's `lengths` one by one, and `rest` on a rest | `/splits` |
 | `positions` | a ride's rider positions: when each stretch of standing or sitting began | `/splits`' events |
+| `legs` | a multisport's legs in race order: each leg's activity `id` and `type`. Its `laps` are the legs' totals, one lap a leg, and its `samples` are the whole race's track (`lat`, `lon`, `clock`), because Garmin's samples cover only the first leg. A multisport file saved without `legs` fetches its summary and samples again on its next view | the summary's `metadataDTO.childIds` and `childActivityTypes`; the track from `/details`' `geoPolylineDTO` |
+| `parentId` | on a multisport's leg: the multisport it belongs to | the summary's `parentId` |
 | `segments` | run, walk and idle stretches, and workout intervals | `/typedsplits` |
 | `hrZones`, `powerZones` | seconds in each zone, with its bounds | `/hrTimeInZones`, `/powerTimeInZones` |
 | `weather` | temperature and feels-like (°F), humidity, wind, gusts and direction, and Garmin's description | `/weather` |

@@ -1,3 +1,6 @@
+import type { SportGlyph } from "../../../../dashboard/activities";
+import { sportPaths } from "../../../sport-icons";
+
 /**
  * The route's markers as Leaflet draws them (`L.divIcon`): the start and end
  * pins and the numbered lap markers. Their look is in RouteMap's styles
@@ -26,6 +29,22 @@ export const PIN_ANCHOR: [number, number] = [11, 26.5];
 
 export function pinHtml(kind: PinKind): string {
 	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${DROP}" fill="${PIN_FILL[kind]}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${GLYPH[kind]}</svg>`;
+}
+
+/**
+ * A multisport leg's pin: the start pin's green drop with the leg's sport
+ * figure in white, as the phone's full map pins each leg
+ * (`ref/activity-details/multisport/phone/map/01-full-zoomed`). The figure is
+ * Tabler's 24-unit drawing scaled into the head (11 units across); the
+ * stroke is scaled up to stay about 1.2 px. A sport without a figure of its
+ * own keeps the ▶.
+ */
+export function legPinHtml(glyph: SportGlyph): string {
+	const paths = sportPaths(glyph);
+	const figure = paths
+		? `<g transform="translate(4.75 3.75) scale(0.521)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${paths}</g>`
+		: GLYPH.start;
+	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${DROP}" fill="${PIN_FILL.start}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${figure}</svg>`;
 }
 
 /** The lap marker: a 20 pt white disc, its number centred. */

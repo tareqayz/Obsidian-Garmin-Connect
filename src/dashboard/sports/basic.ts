@@ -201,7 +201,7 @@ export const HEART_RATE_FIT: NonNullable<ChartsSpec["runOverrides"]> = {
  * 11, 6 and 80%; its Zone 1 is Garmin's white (sampled at (25, 733) pt),
  * which the page draws in the theme's text colour.
  */
-const CHARTS: ChartsSpec = {
+export const BASIC_CHARTS: ChartsSpec = {
 	cards: (detail) => ((numberOf(detail.summary.averageSpeed) ?? 0) > 0 ? ["pace", ...STILL] : STILL),
 	chips: ["pace", "heart-rate", "heart-rate-zones", "elevation"],
 	pickers: { pace: RUN_CHARTS.pickers.pace, "heart-rate": RUN_CHARTS.pickers["heart-rate"] },
@@ -234,5 +234,5 @@ export const BASIC: SportProfile = {
 	overview: { hero, figures, links },
 	stats: { table, help: RUN_STATS.help },
 	laps: { table: laps, pinnedHeader: true },
-	charts: CHARTS,
+	charts: BASIC_CHARTS,
 };

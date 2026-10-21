@@ -2,7 +2,7 @@
 	import { BENEFIT_SHEET_TITLE, benefitMessage } from "../../../dashboard/activity-copy";
 	import { mapLegend, overlayFor, overviewOverlay } from "../../../dashboard/activity-map";
 	import { overviewView, type OverviewLink, type OverviewView } from "../../../dashboard/activity-overview";
-	import { activityMapRoute } from "../../../dashboard/routes";
+	import { activityMapRoute, activityRoute } from "../../../dashboard/routes";
 	import { toIsoDate } from "../../../garmin/endpoints";
 	import { sportIcon } from "../../sport-icons";
 	import { lucide } from "../home/lucide";
@@ -18,8 +18,9 @@
 	/**
 	 * Overview, as the phone lays it out: the route map (static: a tap opens
 	 * the full-screen map), the date line, the name, the big figure (the
-	 * distance, or the sport's) and four figures, Evaluation, Badges,
-	 * Navigation and the device with its sensors. A pane puts the map over two
+	 * distance, or the sport's) and four figures, Evaluation, a multisport's
+	 * Activity Legs (each opening the leg's page), Badges, Navigation and the
+	 * device with its sensors. A pane puts the map over two
 	 * columns with the rest beside it; between the two, the map runs across and
 	 * the sections pair up below it. The sport's profile decides the figures,
 	 * the links and the map's overlay; Badges and sensors show only when the
@@ -60,7 +61,7 @@
 	}
 </script>
 
-<div class="ov" class:has-map={view.map || view.routeMissing} class:has-badges={!!view.badges} class:pane-grid={profile.id !== "running"}>
+<div class="ov" class:has-map={view.map || view.routeMissing} class:has-badges={!!view.badges} class:has-legs={!!view.legs} class:pane-grid={profile.id !== "running"}>
 	{#if view.map}
 		<div class="ov-map">
 			<RouteMap {detail} tiles={tiles()} interactive={false} laps={false} {overlay} map={profile.map} onOpen={() => go(activityMapRoute(detail.id, opening))}>
@@ -108,6 +109,25 @@
 	{#if hasEvaluation}
 		<section class="ov-eval">
 			<Evaluation benefit={view.benefit} feel={view.feel} effort={view.effort} onBenefit={openBenefit} />
+		</section>
+	{/if}
+
+	{#if view.legs}
+		<section class="ov-legs">
+			<h3 class="legs-heading">Activity Legs</h3>
+			<div class="legs">
+				{#each view.legs as leg (leg.id)}
+					<button class="leg" onclick={() => go(activityRoute(leg.id))}>
+						<span class="leg-icon" use:lucide={sportIcon(leg.glyph)}></span>
+						<span class="leg-text">
+							<span class="leg-title">{leg.title}</span>
+							{#if leg.distance}<span class="leg-sub">{leg.distance}</span>{/if}
+							{#if leg.line}<span class="leg-sub">{leg.line}</span>{/if}
+						</span>
+						<span class="chev" use:lucide={"chevron-right"}></span>
+					</button>
+				{/each}
+			</div>
 		</section>
 	{/if}
 
@@ -226,6 +246,78 @@
 	.ov-nav {
 		grid-area: nav;
 		padding-top: 23px;
+	}
+	/* A multisport's legs under Evaluation, over the Badges (shot 1209). */
+	.ov.has-legs {
+		grid-template-areas: "map" "summary" "eval" "legs" "nav" "device";
+	}
+	.ov.has-legs.has-badges {
+		grid-template-areas: "map" "summary" "eval" "legs" "badges" "nav" "device";
+	}
+	.ov-legs {
+		grid-area: legs;
+		padding-top: 29px;
+	}
+	/* The phone's grouped-list header: capitals, muted. */
+	.legs-heading {
+		margin: 0;
+		font-size: 13px;
+		line-height: 18px;
+		font-weight: 400;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		color: var(--text-muted);
+	}
+	.legs {
+		margin: 7px -16px 0;
+		overflow: hidden;
+	}
+	/* The figure centred 40 pt in, the text 76.5 pt in, a row 90 pt tall (shot 1209). */
+	.leg {
+		display: flex;
+		align-items: center;
+		gap: 24.5px;
+		box-sizing: border-box;
+		width: 100%;
+		height: auto;
+		min-height: 90px;
+		margin: 0;
+		padding: 16px 21px 16px 28px;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		background: var(--background-secondary);
+		color: var(--text-normal);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.leg:hover {
+		background: var(--background-modifier-hover);
+	}
+	.leg-icon {
+		display: inline-flex;
+		flex: none;
+	}
+	.leg-icon :global(svg) {
+		width: 24px;
+		height: 24px;
+	}
+	.leg-text {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.leg-title {
+		font-size: 17px;
+		line-height: 22px;
+	}
+	.leg-sub {
+		font-size: 15px;
+		line-height: 18px;
+		color: var(--text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 	.ov-device {
 		grid-area: device;
@@ -418,6 +510,19 @@
 		.ov-badges {
 			padding-top: 32px;
 		}
+		.ov.has-legs {
+			grid-template-areas: "map map" "summary eval" "legs nav" "legs device";
+		}
+		.ov.has-legs.has-badges {
+			grid-template-areas: "map map" "summary eval" "legs badges" "legs nav" "legs device";
+		}
+		.ov-legs {
+			padding-top: 32px;
+		}
+		.legs {
+			margin: 9.4px 0 0;
+			border-radius: 8px;
+		}
 		.ov-map {
 			height: 360px;
 			margin: 0;
@@ -473,6 +578,18 @@
 		.ov.has-map .ov-badges {
 			padding-top: 23px;
 		}
+		/* A multisport: its legs under the map, the rest down the column beside it. */
+		.ov.has-legs {
+			grid-template-rows: auto auto auto 1fr;
+			grid-template-areas: "map summary" "map eval" "legs nav" "legs device";
+		}
+		.ov.has-legs.has-badges {
+			grid-template-rows: auto auto auto auto 1fr;
+			grid-template-areas: "map summary" "map eval" "legs badges" "legs nav" "legs device";
+		}
+		.ov.has-legs .ov-legs {
+			padding-top: 24px;
+		}
 		/* No map: three columns from the top. */
 		.ov:not(.has-map) {
 			grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -492,6 +609,13 @@
 		}
 		.ov:not(.has-map) .ov-nav {
 			padding-top: 0;
+		}
+		/* A multisport without a track (Inferred): its legs under Evaluation. */
+		.ov.has-legs:not(.has-map) {
+			grid-template-areas: "summary eval nav" "summary legs device";
+		}
+		.ov.has-legs.has-badges:not(.has-map) {
+			grid-template-areas: "summary eval nav" "legs badges device";
 		}
 	}
 </style>

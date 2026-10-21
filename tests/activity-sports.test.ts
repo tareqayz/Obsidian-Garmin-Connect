@@ -32,6 +32,7 @@ import { lapsView, RUN_STATS, statsView, summaryOf, heartRateRows, type StatsSpe
 import { MAP_OVERLAYS } from "../src/dashboard/routes";
 import { BASIC } from "../src/dashboard/sports/basic";
 import { CYCLING } from "../src/dashboard/sports/cycling";
+import { MULTISPORT, TRANSITION } from "../src/dashboard/sports/multisport";
 import { RUNNING } from "../src/dashboard/sports/running";
 import { OPEN_WATER_SWIM, POOL_SWIM } from "../src/dashboard/sports/swimming";
 import { PHONE } from "../src/dashboard/stat-charts";
@@ -77,9 +78,11 @@ describe("profileFor", () => {
 		assert.equal(profileFor(typed("lap_swimming", 27, 26)), POOL_SWIM);
 		assert.equal(profileFor(typed("open_water_swimming", 28, 26)), OPEN_WATER_SWIM);
 		assert.equal(profileFor(typed("stair_climbing", 31, 29)), BASIC);
+		assert.equal(profileFor(typed("multi_sport", 89, 17)), MULTISPORT);
+		assert.equal(profileFor(typed("transition_v2", 189, 4)), TRANSITION);
 		assert.deepEqual(
-			SPORT_IDS.map((id) => [RUNNING, CYCLING, POOL_SWIM, OPEN_WATER_SWIM, BASIC].find((p) => p.id === id)?.id),
-			["running", "cycling", "pool-swim", "open-water-swim", "basic"],
+			SPORT_IDS.map((id) => [RUNNING, CYCLING, POOL_SWIM, OPEN_WATER_SWIM, MULTISPORT, TRANSITION, BASIC].find((p) => p.id === id)?.id),
+			["running", "cycling", "pool-swim", "open-water-swim", "multisport", "transition", "basic"],
 		);
 		// The ride's profile has landed (tests/cycling-*.test.ts hold it); the swims' are still the basic page's.
 		assert.notEqual(CYCLING.charts, BASIC.charts);
