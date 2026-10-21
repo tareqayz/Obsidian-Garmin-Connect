@@ -83,6 +83,31 @@ describe("the recent sync, against a simulated Garmin", () => {
 		}
 	});
 
+	it("leaves the account file alone on an automatic full sync while it's recent and the newest activities are the same", async () => {
+		const { clock, http, sync } = await setup();
+		try {
+			await sync("command");
+			await sync("command");
+			// Three quiet hours on: the next check syncs in full, for what no upload announces.
+			let woke = false;
+			clock.setTimeout(() => (woke = true), 3 * 3_600_000 + 60_000);
+			await clock.runUntil(() => woke, 4 * 3_600_000);
+			const asked = http.asked.length;
+			const outcome = await sync("auto");
+			assert.notEqual(outcome.kind, "failed");
+			const urls = http.asked.slice(asked);
+			assert.ok(urls.length > 20, String(urls.length));
+			// The account's own routes: records and training plans (the lactate threshold's index has a route of its own).
+			assert.deepEqual(urls.filter((u) => /personalrecord|trainingplan/i.test(u)), []);
+			// The palette's sync fetches it whatever.
+			const before = http.asked.length;
+			await sync("command");
+			assert.ok(http.asked.slice(before).some((u) => /personalrecord/i.test(u)));
+		} finally {
+			clock.uninstall();
+		}
+	});
+
 	it("turns an automatic check into a full sync when ↻ is pressed during it, and both get its outcome", async () => {
 		const { clock, http, sync, runner } = await setup();
 		try {

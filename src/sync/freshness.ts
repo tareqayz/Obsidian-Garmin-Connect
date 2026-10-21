@@ -23,6 +23,20 @@ export const UPLOAD_SETTLE_MS = 10 * 60_000;
 /** The longest a skip may lean on the last full sync: what no upload announces — a weigh-in typed in the app, a rescored day — comes in at least this often. */
 export const MAX_QUIET_MS = 3 * 3_600_000;
 
+/** How often an automatic sync fetches the account file — the watch, thresholds, records — when nothing says it changed. */
+export const ACCOUNT_EVERY_MS = 6 * 3_600_000;
+
+/**
+ * Whether a full sync fetches the account file: always when someone asked
+ * for the sync, and otherwise when the newest activities changed (a record,
+ * a new threshold), the probe couldn't say, or it's `ACCOUNT_EVERY_MS` old.
+ */
+export function wantsAccount(state: SyncState | null, probe: Probe, ctx: { now: number; manual: boolean }): boolean {
+	if (ctx.manual || !state?.accountAt) return true;
+	if (!probe.list.ok || probe.list.key !== state.list) return true;
+	return ctx.now - Date.parse(state.accountAt) >= ACCOUNT_EVERY_MS;
+}
+
 /** What the probe found. */
 export interface Probe {
 	/** The `mylastused` call went through; `upload` is its time, undefined for an account with no device. */
@@ -87,16 +101,19 @@ export function markFor(state: SyncState | null, probe: Probe): string | null {
 export function nextSyncState(
 	state: SyncState | null,
 	probe: Probe,
-	run: { startedAt: string; fingerprint: string; failed: number; warnings: readonly string[] },
+	run: { startedAt: string; fingerprint: string; failed: number; warnings: readonly string[]; account?: boolean },
 ): SyncState {
 	const upload = probe.device.ok ? probe.device.upload : state?.deviceUpload;
 	const warn = run.warnings.length ? warnSignature(run.warnings) : undefined;
 	const clean = run.failed === 0 && probe.list.ok && (!warn || warn === state?.warn);
+	// Fetched whole this run, or as the last state had it.
+	const accountAt = run.account ? run.startedAt : state?.accountAt;
 	return {
 		syncedAt: run.startedAt,
 		...(upload ? { deviceUpload: upload } : {}),
 		...(clean && probe.list.ok ? { list: probe.list.key, fingerprint: run.fingerprint } : {}),
 		...(warn ? { warn } : {}),
+		...(accountAt ? { accountAt } : {}),
 	};
 }
 

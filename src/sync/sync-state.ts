@@ -28,6 +28,8 @@ export interface SyncState {
 	fingerprint?: string;
 	/** The last sync's warnings, as a key: the same lasting warning doesn't make every sync a full one. */
 	warn?: string;
+	/** When the account file was last fetched whole, ISO: an automatic sync fetches it again only when it may have changed (`freshness.ts`). */
+	accountAt?: string;
 }
 
 const instant = (v: unknown): string | undefined =>
@@ -54,12 +56,14 @@ export function parseSyncState(text: string): SyncState | null {
 	const list = key(r.list);
 	const fingerprint = key(r.fingerprint);
 	const warn = key(r.warn);
+	const accountAt = instant(r.accountAt);
 	return {
 		syncedAt,
 		...(deviceUpload ? { deviceUpload } : {}),
 		...(list ? { list } : {}),
 		...(fingerprint ? { fingerprint } : {}),
 		...(warn ? { warn } : {}),
+		...(accountAt ? { accountAt } : {}),
 	};
 }
 

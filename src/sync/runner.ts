@@ -33,7 +33,7 @@ import { NewerDataError } from "./file-health";
 import type { DayBuffer } from "./days";
 import { deviceUploadOf } from "./sync-state";
 import { isFatal } from "./fatal";
-import { fingerprintOf, listKey, markFor, nextSyncState, PROBE_PAGE, shouldSkip, type Probe } from "./freshness";
+import { fingerprintOf, listKey, markFor, nextSyncState, PROBE_PAGE, shouldSkip, wantsAccount, type Probe } from "./freshness";
 import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, type SyncTrigger } from "./sync-outcome";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
@@ -148,7 +148,9 @@ interface DaysPlan {
 	/** Lines for the done notice. */
 	notes?: string[];
 	/** Called with the report before the done notice. */
-	finish?: (report: SyncReport) => Promise<void>;
+	finish?: (report: SyncReport, done: { account: boolean }) => Promise<void>;
+	/** Whether to fetch the account file this run; true unless the plan says otherwise. */
+	account?: boolean;
 	/** Every day's timelines, not only those inside Day details: a range asked for by hand. */
 	allTimelines?: boolean;
 	/** The watch as the plan already asked for it, for the account file. */
@@ -348,7 +350,7 @@ export class SyncRunner {
 	private recentRun: RecentRun | null = null;
 
 	private async planRecent(run: RecentRun, log?: Log): Promise<DaysPlan> {
-		const startedAt = new Date().toISOString();
+		const startedAt = new Date(Date.now()).toISOString();
 		const settings = this.settings();
 		const series = new VaultSeriesStore(this.app, settings.dataFolder);
 		const state = await series.readSyncState();
@@ -359,18 +361,20 @@ export class SyncRunner {
 			return { from: "", to: "", requests: 2, skip: true };
 		}
 		const { from, to, capped } = recentRange(markFor(state, probe), toIsoDate());
+		const account = wantsAccount(state, probe, { now: Date.parse(startedAt), manual: run.trigger !== "auto" });
 		return {
 			from,
 			to,
 			requests: 2,
+			account,
 			...(probe.device.ok ? { device: probe.device.payload } : {}),
 			...(probe.list.ok ? { firstPage: { page: probe.list.page, limit: PROBE_PAGE } } : {}),
 			notes: capped ? [`Synced the last ${MAX_RECENT_DAYS} days only. Sync a range for the days before ${from}.`] : [],
 			// Only a run that covered the whole range moves the mark: one stopped
 			// early left its oldest days behind.
-			finish: async (report) => {
+			finish: async (report, done) => {
 				if (report.stoppedEarly) return;
-				await series.writeSyncState(nextSyncState(state, probe, { startedAt, fingerprint, failed: report.failed, warnings: report.warnings }));
+				await series.writeSyncState(nextSyncState(state, probe, { startedAt, fingerprint, failed: report.failed, warnings: report.warnings, account: done.account }));
 			},
 		};
 	}
@@ -485,7 +489,7 @@ export class SyncRunner {
 			notice?.hide();
 		};
 		try {
-			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device, firstPage, skip } = await plan();
+			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device, firstPage, skip, account: wantAccount = true } = await plan();
 			if (skip) {
 				hide();
 				return { kind: "up-to-date", days: 0, failed: 0, at: new Date().toISOString() };
@@ -497,7 +501,9 @@ export class SyncRunner {
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			// Once per sync, not per day: who you are, the watch, and the numbers
 			// Garmin only serves as "latest". Asked alongside the days.
-			const account = settings.groups.includes("profile") ? fetchAccount(this.api, toIsoDate(), units, log, device !== undefined ? { device } : {}) : null;
+			const account = settings.groups.includes("profile") && wantAccount ? fetchAccount(this.api, toIsoDate(), units, log, device !== undefined ? { device } : {}) : null;
+			/** The account file fetched whole: every request answered. */
+			let accountWhole = false;
 			// The day files are written a year at a time once the days are in.
 			const days = series.dayBuffer();
 			const report = await syncDays(days, () => syncRange(this.api, days, {
@@ -528,6 +534,7 @@ export class SyncRunner {
 
 			if (account) {
 				const got = await account;
+				accountWhole = got.failed.size === 0 && got.fatal === undefined;
 				report.requests += got.requests;
 				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
 				try {
@@ -542,7 +549,7 @@ export class SyncRunner {
 			report.requests += planned;
 			report.warnings.push(...notes);
 			try {
-				await finish?.(report);
+				await finish?.(report, { account: accountWhole });
 			} catch (err) {
 				log?.warn(`sync state failed: ${explain(err)}`);
 			}

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { Activity } from "../src/garmin/endpoints";
-import { fingerprintOf, listKey, markFor, MAX_QUIET_MS, nextSyncState, shouldSkip, UPLOAD_SETTLE_MS, type Probe } from "../src/sync/freshness";
+import { ACCOUNT_EVERY_MS, fingerprintOf, listKey, markFor, MAX_QUIET_MS, nextSyncState, shouldSkip, UPLOAD_SETTLE_MS, wantsAccount, type Probe } from "../src/sync/freshness";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { parseSyncState, serializeSyncState, type SyncState } from "../src/sync/sync-state";
 
@@ -78,3 +78,24 @@ describe("what a full sync covers and leaves behind", () => {
 		assert.deepEqual(parseSyncState(JSON.stringify({ version: 1, syncedAt: STATE.syncedAt, list: "../../etc" })), { syncedAt: STATE.syncedAt });
 	});
 });
+
+describe("when a full sync fetches the account file", () => {
+	const fetched = { ...STATE, accountAt: new Date(NOW - 60 * 60_000).toISOString() };
+
+	it("always when asked for; on its own, only when the newest activities changed or it's six hours old", () => {
+		assert.equal(wantsAccount(fetched, probe(), { now: NOW, manual: true }), true);
+		assert.equal(wantsAccount(fetched, probe(), { now: NOW, manual: false }), false);
+		assert.equal(wantsAccount(fetched, probe({ list: { ok: true, page: [run(4), ...PAGE], key: listKey([run(4), ...PAGE]) } }), { now: NOW, manual: false }), true);
+		assert.equal(wantsAccount(fetched, probe({ list: { ok: false } }), { now: NOW, manual: false }), true);
+		assert.equal(wantsAccount({ ...fetched, accountAt: new Date(NOW - ACCOUNT_EVERY_MS).toISOString() }, probe(), { now: NOW, manual: false }), true);
+		assert.equal(wantsAccount(STATE, probe(), { now: NOW, manual: false }), true);
+	});
+
+	it("records when it was fetched whole, and keeps the last time otherwise", () => {
+		const started = new Date(NOW).toISOString();
+		assert.equal(nextSyncState(fetched, probe(), { startedAt: started, fingerprint: FINGERPRINT, failed: 0, warnings: [], account: true }).accountAt, started);
+		assert.equal(nextSyncState(fetched, probe(), { startedAt: started, fingerprint: FINGERPRINT, failed: 0, warnings: [] }).accountAt, fetched.accountAt);
+		assert.deepEqual(parseSyncState(serializeSyncState(fetched)), fetched);
+	});
+});
+
