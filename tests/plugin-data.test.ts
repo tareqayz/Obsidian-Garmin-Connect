@@ -167,24 +167,20 @@ describe("PluginData", () => {
 	});
 
 	it("keeps values a slider can show", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.stopAfterEmptyDays, 365);
-		assert.equal(data.settings.syncSpeed, "normal");
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
 	});
 
-	it("reads an older build's pause between days as the nearest sync speed", async () => {
-		const speedFor = async (pauseBetweenDays: unknown) => {
-			const { syncSpeed: _, ...rest } = DEFAULT_SETTINGS;
-			const { data } = await load({ settings: { ...rest, pauseBetweenDays } });
-			return data.settings.syncSpeed;
-		};
-		assert.equal(await speedFor(250), "normal");
-		assert.equal(await speedFor(0), "fast");
-		assert.equal(await speedFor(2000), "gentle");
-		// No pause saved at all: the default, Normal.
-		assert.equal(await speedFor(undefined), "normal");
+	it("drops the sync speed, and the pause between days before it, from a version 5 file at once", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 5, syncSpeed: "gentle", pauseBetweenDays: 250 } });
+		assert.equal("syncSpeed" in data.settings, false);
+		assert.equal("pauseBetweenDays" in data.settings, false);
+		assert.equal(data.settings.settingsVersion, SETTINGS_VERSION);
+		// Migrated, so saved straight away: the stale keys leave the file now.
+		const last = saved.at(-1) as { settings: Record<string, unknown> };
+		assert.deepEqual(Object.keys(last.settings).sort(), Object.keys(DEFAULT_SETTINGS).sort());
 	});
 
 	it("drops the Days to sync setting a build before smart sync saved", async () => {

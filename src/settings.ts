@@ -5,7 +5,6 @@ import type GarminPlugin from "./main";
 import { DEFAULT_SETTINGS, type GarminSettings } from "./settings-data";
 import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, isActivityDetailsRange, isDayDetailsRange } from "./sync/datasets";
 import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "./sync/metrics";
-import { isSyncSpeed, SPEED_LABELS } from "./sync/speed";
 import { folderProblem } from "./sync/vault-paths";
 import { DeleteDataModal } from "./ui/delete-data-modal";
 import { SettingsDataRows } from "./ui/settings-data-rows";
@@ -62,7 +61,7 @@ function costOf(group: MetricGroup): string {
 }
 
 /** The settings a `control` row edits. A metric group's toggle is `group:<id>`. */
-type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "syncSpeed" | "stopAfterEmptyDays" | "autoSaveLog" | `group:${MetricGroup}`;
+type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "stopAfterEmptyDays" | "autoSaveLog" | `group:${MetricGroup}`;
 
 const UNITS: ReadonlyArray<GarminSettings["units"]> = ["auto", "metric", "imperial"];
 
@@ -103,7 +102,6 @@ export class GarminSettingTab extends PluginSettingTab {
 			return;
 		}
 		if (key === "units" && UNITS.includes(value as GarminSettings["units"])) s.units = value as GarminSettings["units"];
-		else if (key === "syncSpeed" && isSyncSpeed(value)) s.syncSpeed = value;
 		else if (key === "stopAfterEmptyDays" && typeof value === "number") s.stopAfterEmptyDays = value;
 		else if ((key === "syncOnStartup" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
 		else return;
@@ -164,7 +162,7 @@ export class GarminSettingTab extends PluginSettingTab {
 				items: [
 					{ type: "page", name: "History", desc: rows.summaryText(), items: this.historyPage(rows) },
 					{ type: "page", name: "Metrics", desc: `${s.groups.length} of ${ALL_GROUPS.length} on.`, items: this.metricsPage() },
-					{ type: "page", name: "Advanced", desc: "Region, sync speed and diagnostics.", items: this.advancedPage() },
+					{ type: "page", name: "Advanced", desc: "Region, diagnostics and deleting data.", items: this.advancedPage() },
 				],
 			},
 		];
@@ -272,7 +270,7 @@ export class GarminSettingTab extends PluginSettingTab {
 		];
 	}
 
-	/** What few people change: the region, the pace, diagnostics, and deleting the data. */
+	/** What few people change: the region, diagnostics, and deleting the data. */
 	private advancedPage(): SettingDefinitionItem<ControlKey>[] {
 		const plugin = this.plugin;
 		const s = plugin.data.settings;
@@ -297,11 +295,6 @@ export class GarminSettingTab extends PluginSettingTab {
 									}),
 							);
 						},
-					},
-					{
-						name: "Sync speed",
-						desc: "How fast requests go to Garmin. Gentle is easiest on your account.",
-						control: { type: "dropdown", key: "syncSpeed", options: SPEED_LABELS },
 					},
 					{
 						name: "Stop after empty days",

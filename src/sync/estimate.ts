@@ -7,13 +7,13 @@ import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
 import { endpointsFor, type MetricGroup } from "./metrics";
 import { daysSince, historyStart, type AccountScan } from "./scan";
-import { secondsPerDay, SYNC_SPEEDS, type SyncSpeed } from "./speed";
+import { HOURLY_BUDGET, PACE, secondsPerDay } from "./pace";
 
 /**
  * How much a choice of data sets stores and how long its backfill takes, for
  * the setup and Settings → History. Sizes were measured on a vault of 439 days
- * and 233 run pages on 2026-10-14; times follow the sync speed and the backfill's
- * hourly budget. Every figure is an estimate, shown as "about".
+ * and 233 run pages on 2026-10-14; times follow the pace and the backfill's
+ * hourly budget (`pace.ts`). Every figure is an estimate, shown as "about".
  *
  * Pure.
  */
@@ -38,15 +38,6 @@ export const UPGRADE_SECONDS = 2.15;
 export const WINDOW_SECONDS = 0.6;
 /** Day chunks are sized to take about this long, so a sync never waits longer for one. */
 export const CHUNK_SECONDS = 10;
-
-/**
- * Requests an hour this device's history download stays under, by speed, with
- * the manual syncs counted in: far inside the ~17,600 an hour measured clean
- * once on one account (`docs/garmin-api.md`, Request pace). Every install
- * looks alike to Garmin, so a quota it counts over hours, or a rule against
- * the pattern, would meet every user at once; the margin is for that.
- */
-export const HOURLY_BUDGET: Record<SyncSpeed, number> = { gentle: 2_500, normal: 5_000, fast: 8_000 };
 
 /** Bytes a day each chart index keeps, measured. Sparse ones (a row a week or a test) count `SPARSE_ROW_BYTES`. */
 const ROW_BYTES: Record<string, number> = {
@@ -84,14 +75,14 @@ export function requestsPerChunk(groups: readonly MetricGroup[]): number {
 	return [w.maxMetrics, w.races, w.workouts, w.hillScores, w.runningTolerance, w.healthSnapshots].filter(Boolean).length;
 }
 
-/** Days in a chunk: as many as fit in about `CHUNK_SECONDS` at the speed. */
-export function chunkDays(groups: readonly MetricGroup[], speed: SyncSpeed): number {
-	return Math.max(1, Math.floor(CHUNK_SECONDS / secondsPerDay(requestsPerDay(groups), SYNC_SPEEDS[speed])));
+/** Days in a chunk: as many as fit in about `CHUNK_SECONDS` at the pace. */
+export function chunkDays(groups: readonly MetricGroup[]): number {
+	return Math.max(1, Math.floor(CHUNK_SECONDS / secondsPerDay(requestsPerDay(groups))));
 }
 
-/** Seconds for `requests` that take `seconds` at the speed's pace, held to the hourly budget. */
-export function withBudget(requests: number, seconds: number, speed: SyncSpeed): number {
-	const budget = HOURLY_BUDGET[speed];
+/** Seconds for `requests` that take `seconds` at the pace, held to the hourly budget. */
+export function withBudget(requests: number, seconds: number): number {
+	const budget = HOURLY_BUDGET;
 	if (requests <= budget || seconds <= 0) return seconds;
 	const hours = Math.ceil(requests / budget) - 1;
 	return hours * 3600 + ((requests - hours * budget) / requests) * seconds;
@@ -110,7 +101,6 @@ export interface Held {
 export interface EstimateInput {
 	today: string;
 	groups: readonly MetricGroup[];
-	speed: SyncSpeed;
 	scan: AccountScan;
 	dayDetails: DayDetailsRange;
 	activityDetails: ActivityDetailsRange;
@@ -152,7 +142,7 @@ export function estimate(input: EstimateInput): Estimate {
 		sets,
 		bytes: sum(sets, (s) => s.bytes),
 		requests,
-		seconds: withBudget(requests, raw, input.speed),
+		seconds: withBudget(requests, raw),
 		bytesPerYear: sum(sets, (s) => s.bytesPerYear),
 		largestFile: Math.max(365 * DAY_FILE_BYTES, Math.round(activitiesPerYear * ACTIVITY_ROW_BYTES)),
 	};
@@ -162,9 +152,7 @@ export function estimate(input: EstimateInput): Estimate {
 export function costOf(
 	item: { set: DataSetId; store: string; units: number; upgrades?: number },
 	groups: readonly MetricGroup[],
-	speed: SyncSpeed,
 ): { requests: number; bytes: number; seconds: number } {
-	const preset = SYNC_SPEEDS[speed];
 	let requests = 0;
 	let bytes = 0;
 	let raw = 0;
@@ -176,10 +164,10 @@ export function costOf(
 		bytes = full * DETAIL_BYTES;
 		raw = full * DETAIL_SECONDS + upgrades * UPGRADE_SECONDS;
 	} else if (item.set === "day-details") {
-		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups, speed)) : 0;
+		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups)) : 0;
 		requests = item.units * requestsPerDay(groups) + chunks * requestsPerChunk(groups);
 		bytes = item.units * (DAY_FILE_BYTES + (groups.includes("intraday") ? TIMELINE_BYTES : 0));
-		raw = item.units * secondsPerDay(requestsPerDay(groups), preset) + (chunks * requestsPerChunk(groups)) / preset.limits.rate;
+		raw = item.units * secondsPerDay(requestsPerDay(groups)) + (chunks * requestsPerChunk(groups)) / PACE.limits.rate;
 	} else {
 		const kind = item.store.replace(/^index:/, "");
 		const def = DAY_INDEXES.find((d) => d.kind === kind);
@@ -189,7 +177,7 @@ export function costOf(
 		bytes = item.units * (ROW_BYTES[kind] ?? (def ? SPARSE_ROW_BYTES : ROW_BYTES[item.store] ?? SPARSE_ROW_BYTES));
 		raw = requests * WINDOW_SECONDS;
 	}
-	return { requests, bytes, seconds: withBudget(requests, raw, speed) };
+	return { requests, bytes, seconds: withBudget(requests, raw) };
 }
 
 /** A set's estimate, and its time before the hourly budget. */
@@ -202,7 +190,7 @@ interface Part {
 function charts(input: EstimateInput, start: string | undefined): Part {
 	const on = new Set(input.groups);
 	const held = input.held?.charts;
-	const parallel = SYNC_SPEEDS[input.speed].parallelDays;
+	const parallel = PACE.parallel;
 	/** Days still to walk for a store, and those of them with data. */
 	const toWalk = (store: string): { days: number; withData: number } => {
 		const meta = held?.get(store);
@@ -241,7 +229,7 @@ function charts(input: EstimateInput, start: string | undefined): Part {
 		bytes += walk.withData * row;
 		rowBytes += row;
 	}
-	// The walks of different indexes go side by side, as many as the days a sync fetches at once.
+	// The walks of different indexes go side by side, as many as the pace runs at once.
 	const raw = (requests * WINDOW_SECONDS) / parallel;
 	const activitiesPerYear = perYear(input.scan.activities, input.scan, input.today);
 	return {
@@ -251,7 +239,7 @@ function charts(input: EstimateInput, start: string | undefined): Part {
 			units: start ? daysSince(input.scan, start) : 0,
 			bytes,
 			requests,
-			seconds: withBudget(requests, raw, input.speed),
+			seconds: withBudget(requests, raw),
 			bytesPerYear: Math.round(365 * rowBytes + (on.has("workouts") ? activitiesPerYear * ACTIVITY_ROW_BYTES : 0)),
 		},
 	};
@@ -267,11 +255,10 @@ function dayDetails(input: EstimateInput, start: string | undefined): Part {
 		const covered = countCovered(input.held?.daySpans ?? [], from, input.today);
 		units = Math.max(0, daysSince(input.scan, from) - covered);
 	}
-	const chunks = units ? Math.ceil(units / chunkDays(input.groups, input.speed)) : 0;
-	const preset = SYNC_SPEEDS[input.speed];
+	const chunks = units ? Math.ceil(units / chunkDays(input.groups)) : 0;
 	const perChunk = requestsPerChunk(input.groups);
 	const requests = units * requestsPerDay(input.groups) + chunks * perChunk;
-	const raw = units * secondsPerDay(requestsPerDay(input.groups), preset) + (chunks * perChunk) / preset.limits.rate;
+	const raw = units * secondsPerDay(requestsPerDay(input.groups)) + (chunks * perChunk) / PACE.limits.rate;
 	return {
 		raw,
 		set: {
@@ -279,7 +266,7 @@ function dayDetails(input: EstimateInput, start: string | undefined): Part {
 			units,
 			bytes: units * dayBytes,
 			requests,
-			seconds: withBudget(requests, raw, input.speed),
+			seconds: withBudget(requests, raw),
 			bytesPerYear: 365 * dayBytes,
 		},
 	};
@@ -307,7 +294,7 @@ function activityDetails(input: EstimateInput, start: string | undefined): Part 
 			units,
 			bytes: units * DETAIL_BYTES,
 			requests,
-			seconds: withBudget(requests, raw, input.speed),
+			seconds: withBudget(requests, raw),
 			bytesPerYear: input.activityDetails === "opened" ? 0 : perYear * DETAIL_BYTES,
 		},
 	};

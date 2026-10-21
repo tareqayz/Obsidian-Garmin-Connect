@@ -4,7 +4,7 @@ import { estimate, formatBytes, formatDuration, withBudget, type Estimate } from
 import type { BackfillProgress } from "../sync/runner";
 import { historyStart } from "../sync/scan";
 import { VaultSeriesStore, type DiskUsage } from "../sync/series-store";
-import { SYNC_SPEEDS } from "../sync/speed";
+import { PACE } from "../sync/pace";
 import type { UpdateLine } from "./setup-flow";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -83,7 +83,6 @@ export class SettingsDataRows {
 		this.est = estimate({
 			today: new Date().toISOString().slice(0, 10),
 			groups: s.groups,
-			speed: s.syncSpeed,
 			scan,
 			dayDetails: s.data.dayDetails,
 			activityDetails: s.data.activityDetails,
@@ -150,8 +149,7 @@ export class SettingsDataRows {
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
 		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;
 		if (p.status === "elsewhere") return `Downloading on ${p.device ?? "another device"}. This device leaves it to that one.`;
-		const speed = this.plugin.data.settings.syncSpeed;
-		const left = withBudget(p.remaining, p.remaining / SYNC_SPEEDS[speed].limits.rate, speed);
+		const left = withBudget(p.remaining, p.remaining / PACE.limits.rate);
 		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(left)} left`;
 	}
 }

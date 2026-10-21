@@ -8,11 +8,11 @@
 		perDay: number;
 		/** Today, as the latest date worth asking for. */
 		today: string;
-		/** Roughly how long one day takes at the chosen sync speed. */
+		/** Roughly how long one day takes at the plugin's pace. */
 		secondsPerDay: number;
 		/** Days of nothing before the sync gives up, or 0 if that guard is off. */
 		stopAfterEmptyDays: number;
-		/** Requests the history download keeps to in an hour at the chosen speed. */
+		/** Requests the history download keeps to in an hour. */
 		hourly: number;
 		onRun: (from: string, to: string) => void;
 		onCancel: () => void;

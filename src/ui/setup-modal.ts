@@ -8,7 +8,6 @@ import { estimate } from "../sync/estimate";
 import type { MfaPrompt } from "../garmin/auth";
 import type { AccountScan, ScanStep } from "../sync/scan";
 import { VaultSeriesStore } from "../sync/series-store";
-import type { SyncSpeed } from "../sync/speed";
 import { explainSignIn } from "./login-modal";
 import { agreement, type Choices, type Prepared } from "./setup-flow";
 import Setup from "./svelte/setup/Setup.svelte";
@@ -65,8 +64,7 @@ export class SetupModal extends Modal {
 				},
 				prepare: (scan: AccountScan) => this.prepare(scan),
 				kept: settings.setup ? { dayDetails: settings.data.dayDetails, activityDetails: settings.data.activityDetails } : null,
-				initialSpeed: settings.syncSpeed,
-				onStart: (choices: Choices, speed: SyncSpeed, downloads: boolean) => void this.finish(choices, speed, agreement(settings.groups), downloads),
+				onStart: (choices: Choices, downloads: boolean) => void this.finish(choices, agreement(settings.groups), downloads),
 				onCancel: () => this.close(),
 			},
 		});
@@ -101,11 +99,10 @@ export class SetupModal extends Modal {
 		const heldCharts = new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null));
 		return {
 			held,
-			estimate: (choices: Choices, speed: SyncSpeed) =>
+			estimate: (choices: Choices) =>
 				estimate({
 					today,
 					groups: settings.groups,
-					speed,
 					scan,
 					...choices,
 					activities,
@@ -115,10 +112,9 @@ export class SetupModal extends Modal {
 	}
 
 	/** Saves the choices and what they agree to, and starts the download in the background. */
-	private async finish(choices: Choices, speed: SyncSpeed, keys: { accepted: ConsentKey[]; deferred: ConsentKey[] }, downloads: boolean): Promise<void> {
+	private async finish(choices: Choices, keys: { accepted: ConsentKey[]; deferred: ConsentKey[] }, downloads: boolean): Promise<void> {
 		const settings = this.plugin.data.settings;
 		const accepted = [...new Set([...settings.data.accepted, ...keys.accepted])];
-		settings.syncSpeed = speed;
 		settings.data = {
 			...settings.data,
 			...choices,

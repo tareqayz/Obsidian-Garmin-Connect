@@ -24,7 +24,7 @@ import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
-import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
+import { HOURLY_BUDGET, PACE } from "./pace";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
@@ -34,7 +34,7 @@ import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetStore, type PauseReason, type Task } from "./backfill";
-import { chunkDays, DETAIL_REQUESTS, HOURLY_BUDGET, requestsPerChunk, requestsPerDay } from "./estimate";
+import { chunkDays, DETAIL_REQUESTS, requestsPerChunk, requestsPerDay } from "./estimate";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -44,7 +44,6 @@ export interface RunnerSettings {
 
 	dataFolder: string;
 
-	syncSpeed: SyncSpeed;
 	stopAfterEmptyDays: number;
 	/** Null until the setup ran: nothing walks history in the background before it. */
 	setup: { completedAt: string } | null;
@@ -201,7 +200,7 @@ export class SyncRunner {
 		this.app = app;
 		this.api = api;
 		this.settings = settings;
-		this.budget = new RequestBudget(() => HOURLY_BUDGET[this.settings().syncSpeed], localBudget(app));
+		this.budget = new RequestBudget(() => HOURLY_BUDGET, localBudget(app));
 	}
 
 	get isRunning(): boolean {
@@ -214,10 +213,9 @@ export class SyncRunner {
 	}
 
 	/**
-	 * The runner, for `priority` (see `RunnerLock`), with the sync speed applied
-	 * — so a speed changed in settings takes effect from the next piece of
-	 * work. The release hands it on and then starts any loads still waiting.
-	 * Null when another sync holds it or waits for it.
+	 * The runner, for `priority` (see `RunnerLock`). The release counts what was
+	 * asked meanwhile against the hour, hands the runner on, and then starts any
+	 * loads still waiting. Null when another sync holds it or waits for it.
 	 */
 	private async claim(priority: Priority): Promise<Release | null> {
 		const release = this.applied(await this.lock.acquire(priority));
@@ -265,7 +263,6 @@ export class SyncRunner {
 
 	private applied(release: Release | null): Release | null {
 		if (!release) return null;
-		this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
 		const since = Date.now();
 		return () => {
 			// Whatever Garmin was asked while the runner was held — a sync, a
@@ -412,7 +409,7 @@ export class SyncRunner {
 				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
 				extras: INTRADAY_EXTRAS,
 				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
-				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
+				parallelDays: PACE.parallel,
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
 				shouldStop: () => this.foregroundCancel,
 				log,
@@ -1301,7 +1298,7 @@ export class SyncRunner {
 			// The same unit failed three times running for no reason the client
 			// knows: leave it for the next session rather than wedge the download.
 			this.unitFailures = 0;
-			const skipped = unitName(task, chunkDays(settings.groups, settings.syncSpeed));
+			const skipped = unitName(task, chunkDays(settings.groups));
 			this.skipUnit(task);
 			new Notice(`Garmin: the history download skipped ${skipped} for now, after it failed ${MAX_UNIT_FAILURES} times: ${explain(fatal)}`, 15000);
 			this.backfillLater(1_000);
@@ -1342,7 +1339,7 @@ export class SyncRunner {
 		if (!tasks) return;
 		const settings = this.settings();
 		if (task.kind === "days") {
-			const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
+			const chunk = nextChunk(task, chunkDays(settings.groups));
 			for (let date = chunk.from; date <= chunk.to; date = shiftDay(date, 1)) this.backfillSkip.days.add(date);
 			if (chunk.from <= task.from) tasks.shift();
 			else task.to = shiftDay(chunk.from, -1);
@@ -1361,9 +1358,9 @@ export class SyncRunner {
 	private unitCost(task: Task): number {
 		const groups = this.settings().groups;
 		if (task.kind === "activities") return 10;
-		if (task.kind === "walk") return 20 * SYNC_SPEEDS[this.settings().syncSpeed].parallelDays;
+		if (task.kind === "walk") return 20 * PACE.parallel;
 		if (task.kind === "details") return DETAIL_REQUESTS;
-		const chunk = nextChunk(task, chunkDays(groups, this.settings().syncSpeed));
+		const chunk = nextChunk(task, chunkDays(groups));
 		return spanDays(chunk.from, chunk.to) * requestsPerDay(groups) + requestsPerChunk(groups);
 	}
 
@@ -1379,7 +1376,7 @@ export class SyncRunner {
 		}
 		if (task.kind === "walk") {
 			// The walks at the plan's head go side by side, each into its own index.
-			const walks = tasks.filter((t): t is Extract<Task, { kind: "walk" }> => t.kind === "walk").slice(0, SYNC_SPEEDS[settings.syncSpeed].parallelDays);
+			const walks = tasks.filter((t): t is Extract<Task, { kind: "walk" }> => t.kind === "walk").slice(0, PACE.parallel);
 			const notBefore = await this.notBefore(store);
 			const segments = await Promise.all(
 				walks.map(async (walk) => ({ walk, got: await this.walkSegment(walk.store, store, { ...(notBefore ? { notBefore } : {}), emptyStreak: this.walkStreaks.get(walk.store) ?? 0, shouldStop: () => this.backfillStopped }) })),
@@ -1406,7 +1403,7 @@ export class SyncRunner {
 			if (!task.ids.length) tasks.shift();
 			return { requests: DETAIL_REQUESTS };
 		}
-		const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
+		const chunk = nextChunk(task, chunkDays(settings.groups));
 		const report = await this.chunkSync(store, chunk);
 		const fatal = report.fatal ?? (report.stoppedEarly && report.stoppedEarly !== "cancelled" ? new Error(report.stoppedEarly) : undefined);
 		if (fatal) return { requests: report.requests, fatal };
@@ -1446,7 +1443,7 @@ export class SyncRunner {
 				indexes: [],
 				activityRange: true,
 				intradayDays: spanDays(chunk.from, chunk.to),
-				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
+				parallelDays: PACE.parallel,
 				shouldStop: () => this.backfillStopped,
 			}),
 		);

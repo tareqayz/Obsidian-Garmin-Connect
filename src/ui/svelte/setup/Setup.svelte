@@ -4,7 +4,6 @@
 	import { ACTIVITY_DETAILS_RANGES, DAY_DETAILS_RANGES, type ActivityDetailsRange, type DayDetailsRange } from "../../../sync/datasets";
 	import { formatBytes, formatDuration } from "../../../sync/estimate";
 	import type { AccountScan, ScanResult, ScanStep } from "../../../sync/scan";
-	import { SPEED_LABELS, type SyncSpeed } from "../../../sync/speed";
 	import { afterScan, back, isRecommended, keptLabel, RECOMMENDED, startFlow, type Choices, type Prepared, type SetupFlow } from "../../setup-flow";
 	import { lucide } from "../home/lucide";
 	import LoginForm from "../LoginForm.svelte";
@@ -22,13 +21,12 @@
 		prepare: (scan: AccountScan) => Promise<Prepared>;
 		/** What the vault keeps, for a setup run again; null on the first. */
 		kept: Choices | null;
-		initialSpeed: SyncSpeed;
 		/** `downloads`: whether the choice leaves anything to fetch. */
-		onStart: (choices: Choices, speed: SyncSpeed, downloads: boolean) => void;
+		onStart: (choices: Choices, downloads: boolean) => void;
 		onCancel: () => void;
 	}
 
-	let { signedIn, initialEmail, initialDomain, onDomainChange, onSignIn, onScan, prepare, kept, initialSpeed, onStart, onCancel }: Props = $props();
+	let { signedIn, initialEmail, initialDomain, onDomainChange, onSignIn, onScan, prepare, kept, onStart, onCancel }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let flow = $state<SetupFlow>(startFlow(signedIn));
@@ -39,20 +37,17 @@
 	let dayDetails = $state<DayDetailsRange>((kept ?? RECOMMENDED).dayDetails);
 	// svelte-ignore state_referenced_locally
 	let activityDetails = $state<ActivityDetailsRange>((kept ?? RECOMMENDED).activityDetails);
-	// svelte-ignore state_referenced_locally
-	let speed = $state<SyncSpeed>(initialSpeed);
 
 	let status = $state("");
 	let scan = $state<AccountScan | null>(null);
 	let prepared = $state<Prepared | null>(null);
 	let scanError = $state("");
 
-	let all = $derived(prepared ? prepared.estimate(RECOMMENDED, speed) : null);
-	let chosen = $derived(prepared ? prepared.estimate({ dayDetails, activityDetails }, speed) : null);
+	let all = $derived(prepared ? prepared.estimate(RECOMMENDED) : null);
+	let chosen = $derived(prepared ? prepared.estimate({ dayDetails, activityDetails }) : null);
 	let days = $derived(chosen?.sets.find((s) => s.id === "day-details"));
 	let details = $derived(chosen?.sets.find((s) => s.id === "activity-details"));
 
-	const SPEEDS: SyncSpeed[] = ["gentle", "normal", "fast"];
 	const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 	const count = new Intl.NumberFormat();
 
@@ -184,7 +179,7 @@
 			<h3>There’s no data on Garmin yet.</h3>
 			<div class="body">Sync your watch with the Garmin Connect app. New days appear here automatically.</div>
 			<div class="footer">
-				<button class="mod-cta" onclick={() => onStart(RECOMMENDED, speed, false)}>Done</button>
+				<button class="mod-cta" onclick={() => onStart(RECOMMENDED, false)}>Done</button>
 			</div>
 		{:else}
 			{@render tip("circle-alert", scanError || "The scan stopped before it finished.", "error")}
@@ -222,7 +217,7 @@
 		{/if}
 		<div class="footer split">
 			<button onclick={() => (flow = { step: "advanced" })}>Advanced options</button>
-			<button class="mod-cta" onclick={() => onStart(RECOMMENDED, speed, (all?.requests ?? 0) > 0)}>{all.requests ? "Download all history" : "Done"}</button>
+			<button class="mod-cta" onclick={() => onStart(RECOMMENDED, (all?.requests ?? 0) > 0)}>{all.requests ? "Download all history" : "Done"}</button>
 		</div>
 	{:else if flow.step === "advanced" && chosen}
 		<h3>Advanced options</h3>
@@ -248,24 +243,13 @@
 				</select>
 			</div>
 		</div>
-		<div class="speed">
-			<div class="speed-text">
-				<div class="set-title">Sync speed</div>
-				<div class="set-meta">Normal suits most accounts. Gentle is easiest on Garmin.</div>
-			</div>
-			<div class="segmented" role="radiogroup" aria-label="Sync speed">
-				{#each SPEEDS as id}
-					<button role="radio" aria-checked={speed === id} class:selected={speed === id} onclick={() => (speed = id)}>{SPEED_LABELS[id]}</button>
-				{/each}
-			</div>
-		</div>
 		<div class="totals">
 			<strong>{chosen.requests ? `≈ ${formatBytes(chosen.bytes)} · ${formatDuration(chosen.seconds)}` : "Nothing to download now"}</strong>
 			<span>Charts cover all history</span>
 		</div>
 		<div class="footer">
 			<button onclick={() => (flow = back(flow))}>Back</button>
-			<button class="mod-cta" onclick={() => onStart({ dayDetails, activityDetails }, speed, (chosen?.requests ?? 0) > 0)}>{chosen.requests ? "Start download" : "Done"}</button>
+			<button class="mod-cta" onclick={() => onStart({ dayDetails, activityDetails }, (chosen?.requests ?? 0) > 0)}>{chosen.requests ? "Start download" : "Done"}</button>
 		</div>
 	{/if}
 </div>
@@ -453,49 +437,6 @@
 		color: var(--text-muted);
 		font-size: var(--font-ui-smaller);
 	}
-	.speed {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-	.speed-text {
-		flex: 1;
-		min-width: 0;
-	}
-	/* A raised segment, as Obsidian's own segmented controls draw the one chosen. */
-	.segmented {
-		display: inline-flex;
-		flex: none;
-		gap: 2px;
-		padding: 2px;
-		border-radius: var(--radius-s);
-		background: var(--background-modifier-border);
-	}
-	.segmented button {
-		height: auto;
-		padding: 4px 12px;
-		border: 1px solid transparent;
-		border-radius: calc(var(--radius-s) - 2px);
-		background: transparent;
-		box-shadow: none;
-		color: var(--text-muted);
-		font-size: var(--font-ui-small);
-		font-weight: 500;
-	}
-	.segmented button.selected {
-		border-color: var(--background-modifier-border);
-		background: var(--background-primary);
-		box-shadow: var(--shadow-s);
-		color: var(--text-normal);
-	}
-	/* In dark the page is darker than any track: a lighter segment on a darker track still reads as raised. */
-	:global(.theme-dark) .segmented {
-		background: var(--background-secondary);
-	}
-	:global(.theme-dark) .segmented button.selected {
-		border-color: var(--background-modifier-border-hover);
-		background: var(--background-modifier-border-hover);
-	}
 	.tip {
 		display: flex;
 		align-items: flex-start;
@@ -535,16 +476,6 @@
 	@container (max-width: 480px) {
 		.set {
 			flex-direction: column;
-		}
-		.speed {
-			flex-direction: column;
-			align-items: stretch;
-		}
-		.segmented {
-			display: flex;
-		}
-		.segmented button {
-			flex: 1;
 		}
 		.footer,
 		.footer.split {

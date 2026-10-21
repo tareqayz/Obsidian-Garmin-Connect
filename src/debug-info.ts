@@ -1,6 +1,7 @@
 import { Platform, TFile, TFolder, apiVersion, normalizePath, type App } from "obsidian";
 import { describe as describeRequests } from "./garmin/request-stats";
 import { scrub } from "./log";
+import { HOURLY_BUDGET, PACE } from "./sync/pace";
 import type GarminPlugin from "./main";
 import { seenConflictCopies, VaultSeriesStore } from "./sync/series-store";
 
@@ -29,10 +30,10 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	add("Units", s.units);
 	add("Metric groups", s.groups.join(", "));
 	add("Data folder", s.dataFolder);
-	add("Sync speed", s.syncSpeed);
 	add("Sync on startup", s.syncOnStartup);
 	add("Map tiles", s.mapTiles);
 	add("Stop after empty days", s.stopAfterEmptyDays);
+	add("Pace", `${PACE.limits.rate} requests/s, ${PACE.parallel} days at once, up to ${HOURLY_BUDGET.toLocaleString("en")} an hour for the history download`);
 	add("Set up", s.setup ? `${s.setup.completedAt}${s.setup.migrated ? " (migrated)" : ""}` : "no");
 	add("Day details", s.data.dayDetails);
 	add("Activity details", s.data.activityDetails);

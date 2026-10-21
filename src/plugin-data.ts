@@ -6,7 +6,6 @@ import type { PersistedAuth } from "./garmin/tokens";
 import { DEFAULT_SETTINGS, defaultData, SETTINGS_VERSION, type DataChoices, type GarminSettings, type SetupState } from "./settings-data";
 import { chartKeys, isActivityDetailsRange, isDayDetailsRange, LEGACY_RUNS_KEY, parseConsentKey } from "./sync/datasets";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
-import { isSyncSpeed, speedFromPause } from "./sync/speed";
 
 /* Readers that accept only what they recognise, so nothing unexpected survives
    a load — neither a stale secret nor a value that would break a slider. */
@@ -127,8 +126,6 @@ export class PluginData {
 			setup: setupOf(source.setup),
 			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
-			// An older build saved a pause in ms; the speed nearest it stands in.
-			syncSpeed: isSyncSpeed(source.syncSpeed) ? source.syncSpeed : source.pauseBetweenDays !== undefined ? speedFromPause(source.pauseBetweenDays) : d.syncSpeed,
 			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
@@ -207,6 +204,9 @@ export class PluginData {
 				this.settings.data.accepted = [...chartKeys(this.settings.groups), ...(downloadRuns ? [LEGACY_RUNS_KEY] : [])];
 			}
 		}
+		// 6: the sync's pace is the plugin's to choose. Nothing to carry over:
+		// `syncSpeed` (and the `pauseBetweenDays` before it) is simply not read,
+		// and the save that follows a migration leaves it out of the file.
 		this.settings.settingsVersion = SETTINGS_VERSION;
 		return true;
 	}

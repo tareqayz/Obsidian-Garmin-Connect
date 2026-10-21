@@ -46,7 +46,8 @@ describe("debug info", () => {
 	it("says what a bug report needs: versions, settings, session, the last sync and the data folder", async () => {
 		const text = await debugInfo(plugin());
 		assert.match(text, /- Plugin: 1\.0\.0-beta\.1/);
-		assert.match(text, /- Sync speed: normal/);
+		assert.doesNotMatch(text, /Sync speed/);
+		assert.match(text, /- Pace: 20 requests\/s, 3 days at once, up to 8,000 an hour for the history download/);
 		assert.match(text, /- Signed in on this device: yes/);
 		assert.match(text, /- Days: 1 written, 0 unchanged, 0 skipped, 1 failed/);
 		assert.match(text, /Failed 2026-10-15: Garmin's answer for this day couldn't be read/);

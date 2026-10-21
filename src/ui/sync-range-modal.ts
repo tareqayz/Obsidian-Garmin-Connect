@@ -3,8 +3,8 @@ import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
 import { FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
-import { HOURLY_BUDGET, requestsPerDay } from "../sync/estimate";
-import { secondsPerDay, SYNC_SPEEDS } from "../sync/speed";
+import { requestsPerDay } from "../sync/estimate";
+import { HOURLY_BUDGET, secondsPerDay } from "../sync/pace";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
 
 /** Backfill a chosen range. The recent-days command covers the everyday case. */
@@ -32,9 +32,9 @@ export class SyncRangeModal extends Modal {
 				initialTo: to,
 				perDay,
 				today: toIsoDate(),
-				secondsPerDay: secondsPerDay(perDay, SYNC_SPEEDS[settings.syncSpeed]),
+				secondsPerDay: secondsPerDay(perDay),
 				stopAfterEmptyDays: settings.stopAfterEmptyDays,
-				hourly: HOURLY_BUDGET[settings.syncSpeed],
+				hourly: HOURLY_BUDGET,
 				onRun: (start: string, end: string) => {
 					this.close();
 					void this.plugin.sync.run(start, end);

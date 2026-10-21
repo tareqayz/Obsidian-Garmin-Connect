@@ -33,6 +33,7 @@ import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
 import { debtItems, pendingItems, type DebtItem } from "./sync/debt";
 import { costOf } from "./sync/estimate";
+import { PACE } from "./sync/pace";
 import type { UpdateLine } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
@@ -369,7 +370,7 @@ export default class GarminPlugin extends Plugin {
 			detailFiles,
 		};
 		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
-		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...costOf(item, settings.groups, settings.syncSpeed) }));
+		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...costOf(item, settings.groups) }));
 	}
 
 	/** The first Garmin view after an update: one dialog for whatever the update offers. */
@@ -466,6 +467,7 @@ export default class GarminPlugin extends Plugin {
 			http: new ObsidianHttpClient(),
 			store: this.tokens,
 			domain: this.data.settings.domain,
+			limits: PACE.limits,
 		});
 		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());
 	}

@@ -2,7 +2,6 @@ import { ACTIVITY_DETAILS_KEY, chartKeys, DAY_DETAILS_KEY, type ActivityDetailsR
 import type { Estimate } from "../sync/estimate";
 import type { MetricGroup } from "../sync/metrics";
 import type { ScanResult } from "../sync/scan";
-import type { SyncSpeed } from "../sync/speed";
 
 /**
  * The setup wizard: Sign in → Scan → the recommendation, with Advanced
@@ -76,7 +75,7 @@ export function keptLabel(choices: Choices): string {
 export interface Prepared {
 	/** Days of details, and activities with their page, already in the vault. */
 	held: { days: number; activities: number; bytes: number };
-	estimate: (choices: Choices, speed: SyncSpeed) => Estimate;
+	estimate: (choices: Choices) => Estimate;
 }
 
 /** What starting the download agrees to: every chart index, and the Day details and Activity details as chosen. */
