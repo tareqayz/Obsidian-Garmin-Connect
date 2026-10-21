@@ -116,7 +116,7 @@
 		}
 	},
 	"index:respiration": {
-		"version": 1,
+		"version": 2,
 		"shape": {
 			"listKey": "days",
 			"columns": [
@@ -189,7 +189,7 @@
 		}
 	},
 	"index:pulse-ox": {
-		"version": 1,
+		"version": 2,
 		"shape": {
 			"listKey": "days",
 			"columns": [

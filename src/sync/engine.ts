@@ -977,7 +977,8 @@ export async function feedIndex<R extends DayRow>(
 			if (refresh < start) start = refresh;
 		}
 		let failed = false;
-		const missing = dateRange(start, to).filter((d) => !dates.has(d));
+		// An index whose window holds columns the summary lacks asks it for the run's own days too.
+		const missing = dateRange(start, to).filter((d) => def.windowToo || !dates.has(d));
 		windows: for (const span of spansOf(missing)) {
 			for (const window of chunkRange(span.from, span.to, def.windowDays)) {
 				out.requests += def.requestsPerWindow;
@@ -1003,12 +1004,33 @@ export async function feedIndex<R extends DayRow>(
 
 	if (dates.size) {
 		try {
-			out.written = await sink.merge({ rows, dates: [...dates] }, covered);
+			out.written = await sink.merge({ rows: def.windowToo ? overlayByDate(rows) : rows, dates: [...dates] }, covered);
 		} catch (err) {
 			out.warnings.push(message(err));
 		}
 	}
 	return out;
+}
+
+/**
+ * One row a day from rows that may hold several for a day, merged column by
+ * column: the summary's row, which comes first, keeps its values, and the
+ * window's fills in the columns it lacks. A merge keeps only the last row of
+ * a day, so without this the window's row would drop the summary's columns.
+ */
+function overlayByDate<R extends DayRow>(rows: readonly R[]): R[] {
+	const byDate = new Map<string, R>();
+	for (const row of rows) {
+		const held = byDate.get(row.date);
+		if (!held) {
+			byDate.set(row.date, row);
+			continue;
+		}
+		const merged: Record<string, unknown> = { ...(row as Record<string, unknown>) };
+		for (const [key, value] of Object.entries(held)) if (value !== undefined && value !== null) merged[key] = value;
+		byDate.set(row.date, merged as unknown as R);
+	}
+	return [...byDate.values()];
 }
 
 export interface WalkOptions {

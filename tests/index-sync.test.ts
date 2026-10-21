@@ -242,6 +242,22 @@ describe("feedIndex", () => {
 		assert.deepEqual(sink.merged[0]!.covered, { from: "2026-09-10", to: "2026-09-12" });
 	});
 
+	it("with windowToo, asks the window for the run's own days too, and keeps both rows' columns", async () => {
+		const source = windows("2026-01-01", "2026-12-31");
+		const { rt, sink } = runtime({ keepOld: true, windowToo: true }, source.fetch);
+		sink.held = { from: "2026-01-01", to: "2026-09-09" };
+		// The summary has the average (25); the window has the average (30) and the maximum (80).
+		const got = await feedIndex(rt, summaries(["2026-09-10", "2026-09-11"]), "2026-09-10", "2026-09-11", { fetchMissing: true });
+		assert.deepEqual(source.calls, ["2026-09-10 2026-09-11"]);
+		assert.equal(got.requests, 1);
+		// One row a day, the summary's average kept and the window's maximum added.
+		const batch = sink.merged[0]!.batch;
+		assert.deepEqual(
+			[...batch.rows].sort((a, b) => (a.date < b.date ? -1 : 1)),
+			[{ date: "2026-09-10", avg: 25, max: 80 }, { date: "2026-09-11", avg: 25, max: 80 }],
+		);
+	});
+
 	it("asks one window for a run's days when the index reads no summaries", async () => {
 		const source = windows("2026-01-01", "2026-12-31");
 		const { rt, sink } = runtime({}, source.fetch);

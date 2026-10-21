@@ -137,6 +137,13 @@ export interface DayIndexSpec<R extends DayRow> {
 	 * nothing either. Not with `fromSummary`.
 	 */
 	fromDay?: DayFeed<R>;
+	/**
+	 * The summary's (or the day's) row holds only some columns, and the window
+	 * the rest: a routine sync asks the window for its own days too, and the
+	 * two rows of a day are merged column by column, the summary's values
+	 * first. Respiration's night average and Pulse Ox's elevation come this way.
+	 */
+	windowToo?: boolean;
 }
 
 /**
@@ -168,6 +175,8 @@ export interface DayIndexDef<R extends DayRow = DayRow> {
 	readonly maxHistoryDays?: number;
 	/** Requests a window costs, as the engine books it: 1 unless the definition says otherwise. */
 	readonly requestsPerWindow: number;
+	/** A routine sync asks the window for its own days too, for the columns the summary lacks (`DayIndexSpec.windowToo`). */
+	readonly windowToo: boolean;
 	fetchWindow(api: GarminApi, start: string, end: string): Promise<ReadonlyArray<DayRowInput<R>>>;
 	fromSummary?(summary: DailySummary, date: string): DayRowInput<R> | null | undefined;
 	readonly fromDay?: DayFeed<R>;
@@ -293,6 +302,7 @@ export function defineDayIndex<R extends DayRow>(spec: DayIndexSpec<R>): DayInde
 		emptyWindowsToStop: spec.emptyWindowsToStop,
 		...(spec.maxHistoryDays !== undefined ? { maxHistoryDays: spec.maxHistoryDays } : {}),
 		requestsPerWindow: spec.requestsPerWindow ?? 1,
+		windowToo: spec.windowToo === true,
 		...(spec.fromDay ? { fromDay: { needs: [...spec.fromDay.needs], read: spec.fromDay.read.bind(spec.fromDay) } } : {}),
 		fetchWindow: (api, start, end) => spec.fetchWindow(api, start, end),
 		normalize,

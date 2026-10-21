@@ -38,7 +38,8 @@ export const RESPIRATION_INDEX = defineDayIndex<RespirationRow>({
 	kind: "respiration",
 	title: "respiration",
 	folder: "respiration",
-	version: 1,
+	// 2: the night's average is kept for the days a routine sync adds (`windowToo`); before, only a history walk wrote it.
+	version: 2,
 	columns: { awake: {}, sleep: {} },
 	// The summary carries only the awake value: the night a window wrote stays.
 	keepOld: true,
@@ -49,6 +50,8 @@ export const RESPIRATION_INDEX = defineDayIndex<RespirationRow>({
 	emptyWindowsToStop: 2,
 	// Today's night arrives after waking, so yesterday's and today's rows are fetched again.
 	refreshDays: 2,
+	// The summary has the awake average; the night's comes with the window.
+	windowToo: true,
 	fetchWindow: async (api, start, end) => (await api.respirationDaily(start, end)).map(rowOfStat),
 	fromSummary: (summary) => ({ awake: (summary as Record<string, unknown>).avgWakingRespirationValue as number | null | undefined }),
 });

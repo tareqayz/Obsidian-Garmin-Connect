@@ -136,7 +136,7 @@ describe("PluginData", () => {
 		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4 } })).data.settings.setup, null);
 		// A version 1 file gets the groups switched on first, and their charts accepted.
 		const old = await load({ settings: { settingsVersion: 1, groups: ["activity"] }, auth: AUTH });
-		assert.ok(old.data.settings.data.accepted.includes("index:respiration@1"));
+		assert.ok(old.data.settings.data.accepted.includes("index:respiration@2"));
 	});
 
 	it("reads the setup and the ledger by allowlist", async () => {
