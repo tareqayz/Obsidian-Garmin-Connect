@@ -65,20 +65,42 @@ export function describe(s: RequestSummary): string {
 	);
 }
 
-/** Keeps the newest `cap` samples: a long backfill should not grow without bound. */
+/**
+ * How much earlier than the newest a sample still being recorded can have
+ * started: an attempt is recorded when it ends, stamped when it began, and
+ * one waits at most a minute (`ObsidianHttpClient`), with room to spare.
+ */
+const RECORDED_LATE_MS = 120_000;
+
+/**
+ * Keeps the newest `cap` samples in a ring: a long download neither grows
+ * without bound nor shifts the whole list for every request, and what a
+ * window of the last minutes holds is read back from its newest end.
+ */
 export class RequestStats {
-	private samples: RequestSample[] = [];
+	private ring: Array<RequestSample | undefined>;
+	private next = 0;
+	private size = 0;
 
-	constructor(private readonly cap = 20_000) {}
-
-	record(sample: RequestSample): void {
-		this.samples.push(sample);
-		if (this.samples.length > this.cap) this.samples.splice(0, this.samples.length - this.cap);
+	constructor(private readonly cap = 5_000) {
+		this.ring = new Array<RequestSample | undefined>(cap);
 	}
 
-	/** Samples recorded at or after `since` (epoch ms). */
+	record(sample: RequestSample): void {
+		this.ring[this.next] = sample;
+		this.next = (this.next + 1) % this.cap;
+		this.size = Math.min(this.cap, this.size + 1);
+	}
+
+	/** Samples that started at or after `since` (epoch ms), oldest recorded first. */
 	since(since = 0): RequestSample[] {
-		return this.samples.filter((s) => s.at >= since);
+		const out: RequestSample[] = [];
+		for (let back = 1; back <= this.size; back++) {
+			const sample = this.ring[(this.next - back + this.cap) % this.cap]!;
+			if (sample.at >= since) out.push(sample);
+			else if (sample.at < since - RECORDED_LATE_MS) break;
+		}
+		return out.reverse();
 	}
 
 	summary(since = 0): RequestSummary {
@@ -86,6 +108,8 @@ export class RequestStats {
 	}
 
 	clear(): void {
-		this.samples = [];
+		this.ring = new Array<RequestSample | undefined>(this.cap);
+		this.next = 0;
+		this.size = 0;
 	}
 }
