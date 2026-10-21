@@ -13,9 +13,9 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute:
 const count = new Intl.NumberFormat();
 
 /**
- * Settings → Data's live half: what the vault holds, what is missing for the
- * ranges chosen, and the download in progress. Each row that shows some of it
- * attaches a repaint; the first attach starts listening to the sync and the
+ * Settings → History's live half: what the vault holds, what is missing for
+ * the ranges chosen, and the download in progress. Each row that shows some of
+ * it attaches a repaint; the first attach starts listening to the sync and the
  * last detach stops, so a closed settings tab costs nothing.
  */
 export class SettingsDataRows {
@@ -102,26 +102,34 @@ export class SettingsDataRows {
 	}
 
 	usageText(): string {
-		const u = this.usage;
-		return `${formatBytes(u.total)} — Charts & trends ${formatBytes(u.charts)} · Day details ${formatBytes(u.days)} · Activity details ${formatBytes(u.details)} · Other ${formatBytes(u.other)}`;
+		return `${formatBytes(this.usage.total)} in ${this.plugin.data.settings.dataFolder}.`;
+	}
+
+	/** The History row on the main page: what the folder holds, and the download, as the page was drawn. */
+	summaryText(): string {
+		const size = `${formatBytes(this.usage.total)} in ${this.plugin.data.settings.dataFolder}`;
+		const p = this.progress;
+		if (!p) return `${size}.`;
+		if (p.status === "running") return `${size} · downloading, ${this.percent}%.`;
+		if (p.status === "elsewhere") return `${size} · downloading on ${p.device ?? "another device"}.`;
+		return `${size} · download paused.`;
 	}
 
 	dayText(): string {
 		const s = this.plugin.data.settings;
+		if (s.data.dayDetails === "new") return "New days only.";
 		const days = this.est?.sets.find((x) => x.id === "day-details");
-		const from = s.data.dayDetails === "new" ? null : rangeStart(s.data.dayDetails, new Date().toISOString().slice(0, 10), this.start);
-		if (s.data.dayDetails === "new") return "Keeps every new day from the setup on.";
-		if (days?.units) return `Keeps every new day. Older days back to ${day(from)}: + ${count.format(days.units)} days · ≈ ${formatBytes(days.bytes)} · ${formatDuration(days.seconds)} to fill.`;
-		if (this.est) return `Keeps every new day. Everything back to ${day(from)} is in this vault.`;
-		return "Keeps every new day.";
+		const from = rangeStart(s.data.dayDetails, new Date().toISOString().slice(0, 10), this.start);
+		const back = from ? `Back to ${day(from)} · ` : "";
+		if (days?.units) return `${back}${count.format(days.units)} ${days.units === 1 ? "day" : "days"} left, ≈ ${formatBytes(days.bytes)}.`;
+		if (this.est) return from ? `${back}all here.` : "All here.";
+		return "New days are always kept.";
 	}
 
 	detailText(): string {
-		if (this.plugin.data.settings.data.activityDetails === "opened") return "An activity downloads when you open it.";
+		if (this.plugin.data.settings.data.activityDetails === "opened") return "Downloaded when you open one.";
 		const details = this.est?.sets.find((x) => x.id === "activity-details");
-		return details?.units
-			? `Every activity is saved. ${count.format(details.units)} ${details.units === 1 ? "activity" : "activities"} left to download.`
-			: "Every activity is saved.";
+		return details?.units ? `${count.format(details.units)} left to download.` : "All here.";
 	}
 
 	get percent(): number {

@@ -5,7 +5,7 @@
 	import type { SettingsDataRows } from "../../settings-data-rows";
 
 	/**
-	 * Settings → Data: the download in progress and the new data offered for
+	 * Settings → History: the download in progress and the new data offered for
 	 * the history. The row it sits in hides itself when both are empty.
 	 */
 	let { plugin, rows }: { plugin: GarminPlugin; rows: SettingsDataRows } = $props();

@@ -295,7 +295,7 @@ export default class GarminPlugin extends Plugin {
 	/**
 	 * The history download in the status bar, on a computer: how far it has
 	 * got, or why it waits. Gone once nothing is left. Clicking it opens
-	 * Settings → Data.
+	 * Settings → History.
 	 */
 	private bindStatusBar(): void {
 		if (!Platform.isDesktopApp) return;
