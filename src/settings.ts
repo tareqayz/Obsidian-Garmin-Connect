@@ -47,7 +47,7 @@ const GROUPS: Record<MetricGroup, { name: string; desc: string; aliases: string[
 };
 
 /** The settings a `control` row edits. A metric group's toggle is `group:<id>`. */
-type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "autoSaveLog" | `group:${MetricGroup}`;
+type ControlKey = "autoSync" | "units" | "mapTiles" | "autoSaveLog" | `group:${MetricGroup}`;
 
 const UNITS: ReadonlyArray<GarminSettings["units"]> = ["auto", "metric", "imperial"];
 
@@ -88,9 +88,11 @@ export class GarminSettingTab extends PluginSettingTab {
 			return;
 		}
 		if (key === "units" && UNITS.includes(value as GarminSettings["units"])) s.units = value as GarminSettings["units"];
-		else if ((key === "syncOnStartup" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
+		else if ((key === "autoSync" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
 		else return;
 		await this.plugin.data.saveSettings();
+		// Turned on: a sync may be due already.
+		if (key === "autoSync" && value === true) this.plugin.autoSync.poke();
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem<ControlKey>[] {
@@ -125,9 +127,10 @@ export class GarminSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Sync on startup",
-						desc: "Sync recent days when Obsidian starts.",
-						control: { type: "toggle", key: "syncOnStartup" },
+						name: "Sync automatically",
+						desc: "Sync new data when Obsidian starts and when you open Home.",
+						aliases: ["sync on startup", "auto sync"],
+						control: { type: "toggle", key: "autoSync" },
 					},
 					{
 						name: "Units",

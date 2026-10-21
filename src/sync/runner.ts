@@ -87,6 +87,13 @@ export interface BackfillProgress {
 	reached?: string;
 }
 
+/** A recent sync in progress: what started it, which a press can change, and whether its probe stopped it. */
+interface RecentRun {
+	trigger: SyncTrigger;
+	skipped: boolean;
+	done: Promise<SyncOutcome | null>;
+}
+
 /** How long a sync from the palette runs before its progress shows: a quick one ends first. */
 const PROGRESS_NOTICE_MS = 1_500;
 
@@ -302,17 +309,36 @@ export class SyncRunner {
 	 * neither moved.
 	 */
 	syncRecent(trigger: SyncTrigger = "command", log?: Log): Promise<SyncOutcome | null> {
-		return this.runPlan(() => this.planRecent(trigger, log), trigger, log);
+		const running = this.recentRun;
+		if (running) {
+			if (trigger === "auto") return running.done;
+			// A press during an automatic check makes it a full sync: the check
+			// doesn't skip once it has heard, and one that already skipped runs again.
+			if (running.trigger === "auto") running.trigger = trigger;
+			return running.done.then((outcome) => (running.skipped ? this.syncRecent(trigger, log) : outcome));
+		}
+		const run: RecentRun = { trigger, skipped: false, done: Promise.resolve(null) };
+		this.recentRun = run;
+		run.done = this.runPlan(() => this.planRecent(run, log), () => run.trigger, log).finally(() => {
+			if (this.recentRun === run) this.recentRun = null;
+		});
+		return run.done;
 	}
 
-	private async planRecent(trigger: SyncTrigger, log?: Log): Promise<DaysPlan> {
+	/** The recent sync in progress, which another ask joins. */
+	private recentRun: RecentRun | null = null;
+
+	private async planRecent(run: RecentRun, log?: Log): Promise<DaysPlan> {
 		const startedAt = new Date().toISOString();
 		const settings = this.settings();
 		const series = new VaultSeriesStore(this.app, settings.dataFolder);
 		const state = await series.readSyncState();
 		const probe = await this.probe(log);
 		const fingerprint = fingerprintOf({ groups: settings.groups, units: settings.units, dayDetails: settings.data.dayDetails, dataVersion: DAY_DETAILS_VERSION, pluginVersion: this.pluginVersion });
-		if (trigger === "auto" && shouldSkip(state, probe, { now: Date.parse(startedAt), fingerprint }).skip) return { from: "", to: "", requests: 2, skip: true };
+		if (run.trigger === "auto" && shouldSkip(state, probe, { now: Date.parse(startedAt), fingerprint }).skip) {
+			run.skipped = true;
+			return { from: "", to: "", requests: 2, skip: true };
+		}
 		const { from, to, capped } = recentRange(markFor(state, probe), toIsoDate());
 		return {
 			from,
@@ -401,32 +427,37 @@ export class SyncRunner {
 	 * changed since.
 	 */
 	run(from: string, to: string, log?: Log): Promise<SyncOutcome | null> {
-		return this.runPlan(async () => ({ from, to, allTimelines: true }), "command", log);
+		return this.runPlan(async () => ({ from, to, allTimelines: true }), () => "command", log);
 	}
 
-	private async runPlan(plan: () => Promise<DaysPlan>, trigger: SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
-		const outcome = await this.runDays(plan, trigger, log);
+	/** `triggerOf` is asked as the run goes: a press can join an automatic sync (`syncRecent`). */
+	private async runPlan(plan: () => Promise<DaysPlan>, triggerOf: () => SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+		const outcome = await this.runDays(plan, triggerOf, log);
+		if (outcome) {
+			this.lastOutcome = outcome;
+			for (const listener of this.outcomeListeners) listener(outcome);
+		}
 		// New days and activities may have joined, or gaps opened: the backfill looks again.
 		if (outcome && outcome.kind !== "stopped" && outcome.kind !== "failed") this.kickBackfill();
 		return outcome;
 	}
 
-	private async runDays(plan: () => Promise<DaysPlan>, trigger: SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+	private async runDays(plan: () => Promise<DaysPlan>, triggerOf: () => SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
 		// Only a sync someone started from the palette shows its progress and its end; the others stay quiet unless they fail.
-		const loud = trigger === "command";
+		const loud = triggerOf() === "command";
 		if (!this.api.isAuthenticated) {
-			if (trigger !== "auto") new Notice("Sign in to Garmin Connect first.");
+			if (triggerOf() !== "auto") new Notice("Sign in to Garmin Connect first.");
 			return null;
 		}
 		const release = await this.claim("foreground");
 		if (!release) {
-			if (trigger !== "auto") new Notice("A Garmin sync is already running.");
+			if (triggerOf() !== "auto") new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const startedAt = Date.now();
-		this.setSyncing(startedAt);
+		let writing = false;
 		// Shown only once the sync has run a moment: a quick one ends before it would appear.
 		let progress: SyncProgress = { done: 0, total: 0, date: null, eta: null };
 		let notice: Notice | null = null;
@@ -445,6 +476,9 @@ export class SyncRunner {
 				hide();
 				return { kind: "up-to-date", days: 0, failed: 0, at: new Date().toISOString() };
 			}
+			// From here the sync writes days: Home spins ↻ and holds its redraws until the end.
+			writing = true;
+			this.setSyncing(startedAt);
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			// Once per sync, not per day: who you are, the watch, and the numbers
@@ -500,16 +534,16 @@ export class SyncRunner {
 			}
 			log?.detail("requests", describeRequests(this.api.stats.summary(startedAt)));
 			const outcome = outcomeOf(report, new Date().toISOString());
-			this.tell(trigger, outcome, report.warnings, report.fatal);
+			this.tell(triggerOf(), outcome, report.warnings, report.fatal);
 			return outcome;
 		} catch (err) {
 			hide();
 			const outcome = failedOutcome(err, new Date().toISOString());
-			this.tell(trigger, outcome, [], err);
+			this.tell(triggerOf(), outcome, [], err);
 			return outcome;
 		} finally {
 			this.api.onSlowDown = null;
-			this.setSyncing(0);
+			if (writing) this.setSyncing(0);
 			release();
 		}
 	}
@@ -539,6 +573,28 @@ export class SyncRunner {
 
 	/** The failures an automatic sync already said this session, by kind. */
 	private toldOnce = new Set<string>();
+
+	private outcomeListeners = new Set<(outcome: SyncOutcome) => void>();
+
+	/** How the last recent or range sync this session ended, for a Home opened since. */
+	lastOutcome: SyncOutcome | null = null;
+
+	/** Called with how each recent or range sync ended, a quiet one included. Returns the unsubscribe. */
+	onOutcome(listener: (outcome: SyncOutcome) => void): () => void {
+		this.outcomeListeners.add(listener);
+		return () => this.outcomeListeners.delete(listener);
+	}
+
+	/** A sync or history walk someone asked for holds the runner or waits for it. */
+	get foregroundBusy(): boolean {
+		return this.foregroundRunning || this.lock.waiting("foreground") > 0;
+	}
+
+	/** Garmin asked for a rest — a 429 or its bot check — and it hasn't ended: nothing starts on its own meanwhile. */
+	get resting(): boolean {
+		const p = this.backfillProgress;
+		return p?.status === "paused" && (p.reason === "rate-limit" || p.reason === "blocked") && (!p.until || Date.parse(p.until) > Date.now());
+	}
 
 	/** When the recent or range sync in progress started (epoch ms), or 0. */
 	private syncStarted = 0;

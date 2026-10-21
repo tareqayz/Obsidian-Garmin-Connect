@@ -181,6 +181,16 @@ describe("PluginData", () => {
 		assert.deepEqual(Object.keys(last.settings).sort(), Object.keys(DEFAULT_SETTINGS).sort());
 	});
 
+	it("syncs automatically for every vault from before version 6, whatever Sync on startup said", async () => {
+		const { autoSync: _, ...v5 } = DEFAULT_SETTINGS;
+		const { data, saved } = await load({ settings: { ...v5, settingsVersion: 5, syncOnStartup: false } });
+		assert.equal(data.settings.autoSync, true);
+		const last = saved.at(-1) as { settings: Record<string, unknown> };
+		assert.equal("syncOnStartup" in last.settings, false);
+		// Turned off since: it stays off.
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, autoSync: false } })).data.settings.autoSync, false);
+	});
+
 	it("drops the Days to sync setting a build before smart sync saved", async () => {
 		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, syncDays: 7 } });
 		assert.equal("syncDays" in data.settings, false);

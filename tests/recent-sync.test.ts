@@ -83,6 +83,27 @@ describe("the recent sync, against a simulated Garmin", () => {
 		}
 	});
 
+	it("turns an automatic check into a full sync when ↻ is pressed during it, and both get its outcome", async () => {
+		const { clock, http, sync, runner } = await setup();
+		try {
+			await sync("command");
+			await sync("command");
+			const asked = http.asked.length;
+			// The check and the press, before the probe has answered.
+			let quiet: SyncOutcome | null | undefined;
+			let pressed: SyncOutcome | null | undefined;
+			void runner.syncRecent("auto").then((o) => (quiet = o));
+			void runner.syncRecent("button").then((o) => (pressed = o));
+			await clock.runUntil(() => quiet !== undefined && pressed !== undefined, 3_600_000);
+			// One sync, in full: not two, and not a skip.
+			assert.ok(http.asked.length - asked > 20, String(http.asked.length - asked));
+			assert.equal(http.asked.slice(asked).filter((u) => u.includes("/mylastused")).length, 1);
+			assert.deepEqual(quiet, pressed);
+		} finally {
+			clock.uninstall();
+		}
+	});
+
 	it("tells the palette's sync how it went, and stays quiet for Home's", async () => {
 		const { clock, sync, runner } = await setup();
 		try {

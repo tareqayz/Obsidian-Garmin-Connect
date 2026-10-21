@@ -26,18 +26,25 @@ export interface SyncOutcome {
 	failed: number;
 	/** Why it stopped or failed, in a few words. */
 	reason?: string;
+	/** What kind of failure stopped it, for how long an automatic sync waits before trying again. */
+	cause?: FailCause;
 	/** When it ended, ISO. */
 	at: string;
 }
 
+export type FailCause = "offline" | "rate-limited" | "blocked" | "signed-out" | "other";
+
 export function outcomeOf(report: SyncReport, at: string): SyncOutcome {
 	const days = report.days.filter((day) => day.status === "written" || day.seriesWritten).length;
-	if (report.stoppedEarly) return { kind: "stopped", days, failed: report.failed, reason: stopReason(report), at };
+	if (report.stoppedEarly) {
+		const reason = stopReason(report);
+		return { kind: "stopped", days, failed: report.failed, ...(reason ? { reason } : {}), ...(report.fatal !== undefined ? { cause: causeOf(report.fatal) } : {}), at };
+	}
 	return { kind: days || report.failed ? "synced" : "up-to-date", days, failed: report.failed, at };
 }
 
 export function failedOutcome(err: unknown, at: string): SyncOutcome {
-	return { kind: "failed", days: 0, failed: 0, reason: reasonOf(err), at };
+	return { kind: "failed", days: 0, failed: 0, reason: reasonOf(err), cause: causeOf(err), at };
 }
 
 /** "3 days updated, 1 failed.", "Up to date.", "Stopped: Garmin asked to slow down." */
@@ -71,7 +78,15 @@ export function reasonOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
+export function causeOf(err: unknown): FailCause {
+	if (err instanceof GarminNetworkError) return "offline";
+	if (err instanceof GarminRateLimitError) return "rate-limited";
+	if (err instanceof GarminBlockedError) return "blocked";
+	if (err instanceof GarminAuthError) return "signed-out";
+	return "other";
+}
+
 /** A failure a quiet sync stays quiet about: no network, not Garmin. */
 export function isOffline(err: unknown): boolean {
-	return err instanceof GarminNetworkError;
+	return causeOf(err) === "offline";
 }

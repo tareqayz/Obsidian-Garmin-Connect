@@ -58,7 +58,12 @@ export interface GarminSettings {
 	/** Where every JSON file the sync writes lives. */
 	dataFolder: string;
 
-	syncOnStartup: boolean;
+	/**
+	 * Sync on its own: when Obsidian starts, and when Home comes into view or
+	 * the app comes back, once the last sync is 15 minutes old. A check that
+	 * finds nothing new costs two requests and writes nothing.
+	 */
+	autoSync: boolean;
 	/** Null until the setup ran: the wizard then opens on the first enable, and Home offers it. */
 	setup: SetupState | null;
 	/** What to keep, and the consent ledger. Replaced `downloadRuns`, then `runDetails` (now `activityDetails`). */
@@ -83,7 +88,8 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 
 	// JSON only, in a folder of its own: nothing here touches a note you wrote.
 	dataFolder: "Garmin/data",
-	syncOnStartup: false,
+	// On: keeping the vault current is the point, and a check with nothing new costs two requests.
+	autoSync: true,
 	setup: null,
 	// Narrow on purpose: these also stand in for a saved range that can't be
 	// read, which must never widen a download. The setup recommends all of it.

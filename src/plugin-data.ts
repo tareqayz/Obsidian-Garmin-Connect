@@ -122,7 +122,8 @@ export class PluginData {
 					? source.units
 					: d.units,
 			dataFolder: nonEmpty(source.dataFolder, d.dataFolder),
-			syncOnStartup: bool(source.syncOnStartup, d.syncOnStartup),
+			// A new key, so every older file reads as on: version 5 saved `syncOnStartup: false` by default.
+			autoSync: bool(source.autoSync, d.autoSync),
 			setup: setupOf(source.setup),
 			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
@@ -153,9 +154,10 @@ export class PluginData {
 	}
 
 	/**
-	 * The setup and the data choices again from `data.json`, after another
-	 * device changed them (`onExternalSettingsChange`). Nothing else: Home and
-	 * the other settings stay as this device has them.
+	 * The setup, the data choices and Sync automatically again from
+	 * `data.json`, after another device changed them
+	 * (`onExternalSettingsChange`). Nothing else: Home and the other settings
+	 * stay as this device has them.
 	 */
 	async reloadChoices(): Promise<void> {
 		const raw = (await this.plugin.loadData()) as Record<string, unknown> | null;
@@ -163,6 +165,7 @@ export class PluginData {
 		if (int(source.settingsVersion, 1, 1, SETTINGS_VERSION) < SETTINGS_VERSION) return;
 		this.settings.setup = setupOf(source.setup);
 		this.settings.data = dataOf(source.data);
+		this.settings.autoSync = bool(source.autoSync, DEFAULT_SETTINGS.autoSync);
 	}
 
 	/**
@@ -206,7 +209,8 @@ export class PluginData {
 		// 6: the sync's pace, and where a date range gives up, are the plugin's to
 		// choose. Nothing to carry over: `syncSpeed` (and the `pauseBetweenDays`
 		// before it) and `stopAfterEmptyDays` are simply not read, and the save
-		// that follows a migration leaves them out of the file.
+		// that follows a migration leaves them out of the file. `syncOnStartup`
+		// gave way to `autoSync`, on for everyone.
 		this.settings.settingsVersion = SETTINGS_VERSION;
 		return true;
 	}

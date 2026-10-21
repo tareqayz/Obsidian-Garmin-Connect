@@ -30,7 +30,7 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	add("Units", s.units);
 	add("Metric groups", s.groups.join(", "));
 	add("Data folder", s.dataFolder);
-	add("Sync on startup", s.syncOnStartup);
+	add("Sync automatically", s.autoSync);
 	add("Map tiles", s.mapTiles);
 	add("Set up", s.setup ? `${s.setup.completedAt}${s.setup.migrated ? " (migrated)" : ""}` : "no");
 	add("Day details", s.data.dayDetails);

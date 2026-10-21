@@ -118,6 +118,8 @@
 		onPauseBackfill: () => void;
 		onResumeBackfill: () => void;
 		onSync: () => Promise<string | null>;
+		/** How the last sync ended, as the line beside ↻ says it ("Synced 2:05 PM"), or null before any. */
+		initialSyncMessage: string | null;
 		onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) => void;
 		/** Add a Stat, from See All's edit mode. */
 		onPick: (current: GlanceId[]) => Promise<GlanceId | null>;
@@ -181,6 +183,7 @@
 		onPauseBackfill,
 		onResumeBackfill,
 		onSync,
+		initialSyncMessage,
 		onChange,
 		onPick,
 		onRoute,
@@ -307,8 +310,12 @@
 	let glanceList = $derived(glance ?? preset.glance);
 
 	let sheet = $state(false);
-	let syncing = $state(false);
-	let syncMessage = $state<string | null>(null);
+	/** ↻ pressed here, and a sync of any kind writing days: either spins it. */
+	let pressed = $state(false);
+	let running = $state(false);
+	let syncing = $derived(pressed || running);
+	// svelte-ignore state_referenced_locally
+	let syncMessage = $state<string | null>(initialSyncMessage);
 
 	function choose(id: PresetId) {
 		presetId = id;
@@ -514,15 +521,26 @@
 
 	async function sync() {
 		if (syncing) return;
-		syncing = true;
+		pressed = true;
 		syncMessage = "Syncing…";
 		try {
 			syncMessage = (await onSync()) ?? null;
 		} catch (e) {
 			syncMessage = e instanceof Error ? e.message : String(e);
 		} finally {
-			syncing = false;
+			pressed = false;
 		}
+	}
+
+	/** A sync started or ended writing days, whoever started it: an automatic one only once its check found something new. */
+	export function setRunnerSyncing(next: boolean) {
+		running = next;
+		if (next) syncMessage = "Syncing…";
+	}
+
+	/** How the last sync ended, an automatic one included. */
+	export function setSyncMessage(next: string | null) {
+		syncMessage = next;
 	}
 
 	// Every page's bar reaches Sync through this: a pane shows it there, a phone keeps back and title.

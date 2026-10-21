@@ -5,10 +5,13 @@ import { toIsoDate } from "../garmin/endpoints";
 import type { DayIndexData, IndexHistoryProgress, ReadIndex } from "../sync/day-index";
 import { dayIndex } from "../sync/day-indexes";
 import type { BackfillProgress, HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../sync/runner";
-import { outcomeLine } from "../sync/sync-outcome";
+import { outcomeLine, type SyncOutcome } from "../sync/sync-outcome";
 
 /** The time a sync ended, as Home's line beside ↻ says it: "2:05 PM". */
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+/** A sync's ending as the line beside ↻: "Synced 2:05 PM", "Couldn't sync". */
+const syncLine = (outcome: SyncOutcome): string => outcomeLine(outcome, (iso) => clock.format(new Date(iso)));
 import { forgetParsedDays, VaultSeriesStore } from "../sync/series-store";
 import { rebuildAt } from "./rebuild-schedule";
 import { pickStat } from "../ui/add-stat-modal";
@@ -63,6 +66,8 @@ interface HomeApi {
 	setSeriesVersion(version: number): void;
 	navigate(next: Route[]): void;
 	setRail(next: RailPref | null): void;
+	setRunnerSyncing(next: boolean): void;
+	setSyncMessage(next: string | null): void;
 }
 
 function sameStack(a: readonly Route[], b: readonly Route[]): boolean {
@@ -162,6 +167,8 @@ export class GarminHomeView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
+		// Home in view: a sync may be due.
+		this.plugin.autoSync.poke();
 		try {
 			await this.openHome();
 		} catch (err) {
@@ -226,8 +233,9 @@ export class GarminHomeView extends ItemView {
 				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
 					const outcome = await this.plugin.sync.syncRecent("button");
-					return outcome ? outcomeLine(outcome, (iso) => clock.format(new Date(iso))) : null;
+					return outcome ? syncLine(outcome) : null;
 				},
+				initialSyncMessage: this.plugin.sync.lastOutcome ? syncLine(this.plugin.sync.lastOutcome) : null,
 				onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) =>
 					void this.plugin.data.saveHome({ preset, hidden, ...(glance ? { glance } : {}) }),
 				onPick: (current: GlanceId[]) => pickStat(this.app, availableStats(current)),
@@ -311,8 +319,10 @@ export class GarminHomeView extends ItemView {
 			sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)),
 			sync.onBackfill((progress) => this.component?.setBackfill(progress)),
 			sync.onSyncing((startedAt) => {
+				this.component?.setRunnerSyncing(startedAt > 0);
 				if (!startedAt) this.syncEnded();
 			}),
+			sync.onOutcome((outcome) => this.component?.setSyncMessage(syncLine(outcome))),
 		);
 	}
 

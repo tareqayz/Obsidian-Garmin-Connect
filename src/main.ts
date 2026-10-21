@@ -17,6 +17,7 @@ import { GarminSettingTab } from "./settings";
 import { DAY_INDEXES } from "./sync/day-indexes";
 import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
+import { AUTO_SYNC_KEY, AutoSync, parseLocal } from "./sync/auto-sync";
 import { GARMIN_ICON } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
@@ -39,7 +40,7 @@ import { updateLinesOf, type UpdateLine, type UpdateTotal } from "./ui/setup-flo
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
 
-/** Long enough for the vault's metadata cache to be ready before a sync reads it. */
+/** Long enough for the vault's metadata cache to be ready before a sync reads it: nothing syncs on its own sooner. */
 const STARTUP_SYNC_DELAY_MS = 5000;
 /** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id, its request budget and its Garmin session. */
 function forgetThisDevice(app: App): void {
@@ -52,6 +53,7 @@ function forgetThisDevice(app: App): void {
 	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
 	app.saveLocalStorage(BUDGET_KEY, null);
 	app.saveLocalStorage(HAD_SESSION_KEY, null);
+	app.saveLocalStorage(AUTO_SYNC_KEY, null);
 	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
@@ -66,6 +68,8 @@ export default class GarminPlugin extends Plugin {
 	data!: PluginData;
 	garmin!: GarminApi;
 	sync!: SyncRunner;
+	/** Starts a recent sync on its own when one is due (`auto-sync.ts`). */
+	autoSync!: AutoSync;
 	/** This device's Garmin session, in Obsidian's keychain rather than data.json. */
 	tokens!: SecretTokenStore;
 
@@ -77,6 +81,7 @@ export default class GarminPlugin extends Plugin {
 		await this.data.init();
 
 		this.buildClient();
+		this.autoSync = this.buildAutoSync();
 		await this.garmin.restore();
 		this.bindStatusBar();
 
@@ -215,12 +220,22 @@ export default class GarminPlugin extends Plugin {
 
 		this.addSettingTab(new GarminSettingTab(this.app, this));
 
-		if (this.data.settings.syncOnStartup && this.garmin.isAuthenticated) {
-			// Deferred: a sync at load time competes with vault indexing.
-			this.registerInterval(
-				window.setTimeout(() => void this.sync.syncRecent(), STARTUP_SYNC_DELAY_MS),
-			);
-		}
+		// A sync starts on its own when one is due: once Obsidian has started,
+		// when Home comes into view, and when the app comes back to the front
+		// with Home showing. Each only asks; `AutoSync` decides.
+		this.register(() => this.autoSync.stop());
+		this.app.workspace.onLayoutReady(() => this.autoSync.poke());
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", (leaf) => {
+				if (leaf?.view instanceof GarminHomeView) this.autoSync.poke();
+			}),
+		);
+		const backToFront = () => {
+			if (activeDocument.visibilityState !== "visible") return;
+			if (this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW).some((leaf) => leaf.view.containerEl.isShown())) this.autoSync.poke();
+		};
+		this.registerDomEvent(activeDocument, "visibilitychange", backToFront);
+		this.registerDomEvent(window, "focus", backToFront);
 		// A backfill agreed to carries on where the files say it stopped, whether or not the startup sync runs.
 		this.app.workspace.onLayoutReady(() =>
 			this.registerInterval(window.setTimeout(() => this.sync.kickBackfill(), STARTUP_BACKFILL_DELAY_MS)),
@@ -425,6 +440,8 @@ export default class GarminPlugin extends Plugin {
 		if (this.garmin.isAuthenticated) {
 			this.app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
 			void this.sync.signedIn();
+			// Signed in: a sync is likely due.
+			this.autoSync.poke();
 		}
 		this.refreshViews();
 	}
@@ -481,6 +498,29 @@ export default class GarminPlugin extends Plugin {
 		const leaf = existing ?? this.app.workspace.getLeaf("tab");
 		await leaf.setViewState({ type, active: true, ...(state ? { state } : {}) });
 		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	/** Reads `this.sync` and the settings each time: signing in again replaces the runner, and the setting can change. */
+	private buildAutoSync(): AutoSync {
+		return new AutoSync(
+			{
+				now: () => Date.now(),
+				allowed: () => {
+					const s = this.data.settings;
+					return s.autoSync && s.setup !== null && this.garmin.isAuthenticated && !this.sync.foregroundBusy && !this.sync.resting;
+				},
+				loadLocal: () => parseLocal(this.app.loadLocalStorage(AUTO_SYNC_KEY)),
+				saveLocal: (local) => this.app.saveLocalStorage(AUTO_SYNC_KEY, local),
+				syncedAt: async () => {
+					const state = await new VaultSeriesStore(this.app, this.data.settings.dataFolder).readSyncState();
+					return state ? Date.parse(state.syncedAt) : null;
+				},
+				sync: () => this.sync.syncRecent("auto"),
+				setTimeout: (run, ms) => window.setTimeout(run, ms),
+				clearTimeout: (id) => window.clearTimeout(id),
+			},
+			STARTUP_SYNC_DELAY_MS,
+		);
 	}
 
 	/** The domain is baked into every URL, so changing it needs a fresh client. */
