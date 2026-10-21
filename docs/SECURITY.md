@@ -113,7 +113,7 @@ anyone with access to the device's Obsidian does.
 
   Nothing asks when the plugin's folder is deleted by hand, or the plugin is uninstalled on another
   device: delete the data folder yourself.
-- **Settings → Danger zone → Delete synced data** moves the plugin's own files in the data folder to
+- **Settings → Advanced → Delete synced data** moves the plugin's own files in the data folder to
   the trash, and the diagnostics notes if you tick the box. Anything else in that folder stays. It
   doesn't sign you out.
 - **The trash still holds them.** Files in the system trash or the vault's `.trash` folder stay on
@@ -143,7 +143,7 @@ is no telemetry and no analytics.
 **Run diagnostics** can save a run as a note in your vault, because a phone has no console and a note
 syncs back to your desktop. The folder is the **Log folder** in the Advanced settings
 (`Garmin/diagnostics` in a new vault). A run is saved only when you press **Save to vault**, unless
-**Save every diagnostics run to the vault** is on, which it isn't by default.
+**Save diagnostics runs** is on, which it isn't by default.
 
 **Save debug info** gathers what a bug report needs, with no network request and no sign-in:
 versions, platform, the settings without the email, the history download's state, the last sync

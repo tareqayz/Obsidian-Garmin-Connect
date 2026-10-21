@@ -25,7 +25,7 @@ four layers broke, which is most of the diagnosis.
 - **The password** you type for check 2 is cleared after each check.
 - **Saving a run:** **Save to vault** keeps it as a note in the **Log folder** (`Garmin/diagnostics`,
   or `garmin-probe-logs` in vaults set up before 0.2), because a phone has no console.
-- **Saving every run:** **Save every diagnostics run to the vault** saves each check that ends in a
+- **Saving every run:** **Save diagnostics runs** saves each check that ends in a
   verdict. Check 1 has none.
 
 ### Verdicts
@@ -83,7 +83,7 @@ this device's keychain, so another device signing in or out never touches it.
 ### Rate limited (429)
 
 Wait 15–30 minutes. Then:
-- **Slow down:** set **Settings → Advanced → Sync speed** to **Gentle**, the default, before a long
+- **Slow down:** set **Settings → Advanced → Sync speed** to **Gentle** before a long
   date range.
 - **Turn off metric groups you don't need.** That removes requests, except among `activity`,
   `heart`, `stress`, `respiration` and `spo2`, which share one daily request.
@@ -98,12 +98,12 @@ in.
 
 ### The history download is paused
 
-The download shows on Home under the title, in **Settings → Data**, and on a computer in the status
+The download shows on Home under the title, in **Settings → History**, and on a computer in the status
 bar. What it says, and what to do:
 
 | On Home | Why | What to do |
 | --- | --- | --- |
-| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → Data** or the **Sign in** command. It carries on by itself. |
+| Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → History** or the **Sign in** command. It carries on by itself. |
 | Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin. |
 | Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device | Nothing. It waits half an hour, doubling up to twelve hours, because asking again soon keeps a block in place. Run diagnostics if it keeps happening. |
 | Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device. |
@@ -113,7 +113,7 @@ bar. What it says, and what to do:
 
 **Resume the history download** lifts every pause, Garmin's included.
 
-If nothing downloads at all, there may be nothing to fetch: **Settings → Data** shows what is missing
+If nothing downloads at all, there may be nothing to fetch: **Settings → History** shows what is missing
 from your Day details and Activity details ranges. The download also waits for the setup to have run
 and for a session.
 
@@ -179,7 +179,7 @@ For older days:
   open the day. You need to be signed in, with the right group on: `intraday` for Home's charts, the
   page's own group for a Health Stats page.
 - **Steps, floors and intensity minutes** show only what a sync wrote. Widen **Day details** in
-  **Settings → Data** to reach the day, or run **Sync a date range…** over it.
+  **Settings → History** to reach the day, or run **Sync a date range…** over it.
 
 If a day still has no curve after that, Garmin has none for it: older days often have only the totals.
 
@@ -188,7 +188,7 @@ If a day still has no curve after that, Garmin has none for it: older days often
 A night's sleep page reads its timeline, factors and Sleep Coach from that day's timelines. Nights
 synced by a release before 0.2.0-beta.1 have none.
 - **Inside your Day details range**, the history download fetches them again. A vault that was
-  syncing before the setup existed is asked first, in the update dialog, or in **Settings → Data**
+  syncing before the setup existed is asked first, in the update dialog, or in **Settings → History**
   after **Later**.
 - **For older nights**, widen Day details, or run **Sync a date range…** over them with the
   **intraday** group on.
@@ -209,7 +209,7 @@ now reads days only from `Garmin/data/days/<year>.json`. Up to 1.0.1 it copied t
 into those files once; from 1.0.2 on it doesn't read the notes at all. Fetch the days from Garmin
 instead:
 - **The history download** fills your **Day details** range. Choose a longer one in
-  **Settings → Data** to reach further back.
+  **Settings → History** to reach further back.
 - **Sync a date range…** fetches any span, whatever the range.
 
 Once the pages show your history, you can delete the old day notes, their `garmin_` properties and
@@ -255,5 +255,5 @@ bundle loads fine on a desktop and fails on a phone; `npm run build` catches exa
 ### Reading a diagnostics log on a phone
 
 Open the **Log folder** (`Garmin/diagnostics`, or `garmin-probe-logs` in older vaults). Each saved
-run is a normal note, and it syncs to your desktop. Turn off **Save every diagnostics run to the
-vault** if you don't want them kept.
+run is a normal note, and it syncs to your desktop. Turn off **Save diagnostics runs** if you
+don't want them kept.

@@ -11,7 +11,7 @@ in `src/sync/`. If the two ever disagree, the code is right.
 
 ## The data folder
 
-Everything is plain JSON under the data folder, `Garmin/data` by default (**Settings → Data → Data
+Everything is plain JSON under the data folder, `Garmin/data` by default (**Settings → History → Data
 folder**), arranged by the data set it belongs to:
 
 ```text

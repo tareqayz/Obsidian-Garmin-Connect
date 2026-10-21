@@ -493,8 +493,8 @@ the speeds stay well under it.
 
 | Sync speed (`SYNC_SPEEDS`) | Pace | Days at once | 30-day sync, measured |
 | --- | --- | --- | --- |
-| Gentle (default) | 8 requests/s | 1 | 43 s |
-| Normal | 20 requests/s | 3 | 17 s |
+| Gentle | 8 requests/s | 1 | 43 s |
+| Normal (default for a new vault) | 20 requests/s | 3 | 17 s |
 | Fast | 32 requests/s | 5 | 12 s |
 
 The old fixed 250 ms pause between days took 34 s for the same 30 days (344 requests). A day's

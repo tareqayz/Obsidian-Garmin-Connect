@@ -6,6 +6,31 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Changed
+
+- **A simpler setup.** After the scan it recommends one thing: download your whole history, with its
+  size and how long it takes. **Advanced options** holds the ranges and the sync speed, for anyone
+  who wants less. The step indicator, the separate Choose and Start steps and **Keep new days only**
+  are gone.
+- **Shorter settings.** The main page keeps your account, Sync on startup, Units and Map tiles. The
+  rest moved to three pages, **History**, **Metrics** and **Advanced**, which Obsidian's settings
+  search still finds. The Garmin email row is gone: the account row says who is signed in.
+- **Normal is the default sync speed** for a new vault, so the recommended download takes about half
+  as long. A vault set to Gentle keeps it.
+- **Clearer, shorter text** in every plugin dialog, Home's setup cards, the sign-in form and
+  diagnostics.
+
+### Fixed
+
+- **The sign-in saves your email once it succeeds**, rather than on every keystroke, and diagnostics
+  no longer saves it.
+- **The setup's size for every activity no longer comes up short** when the activity list's download
+  gave way to a sync.
+- **A setup that can't work out its estimate** now offers **Try again** instead of stopping on the
+  scan.
+
 ## [1.1.0] — 2026-10-21
 
 ### Added

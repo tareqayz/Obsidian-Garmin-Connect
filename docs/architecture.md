@@ -147,7 +147,7 @@ when adding to it.
 | `dashboard/stats-pages.ts`, `stats-charts.ts` | Steps, Floors and Intensity Minutes — pure |
 | `dashboard/<stat>-pages.ts`, `<stat>-charts.ts`, `<stat>-copy.ts` | each Health and Performance Stats page (and Sleep): its view model, chart geometry and Garmin's wording — pure |
 | `ui/*-modal.ts` | the dialogs: sign-in, setup, the update dialog, delete, "Garmin Connect was removed", diagnostics, date range, Add a Stat, Sleep History, and `SheetModal` for Garmin's bottom sheets |
-| `ui/setup-flow.ts`, `ui/delete-data.ts` | the setup's steps and what **Start download** agrees to (pure); moving the plugin's files to the trash |
+| `ui/setup-flow.ts`, `ui/delete-data.ts` | the setup's views, its recommendation (`RECOMMENDED`) and what starting the download agrees to (pure); moving the plugin's files to the trash |
 | `ui/icon.ts`, `ui/sport-icons.ts` | the ribbon icon (Lucide `watch`); the sport figures (Tabler, MIT) |
 | `ui/map/` | Leaflet, loaded with the first map (`leaflet.ts`); OpenStreetMap tiles through `requestUrl`, cached in IndexedDB (`tiles.ts`); `tile-source.ts` (pure) |
 | `ui/svelte/` | the Svelte components: the settings panel and dialogs at the top, then `home/`, `activities/`, `activity/`, `stats/`, `sleep/`, `health/`, `performance/`, `settings/`, `setup/`, and a folder per stat page |
@@ -270,9 +270,9 @@ device's turn.
 
 ```mermaid
 flowchart LR
-  setup["Setup: Start download"] --> ledger[("data.accepted and data.deferred")]
+  setup["Setup: Download all history"] --> ledger[("data.accepted and data.deferred")]
   dialog["Update dialog: Download now"] --> ledger
-  choice["Settings → Data: a range"] --> ledger
+  choice["Settings → History: a range"] --> ledger
   ledger --> plan["planBackfill: activities, walks, days, details"]
   plan --> checks{"Paused, held elsewhere, or over budget?"}
   checks -->|yes| wait["Wait, then look again"]
@@ -287,16 +287,21 @@ flowchart LR
 | Set | Stores | Range (`data.*`) | Version |
 | --- | --- | --- | --- |
 | Charts & trends | the chart indexes: `activities/`, `daily-stats/`, `sleep/` and every `DAY_INDEXES` folder | always the whole history | each index's own |
-| Day details | the day files and each day's full timelines (`series/`) | `dayDetails`: `new`, `30d`, `90d` (default), `1y`, `all` | `DAY_DETAILS_VERSION` |
-| Activity details | an activity's page, every sport (`activity-details/`) | `activityDetails`: `opened` (default), `90d`, `1y`, `all` | `ACTIVITY_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` (`src/sync/activity-detail.ts`) |
+| Day details | the day files and each day's full timelines (`series/`) | `dayDetails`: `new`, `30d`, `90d` (fallback), `1y`, `all` (recommended) | `DAY_DETAILS_VERSION` |
+| Activity details | an activity's page, every sport (`activity-details/`) | `activityDetails`: `opened` (fallback), `90d`, `1y`, `all` (recommended) | `ACTIVITY_DETAILS_VERSION`, which is `ACTIVITY_DETAIL_VERSION` (`src/sync/activity-detail.ts`) |
 
 A range says only how far back the backfill goes (`rangeStart`). Every new day is kept whatever the
 range, because a routine sync fetches the timelines of its days inside the range (`intradayFor` in
 the runner). Each set's `changes` say what a version added, for the update dialog; bumping a
 version follows [Data versions](CONTRIBUTING.md#data-versions).
 
+The setup recommends `all` for both (`RECOMMENDED` in `ui/setup-flow.ts`). The defaults,
+`DEFAULT_DAY_DETAILS` and `DEFAULT_ACTIVITY_DETAILS`, are narrower on purpose: `dataOf` in
+`plugin-data.ts` falls back to them for a range it can't read, and a fallback must never widen a
+download already agreed to.
+
 `estimate.ts` turns a scan and a choice into bytes, requests and time per set, for the setup and
-Settings → Data. Its sizes are `DAY_FILE_BYTES`, `TIMELINE_BYTES` and `DETAIL_BYTES`, measured on a
+Settings → History. Its sizes are `DAY_FILE_BYTES`, `TIMELINE_BYTES` and `DETAIL_BYTES`, measured on a
 vault of 439 days and 233 runs. The times follow the sync speed, the ten-second units
 (`CHUNK_SECONDS`) and the hourly budget.
 
@@ -331,11 +336,10 @@ A new index, or a version bump, is a key the ledger hasn't seen.
 - **`debtItems` (`debt.ts`)** lists what has something to fetch and isn't agreed to at today's
   version: a chart index never walked, days or activities an older version saved, and the gaps in a
   set never agreed to. The first Garmin view of a session, signed in, shows those not put off in
-  **New data for your history** (`askForUpdates` in `main.ts`). Settings → Data lists them all.
-- **The setup's choices** (`agreement` and `newDaysOnly` in `setup-flow.ts`). **Start download** agrees to every chart
-  key and both details keys. **Keep new days only** agrees to the details keys with the ranges `new`
-  and `opened`, and puts the chart keys off. Choosing a range in Settings → Data agrees to its set's
-  key.
+  **New data for your history** (`askForUpdates` in `main.ts`). Settings → History lists them all.
+- **The setup's choices** (`agreement` in `setup-flow.ts`). **Download all history**, or **Start
+  download** under **Advanced options**, agrees to every chart key and both details keys, with the
+  ranges chosen. Choosing a range in Settings → History agrees to its set's key.
 - **Settings version 5** (`PluginData.migrate`, `plugin-data.ts`) takes a vault with a saved
   session as set up: Day details `30d`, Activity details from `downloadRuns`, and the chart keys
   agreed to. It leaves `days@1` out, so the first update dialog offers the recent days an older
@@ -392,7 +396,7 @@ The backfill starts in these cases:
 - when a choice changes, after a sign-in, or when another device's settings arrive.
 
 `stop()` on unload ends the unit in hand at its next day or window. `onBackfill` reports a
-`BackfillProgress` to Home's pill, Settings → Data and, on a computer, the status bar.
+`BackfillProgress` to Home's pill, Settings → History and, on a computer, the status bar.
 
 ### The runner lock
 
@@ -454,7 +458,8 @@ As above, plus:
    - or `FREE_GROUPS` when it rides along in the daily summary;
    - `REQUESTS_PER_SYNC` for a once-a-sync group;
    - `RANGE_GROUPS` for one range request a sync.
-3. Its label in `GROUP_LABELS` (`src/settings.ts`).
+3. Its row in `GROUPS` (`src/settings.ts`): a short name, what it holds in a few words, and search
+   aliases for what the line leaves out.
 4. Bump `SETTINGS_VERSION` (`src/settings-data.ts`) and switch the group on in
    `PluginData.migrate` (`src/plugin-data.ts`), so an existing vault gets it once while a group
    someone turned off stays off. Extend `tests/plugin-data.test.ts`.

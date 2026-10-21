@@ -86,9 +86,9 @@ For beta releases through BRAT, manual installation or building from source, see
 Enabling the plugin opens a setup over Home:
 1. **Sign in** to your Garmin account. Multi-factor authentication is asked for in the same dialog.
 2. **Scan:** a few requests find where your Garmin history starts.
-3. **Choose** how much history to keep. Each choice shows its size and how long it takes.
-4. **Start:** the history downloads in the background, under an hourly request limit, and carries on
-   after a restart.
+3. **Download all of it:** the setup recommends your whole history and shows its size and how long it
+   takes. It downloads in the background, under an hourly request limit, and carries on after a
+   restart. **Advanced options** lets you keep less.
 
 Then sync with Home's ↻ button, **Sync recent days**, or **Sync on startup**. The
 [Guide](docs/GUIDE.md) covers every page and command.

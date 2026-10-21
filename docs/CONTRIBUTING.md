@@ -301,6 +301,12 @@ request that changes behaviour updates that home in the same pull request.
 - **Use GitHub alerts** (`> [!NOTE]`, `> [!WARNING]` …) at the top level, with the marker alone on
   its line, and `<details>` only for depth few readers need.
 
+**UI text** (settings, dialogs, Home's cards, notices):
+- **One short sentence per description.** Say what it does, in plain words. Numbers, mechanics and
+  caveats go in `docs/settings.md` or `docs/GUIDE.md`, not on screen.
+- **Recommend first.** Lead with the choice most people want, and keep the rest behind **Advanced**.
+- **Words a row drops stay findable** as search `aliases` on its definition (`src/settings.ts`).
+
 <details>
 <summary>Before the first directory submission</summary>
 

@@ -7,7 +7,7 @@ and find your way around the pages.
 
 Enabling the plugin in a vault that isn't set up opens Home with the setup over it. The setup also
 opens from **Garmin Connect: Set up…** in the command palette, from Home's **Finish setting up**
-card, and from **Settings → Data → Run setup again**. It has four steps:
+card, and from **Settings → History → Run setup again**.
 
 1. **Sign in.** Your password is used for the sign-in and never stored. If your account has MFA on,
    the same form asks for the code next, with three tries before the sign-in starts over. Accounts
@@ -16,13 +16,18 @@ card, and from **Settings → Data → Run setup again**. It has four steps:
    last upload, your activities and the oldest of them, and the weeks with health data. The result is
    kept in `scan.json`. Before showing the result it also downloads your activity list, and while
    you choose, it syncs your recent days in the background.
-3. **Choose** what to keep: the three [data sets](#what-to-keep), each with its size and time (Day
-   details also with what it adds a year), then a total, plus the **Sync speed**.
-4. **Start download** fetches your history in the background. **Keep new days only** fetches no
-   more history than the scan already did; **Settings → Data** can add more later.
+3. **Download all of it.** The setup recommends your whole history, every day's timelines and every
+   activity's page, with its size and how long it takes. **Download all history** starts it.
 
-Already signed in, the setup starts at the scan. To sign in again without the rest, run **Sign in
-to Garmin Connect** or use the button in **Settings → Connection**.
+**Advanced options**, a step off the recommendation, is where you choose instead: how far back Day
+details go, which activities to fetch ahead, and the **Sync speed**, with a total. **Start download**
+starts it. Charts & trends always cover your whole history. See [What to keep](#what-to-keep).
+
+Run again, the setup says what the vault keeps and what all of it adds. When everything is in the
+vault already, it says so and offers **Done**.
+
+Already signed in, the setup starts at the scan. To sign in again without the rest, run **Sign in**
+from the command palette or use the **Garmin account** row in Settings.
 
 ## Syncing
 
@@ -66,14 +71,14 @@ morning rewrites yesterday. So a recent sync always covers at least yesterday an
 
 ## What to keep
 
-The setup offers three data sets, and **Settings → Data** changes them later. The sizes were
+The setup offers three data sets, and **Settings → History** changes them later. The sizes were
 measured on a real vault with every metric group on.
 
 | Data set | Holds | How far back | About |
 | --- | --- | --- | --- |
 | **Charts & trends** | every page's 7-day, 4-week and 1-year history: the activity list, sleep, and each stat's daily history | all your history, always | 0.9 MB and 150 requests a year of history |
-| **Day details** | each day's file and its timelines (heart rate, stress, Body Battery, steps, floors and sleep stages through the day) | **New days only**, **Last 30 days**, **Last 90 days** (default), **Last year** or **All history** | 44 KB and 15 requests a day, about 16 MB a year |
-| **Activity details** | an activity's page, every sport: map, charts, splits and laps | **Only activities I open** (default), **Last 90 days**, **Last year** or **All activities** | about 150 KB and up to 11 requests a run; less for most other sports |
+| **Day details** | each day's file and its timelines (heart rate, stress, Body Battery, steps, floors and sleep stages through the day) | **New days only**, **Last 30 days**, **Last 90 days**, **Last year** or **All history** (recommended) | 44 KB and 15 requests a day, about 16 MB a year |
+| **Activity details** | an activity's page, every sport: map, charts, splits and laps | **Only activities I open**, **Last 90 days**, **Last year** or **All activities** (recommended) | about 150 KB and up to 11 requests a run; less for most other sports |
 
 A range says only how far back the download goes. Every new day is kept with its timelines whatever
 the range (timelines need the **intraday** group), and an activity's page downloads the first time
@@ -88,12 +93,12 @@ order:
 3. Day details and Activity details, newest first.
 
 Apart from the activity list the setup's scan reads, nothing downloads your history in the
-background unless you agreed to it: in the setup, the update dialog or **Settings → Data**. The
+background unless you agreed to it: in the setup, the update dialog or **Settings → History**. The
 **Sync … history** commands and a page's **Sync history** button fetch when you ask.
 
 - **A sync, or a page loading what it needs, always goes first.**
 - **It stays under an hourly request budget on each device,** manual syncs included: 2,500 requests
-  at Gentle **Sync speed** (the default), 5,000 at Normal, 8,000 at Fast.
+  at Gentle **Sync speed**, 5,000 at Normal (the default), 8,000 at Fast.
 - **When Garmin pushes back:**
   - a 429 pauses it for 5 minutes, doubling each time up to an hour;
   - Garmin's bot check refusing the device pauses it for half an hour, doubling up to twelve hours;
@@ -104,7 +109,7 @@ background unless you agreed to it: in the setup, the update dialog or **Setting
   other leaves it alone until the first has been quiet for ten minutes.
 
 It shows on **Home** under the title, for example "Downloading history · 42% · Mar 2025" with a pause
-button, then "History up to date". It also shows in **Settings → Data**, and on a computer in the
+button, then "History up to date". It also shows in **Settings → History**, and on a computer in the
 status bar ("Garmin · history 42%"), which opens the settings. **Pause** holds it on every device
 until **Resume**. What each state means is in
 [Troubleshooting](troubleshooting.md#the-history-download-is-paused).
@@ -121,7 +126,7 @@ keep.
 - **The dialog.** **New data for your history** lists each item, ticked, with its size and time, or
   its request count for a small one.
   **Download now** fetches the ticked items in the background; **Later** puts them off.
-- **After either choice** it doesn't ask again. **Settings → Data** lists what is still on offer,
+- **After either choice** it doesn't ask again. **Settings → History** lists what is still on offer,
   with a **Download** button.
 
 What you already agreed to needs no question: new days and the gaps in your Day details and Activity
@@ -130,7 +135,7 @@ details ranges keep filling. Only what an older version saved is offered again.
 ## Where the data goes
 
 Everything the sync writes is plain JSON in the data folder, `Garmin/data` by default (**Settings →
-Data → Data folder**). It writes no notes, so your own notes are never touched.
+History → Data folder**). It writes no notes, so your own notes are never touched.
 - Each day's numbers go into a file per year, `days/<year>.json`.
 - The pages' histories and timelines sit beside them.
 
@@ -288,11 +293,11 @@ sport:
   power, eight for a pool swim or yoga. They are made between syncs, never during one.
 - **After that** the page is kept in `activity-details/` and opens without asking again. It needs a
   session and the `workouts` group.
-- **Activity details** in the setup or **Settings → Data** fetches the pages in its range ahead,
+- **Activity details** in the setup or **Settings → History** fetches the pages in its range ahead,
   newest first, so they open without a connection.
 - **Map tiles** come from OpenStreetMap, which sees roughly where the activity was. They aren't
   fetched ahead: offline, a map draws the tiles that device viewed recently, and elsewhere the route
-  alone. **Settings → Maps → Map tiles** turns them off. An activity without GPS, such as a
+  alone. **Settings → Map tiles** turns them off. An activity without GPS, such as a
   treadmill run, has no map.
 
 ## Steps, Floors and Intensity Minutes
@@ -409,9 +414,9 @@ goes to the area's list.
 
 | Other | What it does |
 | --- | --- |
-| **Set up…** | Opens the setup: sign in, scan your account, choose what to keep. |
+| **Set up…** | Opens the setup: sign in, scan your account, then download all of it or choose under **Advanced options**. |
 | **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
 | **Save debug info** | What a bug report needs, redacted, saved as a note in the **Log folder** and opened, to attach to an issue. No password, no request. |
 | **Stop syncing** | Stops the sync or history walk you started after the day it is on, keeping what came in. |
-| **Pause the history download** / **Resume the history download** | What the pause button and Settings → Data do. Resume also lifts Garmin's own pauses. |
+| **Pause the history download** / **Resume the history download** | What the pause button and Settings → History do. Resume also lifts Garmin's own pauses. |
 | **Run diagnostics** | Four checks of sign-in and connectivity; see [Troubleshooting](troubleshooting.md#diagnostics). |
