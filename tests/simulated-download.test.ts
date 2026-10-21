@@ -104,7 +104,7 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		});
 		runner.kickBackfill();
 		await clock.runUntil(() => done, 48 * 3_600_000);
-		// The account's profile is looked up once a session, not once a download: kept apart.
+		// The account's profile is looked up once a session, not once a download: counted apart.
 		const lookups = http.asked.filter((url) => url.includes("/socialProfile")).length;
 		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots };
 	} finally {
@@ -120,7 +120,7 @@ describe("a simulated download against its estimate", () => {
 	it("Day details: 90 days, the requests exact and the time within 10%", async () => {
 		const got = await simulate({ days: 120, activities: { run: 20 }, accepted: [DAY_DETAILS_KEY], dayDetails: "90d", activityDetails: "opened" });
 		assert.equal(got.requests, got.predicted.requests);
-		assert.ok(got.lookups >= 1);
+		assert.equal(got.lookups, 1);
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
 	});
 
@@ -141,7 +141,7 @@ describe("a simulated download against its estimate", () => {
 			activityDetails: "all",
 		});
 		assert.equal(got.requests, got.predicted.requests);
-		assert.ok(got.lookups >= 1);
+		assert.equal(got.lookups, 1);
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
 	});
 
@@ -155,7 +155,7 @@ describe("a simulated download against its estimate", () => {
 			spent: { requests: 7_800, ago: 30 * 60_000 },
 		});
 		assert.equal(got.requests, got.predicted.requests);
-		assert.ok(got.lookups >= 1);
+		assert.equal(got.lookups, 1);
 		// Half an hour's wait for the hour to free up, then the download.
 		assert.ok(got.seconds > 30 * 60, String(got.seconds));
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);

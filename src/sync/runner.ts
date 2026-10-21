@@ -1554,11 +1554,13 @@ export class SyncRunner {
 			};
 			const system = settings?.userData?.measurementSystem ?? "";
 			this.unitsCache = system.startsWith("statute") ? "imperial" : "metric";
+			return this.unitsCache;
 		} catch {
-			// Not worth failing a sync over; metric is the safer default.
-			this.unitsCache = "metric";
+			// Not worth failing a sync over: metric this time, and Garmin is asked
+			// again next time, rather than an imperial account written in metric
+			// for the rest of the session after one bad moment.
+			return "metric";
 		}
-		return this.unitsCache;
 	}
 
 	/** Called on sign-out, so a second account does not inherit the first's units. */

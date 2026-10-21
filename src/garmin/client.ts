@@ -107,7 +107,7 @@ export class GarminClient {
 	protected log: Log;
 	private readonly store: TokenStore;
 	private readonly wait: (ms: number) => Promise<void>;
-	private readonly now: () => number;
+	protected readonly now: () => number;
 	/** Every attempt's endpoint, status and duration — see `request-stats.ts`. */
 	readonly stats = new RequestStats();
 	readonly throttle: Throttle;
