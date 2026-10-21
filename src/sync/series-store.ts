@@ -918,7 +918,13 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		}
 		const dir = path.slice(0, path.lastIndexOf("/"));
 		if (dir) await ensureFolder(this.app, dir);
-		await this.app.vault.create(path, body);
+		try {
+			await this.app.vault.create(path, body);
+		} catch (err) {
+			// Another write made the file meanwhile — two readers building the same index at once: write over it as usual.
+			if (this.app.vault.getAbstractFileByPath(path) instanceof TFile) return this.put(path, body);
+			throw err;
+		}
 		return "written";
 	}
 

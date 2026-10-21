@@ -344,12 +344,13 @@ export default class GarminPlugin extends Plugin {
 		const settings = this.data.settings;
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		if (!store.hasData()) return null;
-		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
+		const [scan, coverage, charts, index, detailFiles, backfill] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
 			store.readChartMetas(),
 			store.readActivities(),
 			store.readDetailCoverage(),
+			store.readBackfill(),
 		]);
 		return {
 			today: toIsoDate(),
@@ -365,6 +366,7 @@ export default class GarminPlugin extends Plugin {
 			activities: index.rows.map((row) => this.candidateOf(row)),
 			detailFiles,
 			masks: await store.readMasks(settings.groups, charts, scan),
+			...(backfill.ranges ? { ranges: backfill.ranges } : {}),
 			budget: this.sync.budgetOutlook(),
 			now: Date.now(),
 		};

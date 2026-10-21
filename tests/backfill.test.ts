@@ -93,6 +93,18 @@ describe("backfill plan", () => {
 		assert.deepEqual([eraOf(shiftDate(TODAY, -90), TODAY), eraOf(shiftDate(TODAY, -91), TODAY), eraOf(shiftDate(TODAY, -366), TODAY)], [0, 1, 2]);
 	});
 
+	it("takes the ranges you asked for after the walks and ahead of every era, each from where it got to", () => {
+		const ranges = [
+			{ from: "2019-03-01", to: "2019-06-30", next: "2019-05-10", at: "2026-10-21T09:00:00.000Z" },
+			{ from: "2018-01-01", to: "2018-01-31", next: "2017-12-31", at: "2026-10-21T09:05:00.000Z" },
+		];
+		const tasks = planBackfill(input({ accepted: [...chartKeys(["sleep"]), "days@1"], ranges }));
+		assert.deepEqual(tasks.map((t) => t.kind), ["walk", "days", "days"]);
+		assert.deepEqual(tasks[1], { kind: "days", from: "2019-03-01", to: "2019-05-10", range: "2026-10-21T09:00:00.000Z" });
+		// The second one is done: nothing of it is planned.
+		assert.equal(tasks.filter((t) => t.kind === "days" && t.range).length, 1);
+	});
+
 	it("skips a chart index whose history is complete, and walks one that a version bump reset", () => {
 		const accepted = chartKeys(GROUPS);
 		const charts = new Map<string, ChartMeta | null>([
@@ -313,3 +325,13 @@ describe("hourly budget", () => {
 		assert.equal(budget.used(t0 + 3_600_001), 30);
 	});
 });
+
+describe("backfill.json's queue of ranges", () => {
+	it("round-trips, reading by allowlist", () => {
+		const ranges = [{ from: "2019-03-01", to: "2019-06-30", next: "2019-05-10", at: "2026-10-21T09:00:00.000Z" }];
+		assert.deepEqual(parseBackfill(serializeBackfill({ ranges })), { ranges });
+		const raw = JSON.stringify({ version: 1, ranges: [...ranges, { from: "2019-07-01", to: "2019-06-01", next: "2019-06-01", at: "x" }, { from: "nope" }, "nope"] });
+		assert.deepEqual(parseBackfill(raw), { ranges });
+	});
+});
+

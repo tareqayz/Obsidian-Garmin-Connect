@@ -5,7 +5,7 @@ import { GarminApi } from "../src/garmin/endpoints";
 import { GarminRateLimitError } from "../src/garmin/errors";
 import { MemoryTokenStore } from "../src/garmin/tokens";
 import { DEFAULT_SETTINGS, defaultData, type GarminSettings } from "../src/settings-data";
-import { PACE } from "../src/sync/pace";
+import { FOREGROUND_RANGE_REQUESTS, PACE } from "../src/sync/pace";
 import { SyncRunner } from "../src/sync/runner";
 import { failedOutcome, outcomeLine, outcomeText, type SyncOutcome } from "../src/sync/sync-outcome";
 import { FakeGarmin } from "./support/fake-garmin";
@@ -118,6 +118,46 @@ describe("the recent sync, against a simulated Garmin", () => {
 			clearNotices();
 			await sync("button");
 			assert.deepEqual(notices.filter((n) => n.startsWith("Garmin:")), []);
+		} finally {
+			clock.uninstall();
+		}
+	});
+});
+
+describe("a date range: now, or in the history download", () => {
+	it("syncs a week at once, sends a year to the download, and keeps the queue in backfill.json", async () => {
+		const clock = new VirtualClock(Date.now());
+		clock.install();
+		try {
+			const vault = new MemoryVault();
+			const local = new Map<string, unknown>();
+			const app = { vault, loadLocalStorage: (key: string) => local.get(key) ?? null, saveLocalStorage: (key: string, value: unknown) => local.set(key, value) } as unknown as App;
+			const settings: GarminSettings = { ...DEFAULT_SETTINGS, units: "metric", setup: { completedAt: "2026-01-01T00:00:00.000Z" }, data: defaultData() };
+			const http = new FakeGarmin(clock, 250, []);
+			const tokens = new MemoryTokenStore();
+			await tokens.save({ refreshToken: "refresh", diClientId: "client", savedAt: 1 });
+			const api = new GarminApi({ http, store: tokens, now: clock.now, wait: clock.wait, limits: PACE.limits });
+			await api.restore();
+			const runner = new SyncRunner(app, api, () => settings, (row) => ({ id: row.id, date: row.start.slice(0, 10), run: false, profile: "other" }), { id: "sim", label: "Sim" }, "1.2.0");
+
+			const week = await runner.rangeCost("2026-03-01", "2026-03-07");
+			assert.equal(week.background, false);
+			assert.equal(week.days, 7);
+			assert.ok(week.requests > 0 && week.requests <= FOREGROUND_RANGE_REQUESTS);
+			const year = await runner.rangeCost("2025-01-01", "2025-12-31");
+			assert.equal(year.background, true);
+			assert.ok(year.seconds > 0 && year.bytes > 0);
+			// Before the setup, every range syncs at once.
+			settings.setup = null;
+			assert.equal((await runner.rangeCost("2025-01-01", "2025-12-31")).background, false);
+			settings.setup = { completedAt: "2026-01-01T00:00:00.000Z" };
+
+			await runner.queueRange("2025-01-01", "2025-12-31");
+			const queued = await runner.queuedRanges();
+			assert.deepEqual(queued.map((r) => [r.from, r.to, r.next]), [["2025-01-01", "2025-12-31", "2025-12-31"]]);
+			await runner.removeRange(queued[0]!.at);
+			assert.deepEqual(await runner.queuedRanges(), []);
+			runner.stop();
 		} finally {
 			clock.uninstall();
 		}

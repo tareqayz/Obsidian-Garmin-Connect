@@ -325,3 +325,12 @@ describe("VaultSeriesStore: what the indexes say about each day", () => {
 	});
 });
 
+
+describe("VaultSeriesStore: two writes making the same file", () => {
+	it("lets the second write over the first rather than fail", async () => {
+		const { vault, store } = setup();
+		const scan = { scannedAt: "2026-10-01T00:00:00.000Z", days: 1, weeks: [["2026-09-28", 1]] as Array<[string, number]>, activities: 0, complete: true };
+		await Promise.all([store.writeScan(scan), store.writeScan({ ...scan, days: 2 })]);
+		assert.ok(vault.text(`${DATA}/scan.json`));
+	});
+});

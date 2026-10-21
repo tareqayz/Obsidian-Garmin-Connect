@@ -195,7 +195,7 @@ export function costContext(input: CostInput, opts: { sizes?: SizeModel; latency
 export type Unit =
 	| { kind: "activities"; requests: number; bytes: number; seconds: number }
 	| { kind: "walk"; stores: string[]; requests: number; bytes: number; seconds: number }
-	| { kind: "days"; from: string; to: string; days: number; requests: number; bytes: number; seconds: number }
+	| { kind: "days"; from: string; to: string; days: number; requests: number; bytes: number; seconds: number; range?: string }
 	| { kind: "details"; ids: number[]; requests: number; bytes: number; seconds: number };
 
 /** Every unit of the plan, in the order the runner takes them. */
@@ -245,7 +245,8 @@ function consume(tasks: readonly Task[], ctx: CostContext, limit: number): Unit[
 			for (const { task: walk } of segments) if (!walkOf(walk.store).segments.length) queue.splice(queue.indexOf(walk), 1);
 		} else if (task.kind === "days") {
 			const chunk = nextChunk(task, size);
-			out.push(dayUnit(chunk.from, chunk.to, ctx));
+			const unit = dayUnit(chunk.from, chunk.to, ctx);
+			out.push(task.range ? { ...unit, range: task.range } : unit);
 			if (chunk.from <= task.from) queue.shift();
 			else task.to = shiftDate(chunk.from, -1);
 		} else {

@@ -37,8 +37,8 @@ export type Task =
 	| { kind: "activities" }
 	/** A chart index's history walk (`daily-stats`, `sleep` or `index:<kind>`). */
 	| { kind: "walk"; store: string }
-	/** Days whose details are missing, or were fetched at an older version. */
-	| { kind: "days"; from: string; to: string }
+	/** Days whose details are missing, or were fetched at an older version; or a range you asked for (`range`, its id), every day of it. */
+	| { kind: "days"; from: string; to: string; range?: string }
 	/** Activities whose page is missing, or of an older version, newest first. */
 	| { kind: "details"; ids: number[] };
 
@@ -82,6 +82,8 @@ export interface PlanInput {
 	since?: string;
 	/** Days and activities that failed this session, left for the next. */
 	skip?: { days?: ReadonlySet<string>; details?: ReadonlySet<number> };
+	/** The date ranges waiting for the download (`backfill.json`). */
+	ranges?: readonly QueuedRange[];
 }
 
 /**
@@ -148,7 +150,10 @@ export function planBackfill(input: PlanInput): Task[] {
 			});
 		}
 	}
-	for (const era of eras) tasks.push(...era);
+	// The ranges asked for, after the walks and ahead of the eras: someone is waiting on them.
+	const asked: Task[] = [];
+	for (const r of input.ranges ?? []) if (r.next >= r.from) asked.push({ kind: "days", from: r.from, to: r.next, range: r.at });
+	for (const era of [asked, ...eras]) tasks.push(...era);
 	return tasks;
 }
 
@@ -262,6 +267,22 @@ export interface BackfillState {
 	 * device. An older build drops it on its next write: the bar starts over.
 	 */
 	progress?: { done: number; since: string };
+	/**
+	 * Date ranges you asked for that were too long to sync at once, oldest
+	 * asked first (`SyncRunner.queueRange`): the download takes them after
+	 * its walks. An older build drops them on its next write.
+	 */
+	ranges?: QueuedRange[];
+}
+
+/** A date range waiting for the download. */
+export interface QueuedRange {
+	from: string;
+	to: string;
+	/** The newest day still to fetch: it walks back from `to` to `from`. */
+	next: string;
+	/** When it was asked for, ISO: also its id. */
+	at: string;
 }
 
 export interface Lease {
@@ -281,7 +302,7 @@ export function serializeBackfill(state: BackfillState): string {
 
 export function parseBackfill(text: string): BackfillState {
 	try {
-		const raw = JSON.parse(text) as { version?: unknown; paused?: unknown; lease?: unknown; progress?: unknown };
+		const raw = JSON.parse(text) as { version?: unknown; paused?: unknown; lease?: unknown; progress?: unknown; ranges?: unknown };
 		if (!raw || raw.version !== BACKFILL_FILE_VERSION) return {};
 		const out: BackfillState = {};
 		const paused = raw.paused as { reason?: unknown; until?: unknown } | undefined;
@@ -296,6 +317,11 @@ export function parseBackfill(text: string): BackfillState {
 		if (progress && typeof progress.done === "number" && Number.isFinite(progress.done) && progress.done >= 0 && typeof progress.since === "string") {
 			out.progress = { done: Math.round(progress.done), since: progress.since };
 		}
+		const day = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+		const ranges = (Array.isArray(raw.ranges) ? (raw.ranges as Array<Partial<Record<keyof QueuedRange, unknown>>>) : []).filter(
+			(r): r is QueuedRange => !!r && day(r.from) && day(r.to) && day(r.next) && typeof r.at === "string" && r.from <= r.to,
+		);
+		if (ranges.length) out.ranges = ranges.map(({ from, to, next, at }) => ({ from, to, next, at }));
 		return out;
 	} catch {
 		return {};

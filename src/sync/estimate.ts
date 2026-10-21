@@ -72,8 +72,9 @@ export function estimate(input: EstimateInput): Estimate {
 	const activitiesPerYear = lastYear(input).length;
 	return {
 		sets,
-		bytes: sum(sets, (s) => s.bytes),
-		requests: sum(sets, (s) => s.requests),
+		// Every unit, the date ranges asked for included: they belong to no set.
+		bytes: Math.round(sum(units, (u) => u.bytes)),
+		requests: sum(units, (u) => u.requests),
 		// The budget holds across the whole download, not set by set.
 		seconds: timeFor(units, outlook, now),
 		bytesPerYear: sum(sets, (s) => s.bytesPerYear),
@@ -100,8 +101,9 @@ function contextOf(input: EstimateInput): CostContext {
 	return costContext(input, { ...(input.sizes ? { sizes: input.sizes } : {}), ...(input.latency ? { latency: input.latency } : {}) });
 }
 
-function setOf(unit: Unit): DataSetId {
-	return unit.kind === "days" ? "day-details" : unit.kind === "details" ? "activity-details" : "charts";
+function setOf(unit: Unit): DataSetId | null {
+	if (unit.kind === "days") return unit.range ? null : "day-details";
+	return unit.kind === "details" ? "activity-details" : "charts";
 }
 
 function unitCount(id: DataSetId, units: readonly Unit[], input: EstimateInput): number {

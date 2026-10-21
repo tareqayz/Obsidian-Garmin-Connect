@@ -52,3 +52,10 @@ export const LATENCY: Latency = { window: 0.6, batch: 0.85, overhead: 0.3 };
 export function secondsPerDay(requestsPerDay: number, latency: Latency = LATENCY): number {
 	return Math.max(requestsPerDay / PACE.limits.rate, latency.batch / PACE.parallel);
 }
+
+/**
+ * A date range asking more than this goes to the history download, which
+ * keeps to the hourly budget and picks up where it left off; one asking less
+ * syncs at once.
+ */
+export const FOREGROUND_RANGE_REQUESTS = 1_000;

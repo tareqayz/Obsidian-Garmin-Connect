@@ -40,6 +40,8 @@ interface Scenario {
 	weighIns?: string[];
 	/** The mask not yet trusted: the download checks it first. */
 	unchecked?: boolean;
+	/** Date ranges asked for, days back from today, queued before the download starts. */
+	ranges?: Array<[from: number, to: number]>;
 }
 
 interface Snapshot {
@@ -48,7 +50,7 @@ interface Snapshot {
 	seconds?: number;
 }
 
-async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[]; weighIns: string[]; verdicts: Record<string, unknown>; horizon: number | null | undefined }> {
+async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[]; weighIns: string[]; verdicts: Record<string, unknown>; horizon: number | null | undefined; left: unknown }> {
 	const clock = new VirtualClock(Date.now());
 	clock.install();
 	try {
@@ -84,10 +86,14 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		const api = new GarminApi({ http, store: tokens, now: clock.now, wait: clock.wait, limits: PACE.limits });
 		await api.restore();
 		const runner = new SyncRunner(app, api, () => settings, (row) => byId.get(row.id)!, { id: "sim", label: "Sim" });
+		// As `queueRange` queues them, without starting the download before the clock does.
+		const ranges = (s.ranges ?? []).map(([from, to], i) => ({ from: shiftDate(today, -from), to: shiftDate(today, -to), next: shiftDate(today, -to), at: new Date(clock.now() + i).toISOString() }));
+		if (ranges.length) await store.updateBackfill((fresh) => ({ ...fresh, ranges }));
 
 		// What the setup would say, from the files the download plans from.
 		const [coverage, charts, index, detailFiles] = await Promise.all([store.readDayCoverage(true), store.readChartMetas(), store.readActivities(), store.readDetailCoverage()]);
 		const masks = await store.readMasks(settings.groups, charts, await store.readScan());
+		const queued = (await store.readBackfill()).ranges;
 		const predicted = estimate({
 			today,
 			groups: settings.groups,
@@ -101,6 +107,7 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 			activities: index.rows.map((row) => byId.get(row.id)!),
 			detailFiles,
 			masks,
+			...(queued ? { ranges: queued } : {}),
 			budget: runner.budgetOutlook(),
 			now: clock.now(),
 			latency: { window: LATENCY, batch: LATENCY, overhead: 0 },
@@ -122,8 +129,9 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		// The days a weigh-in was asked for: the route takes the day in its path.
 		const weighIns = http.asked.map((url) => /\/weight-service\/weight\/dayview\/(\d{4}-\d{2}-\d{2})/.exec(url)?.[1]).filter((d): d is string => !!d);
 		const learned = (await store.readScan())?.learned;
+		const left = (await store.readBackfill()).ranges;
 		const verdicts = learned?.masks ?? {};
-		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots, weighIns, verdicts, horizon: learned?.horizon?.days };
+		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots, weighIns, verdicts, horizon: learned?.horizon?.days, left };
 	} finally {
 		clock.uninstall();
 	}
@@ -170,6 +178,13 @@ describe("a simulated download against its estimate", () => {
 		// the rest of their chunk, and one day asked again to check it.
 		const extra = got.requests - got.predicted.requests;
 		assert.ok(extra >= (MISSES_TO_LEARN + 1) * 4 && extra <= (MISSES_TO_LEARN + 13 + 1) * 4, String(extra));
+	});
+
+	it("downloads a date range you asked for, every day of it, then takes it off the queue: the requests exact", async () => {
+		const got = await simulate({ days: 200, activities: { run: 5 }, accepted: [], dayDetails: "new", activityDetails: "opened", ranges: [[120, 60]] });
+		assert.ok(got.requests > 0);
+		assert.equal(got.requests, got.predicted.requests);
+		assert.equal(got.left, undefined);
 	});
 
 	it("learns the download's own pace: halfway, the time left is within 10%", async () => {
