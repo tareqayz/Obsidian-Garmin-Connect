@@ -189,6 +189,14 @@ describe("fetchAccount", () => {
 		assert.equal(got.account?.lactateThreshold?.heartRate, 182);
 	});
 
+	it("takes the watch the sync already asked for, rather than asking again", async () => {
+		const src = source();
+		const got = await fetchAccount(src, "2026-09-25", "metric", undefined, { device: { lastUsedDeviceName: "Forerunner 965" } });
+		assert.equal(got.requests, 8);
+		assert.equal(src.calls, 8);
+		assert.equal(got.account?.device?.name, "Forerunner 965");
+	});
+
 	it("keeps going past one failing endpoint", async () => {
 		const got = await fetchAccount(
 			source({ runningEconomy: async () => { throw new GarminApiError("HTTP 500", 500, ""); } }),

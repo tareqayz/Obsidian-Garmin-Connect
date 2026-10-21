@@ -507,14 +507,16 @@ describe("syncRange — workouts", () => {
 		assert.deepEqual(target.written.get("2026-09-12"), { steps: 8000 });
 	});
 
-	it("stops before any day when the activity list is rate limited", async () => {
+	it("stops before writing any day when the activity list is rate limited", async () => {
 		const source = new FakeSource();
 		source.failWith["activities:0:50"] = new GarminRateLimitError("rate limited");
-		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
 
-		const report = await syncRange(source, target, options({ groups: ALL_GROUPS }));
+		const report = await syncRange(source, target, options({ groups: ALL_GROUPS, parallelDays: 2 }));
 		assert.match(report.stoppedEarly!, /rate limited/);
-		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 0);
+		assert.equal(target.written.size, 0);
+		// The first days were already asked, side by side with the list; nothing after them.
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("dailySummary")).sort(), ["dailySummary:2026-09-11", "dailySummary:2026-09-12"]);
 	});
 });
 
@@ -1490,12 +1492,15 @@ describe("syncRange — range-fetched metrics", () => {
 		assert.equal(report.written, 3);
 	});
 
-	it("stops before any day when the range call is rate limited", async () => {
+	it("stops before writing any day when the range call is rate limited", async () => {
 		const source = new FakeSource();
 		source.failWith["maxMetrics:2026-09-10:2026-09-12"] = new GarminRateLimitError("slow down");
-		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const report = await syncRange(source, target, options({ groups: ["fitness"] }));
 		assert.match(report.stoppedEarly ?? "", /rate limited/);
-		assert.equal(source.calls.filter((c) => c.startsWith("enduranceScore")).length, 0);
+		assert.equal(target.written.size, 0);
+		// Only the newest day was asked, alongside the range call.
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("enduranceScore")), ["enduranceScore:2026-09-12"]);
 	});
 });
 
@@ -1567,5 +1572,30 @@ describe("syncRange — range endpoints that come back empty", () => {
 		);
 		assert.match(report.warnings.join(" "), /race predictions: .*400/);
 		assert.equal(report.written, 3, "the rest of the sync still ran");
+	});
+});
+
+describe("syncRange — what starts together", () => {
+	it("asks the range calls and the first days while the activity list is still on its way", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((done) => (release = done));
+		const source = new FakeSource();
+		const list = source.activities.bind(source);
+		source.activities = async (start?: number, limit?: number) => {
+			await gate;
+			return list(start, limit);
+		};
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const run = syncRange(source, target, options({ groups: ALL_GROUPS, parallelDays: 2 }));
+		await new Promise((done) => setImmediate(done));
+		// Before the list answers: the range calls, and the two newest days.
+		assert.ok(source.calls.some((c) => c.startsWith("maxMetrics")), source.calls.join(" "));
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("dailySummary")).sort(), ["dailySummary:2026-09-11", "dailySummary:2026-09-12"]);
+		// Nothing is written until the list is in: a day's workouts come from it.
+		assert.equal(target.written.size, 0);
+		release();
+		const report = await run;
+		assert.equal(report.stoppedEarly, undefined);
+		assert.equal(target.written.size, 3);
 	});
 });

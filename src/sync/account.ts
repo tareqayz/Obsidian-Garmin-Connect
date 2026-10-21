@@ -136,6 +136,8 @@ export async function fetchAccount(
 	today: string,
 	units: "metric" | "imperial",
 	log: Log = silentLog,
+	/** The watch as the sync already asked for it (`mylastused`), so it isn't asked twice. */
+	opts: { device?: Record<string, unknown> | null } = {},
 ): Promise<AccountFetch> {
 	const payloads: AccountPayloads = {};
 	const warnings: string[] = [];
@@ -146,7 +148,7 @@ export async function fetchAccount(
 		// Usually already fetched this session for the display name.
 		["profile", () => (source.profile ? Promise.resolve(source.profile) : source.socialProfile())],
 		["settings", () => source.userSettings()],
-		["device", () => source.lastUsedDevice()],
+		["device", () => (opts.device !== undefined ? Promise.resolve(opts.device) : source.lastUsedDevice())],
 		["lactate", () => source.lactateThreshold()],
 		["ftp", () => source.powerToWeight(today)],
 		["runningEconomy", () => source.runningEconomy(today)],
@@ -161,7 +163,7 @@ export async function fetchAccount(
 	await Promise.all(
 		steps.map(async ([name, run]) => {
 			try {
-				if (!(name === "profile" && source.profile)) requests += 1;
+				if (!(name === "profile" && source.profile) && !(name === "device" && opts.device !== undefined)) requests += 1;
 				(payloads as Record<string, unknown>)[name] = await run();
 			} catch (err) {
 				failed.add(name);

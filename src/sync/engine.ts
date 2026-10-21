@@ -452,6 +452,56 @@ export async function syncRange(
 		return finish(report, log);
 	}
 
+	// Everything that needs nothing local starts now, side by side, and the
+	// client's throttle paces it: the range calls, the first days, and the
+	// windows of the indexes that read neither the summaries nor the days'
+	// payloads. Only the mapping below waits, for the activity list and the
+	// range calls, so a sync takes about a round trip more than its days.
+	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
+	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
+	// Blocks kept from the day's own payloads go where the series go.
+	const extras = opts.series ? (opts.extras ?? []) : [];
+	const kept = keptKeys(extras);
+	const withSeries = Boolean(wanted.intraday && opts.series);
+	const ahead = Math.max(1, Math.floor(opts.parallelDays ?? 1));
+	// The next few days are fetched while this one is written. Only the fetch
+	// runs ahead: everything below still happens a day at a time, in order, so
+	// an early stop leaves the same days behind it as before — and at most
+	// `ahead - 1` days' requests unused.
+	const fetching = new Map<number, Promise<DayFetch>>();
+	const fetchAt = (index: number): Promise<DayFetch> | undefined => {
+		if (index >= due.length) return undefined;
+		let pending = fetching.get(index);
+		if (!pending) {
+			pending = fetchDay(source, due[index], { ...wanted, intraday: withSeries && index < intradayDays });
+			fetching.set(index, pending);
+		}
+		return pending;
+	};
+
+	// VO2 Max and race predictions come back for a whole range in one request,
+	// so they are fetched once here rather than four hundred times below.
+	const oldest = due[due.length - 1] ?? opts.from;
+	const newest = due[0] ?? opts.to;
+	const ranged = due.length > 0;
+	// A fatal one stops the run where it is taken, below; the others are already on their way.
+	const maxMetricsRange = ranged && wanted.maxMetrics ? fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b)) : null;
+	const racesRange = ranged && wanted.races ? fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b)) : null;
+	// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
+	const hillRange = ranged && wanted.hillScores ? fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS) : null;
+	// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
+	const toleranceRange = ranged && wanted.runningTolerance ? fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS) : null;
+	const snapshotsRange = ranged && wanted.healthSnapshots ? fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS) : null;
+	for (let next = 0; next < ahead; next++) void fetchAt(next);
+	// An index that reads neither the summaries nor the days asks its windows for the run whatever the days bring.
+	const early = new Map<IndexRun, Promise<unknown>>();
+	if (ranged) for (const run of runs) if (!run.runtime.def.fromSummary && !run.runtime.def.fromDay) early.set(run, feed(run, true));
+	/** Stops the run, once the early feeds have merged what they fetched. */
+	const stopNow = async (err: unknown): Promise<SyncReport> => {
+		await Promise.all(early.values());
+		return stop(report, err, log);
+	};
+
 	let workoutsByDate = new Map<string, Activity[]>();
 	if (wanted.workouts) {
 		try {
@@ -469,7 +519,7 @@ export async function syncRange(
 				}
 			}
 		} catch (err) {
-			if (isFatal(err)) return stop(report, err, log);
+			if (isFatal(err)) return stopNow(err);
 			log.warn(`activity list failed: ${message(err)}`);
 		}
 	}
@@ -490,35 +540,15 @@ export async function syncRange(
 		return finish(report, log);
 	}
 
-	// VO2 Max and race predictions come back for a whole range in one request,
-	// so they are fetched once here rather than four hundred times below.
-	const oldest = due[due.length - 1] ?? opts.from;
-	const newest = due[0] ?? opts.to;
-
 	/** Range parts that came back whole: what a `fromDay` index may read for every day of the run. */
 	const rangeOk = new Set<keyof DayData>();
-
-	// All asked for at once — they do not depend on each other, and the
-	// client's throttle paces them — then taken in order below. A fatal one
-	// still stops the run there; the others are already on their way.
-	const maxMetricsRange = wanted.maxMetrics ? fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b)) : null;
-	const racesRange = wanted.races ? fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b)) : null;
-	// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
-	const hillRange = wanted.hillScores ? fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS) : null;
-	// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
-	const toleranceRange = wanted.runningTolerance
-		? fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS)
-		: null;
-	const snapshotsRange = wanted.healthSnapshots
-		? fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS)
-		: null;
 
 	let maxMetricsByDate = new Map<string, MaxMetrics>();
 	if (maxMetricsRange) {
 		const got = await maxMetricsRange;
 		report.requests += got.requests;
 		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
 		// No rows is an account without VO2 Max (a scale, a bike computer, no
@@ -532,7 +562,7 @@ export async function syncRange(
 		const got = await racesRange;
 		report.requests += got.requests;
 		racesByDate = byCalendarDate(got.rows);
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("races");
 		// A window holding any prediction sends every day, null where there is none: count the days with a time.
 		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
@@ -545,7 +575,7 @@ export async function syncRange(
 	if (hillRange) {
 		const got = await hillRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("hillScore");
 		if (got.error) note(report, log, `hill score: ${got.error}`);
 		// Several devices can report the same day; the primary one wins.
@@ -559,7 +589,7 @@ export async function syncRange(
 	if (toleranceRange) {
 		const got = await toleranceRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("runningTolerance");
 		if (got.error) note(report, log, `running tolerance: ${got.error}`);
 		toleranceByDate = byCalendarDate(got.rows);
@@ -569,7 +599,7 @@ export async function syncRange(
 	if (snapshotsRange) {
 		const got = await snapshotsRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (got.error) note(report, log, `health snapshots: ${got.error}`);
 		for (const row of got.rows) {
 			const date = row?.calendarDate;
@@ -578,30 +608,8 @@ export async function syncRange(
 		}
 	}
 
-	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
-	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
-	// Blocks kept from the day's own payloads go where the series go.
-	const extras = opts.series ? (opts.extras ?? []) : [];
-	const kept = keptKeys(extras);
 	let emptyRun = 0;
 	let done = 0;
-
-	const withSeries = Boolean(wanted.intraday && opts.series);
-	const ahead = Math.max(1, Math.floor(opts.parallelDays ?? 1));
-	// The next few days are fetched while this one is written. Only the fetch
-	// runs ahead: everything below still happens a day at a time, in order, so
-	// an early stop leaves the same days behind it as before — and at most
-	// `ahead - 1` days' requests unused.
-	const fetching = new Map<number, Promise<DayFetch>>();
-	const fetchAt = (index: number): Promise<DayFetch> | undefined => {
-		if (index >= due.length) return undefined;
-		let pending = fetching.get(index);
-		if (!pending) {
-			pending = fetchDay(source, due[index], { ...wanted, intraday: withSeries && index < intradayDays });
-			fetching.set(index, pending);
-		}
-		return pending;
-	};
 
 	for (const [index, date] of due.entries()) {
 		if (opts.shouldStop?.()) {
@@ -616,8 +624,8 @@ export async function syncRange(
 		if (fetched.fatal) {
 			// What earlier days gave the index costs nothing more to keep.
 			if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
-			for (const run of runs) await feed(run, false);
-			return stop(report, fetched.fatal, log);
+			for (const run of runs) if (!early.has(run)) await feed(run, false);
+			return stopNow(fetched.fatal);
 		}
 		// Reading Garmin's answers: a payload in a shape the mappers don't expect
 		// fails this day alone, which stays unfetched for the next sync, rather
@@ -675,8 +683,8 @@ export async function syncRange(
 				// A newer build's file: stop, as for a 429, rather than fail it day after day.
 				if (err instanceof NewerDataError) {
 					if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
-					for (const run of runs) await feed(run, false);
-					return stop(report, err, log);
+					for (const run of runs) if (!early.has(run)) await feed(run, false);
+					return stopNow(err);
 				}
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
@@ -732,8 +740,8 @@ export async function syncRange(
 	if (stats) feeds.push(feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly));
 	// Cancelled or cut short, the nights cost nothing to skip: the next sync fetches them.
 	if (sleepSink && !report.stoppedEarly) feeds.push(feedSleep(source, sleepSink, opts.from, opts.to, report, log));
-	// Cut short, an index keeps what the summaries gave it and fetches nothing.
-	for (const run of runs) feeds.push(feed(run, !report.stoppedEarly));
+	// Cut short, an index keeps what the summaries gave it and fetches nothing. One that started early has its windows already.
+	for (const run of runs) feeds.push(early.get(run) ?? feed(run, !report.stoppedEarly));
 	const fatal = (await Promise.all(feeds)).find(Boolean);
 	if (fatal) return stop(report, fatal, log);
 	return finish(report, log);

@@ -125,6 +125,8 @@ interface DaysPlan {
 	finish?: (report: SyncReport) => Promise<void>;
 	/** Every day's timelines, not only those inside Day details: a range asked for by hand. */
 	allTimelines?: boolean;
+	/** The watch as the plan already asked for it, for the account file. */
+	device?: Record<string, unknown> | null;
 }
 
 /**
@@ -296,8 +298,10 @@ export class SyncRunner {
 		// seen. A failure costs only the precision: the mark falls back to the
 		// sync's own time, and a 429 here stops the days too.
 		let deviceUpload: string | undefined;
+		let device: Record<string, unknown> | null | undefined;
 		try {
-			deviceUpload = deviceUploadOf(await this.api.lastUsedDevice());
+			device = await this.api.lastUsedDevice();
+			deviceUpload = deviceUploadOf(device);
 		} catch (err) {
 			log?.warn(`last used device failed: ${explain(err)}`);
 		}
@@ -305,6 +309,7 @@ export class SyncRunner {
 			from,
 			to,
 			requests: 1,
+			...(device !== undefined ? { device } : {}),
 			notes: capped ? [`Synced the last ${MAX_RECENT_DAYS} days only. Sync a range for the days before ${from}.`] : [],
 			// Only a run that covered the whole range moves the mark: one stopped
 			// early left its oldest days behind.
@@ -399,9 +404,12 @@ export class SyncRunner {
 			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
 		};
 		try {
-			const { from, to, requests: planned = 0, notes = [], finish, allTimelines } = await plan();
+			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device } = await plan();
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
+			// Once per sync, not per day: who you are, the watch, and the numbers
+			// Garmin only serves as "latest". Asked alongside the days.
+			const account = settings.groups.includes("profile") ? fetchAccount(this.api, toIsoDate(), units, log, device !== undefined ? { device } : {}) : null;
 			// The day files are written a year at a time once the days are in.
 			const days = series.dayBuffer();
 			const report = await syncDays(days, () => syncRange(this.api, days, {
@@ -435,11 +443,8 @@ export class SyncRunner {
 			this.lastSync = { at: new Date(startedAt).toISOString(), from, to, report };
 			await this.recordDays(series, report, log);
 
-			// Once per sync, not per day: who you are, the watch, and the numbers
-			// Garmin only serves as "latest". Skipped after a 429 or a dead
-			// session, which every one of these calls would hit too.
-			if (settings.groups.includes("profile") && !report.stoppedEarly) {
-				const got = await fetchAccount(this.api, toIsoDate(), units, log);
+			if (account) {
+				const got = await account;
 				report.requests += got.requests;
 				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
 				try {
