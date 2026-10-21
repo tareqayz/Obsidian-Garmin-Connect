@@ -63,7 +63,6 @@
 	{swap}
 	history={{
 		title: CRITICAL_SWIM_SPEED_INDEX.title,
-		windowDays: CRITICAL_SWIM_SPEED_INDEX.windowDays,
 		complete,
 		walking: history[KIND],
 		canSync,

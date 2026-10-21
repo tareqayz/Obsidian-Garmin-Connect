@@ -96,7 +96,6 @@
 	style={STRESS_COLORS}
 	history={{
 		title: STRESS_INDEX.title,
-		windowDays: STRESS_INDEX.windowDays,
 		complete: meta?.complete ?? false,
 		walking: history.stress,
 		canSync,

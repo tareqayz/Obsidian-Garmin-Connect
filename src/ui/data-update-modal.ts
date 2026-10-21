@@ -1,7 +1,7 @@
 import { App, Modal, Notice } from "obsidian";
 import { mount, unmount } from "svelte";
 import type GarminPlugin from "../main";
-import type { UpdateLine } from "./setup-flow";
+import type { UpdateLine, UpdateTotal } from "./setup-flow";
 import DataUpdate from "./svelte/DataUpdate.svelte";
 
 /**
@@ -16,6 +16,7 @@ export class DataUpdateModal extends Modal {
 		app: App,
 		private readonly plugin: GarminPlugin,
 		private readonly lines: UpdateLine[],
+		private readonly total: UpdateTotal,
 	) {
 		super(app);
 	}
@@ -28,6 +29,7 @@ export class DataUpdateModal extends Modal {
 			target: this.contentEl,
 			props: {
 				lines: this.lines,
+				total: this.total,
 				onDownload: (keys: string[], later: string[]) => {
 					void this.plugin.agreeTo(keys, later);
 					new Notice("Downloading the new data in the background.");

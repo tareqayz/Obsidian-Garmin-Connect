@@ -98,7 +98,7 @@
 	{onBack}
 	{swap}
 	history={view.tab === "training"
-		? { title: TRAINING_STATUS_INDEX.title, windowDays: TRAINING_STATUS_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }
+		? { title: TRAINING_STATUS_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }
 		: undefined}
 >
 	{#snippet top({ pane })}

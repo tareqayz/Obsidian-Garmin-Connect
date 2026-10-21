@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import type GarminPlugin from "../../../main";
-	import { formatBytes } from "../../../sync/estimate";
+	import { sizeText } from "../../sync-copy";
 	import type { SettingsDataRows } from "../../settings-data-rows";
 
 	/**
@@ -19,7 +19,6 @@
 	let line = $state(rows.progress ? rows.progressLine(rows.progress) : "");
 	// svelte-ignore state_referenced_locally
 	let percent = $state(rows.percent);
-	const count = new Intl.NumberFormat();
 
 	onMount(() =>
 		rows.attach(() => {
@@ -56,7 +55,7 @@
 			<strong>New data for your history</strong>
 			<ul>
 				{#each updates as update (update.key)}
-					<li>{update.title} <span class="muted">— {update.detail} · ≈ {update.bytes >= 1_000_000 ? formatBytes(update.bytes) : `${count.format(update.requests)} requests`}</span></li>
+					<li>{update.title} <span class="muted">— {update.detail} · {sizeText(update.bytes)}</span></li>
 				{/each}
 			</ul>
 			<div class="row end">

@@ -97,7 +97,6 @@
 	style={BATTERY_COLORS}
 	history={{
 		title: BODY_BATTERY_INDEX.title,
-		windowDays: BODY_BATTERY_INDEX.windowDays,
 		complete: meta?.complete ?? false,
 		walking: history[KIND],
 		canSync,

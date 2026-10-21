@@ -85,7 +85,7 @@
 	steppers={!current}
 	{onBack}
 	{swap}
-	history={{ title: VO2_MAX_INDEX.title, windowDays: VO2_MAX_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: VO2_MAX_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		<div class="vo2-tabs"><StatTabs {route} {swap} layout="packed" height={46} /></div>

@@ -104,7 +104,7 @@
 	canGoForward={view.canGoForward}
 	{onBack}
 	{swap}
-	history={{ title: TRAINING_READINESS_INDEX.title, windowDays: TRAINING_READINESS_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: TRAINING_READINESS_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children()}
 		<ReadinessDay {view} onFactor={openFactor} />

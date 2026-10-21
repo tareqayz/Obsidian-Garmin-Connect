@@ -96,7 +96,7 @@
 		steppers={!current}
 		{onBack}
 		swap={move}
-		history={{ title: index.title, windowDays: index.windowDays, complete, walking: history[index.kind], canSync, onSync: () => onSyncHistory(index.kind) }}
+		history={{ title: index.title, complete, walking: history[index.kind], canSync, onSync: () => onSyncHistory(index.kind) }}
 	>
 		{#snippet children({ pane })}
 			{#if current}

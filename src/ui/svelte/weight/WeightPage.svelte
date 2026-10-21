@@ -54,7 +54,7 @@
 	canGoBack={dayView?.canGoBack ?? periodView?.canGoBack ?? false}
 	{onBack}
 	{swap}
-	history={{ title: WEIGHT_INDEX.title, windowDays: WEIGHT_INDEX.windowDays, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: WEIGHT_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane, move })}
 		<div class="weight">

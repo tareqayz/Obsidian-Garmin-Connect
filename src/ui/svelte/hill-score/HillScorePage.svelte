@@ -143,7 +143,7 @@
 	step={monthPage ? stepMonth : undefined}
 	{onBack}
 	{swap}
-	history={{ title: HILL_SCORE_INDEX.title, windowDays: HILL_SCORE_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: HILL_SCORE_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane, move })}
 		{#if view.range === "1d"}

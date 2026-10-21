@@ -63,7 +63,7 @@
 	steppers={!current}
 	{onBack}
 	{swap}
-	history={{ title: RACE_PREDICTIONS_INDEX.title, windowDays: RACE_PREDICTIONS_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: RACE_PREDICTIONS_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{#if current}

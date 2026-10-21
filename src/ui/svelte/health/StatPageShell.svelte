@@ -5,8 +5,6 @@
 	export interface StatHistory {
 		/** The index as its history command names it: "stress". */
 		title: string;
-		/** Days a history request covers, for the banner's estimate of a year. */
-		windowDays: number;
 		/** The index holds the whole history: no banner. */
 		complete: boolean;
 		/** A history walk in progress: `history[kind]`. */
@@ -156,12 +154,7 @@
 			return { title: `Fetching ${history.title} history…`, detail: reached ? `Back to ${reached}` : "Starting…", busy: true };
 		}
 		const name = history.title.charAt(0).toUpperCase() + history.title.slice(1);
-		const requests = Math.ceil(365 / Math.max(1, history.windowDays));
-		return {
-			title: `${name} history isn’t synced`,
-			detail: `Charts cover only what’s synced. A year of history takes about ${requests} request${requests === 1 ? "" : "s"}.`,
-			busy: false,
-		};
+		return { title: `${name} history isn’t synced`, detail: "Charts cover only what’s synced.", busy: false };
 	});
 </script>
 

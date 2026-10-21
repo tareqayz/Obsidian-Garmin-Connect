@@ -31,11 +31,11 @@ import { RemovedDataModal } from "./ui/removed-data-modal";
 import { watchForUninstall } from "./uninstall-watch";
 import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
-import { debtItems, pendingItems, type DebtItem } from "./sync/debt";
-import { estimateDelta } from "./sync/estimate";
+import { debtItems, pendingItems, type DebtInput, type DebtItem } from "./sync/debt";
+import { estimateDelta, type EstimateInput } from "./sync/estimate";
 import type { DetailCandidate } from "./sync/backfill";
 import { PACE } from "./sync/pace";
-import type { UpdateLine } from "./ui/setup-flow";
+import type { UpdateLine, UpdateTotal } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
 
@@ -340,15 +340,12 @@ export default class GarminPlugin extends Plugin {
 	/** Asked once a session at most: what an update offers. */
 	private askedForUpdates = false;
 
-	/**
-	 * What the data sets offer that has not been agreed to — every item with
-	 * something to fetch, or only those not put off yet — as dialog lines.
-	 */
-	async updateLines(only: "pending" | "all"): Promise<UpdateLine[]> {
+	/** What the update lines and their total are worked out from, read once: null before the setup or without data here. */
+	private async updateInput(): Promise<(DebtInput & EstimateInput) | null> {
 		const settings = this.data.settings;
-		if (!settings.setup) return [];
+		if (!settings.setup) return null;
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		if (!store.hasData()) return [];
+		if (!store.hasData()) return null;
 		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
@@ -356,7 +353,7 @@ export default class GarminPlugin extends Plugin {
 			store.readActivities(),
 			store.readDetailCoverage(),
 		]);
-		const input = {
+		return {
 			today: toIsoDate(),
 			groups: settings.groups,
 			accepted: settings.data.accepted,
@@ -369,19 +366,38 @@ export default class GarminPlugin extends Plugin {
 			charts,
 			activities: index.rows.map((row) => this.candidateOf(row)),
 			detailFiles,
+			budget: this.sync.budgetOutlook(),
+			now: Date.now(),
 		};
+	}
+
+	/**
+	 * What the data sets offer that has not been agreed to — every item with
+	 * something to fetch, or only those not put off yet — as dialog lines.
+	 */
+	async updateLines(only: "pending" | "all"): Promise<UpdateLine[]> {
+		const input = await this.updateInput();
+		if (!input) return [];
 		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
-		const estimating = { ...input, budget: this.sync.budgetOutlook(), now: Date.now() };
-		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...estimateDelta(estimating, [item.key]) }));
+		return items.map((item) => {
+			const { bytes, seconds } = estimateDelta(input, [item.key]);
+			return { key: item.key, title: item.title, detail: item.detail, bytes, seconds };
+		});
+	}
+
+	/** What picked update lines add together, as one download under one hourly budget. */
+	async updateTotal(): Promise<UpdateTotal> {
+		const input = await this.updateInput();
+		return (keys) => (input && keys.length ? estimateDelta(input, keys) : { bytes: 0, seconds: 0 });
 	}
 
 	/** The first Garmin view after an update: one dialog for whatever the update offers. */
 	async askForUpdates(): Promise<void> {
 		if (this.askedForUpdates || !this.garmin.isAuthenticated) return;
-		const lines = await this.updateLines("pending");
+		const [lines, total] = await Promise.all([this.updateLines("pending"), this.updateTotal()]);
 		if (!lines.length || this.askedForUpdates) return;
 		this.askedForUpdates = true;
-		this.track(new DataUpdateModal(this.app, this, lines));
+		this.track(new DataUpdateModal(this.app, this, lines, total));
 	}
 
 	/** Yes to `keys`, later to `later`: the ledger keeps both, and the backfill starts on the yeses. */

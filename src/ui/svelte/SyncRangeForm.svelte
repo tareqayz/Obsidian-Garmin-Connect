@@ -58,12 +58,11 @@
 	</div>
 </div>
 
-<!-- The estimate is the point: a year-long backfill is thousands of requests
-     and Garmin rate-limits per IP. -->
+<!-- The estimate is the point: a year-long range takes a while, and it is
+     better known before Sync than after. -->
 <div class="status" role="status">
 	{#if valid}
-		{days} day{days === 1 ? "" : "s"} · roughly {requests.toLocaleString()} requests
-		{#if minutes >= 1}· about {minutes} min{/if}
+		{days} day{days === 1 ? "" : "s"} · {minutes >= 1 ? `about ${minutes} min` : "under a minute"}
 	{:else}
 		The end date is before the start.
 	{/if}

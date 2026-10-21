@@ -76,7 +76,6 @@
 	{swap}
 	history={{
 		title: HEALTH_STATUS_INDEX.title,
-		windowDays: HEALTH_STATUS_INDEX.windowDays,
 		complete: meta?.complete ?? false,
 		walking: history[KIND],
 		canSync,

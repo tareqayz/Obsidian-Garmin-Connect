@@ -83,12 +83,14 @@ export function agreement(groups: readonly MetricGroup[]): { accepted: ConsentKe
 	return { accepted: [...chartKeys(groups), DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY], deferred: [] };
 }
 
-/** A line of the update dialog: a store this version can fill in, and what it costs. */
+/** A line of the update dialog: a store this version can fill in, and what it adds. */
 export interface UpdateLine {
 	key: string;
 	title: string;
 	detail: string;
-	requests: number;
 	bytes: number;
 	seconds: number;
 }
+
+/** What picked lines add together: one download, so one hour's budget across them all. */
+export type UpdateTotal = (keys: readonly string[]) => { bytes: number; seconds: number };

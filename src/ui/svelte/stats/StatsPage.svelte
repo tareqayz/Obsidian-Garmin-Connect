@@ -108,7 +108,7 @@
 		}
 		return {
 			title: "Step, floor and intensity history isn’t synced",
-			detail: "Charts cover only what’s synced. A year of history takes about 40 requests.",
+			detail: "Charts cover only what’s synced.",
 		};
 	});
 </script>

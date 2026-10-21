@@ -157,7 +157,7 @@
 	canGoForward={view.range !== "1d" && view.canGoForward}
 	{onBack}
 	swap={move}
-	history={{ title: TRAINING_STATUS_INDEX.title, windowDays: TRAINING_STATUS_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: TRAINING_STATUS_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{#if view.range === "1d"}
