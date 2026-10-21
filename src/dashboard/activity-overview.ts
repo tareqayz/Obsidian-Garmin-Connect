@@ -3,7 +3,7 @@ import { BADGE_DESCRIPTIONS } from "./activity-copy";
 import type { ActivityDetail } from "../sync/activity-detail";
 import { formatDistance, glyphOf, hubOfGroup, type SportGlyph, type Units } from "./activities";
 import { hasRoute } from "./activity-map";
-import { activityWhen, effortOf, feelLabel, primaryBenefit, type Effort, type PrimaryBenefit } from "./activity-labels";
+import { activityWhen, effortOf, feelLabel, primaryBenefit, sportTitle, type Effort, type PrimaryBenefit } from "./activity-labels";
 import { groupName, groupOf } from "./activity-types";
 import { allRoute, categoryRoute, type Route } from "./routes";
 import { duration } from "./series";
@@ -57,6 +57,19 @@ export interface OverviewHero {
 	label: string;
 }
 
+/**
+ * A multisport's Activity Legs row: the leg's figure and name over its
+ * distance ("1,836 m") and its time with its pace, speed or, for a
+ * transition, calories ("42:01 • 2:17 /100m"). It opens the leg's page.
+ */
+export interface OverviewLeg {
+	id: number;
+	glyph: SportGlyph;
+	title: string;
+	distance?: string;
+	line?: string;
+}
+
 /** The Overview of a sport: its profile's `overview`. Each part left out is the run's. */
 export interface OverviewSpec {
 	/** The big figure; none at all when it returns null. */
@@ -65,6 +78,8 @@ export interface OverviewSpec {
 	figures?: (detail: ActivityDetail, units: Units) => OverviewFigure[];
 	/** The Navigation rows. */
 	links?: (detail: ActivityDetail) => OverviewLink[];
+	/** A multisport's Activity Legs rows, under Evaluation; none without. */
+	legs?: (detail: ActivityDetail, units: Units) => OverviewLeg[];
 }
 
 export interface OverviewView {
@@ -96,6 +111,8 @@ export interface OverviewView {
 	sensors?: NonNullable<ActivityDetail["sensors"]>;
 	/** The Badges section's rows; only when there are any. */
 	badges?: OverviewBadge[];
+	/** A multisport's Activity Legs rows; only when there are any. */
+	legs?: OverviewLeg[];
 }
 
 /** A badge's row: "Climber 1" over "Climb 500 feet during a cycling activity." when the app's copy is known. */
@@ -114,7 +131,8 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 		when: activityWhen(detail.start, today),
 		glyph: glyphOf({ type: detail.type, typeId: detail.typeId, parentTypeId: detail.parentTypeId }),
 		private: detail.privacy === "private",
-		title: detail.name,
+		// A leg is named by its sport, as the phone's "Transition" where Garmin's name is "Transition 1".
+		title: detail.parentId ? sportTitle(detail.type) : detail.name,
 		figures: spec?.figures ? spec.figures(detail, units) : figures(detail, units),
 		benefit: primaryBenefit(s.trainingEffectLabel),
 		feel: feelLabel(s.directWorkoutFeel),
@@ -134,6 +152,8 @@ export function overviewView(detail: ActivityDetail, units: Units, today?: strin
 		}
 	}
 	if (detail.sensors?.length) view.sensors = detail.sensors;
+	const legs = spec?.legs?.(detail, units);
+	if (legs?.length) view.legs = legs;
 	if (detail.badges?.length) {
 		view.badges = detail.badges.map((badge) => {
 			const description = badge.key ? BADGE_DESCRIPTIONS[badge.key] : undefined;

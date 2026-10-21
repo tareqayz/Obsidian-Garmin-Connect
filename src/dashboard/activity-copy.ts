@@ -53,4 +53,5 @@ export function benefitMessage(label: unknown): string | null {
  */
 export const BADGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	cycle_climb_500ft: "Climb 500 feet during a cycling activity.",
+	activity_multisport: "Record a multisport activity. (Requires compatible device.)",
 };

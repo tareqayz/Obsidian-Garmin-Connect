@@ -506,9 +506,15 @@ export interface ActivitySummary {
 		favorite?: boolean;
 		/** It set a personal record. */
 		personalRecord?: boolean;
+		/** A multisport's legs, in order: each a separate activity. */
+		childIds?: number[] | null;
+		/** Their typeKeys, in the same order: `open_water_swimming`, `transition_v2`, … */
+		childActivityTypes?: string[] | null;
 		[key: string]: unknown;
 	} | null;
 	eventTypeDTO?: { typeId?: number; typeKey?: string; sortOrder?: number; [key: string]: unknown } | null;
+	/** On a multisport's leg: the multisport. */
+	parentId?: number | null;
 	summaryDTO?: ActivityStats | null;
 	/** Totals per split type: `INTERVAL_ACTIVE`, `RWD_RUN`, `RWD_WALK`, `RWD_STAND`. */
 	splitSummaries?: Array<{ splitType?: string; noOfSplits?: number; duration?: number; distance?: number; [key: string]: unknown }>;
@@ -577,7 +583,15 @@ export interface ActivityDetails {
 	metricsCount?: number;
 	metricDescriptors?: Array<{ metricsIndex: number; key: string; unit?: { key?: string; factor?: number } | null }>;
 	activityDetailMetrics?: Array<{ metrics: Array<number | null> }>;
-	geoPolylineDTO?: { minLat?: number; maxLat?: number; minLon?: number; maxLon?: number; [key: string]: unknown } | null;
+	geoPolylineDTO?: {
+		minLat?: number;
+		maxLat?: number;
+		minLon?: number;
+		maxLon?: number;
+		/** The track, `time` in epoch ms. A multisport's covers every leg, where its rows hold the first leg's only. */
+		polyline?: Array<{ lat?: number | null; lon?: number | null; time?: number | null; [key: string]: unknown }> | null;
+		[key: string]: unknown;
+	} | null;
 	detailsAvailable?: boolean;
 	[key: string]: unknown;
 }

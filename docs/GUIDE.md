@@ -320,7 +320,9 @@ Every activity opens its page, whatever the sport. It opens from All Activities,
 month, Personal Records, Home's Today's Activity, Load's Exercise Load list, Training Effect's
 related activity, and the Cycling Power Curve's record dates. Each page has the app's five tabs,
 **Overview**, **Stats**, **Laps**, **Charts** and **Gear**, filled as the app fills them for that
-sport:
+sport. A multisport is the exception: one page, with no tabs.
+
+
 
 - **A run:** the route map and weather, the headline figures, Evaluation (Primary Benefit, Feel,
   Perceived Effort), the watch it was recorded on, every figure the app lists, laps, and charts.
@@ -335,6 +337,10 @@ sport:
   length as a bar, for pace, strokes and Swolf.
 - **An open-water swim** draws its route in red, with the weather. Its charts are pace, strokes a
   minute and temperature.
+- **A multisport**, such as a triathlon, draws the whole race on its map, each leg in its own
+  colour, with a pin where each leg began. Under Evaluation, **Activity Legs** lists the swim, the
+  ride, the run and each transition with its distance and time. A leg opens its own page, titled
+  "Multisport - Running" and so on; a transition's shows its time, speed, ascent and calories.
 - **Every other sport** gets the sections the sports share, each shown only with data, as the app
   draws a Stair Stepper session.
 

@@ -1,4 +1,6 @@
 import type { ActivityDetail, ZoneTime } from "../sync/activity-detail";
+import type { SportGlyph } from "./activities";
+import { legAt, legsOf, legSlot } from "./activity-legs";
 import { MAP_OVERLAYS, type MapOverlay } from "./routes";
 
 /**
@@ -35,6 +37,8 @@ export interface MapOverlayDef {
 	 * Without floors the route takes the base colour (Inferred).
 	 */
 	zones?: { column: string; scale: "hr" | "power" };
+	/** A multisport's: each point the colour of the leg it was recorded in (`activity-legs.ts`), by the samples' clock. */
+	legs?: true;
 }
 
 /** A sport's map. */
@@ -159,6 +163,7 @@ export function routeRuns(detail: ActivityDetail, overlay: string, spec?: MapSpe
 export function overlayBucket(detail: ActivityDetail, overlay: string, spec?: MapSpec): (sample: number) => number | null {
 	const zoned = defOf(overlay, spec);
 	if (zoned?.zones) return zoneBucket(detail, zoned.zones, zoned.ramp.length);
+	if (zoned?.legs) return legBucket(detail);
 	if (overlay === "pace" || overlay === "gap") {
 		const speeds = detail.samples[overlay === "pace" ? "speed" : "gap"] ?? [];
 		const moving = speeds.filter((v): v is number => typeof v === "number" && v > 0);
@@ -211,6 +216,18 @@ function zoneBucket(detail: ActivityDetail, zones: NonNullable<MapOverlayDef["zo
 	};
 }
 
+/** A sample's leg's slot: the leg its clock falls in. Null without a clock, or for a leg of a sport without a colour. */
+function legBucket(detail: ActivityDetail): (sample: number) => number | null {
+	const legs = legsOf(detail);
+	const clock = detail.samples.clock ?? [];
+	return (sample) => {
+		const at = clock[sample];
+		if (typeof at !== "number") return null;
+		const leg = legAt(legs, at);
+		return leg === null ? null : legSlot(legs[leg]);
+	};
+}
+
 /** A position along the ramp, 0 to 1, as one of its ten slots; the ends hold everything beyond them. */
 function slot(at: number): number {
 	if (!Number.isFinite(at)) return Math.floor(RAMP_SLOTS / 2);
@@ -253,11 +270,39 @@ export interface LapMarker {
 }
 
 export function lapMarkers(detail: ActivityDetail): LapMarker[] {
+	// A multisport's laps are its legs, which its leg pins mark (`legPins`).
+	if (detail.legs?.length) return [];
 	const laps = detail.laps;
 	return laps
 		.slice(0, -1)
 		.filter((lap): lap is typeof lap & { end: LatLon } => Array.isArray(lap.end))
 		.map((lap) => ({ n: lap.n, at: lap.end }));
+}
+
+/** A multisport's leg pin: where the leg began, with its sport's figure. */
+export interface LegPin {
+	at: LatLon;
+	glyph: SportGlyph;
+}
+
+/**
+ * Where each of a multisport's legs began: the first point of the route at or
+ * after its start, as the phone's full map pins them (a green pin with the
+ * leg's figure). None for an activity without legs.
+ */
+export function legPins(detail: ActivityDetail, points: readonly RoutePoint[] = routePoints(detail)): LegPin[] {
+	const clock = detail.samples.clock ?? [];
+	const out: LegPin[] = [];
+	for (const leg of legsOf(detail)) {
+		if (leg.start === undefined) continue;
+		const start = leg.start;
+		const point = points.find((p) => {
+			const at = clock[p.sample];
+			return typeof at === "number" && at >= start;
+		});
+		if (point) out.push({ at: point.at, glyph: leg.glyph });
+	}
+	return out;
 }
 
 /** The first and last point of the route. */
@@ -319,6 +364,7 @@ export function mapOverlays(detail: ActivityDetail, spec?: MapSpec): string[] {
 /** Whether a sport's map can draw an overlay for the activity: the run's by its column, the sport's own by its `values`. */
 function offers(detail: ActivityDetail, overlay: string, spec: MapSpec): boolean {
 	if (overlay === "none") return true;
+	if (defOf(overlay, spec)?.legs) return !!detail.legs?.length && !!detail.samples.clock?.length;
 	if (overlay === "run-walk") return detail.segments.some((s) => RUN_WALK_TYPES.includes(s.type));
 	const run = isRunOverlay(overlay) ? OVERLAY_COLUMN[overlay as Exclude<MapOverlay, "none" | "run-walk">] : undefined;
 	const own = defOf(overlay, spec)?.values;

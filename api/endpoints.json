@@ -303,7 +303,10 @@
 				"metadataDTO.sensors[].fitProductNumber",
 				"metadataDTO.sensors[].antplusDeviceType",
 				"metadataDTO.sensors[].softwareVersion",
-				"metadataDTO.sensors[].batteryStatus"
+				"metadataDTO.sensors[].batteryStatus",
+				"parentId",
+				"metadataDTO.childIds",
+				"metadataDTO.childActivityTypes"
 			],
 			"schema": "schema/activity.json",
 			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. summaryDTO carries the Overview and Stats totals; its keys vary by sport and sensors (a treadmill run has no elevation, GAP or impact load). description holds the user's notes when there are any."
@@ -347,7 +350,10 @@
 			"reads": [
 				"measurementCount",
 				"detailsAvailable",
-				"geoPolylineDTO"
+				"geoPolylineDTO",
+				"geoPolylineDTO.polyline[].lat",
+				"geoPolylineDTO.polyline[].lon",
+				"geoPolylineDTO.polyline[].time"
 			],
 			"schema": "schema/activity-details.json",
 			"notes": "Activity details page: fetched when an activity's page opens, cached in <dataFolder>/activity-details/<id>.json. Rows hold one value per metricDescriptors entry: sumDuration/sumDistance (axes), directHeartRate, directSpeed, directGradeAdjustedSpeed, directDoubleCadence (spm), directStrideLength (cm), directVerticalOscillation, directVerticalRatio, directGroundContactTime, directElevation, directPower, directAvailableStamina/directPotentialStamina, directPerformanceCondition, directImpactLoadFactor, directLatitude/directLongitude. maxChartSize=2000 thins a 56-minute run recorded every second (3,363 samples) to 1,694 with the same extremes and averages; the web asks for 10000 and gets every sample. No GPS columns or geoPolylineDTO without GPS."

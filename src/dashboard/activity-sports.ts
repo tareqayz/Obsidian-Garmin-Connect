@@ -6,6 +6,7 @@ import type { OverviewSpec } from "./activity-overview";
 import type { LapsSpec, StatsSpec } from "./activity-stats-pages";
 import { BASIC } from "./sports/basic";
 import { CYCLING } from "./sports/cycling";
+import { MULTISPORT, TRANSITION } from "./sports/multisport";
 import { RUNNING } from "./sports/running";
 import { OPEN_WATER_SWIM, POOL_SWIM } from "./sports/swimming";
 
@@ -24,7 +25,7 @@ import { OPEN_WATER_SWIM, POOL_SWIM } from "./sports/swimming";
  * Pure: no Obsidian import.
  */
 
-export const SPORT_IDS = ["running", "cycling", "pool-swim", "open-water-swim", "basic"] as const;
+export const SPORT_IDS = ["running", "cycling", "pool-swim", "open-water-swim", "multisport", "transition", "basic"] as const;
 export type SportId = (typeof SPORT_IDS)[number];
 
 /** What a profile tells each tab; each part left out is the run's. */
@@ -43,8 +44,8 @@ type Typed = Pick<ActivityRow, "type" | "typeId" | "parentTypeId">;
 /**
  * An activity's sport: the running family (the rows the hub's Running page
  * lists) and the cycling one by Garmin's type tree, the two swims by their
- * type, every other sport the basic page. Until the activity type table
- * lands, the families are `categoryOf`'s.
+ * type, a multisport its own page of legs and a multisport's transition the
+ * basic page with its own figures, every other sport the basic page. Until the activity type table lands, the families are `categoryOf`'s.
  */
 export function sportOf(activity: Typed): SportId {
 	const category = categoryOf(activity);
@@ -52,6 +53,8 @@ export function sportOf(activity: Typed): SportId {
 	if (category === "cycling") return "cycling";
 	if (activity.type === "lap_swimming") return "pool-swim";
 	if (activity.type === "open_water_swimming") return "open-water-swim";
+	if (category === "multisport") return "multisport";
+	if (/transition/i.test(activity.type)) return "transition";
 	return "basic";
 }
 
@@ -60,6 +63,8 @@ const PROFILES: Readonly<Record<SportId, SportProfile>> = {
 	cycling: CYCLING,
 	"pool-swim": POOL_SWIM,
 	"open-water-swim": OPEN_WATER_SWIM,
+	multisport: MULTISPORT,
+	transition: TRANSITION,
 	basic: BASIC,
 };
 

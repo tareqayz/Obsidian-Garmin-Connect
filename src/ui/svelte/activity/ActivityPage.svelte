@@ -21,6 +21,9 @@
 	 * vault when it has been opened before, from Garmin the first time — and a
 	 * page coming back (Back from the map) draws at once from what it had.
 	 *
+	 * A multisport has no tabs: its page is its Overview, the legs listed in it,
+	 * each opening its own page, titled "Multisport - <sport>".
+	 *
 	 * Each tab is its own component with the same props (`ActivityTabProps`),
 	 * the activity's sport profile among them: what the tab tells its view model
 	 * about the sport. A chart badge opens the expanded chart in place of the
@@ -74,7 +77,9 @@
 	let tabProps = $derived<ActivityTabProps | null>(
 		detail && profile ? { detail, route, units: data.units, profile, rows: data.rows, tiles, go, swap, reach, openSheet } : null,
 	);
-	let title = $derived(detail ? sportTitle(detail.type) : "Activity");
+	let title = $derived(!detail ? "Activity" : detail.parentId ? `${sportTitle("multi_sport")} - ${sportTitle(detail.type)}` : sportTitle(detail.type));
+	/** One page, no tabs: a multisport's Overview. */
+	let single = $derived(profile?.id === "multisport");
 
 	/** Why there is nothing, or not everything, to show. */
 	let status = $derived.by(() => {
@@ -118,6 +123,7 @@
 <div class="activity-page" style:--activity-bar-height="{barHeight}px">
 	<div class="sticky" bind:clientHeight={barHeight}>
 		<PageBar {title} {onBack} />
+		{#if !single}
 		<!-- The twin's Tabs: each tab hugs its label and the group sits centred, so the
 		     strip reads the same on a phone and across a pane; it scrolls when it can't fit. -->
 		<div class="tabs" role="tablist">
@@ -127,6 +133,7 @@
 				</button>
 			{/each}
 		</div>
+		{/if}
 	</div>
 
 	{#if status}
@@ -134,7 +141,9 @@
 	{/if}
 
 	{#if tabProps}
-		{#if route.tab === "stats"}
+		{#if single}
+			<OverviewTab {...tabProps} {loading} />
+		{:else if route.tab === "stats"}
 			<StatsTab {...tabProps} />
 		{:else if route.tab === "laps"}
 			<LapsTab {...tabProps} />

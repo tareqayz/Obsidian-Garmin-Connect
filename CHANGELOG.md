@@ -6,6 +6,15 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Fixed
+
+- **Multisport activities have their own page.** A triathlon showed only its swim's route and none
+  of its transitions. Its page now draws the whole race, each leg in its own colour, and lists every
+  leg with its distance and time, transitions included. Each leg opens its own page. A multisport
+  page you already opened updates the next time you open it, with two requests.
+
 ## [1.2.0-beta.2] — 2026-10-21
 
 ### Changed
