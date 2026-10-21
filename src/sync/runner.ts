@@ -6,6 +6,7 @@ import type { Log } from "../log";
 import type { DayIndexDef, IndexHistoryProgress } from "./day-index";
 import { DAY_INDEXES, dayIndex } from "./day-indexes";
 import {
+	EMPTY_DAYS_STOP,
 	fetchAllActivities,
 	fetchDailyStatsHistory,
 	fetchSleepHistory,
@@ -44,7 +45,6 @@ export interface RunnerSettings {
 
 	dataFolder: string;
 
-	stopAfterEmptyDays: number;
 	/** Null until the setup ran: nothing walks history in the background before it. */
 	setup: { completedAt: string } | null;
 	/** What to keep, and what was agreed to (see `datasets.ts`). */
@@ -410,7 +410,7 @@ export class SyncRunner {
 				extras: INTRADAY_EXTRAS,
 				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
 				parallelDays: PACE.parallel,
-				stopAfterEmptyDays: settings.stopAfterEmptyDays,
+				stopAfterEmptyDays: EMPTY_DAYS_STOP,
 				shouldStop: () => this.foregroundCancel,
 				log,
 				onProgress: (done, total, date) => {

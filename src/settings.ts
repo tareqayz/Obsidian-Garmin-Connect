@@ -61,7 +61,7 @@ function costOf(group: MetricGroup): string {
 }
 
 /** The settings a `control` row edits. A metric group's toggle is `group:<id>`. */
-type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "stopAfterEmptyDays" | "autoSaveLog" | `group:${MetricGroup}`;
+type ControlKey = "syncOnStartup" | "units" | "mapTiles" | "autoSaveLog" | `group:${MetricGroup}`;
 
 const UNITS: ReadonlyArray<GarminSettings["units"]> = ["auto", "metric", "imperial"];
 
@@ -102,7 +102,6 @@ export class GarminSettingTab extends PluginSettingTab {
 			return;
 		}
 		if (key === "units" && UNITS.includes(value as GarminSettings["units"])) s.units = value as GarminSettings["units"];
-		else if (key === "stopAfterEmptyDays" && typeof value === "number") s.stopAfterEmptyDays = value;
 		else if ((key === "syncOnStartup" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
 		else return;
 		await this.plugin.data.saveSettings();
@@ -295,11 +294,6 @@ export class GarminSettingTab extends PluginSettingTab {
 									}),
 							);
 						},
-					},
-					{
-						name: "Stop after empty days",
-						desc: "Sync a date range… stops after this many empty days in a row. 0 never stops.",
-						control: { type: "slider", key: "stopAfterEmptyDays", min: 0, max: 120, step: 5 },
 					},
 				],
 			},

@@ -32,7 +32,6 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	add("Data folder", s.dataFolder);
 	add("Sync on startup", s.syncOnStartup);
 	add("Map tiles", s.mapTiles);
-	add("Stop after empty days", s.stopAfterEmptyDays);
 	add("Set up", s.setup ? `${s.setup.completedAt}${s.setup.migrated ? " (migrated)" : ""}` : "no");
 	add("Day details", s.data.dayDetails);
 	add("Activity details", s.data.activityDetails);

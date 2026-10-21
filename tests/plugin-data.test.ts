@@ -46,8 +46,8 @@ describe("PluginData", () => {
 	});
 
 	it("reads a current file without rewriting it", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, home: { preset: "be-healthy", hidden: [] } }, new FakeTokens(AUTH));
-		assert.equal(data.settings.stopAfterEmptyDays, 7);
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, logFolder: "Mine" }, home: { preset: "be-healthy", hidden: [] } }, new FakeTokens(AUTH));
+		assert.equal(data.settings.logFolder, "Mine");
 		assert.equal(data.hasSession, true);
 		assert.equal(saved.length, 0);
 	});
@@ -154,29 +154,27 @@ describe("PluginData", () => {
 	});
 
 	it("takes another device's choices, and nothing else, when data.json changes underneath", async () => {
-		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH };
+		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, logFolder: "Mine" }, auth: AUTH };
 		const plugin = { loadData: async () => raw, saveData: async () => undefined } as unknown as Plugin;
 		const data = new PluginData(plugin, new FakeTokens());
 		await data.init();
-		raw = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 30, setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
+		raw = { settings: { ...DEFAULT_SETTINGS, logFolder: "Theirs", setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
 		await data.reloadChoices();
 		assert.equal(data.settings.setup?.completedAt, "2026-10-14T06:00:00.000Z");
 		assert.deepEqual(data.settings.data.accepted, ["days@1"]);
-		assert.equal(data.settings.stopAfterEmptyDays, 7);
+		assert.equal(data.settings.logFolder, "Mine");
 		assert.equal(data.hasSession, true);
 	});
 
-	it("keeps values a slider can show", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, units: "furlongs", domain: "example.com" } });
-		assert.equal(data.settings.stopAfterEmptyDays, 365);
+	it("keeps only values the controls can show", async () => {
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
 	});
 
-	it("drops the sync speed, and the pause between days before it, from a version 5 file at once", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 5, syncSpeed: "gentle", pauseBetweenDays: 250 } });
-		assert.equal("syncSpeed" in data.settings, false);
-		assert.equal("pauseBetweenDays" in data.settings, false);
+	it("drops the sync speed, the pause between days before it, and the empty-days stop from a version 5 file at once", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 5, syncSpeed: "gentle", pauseBetweenDays: 250, stopAfterEmptyDays: 7 } });
+		for (const key of ["syncSpeed", "pauseBetweenDays", "stopAfterEmptyDays"]) assert.equal(key in data.settings, false, key);
 		assert.equal(data.settings.settingsVersion, SETTINGS_VERSION);
 		// Migrated, so saved straight away: the stale keys leave the file now.
 		const last = saved.at(-1) as { settings: Record<string, unknown> };

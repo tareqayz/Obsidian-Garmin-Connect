@@ -68,7 +68,6 @@ export interface GarminSettings {
 	 * drawn alone and no tile is ever asked for.
 	 */
 	mapTiles: boolean;
-	stopAfterEmptyDays: number;
 
 	logFolder: string;
 	autoSaveLog: boolean;
@@ -92,9 +91,6 @@ export const DEFAULT_SETTINGS: GarminSettings = {
 	// On: a route with no streets or coastline under it is hard to read. The
 	// README and the setting say what the tile server sees.
 	mapTiles: true,
-	// A backfill that reaches past the start of your Garmin history would
-	// otherwise keep asking, four requests a day, until Garmin rate-limits it.
-	stopAfterEmptyDays: 45,
 
 	logFolder: "Garmin/diagnostics",
 	// Off: a log is about your account, and a vault syncs. Save the runs you mean to share.

@@ -360,6 +360,14 @@ export const SETTLE_DAYS = 1;
 export const MAX_RECENT_DAYS = 30;
 
 /**
+ * Empty days in a row after which a foreground run stops: a range reaching
+ * back past the start of the account's history would otherwise ask for every
+ * day before the account existed. Not a setting; a recent sync never reaches
+ * it (`MAX_RECENT_DAYS`).
+ */
+export const EMPTY_DAYS_STOP = 45;
+
+/**
  * The days a recent sync covers: from the day before `mark` through today,
  * never fewer than yesterday and today, never more than `MAX_RECENT_DAYS`.
  *

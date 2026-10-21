@@ -2,7 +2,7 @@ import { App, Modal } from "obsidian";
 import { mount, unmount } from "svelte";
 import { toIsoDate } from "../garmin/endpoints";
 import type GarminPlugin from "../main";
-import { FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
+import { EMPTY_DAYS_STOP, FIRST_SYNC_DAYS, lastNDays } from "../sync/engine";
 import { requestsPerDay } from "../sync/estimate";
 import { HOURLY_BUDGET, secondsPerDay } from "../sync/pace";
 import SyncRangeForm from "./svelte/SyncRangeForm.svelte";
@@ -33,7 +33,7 @@ export class SyncRangeModal extends Modal {
 				perDay,
 				today: toIsoDate(),
 				secondsPerDay: secondsPerDay(perDay),
-				stopAfterEmptyDays: settings.stopAfterEmptyDays,
+				stopAfterEmptyDays: EMPTY_DAYS_STOP,
 				hourly: HOURLY_BUDGET,
 				onRun: (start: string, end: string) => {
 					this.close();

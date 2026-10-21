@@ -126,7 +126,6 @@ export class PluginData {
 			setup: setupOf(source.setup),
 			data: dataOf(source.data),
 			mapTiles: bool(source.mapTiles, d.mapTiles),
-			stopAfterEmptyDays: int(source.stopAfterEmptyDays, d.stopAfterEmptyDays, 0, 365),
 
 			logFolder: nonEmpty(source.logFolder, d.logFolder),
 			autoSaveLog: bool(source.autoSaveLog, d.autoSaveLog),
@@ -204,9 +203,10 @@ export class PluginData {
 				this.settings.data.accepted = [...chartKeys(this.settings.groups), ...(downloadRuns ? [LEGACY_RUNS_KEY] : [])];
 			}
 		}
-		// 6: the sync's pace is the plugin's to choose. Nothing to carry over:
-		// `syncSpeed` (and the `pauseBetweenDays` before it) is simply not read,
-		// and the save that follows a migration leaves it out of the file.
+		// 6: the sync's pace, and where a date range gives up, are the plugin's to
+		// choose. Nothing to carry over: `syncSpeed` (and the `pauseBetweenDays`
+		// before it) and `stopAfterEmptyDays` are simply not read, and the save
+		// that follows a migration leaves them out of the file.
 		this.settings.settingsVersion = SETTINGS_VERSION;
 		return true;
 	}
