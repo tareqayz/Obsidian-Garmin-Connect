@@ -122,7 +122,7 @@ when adding to it.
 | `freshness.ts` | the probe's verdicts: `shouldSkip`, `markFor`, `wantsAccount`, `nextSyncState`, `listKey`, `fingerprintOf` — pure |
 | `auto-sync.ts` | `AutoSync`: when a sync starts on its own; the rules `autoSyncDue` and `nextLocal` are pure |
 | `sync-outcome.ts` | `SyncOutcome`: how a sync ended, in Home's line and the notices — pure |
-| `pace.ts` | `PACE`, `HOURLY_BUDGET`, `HALVING_MS`, `FOREGROUND_RANGE_REQUESTS`, `LATENCY`: how hard the plugin leans on Garmin, which isn't a setting — pure |
+| `pace.ts` | `PACE`, `FOREGROUND_RANGE_REQUESTS`, `LATENCY`: how hard the plugin leans on Garmin, which isn't a setting — pure |
 | `fatal.ts` | `isFatal`: the errors that end a run — pure |
 | `progress.ts`, `segments.ts` | the sync notice's progress bar; history walks a year of windows at a time — pure |
 | `days.ts` | the day files: merging a day, a year file's text, `DayBuffer` — pure |
@@ -136,7 +136,7 @@ when adding to it.
 | `scan.ts`, `estimate.ts` | `scanAccount` and `scan.json`, with what the download `learned`; `estimate` and `estimateDelta`, a choice's bytes, requests and time — pure |
 | `cost.ts` | the cost model: what each unit of the download asks, writes and takes; `MEASURED_SIZES`, `calibrate`, `ROW_BYTES`, `timeFor`, `observe` — pure |
 | `day-facts.ts`, `horizons.ts` | the masks: the routes a day is known empty for, and their verdicts; the timelines' horizon — pure |
-| `backfill.ts`, `debt.ts` | `planBackfill` and its eras, `backfill.json` and its queued ranges, `RequestBudget`; `debtItems` and `pendingItems`, what an update offers — pure |
+| `backfill.ts`, `debt.ts` | `planBackfill` and its eras, `backfill.json` and its queued ranges; `debtItems` and `pendingItems`, what an update offers — pure |
 | `owned-paths.ts` | what **Delete synced data** removes — pure |
 
 ### `src/dashboard/` and `src/ui/`
@@ -337,7 +337,7 @@ flowchart LR
   choice["Settings → History: a range"] --> ledger
   ledger --> plan["planBackfill: list, walks, queued ranges, then eras"]
   queue[("backfill.json: queued date ranges")] --> plan
-  plan --> checks{"Paused, held elsewhere, or over budget?"}
+  plan --> checks{"Paused or held elsewhere?"}
   checks -->|yes| wait["Wait, then look again"]
   checks -->|no| unit["Run one unit, about 10 s"]
   unit --> plan
@@ -448,19 +448,8 @@ plans again, so the chunks use the indexes it just completed.
 1. **A pause still holds** (table below).
 2. **Another device's lease is younger than `LEASE_MS`:** this device looks again in half that.
 3. **Anything is left to do.**
-4. **The unit fits the hourly budget.** `RequestBudget` (`backfill.ts`) keeps the last hour's
-   requests under `HOURLY_BUDGET` (`src/sync/pace.ts`), counting every request the client made:
-   syncs, units, page loads and retries. The unit's size comes from the cost model (`nextUnit`).
-   While it waits, the progress is `waiting`, which the pages show as downloading, with when it
-   continues.
-5. **Then** it renews its lease (at most once a minute: an id in local storage, a label such as
+4. **Then** it renews its lease (at most once a minute: an id in local storage, a label such as
    "Mac", a heartbeat), with the download's `progress`, and runs the unit.
-
-The budget's ledger, `{entries, halvedUntil?}`, lives in local storage (`BUDGET_KEY`,
-`garmin-connect-budget`), so a restart doesn't reset the hour. A 429 that reaches the download halves
-the budget until `halvedUntil`, `HALVING_MS` on (`RequestBudget.halve`), and `waitFor` waits for
-whichever comes first: entries leaving the hour, or the halving ending. The bare list an older build
-saved still reads; an older build reads the new shape as an empty hour.
 
 The runner changes `backfill.json` through `updateBackfill`, from what the file holds now, so a
 heartbeat never drops a pause another device just wrote. Once nothing is left, it clears the file.
@@ -469,7 +458,7 @@ heartbeat never drops a pause another device just wrote. Once nothing is left, i
 | --- | --- | --- |
 | `user` | **Pause** | until **Resume**, on every device sharing the file. A unit running when it is set finishes, and the download stays paused |
 | `sign-in` | the session ended | until a sign-in |
-| `rate-limit` | a 429 outlasted the client's retries | 5 minutes, doubling to an hour (`rateLimitWait`); the hourly budget is halved too |
+| `rate-limit` | a 429 outlasted the client's retries | 5 minutes, doubling to an hour (`rateLimitWait`) |
 | `blocked` | Garmin's edge refused the device | 30 minutes, doubling to 12 hours (`blockedWait`) |
 | `error` | a unit failed for another reason | ten minutes; a unit that fails three times in a row is skipped for the session (`MAX_UNIT_FAILURES`) |
 | this device only | a failed token refresh (`GarminRefreshError`) | 5 minutes doubling to an hour, without touching `backfill.json` |
@@ -543,21 +532,19 @@ history can't sync. A range runs one of two ways:
   small.
 - **In the download.** `queueRange` adds it to `backfill.json`'s `ranges` (`QueuedRange`: `from`,
   `to`, `next`, `at`) and lifts a pause of the user's own, never Garmin's. `planBackfill` takes it
-  after the walks and ahead of every era, every day of it, with the masks, the horizon and the hourly
-  budget. Each chunk moves its `next`, so it resumes where it left off, on any device. A finished
-  range leaves the queue, and `removeRange` (Settings → History) takes one out, keeping what it
-  fetched.
+  after the walks and ahead of every era, every day of it, with the masks and the horizon. Each
+  chunk moves its `next`, so it resumes where it left off, on any device. A finished range leaves
+  the queue, and `removeRange` (Settings → History) takes one out, keeping what it fetched.
 
 `estimateRange` times a queued range until it is done: the plan's units up to its last, the walks
-and the ranges asked before it included, under the hour's budget. The estimate counts queued ranges
+and the ranges asked before it included. The estimate counts queued ranges
 in its total and time, but in no data set, so Day details' "days left" stays its own.
 
 ### The cost model
 
-`cost.ts` costs the plan a unit at a time, as `runUnit` takes it, and times the units with the real
-hourly budget over a copy of its ledger (`timeFor`). The setup, Settings → History, the update
-dialog, a date range's cost, the budget's check before each unit and the download's progress all use
-it, so what they say is what the download does.
+`cost.ts` costs the plan a unit at a time, as `runUnit` takes it, and times the units one after
+another (`timeFor`). The setup, Settings → History, the update dialog, a date range's cost and the
+download's progress all use it, so what they say is what the download does.
 - **Requests.** A day of Day details asks its routes and timelines, less the masks and the horizon
   (`requestsOn`); a chunk adds the activities listed by date and the range routes once (`dayUnit`).
   A walk asks its windows back to `notBefore`, plus the empty ones that end it, `PACE.parallel` at a
@@ -569,7 +556,7 @@ it, so what they say is what the download does.
   index. `calibrate` swaps in the vault's own averages where it holds enough files of a kind
   (`CALIBRATE_MIN`): series files either side of the horizon, and activity pages by profile. They
   come from the file list alone (`VaultSeriesStore.measuredFiles`, `sizesFor`), so nothing is read.
-- **Time.** The pace (`PACE`) and Garmin's measured latency (`LATENCY`), under the hourly budget.
+- **Time.** The pace (`PACE`) and Garmin's measured latency (`LATENCY`), the units back to back.
   While the download runs, `observe` folds each unit's real time and requests in: the first as it
   came, then leaning toward the latest, within a factor of four of the model. Units cut short or
   ended by an error don't count.
@@ -611,8 +598,8 @@ while a disable or an update leaves the folder.
   row.
 - **What it clears.** `forgetThisDevice` (`main.ts`) deletes the map tiles' IndexedDB (`TILE_DB`) and
   the local-storage keys `garmin-connect-device`, `garmin-connect-hide-sign-in`,
-  `garmin-connect-budget`, `garmin-connect-had-session` and `garmin-connect-auto`, and empties the
-  keychain secret.
+  `garmin-connect-had-session` and `garmin-connect-auto`, and empties the keychain secret. It also
+  deletes `garmin-connect-budget`, which 1.2.0-beta.1 kept and every load deletes too.
 - **The prompt.** While the data folder still holds the plugin's files, it opens "Garmin Connect was
   removed" (`removed-data-modal.ts`), which brings its own styles. A folder deleted by hand, or an
   uninstall on another device, gets no prompt.
@@ -669,8 +656,8 @@ doubles sit at the **day-target** seam. What is under test is the real code.
   an old session to the keychain.
 - **Data versions.** `tests/dataset-shapes.test.ts` snapshots what each store keeps beside its
   version (`tests/fixtures/dataset-shapes.json`).
-- **Estimates.** `tests/simulated-download.test.ts` runs the real runner, engine, client, throttle and
-  hourly budget against `FakeGarmin`, an `HttpClient` on a `VirtualClock`
+- **Estimates.** `tests/simulated-download.test.ts` runs the real runner, engine, client and
+  throttle against `FakeGarmin`, an `HttpClient` on a `VirtualClock`
   (`tests/support/fake-garmin.ts`, `virtual-clock.ts`), and checks `estimate()` against the requests
   the download sent and the time it took.
 - **The API catalogue, offline.** `tests/api-catalogue.test.ts` and its neighbours check

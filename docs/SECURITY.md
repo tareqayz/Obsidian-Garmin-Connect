@@ -13,7 +13,7 @@ OpenStreetMap for map tiles, and to `tls.peet.ws` when you run the diagnostics' 
 flowchart LR
   subgraph device["This device only"]
     keychain["Keychain: the Garmin session"]
-    local["Local storage: device id, request budget, last automatic sync"]
+    local["Local storage: device id, last automatic sync"]
     tiles["IndexedDB: cached map tiles"]
   end
   subgraph vault["Your vault, which your sync copies"]
@@ -80,9 +80,9 @@ it is deliberately left out.
 Besides the keychain entry, the plugin keeps a few things in the device's own storage. None of them
 syncs:
 - **Local storage:** `garmin-connect-device` (a random id for the history download's lease),
-  `garmin-connect-budget` (the last hour's requests, and until when a 429 halved the budget),
   `garmin-connect-auto` (when this device last synced on its own, and how long to wait after a
   failure), `garmin-connect-had-session` and `garmin-connect-hide-sign-in` (which Home card to show).
+  The plugin deletes `garmin-connect-budget`, which 1.2.0-beta.1 kept, when it loads.
 - **IndexedDB `garmin-connect-map-tiles`:** the map tiles this device drew. They are kept for at least
   a week, or as long as the server allows, so a map opened again asks for nothing. At most 2,500
   tiles are kept; the least recently drawn go first.

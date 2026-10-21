@@ -83,8 +83,8 @@ this device's keychain, so another device signing in or out never touches it.
 ### Rate limited (429)
 
 Wait 15–30 minutes. Then:
-- **Let the history download do the long stretches.** It keeps to an hourly budget, halved for a day
-  after a 429, and **Sync a date range…** sends a long range there itself.
+- **Let the history download do the long stretches.** It pauses after a 429 and carries on by
+  itself, and **Sync a date range…** sends a long range there itself.
 - **Turn off metric groups you don't need.** That removes requests, except among `activity`,
   `heart`, `stress`, `respiration` and `spo2`, which share one daily request.
 - **Nothing recent was lost.** A sync goes newest day first, so a run cut short already covered the
@@ -103,9 +103,8 @@ bar. What it says, and what to do:
 
 | On Home | Why | What to do |
 | --- | --- | --- |
-| Downloading history · 42% · continues 14:05 | Not a pause: it has used the hour's budget, 8,000 requests, or 4,000 for a day after a 429, and goes on when the hour frees up | Nothing. |
 | Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → History** or the **Sign in** command. It carries on by itself. |
-| Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming, and keeps to half its hourly budget for the next 24 hours. |
+| Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. |
 | Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device | Nothing. It waits half an hour, doubling up to twelve hours, because asking again soon keeps a block in place. Run diagnostics if it keeps happening. |
 | Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device. |
 | Download paused · resumes 14:05 | A piece of it failed (it tries again in ten minutes), or refreshing the session failed (5 minutes, doubling to an hour). A piece that fails three times is left for the next session. | Nothing. |

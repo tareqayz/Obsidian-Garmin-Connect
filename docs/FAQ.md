@@ -29,8 +29,7 @@ It is not official, and not affiliated with Garmin. It signs in the way Garmin's
 then makes ordinary reads, at a deliberately gentle pace.
 - With every metric group on, a day costs nine requests, plus six for its timelines.
 - A sync costs about 30 more. An automatic one that finds nothing new costs two.
-- Your history downloads once, in the background, under 8,000 requests an hour, halved for a day
-  after Garmin asks it to slow down.
+- Your history downloads once, in the background, and pauses whenever Garmin asks it to slow down.
 
 Garmin does limit login attempts per IP and can lock an account after repeated failures, so sign in
 deliberately and never retry in a loop. The breakdown is in

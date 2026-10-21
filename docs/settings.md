@@ -64,8 +64,7 @@ widen a download already agreed to.
 what is missing. Narrowing a range deletes nothing.
 
 While the download has work to do, a card under **On disk** shows:
-- what it is fetching, how far back it has got and the time left, or, while it keeps to its hourly
-  budget, when it continues;
+- what it is fetching, how far back it has got and the time left;
 - **Pause**, then **Resume** once paused, or **Sign in** when the session ended.
 
 Under it, **New data for your history** lists what an update offers that you haven't agreed to, each
@@ -173,8 +172,7 @@ stays off, and an empty selection stays empty.
 | Region | `domain` | `garmin.com` | `garmin.cn` for mainland China accounts. It changes every Garmin host the plugin talks to, so changing it signs you out and rebuilds the client. The sign-in form has the same choice. |
 
 There is no setting for how fast the plugin asks Garmin. Every request runs at one pace the plugin
-sets, and the history download keeps to an hourly budget (see
-[The history download](GUIDE.md#the-history-download) and
+sets, the history download included (see [The history download](GUIDE.md#the-history-download) and
 [Request pace](garmin-api.md#request-pace)). Nor is there one for where **Sync a date range…** gives
 up: after 45 days in a row with nothing in them.
 

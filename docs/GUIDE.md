@@ -93,8 +93,8 @@ long.
   them and says so ("nothing older on Garmin").
 - **A long one, about two months or more, downloads in the background.** The button reads **Start
   download**, and the range joins the history download, ahead of Day details and Activity details. It
-  keeps to the hourly budget, skips what it knows is empty, and picks up where it left off after a
-  restart. Starting one lifts your own **Pause**. Before the setup, every range syncs now.
+  skips what it knows is empty and picks up where it left off after a restart. Starting one lifts
+  your own **Pause**. Before the setup, every range syncs now.
 - **Settings → History lists the ranges waiting.** ✕ takes one out; what it fetched stays.
 - **It starts where your Garmin history starts.** An earlier start date moves to that day, and the
   card says so. A range that ends before it can't sync.
@@ -144,12 +144,10 @@ date range. A page's **Sync
 history** button and **Refresh the activity list** fetch when you ask.
 
 - **A sync, or a page loading what it needs, always goes first.**
-- **It keeps to 8,000 requests an hour on each device,** syncs and page loads included. The hour is
-  kept across restarts. While it waits for the hour to free up, it still reads as downloading, with
-  the time it continues.
+- **It runs until it's done,** at the plugin's pace, with no hourly limit. It slows down only when
+  Garmin asks.
 - **When Garmin pushes back:**
-  - a 429 pauses it for 5 minutes, doubling each time up to an hour, and halves the hourly budget to
-    4,000 for the next 24 hours;
+  - a 429 pauses it for 5 minutes, doubling each time up to an hour;
   - Garmin's bot check refusing the device pauses it for half an hour, doubling up to twelve hours;
   - a session that ended pauses it until you sign in again.
 - **It skips what your charts show is empty.** Once the chart histories are complete, a day's
@@ -169,10 +167,9 @@ history** button and **Refresh the activity list** fetch when you ask.
   other leaves it alone until the first has been quiet for ten minutes.
 
 It shows on **Home** under the title, for example "Downloading history · 42% · Mar 2025" with a pause
-button, then "History up to date". While it waits for the hour it reads "Downloading history · 42% ·
-continues 2:05 PM". It also shows in **Settings → History**, with the time left as the download is
-really going, and on a computer in the status bar ("Garmin · history 42%"), which opens the settings.
-**Pause** holds it on every device until **Resume**. What each state means is in
+button, then "History up to date". It also shows in **Settings → History**, with the time left as
+the download is really going, and on a computer in the status bar ("Garmin · history 42%"), which
+opens the settings. **Pause** holds it on every device until **Resume**. What each state means is in
 [Troubleshooting](troubleshooting.md#the-history-download-is-paused).
 
 Until a page's history is complete, the page shows a banner such as "Sleep history isn't synced",

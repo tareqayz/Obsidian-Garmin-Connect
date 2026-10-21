@@ -307,7 +307,7 @@ An activity's page loads when it opens, never in a sync (see
 
 With an **Activity details** range, the history download loads every activity in it the same way,
 in batches of about `UNIT_SECONDS` of work, `PACE.parallel` side by side (`detailBatch`,
-`downloadDetails`), paced by the throttle and the hourly budget.
+`downloadDetails`), paced by the throttle.
 
 | Method | Path | Gives the page |
 | --- | --- | --- |
@@ -449,11 +449,10 @@ order `planBackfill` takes them:
 - after each era's days, its Activity details: a batch of as many activities as fit in about
   `UNIT_SECONDS` (`detailBatch`), `PACE.parallel` side by side, up to eleven requests each.
 
-It stays under `HOURLY_BUDGET` requests an hour (`src/sync/pace.ts`), counting everything the device
-asked in the hour. When Garmin pushes back:
+It runs at `PACE` until it is done, with no hourly cap. When Garmin pushes back:
 - an HTML 403 from Garmin's edge pauses it for half an hour, doubling up to twelve hours;
 - a 429 that outlasts the client's own pauses stops it for 5 minutes, then 10, 20 and so on, up to
-  an hour, and halves the hourly budget for `HALVING_MS`;
+  an hour (`rateLimitWait`);
 - a dead session stops it until a sign-in.
 
 **What the download leaves out.** It skips a route on a day the complete chart indexes show empty,
@@ -512,14 +511,14 @@ three times the first stage's, or 5% server errors.
 On 2026-10-12, from a home connection, every stage ran clean: no 429 and no slowdown. 47 requests a second for a minute is a floor on the limit, not the limit. A
 minute-long test can't see a quota over hours, or an account flagged for the pattern, which is why
 the plugin stays well under it. Every install looks alike to Garmin, so a quota or a rule against the
-pattern would meet every user at once. Neither of these is a setting:
-- **`PACE`** (`src/sync/pace.ts`) paces every request the client makes, syncs, the history download
-  and on-view loads alike, at about 40% of the fastest pace measured. `PACE.parallel` is how many
-  days a sync fetches at once and how many walks run side by side. The client is built with
-  `PACE.limits`; `tests/client.test.ts` checks that its own `DEFAULT_LIMITS` match, since `garmin/`
-  can't import `sync/`.
-- **`HOURLY_BUDGET`** caps what the history download asks in an hour, the device's syncs and page
-  loads counted in; a 429 halves it for `HALVING_MS`.
+pattern would meet every user at once.
+
+**`PACE`** (`src/sync/pace.ts`), which isn't a setting, paces every request the client makes: syncs,
+the history download and on-view loads alike, at about 40% of the fastest pace measured.
+`PACE.parallel` is how many days a sync fetches at once and how many walks run side by side. The
+client is built with `PACE.limits`; `tests/client.test.ts` checks that its own `DEFAULT_LIMITS`
+match, since `garmin/` can't import `sync/`. Nothing caps requests an hour: what slows the plugin
+down is Garmin's 429, through the throttle, the client's retries and the download's pause.
 
 <details>
 <summary>The ramp's stages, and the paces measured against it</summary>
