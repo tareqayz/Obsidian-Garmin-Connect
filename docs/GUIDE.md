@@ -35,7 +35,7 @@ from the command palette or use the **Garmin account** row in Settings.
 | Command | What it does |
 | --- | --- |
 | **Sync recent days** | Everything since the watch's last upload as of the last recent sync, from the day before it through today. Home's ↻ button runs the same thing, and **Sync automatically** runs it on its own. |
-| **Sync a date range…** | Any stretch of days, back as far as 2010, with each day's timelines. Says how many days and about how long before you start. See [Date ranges](#date-ranges). |
+| **Sync a date range…** | Any stretch of days, with each day's timelines. Says before you start whether it syncs now or downloads in the background, with its size and time. See [Date ranges](#date-ranges). |
 | **Refresh the activity list** | Lists every activity again. A sync lists only the newest few, so this is how an older activity you edited, deleted or made a favourite catches up. |
 
 ### Sync automatically
@@ -87,11 +87,17 @@ morning rewrites yesterday. So a recent sync always covers at least yesterday an
 ### Date ranges
 
 **Sync a date range…** fetches any stretch of days with every day's timelines, whatever your Day
-details range.
-- **It syncs at once,** newest day first. It gives up after 45 days in a row with nothing in them and
-  says so ("nothing older on Garmin"): your Garmin history starts there.
-- **For months of days,** choose a longer Day details range instead: the history download keeps to
-  the hourly budget, skips what it knows is empty, and picks up where it left off after a restart.
+details range. Under the dates, a card says what the button will do, with the size and about how
+long.
+- **A short range syncs now,** newest day first. It gives up after 45 days in a row with nothing in
+  them and says so ("nothing older on Garmin").
+- **A long one, about two months or more, downloads in the background.** The button reads **Start
+  download**, and the range joins the history download, ahead of Day details and Activity details. It
+  keeps to the hourly budget, skips what it knows is empty, and picks up where it left off after a
+  restart. Starting one lifts your own **Pause**. Before the setup, every range syncs now.
+- **Settings → History lists the ranges waiting.** ✕ takes one out; what it fetched stays.
+- **It starts where your Garmin history starts.** An earlier start date moves to that day, and the
+  card says so. A range that ends before it can't sync.
 
 ### Good to know
 
@@ -128,11 +134,13 @@ What you agreed to downloads in the background, about ten seconds of work at a t
 order:
 1. the activity list;
 2. the chart histories, a year at a time;
-3. Day details and Activity details, recent history first: the last 90 days' days and then their
+3. the date ranges you sent it from **Sync a date range…**, oldest asked first;
+4. Day details and Activity details, recent history first: the last 90 days' days and then their
    activities, then the same back to a year, then the rest.
 
 Apart from what the setup reads for its estimate, nothing downloads your history in the background
-unless you agreed to it: in the setup, the update dialog or **Settings → History**. A page's **Sync
+unless you agreed to it, in the setup, the update dialog or **Settings → History**, or sent it a
+date range. A page's **Sync
 history** button and **Refresh the activity list** fetch when you ask.
 
 - **A sync, or a page loading what it needs, always goes first.**

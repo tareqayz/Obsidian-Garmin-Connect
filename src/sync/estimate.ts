@@ -1,10 +1,10 @@
 import { planBackfill, type BudgetOutlook, type PlanInput, type Task } from "./backfill";
-import { costContext, freshHour, ROW_BYTES, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
+import { costContext, freshHour, ROW_BYTES, spanDays, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
 import { rangeStart, type ConsentKey, type DataSetId } from "./datasets";
 import type { Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
-import type { Latency } from "./pace";
+import { FOREGROUND_RANGE_REQUESTS, type Latency } from "./pace";
 import { daysSince, historyStart } from "./scan";
 
 /**
@@ -94,6 +94,50 @@ export function estimateDelta(input: EstimateInput, keys: readonly ConsentKey[])
 		requests: sum(units, (u) => u.requests),
 		bytes: Math.round(sum(units, (u) => u.bytes)),
 		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+	};
+}
+
+/** What a date range takes, and how it runs (`SyncRangeModal`). */
+export interface RangeEstimate {
+	days: number;
+	requests: number;
+	bytes: number;
+	/** At once, about how long it takes; in the download, until it is done, after what the download takes first and held to the hour's budget. */
+	seconds: number;
+	/** Too long to sync at once: it goes to the history download (`SyncRunner.queueRange`). */
+	background: boolean;
+}
+
+/** The range being priced, as the plan keys it: no queued range is keyed so. */
+const PRICED = "priced";
+
+/**
+ * A date range, priced the way it would run. Synced at once, it asks every
+ * route of every day and every timeline, as a sync by hand does. Past
+ * `FOREGROUND_RANGE_REQUESTS`, once the setup is done (`download`), it goes
+ * to the history download instead, which leaves out what the masks and the
+ * horizon know is empty and takes it after the walks and the ranges queued
+ * before it. Either way its size is what Garmin's answers hold.
+ */
+export function estimateRange(input: EstimateInput, from: string, to: string, opts: { download: boolean }): RangeEstimate {
+	const ctx = contextOf(input);
+	const days = spanDays(from, to);
+	const task: Task = { kind: "days", from, to };
+	const asked = unitsOf([task], { ...ctx, masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } });
+	const requests = sum(asked, (u) => u.requests);
+	if (!opts.download || requests <= FOREGROUND_RANGE_REQUESTS) {
+		return { days, requests, bytes: Math.round(sum(unitsOf([task], ctx), (u) => u.bytes)), seconds: sum(asked, (u) => u.seconds), background: false };
+	}
+	// The plan up to this range, the last one asked for: what comes after doesn't hold it up.
+	const plan = planBackfill({ ...input, ranges: [...(input.ranges ?? []), { from, to, next: to, at: PRICED }] });
+	const units = unitsOf(plan.slice(0, plan.findIndex((t) => t.kind === "days" && t.range === PRICED) + 1), ctx);
+	const mine = units.filter((u) => u.kind === "days" && u.range === PRICED);
+	return {
+		days,
+		requests: sum(mine, (u) => u.requests),
+		bytes: Math.round(sum(mine, (u) => u.bytes)),
+		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+		background: true,
 	};
 }
 

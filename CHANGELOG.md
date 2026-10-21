@@ -14,6 +14,10 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
   when you open Home, once the last sync is 15 minutes old. When nothing changed on Garmin, it stops
   after a two-request check and writes nothing. It replaces **Sync on startup** and is on for
   everyone, existing vaults included; turn it off in Settings.
+- **Long date ranges download in the background.** Before you start, **Sync a date range…** says
+  what it will do, with the size and time: a short range syncs now, a long one joins the history
+  download, which keeps to the hourly budget and picks up where it left off. **Settings → History**
+  lists the ranges waiting and takes one out. A range starts where your Garmin history starts.
 
 ### Changed
 

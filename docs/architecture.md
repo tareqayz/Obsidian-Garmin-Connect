@@ -245,8 +245,8 @@ sequenceDiagram
   `syncingSince`, so not while a sync only probes.
 
 **Sync a date range…** runs through `SyncRunner.run` the same way, without the probe or the mark,
-and fetches the timelines of every day it covers (`allTimelines`). The runner can also send a long range
-to the history download instead (`rangeCost`, `queueRange`): see [Queued date ranges](#queued-date-ranges).
+and fetches the timelines of every day it covers (`allTimelines`). A long range goes to the history
+download instead (`estimateRange`, `queueRange`): see [Queued date ranges](#queued-date-ranges).
 
 ### When a sync starts on its own
 
@@ -533,17 +533,24 @@ whole. Only the download uses it. The cost model reckons with the learned horizo
 
 ### Queued date ranges
 
-`SyncRunner.rangeCost(from, to)` prices a range with every route asked, and says how it should run:
-at once (`SyncRunner.run`) up to `FOREGROUND_RANGE_REQUESTS`, or at any size before the setup;
-otherwise in the download:
-- `queueRange` adds it to `backfill.json`'s `ranges` (`QueuedRange`: `from`, `to`, `next`, `at`);
-- `planBackfill` takes it after the walks and ahead of every era, every day of it, with the masks,
-  the horizon and the hourly budget;
-- each chunk moves its `next`, so it resumes where it left off, on any device;
-- a finished range leaves the queue, and `removeRange` takes one out, keeping what it fetched.
+**Sync a date range…** (`SyncRangeModal`, `SyncRangeForm.svelte`) reads the vault once when it
+opens (`historyInput`) and prices each pair of dates from that (`estimateRange` in `estimate.ts`).
+`date-range.ts` holds its rules: a start before the history's first day moves to it (`historyFloor`,
+only with a complete scan), an end past today moves to today, and a range that ends before the
+history can't sync. A range runs one of two ways:
+- **At once** (`SyncRunner.run`), up to `FOREGROUND_RANGE_REQUESTS` with every route and timeline
+  asked, or at any size before the setup. Its size counts what Garmin keeps: old days' timelines are
+  small.
+- **In the download.** `queueRange` adds it to `backfill.json`'s `ranges` (`QueuedRange`: `from`,
+  `to`, `next`, `at`) and lifts a pause of the user's own, never Garmin's. `planBackfill` takes it
+  after the walks and ahead of every era, every day of it, with the masks, the horizon and the hourly
+  budget. Each chunk moves its `next`, so it resumes where it left off, on any device. A finished
+  range leaves the queue, and `removeRange` (Settings → History) takes one out, keeping what it
+  fetched.
 
-`rangeCost` then gives the time until it is done under the hour's budget. The estimate counts queued
-ranges in its total and time, but in no data set, so Day details' "days left" stays its own.
+`estimateRange` times a queued range until it is done: the plan's units up to its last, the walks
+and the ranges asked before it included, under the hour's budget. The estimate counts queued ranges
+in its total and time, but in no data set, so Day details' "days left" stays its own.
 
 ### The cost model
 

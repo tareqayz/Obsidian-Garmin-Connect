@@ -3,10 +3,12 @@
 	import type GarminPlugin from "../../../main";
 	import { sizeText } from "../../sync-copy";
 	import type { SettingsDataRows } from "../../settings-data-rows";
+	import { lucide } from "../home/lucide";
 
 	/**
-	 * Settings → History: the download in progress and the new data offered for
-	 * the history. The row it sits in hides itself when both are empty.
+	 * Settings → History: the download in progress, the new data offered for
+	 * the history, and the date ranges queued for the download. The row it sits
+	 * in hides itself when all three are empty.
 	 */
 	let { plugin, rows }: { plugin: GarminPlugin; rows: SettingsDataRows } = $props();
 
@@ -16,6 +18,8 @@
 	// svelte-ignore state_referenced_locally
 	let updates = $state(rows.updates);
 	// svelte-ignore state_referenced_locally
+	let ranges = $state(rows.ranges);
+	// svelte-ignore state_referenced_locally
 	let line = $state(rows.progress ? rows.progressLine(rows.progress) : "");
 	// svelte-ignore state_referenced_locally
 	let percent = $state(rows.percent);
@@ -24,6 +28,7 @@
 		rows.attach(() => {
 			progress = rows.progress;
 			updates = rows.updates;
+			ranges = rows.ranges;
 			line = rows.progress ? rows.progressLine(rows.progress) : "";
 			percent = rows.percent;
 		}),
@@ -61,6 +66,22 @@
 			<div class="row end">
 				<button class="mod-cta" onclick={() => void plugin.agreeTo(updates.map((u) => u.key), []).then(() => rows.refresh())}>Download</button>
 			</div>
+		</div>
+	{/if}
+
+	{#if ranges.length}
+		<div class="ranges">
+			<strong>Date ranges</strong>
+			<ul>
+				{#each ranges as range (range.at)}
+					<li>
+						<span>{rows.rangeDates(range)} <span class="muted">· {rows.rangeState(range)}</span></span>
+						<button class="clickable-icon" aria-label="Remove" onclick={() => void plugin.sync.removeRange(range.at).then(() => rows.refresh())}>
+							<span use:lucide={"x"}></span>
+						</button>
+					</li>
+				{/each}
+			</ul>
 		</div>
 	{/if}
 </div>
@@ -118,6 +139,29 @@
 		font-size: var(--font-ui-small);
 	}
 	.updates .muted {
+		color: var(--text-muted);
+	}
+	.ranges {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 12px 16px;
+		border-radius: var(--radius-m);
+		background: var(--background-secondary);
+	}
+	.ranges ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		font-size: var(--font-ui-small);
+	}
+	.ranges li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.ranges .muted {
 		color: var(--text-muted);
 	}
 	.row.end {

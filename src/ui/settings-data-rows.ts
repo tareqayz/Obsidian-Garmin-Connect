@@ -1,4 +1,5 @@
 import type GarminPlugin from "../main";
+import type { QueuedRange } from "../sync/backfill";
 import { rangeStart } from "../sync/datasets";
 import { estimate, formatBytes, formatDuration, type Estimate } from "../sync/estimate";
 import type { BackfillProgress } from "../sync/runner";
@@ -14,14 +15,17 @@ const count = new Intl.NumberFormat();
 
 /**
  * Settings → History's live half: what the vault holds, what is missing for
- * the ranges chosen, and the download in progress. Each row that shows some of
- * it attaches a repaint; the first attach starts listening to the sync and the
- * last detach stops, so a closed settings tab costs nothing.
+ * the ranges chosen, the download in progress and the date ranges queued for
+ * it. Each row that shows some of it attaches a repaint; the first attach
+ * starts listening to the sync and the last detach stops, so a closed
+ * settings tab costs nothing.
  */
 export class SettingsDataRows {
 	usage: DiskUsage;
 	progress: BackfillProgress | null;
 	updates: UpdateLine[] = [];
+	/** Date ranges waiting for the download (`SyncRunner.queueRange`), oldest asked first. */
+	ranges: QueuedRange[] = [];
 	private est: Estimate | null = null;
 	private start: string | undefined;
 	private readonly painters = new Set<() => void>();
@@ -74,6 +78,7 @@ export class SettingsDataRows {
 		this.usage = new VaultSeriesStore(plugin.app, s.dataFolder).diskUsage();
 		const input = await plugin.historyInput();
 		this.updates = input && s.setup ? updateLinesOf(input, "all") : [];
+		this.ranges = input?.ranges ? [...input.ranges] : [];
 		if (!input?.scan) {
 			this.est = null;
 			this.paint();
@@ -117,6 +122,16 @@ export class SettingsDataRows {
 		if (this.plugin.data.settings.data.activityDetails === "opened") return "Downloaded when you open one.";
 		const details = this.est?.sets.find((x) => x.id === "activity-details");
 		return details?.units ? `${count.format(details.units)} left to download.` : "All here.";
+	}
+
+	/** "Oct 21, 2024 – Oct 21, 2026". */
+	rangeDates(range: QueuedRange): string {
+		return `${day(range.from)} – ${day(range.to)}`;
+	}
+
+	/** How far the download has got with a range: it walks back from the end. */
+	rangeState(range: QueuedRange): string {
+		return range.next >= range.to ? "waiting" : `back to ${monthFormat.format(new Date(`${range.next}T12:00:00`))}`;
 	}
 
 	get percent(): number {

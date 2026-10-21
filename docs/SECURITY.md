@@ -66,7 +66,7 @@ privacy:
 | History indexes | `activities/`, `daily-stats/`, `sleep/` and one folder per stat | your activities, and a row a day of each metric's history |
 | Activity details | `activity-details/<id>.json` | **your GPS route: where you ran, rode or swam.** Also the samples, laps, zones, weather, gear, badges, the watch and its firmware, the sensors by name (never a serial number), and your weight on that day, for W/kg |
 | Account file | `account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP per sport (with the weight and date behind its W/kg), running economy, cycling ability, training plans, upcoming events and personal records |
-| Bookkeeping | `scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, your activity count, the watch's last upload, which device runs the history download (a random id and a name such as "Mac"), and which days and activities the vault holds. `sync-state.json` keeps your newest activities and the settings only as short hashes, which can't be turned back into them |
+| Bookkeeping | `scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, your activity count, the watch's last upload, which device runs the history download (a random id and a name such as "Mac"), the date ranges queued for it, and which days and activities the vault holds. `sync-state.json` keeps your newest activities and the settings only as short hashes, which can't be turned back into them |
 
 `account.json` never holds the sign-in email or a token. Garmin's `userName` is the sign-in email, so
 it is deliberately left out.

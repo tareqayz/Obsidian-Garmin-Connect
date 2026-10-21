@@ -81,8 +81,9 @@ Yes, and it's what the setup recommends: **Download all history** fetches every 
 activity in the background, and says how long that takes. Later, choose **All history** and **All
 activities** in **Settings → History**. Charts & trends always cover your whole history.
 
-**Sync a date range…** also fetches any stretch by hand, back as far as 2010, and says how long it
-takes before you start. See [Date ranges](GUIDE.md#date-ranges).
+**Sync a date range…** also fetches any stretch by hand. Before you start it says what it will do,
+with the size and time: a short range syncs now, a long one downloads in the background. See
+[Date ranges](GUIDE.md#date-ranges).
 
 ## What is the "history isn't synced" banner?
 

@@ -25,7 +25,7 @@ import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
 import { loadActivity, type ActivityDetailStore, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
-import { FOREGROUND_RANGE_REQUESTS, HOURLY_BUDGET, PACE } from "./pace";
+import { HOURLY_BUDGET, PACE } from "./pace";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
@@ -87,17 +87,6 @@ export interface BackfillProgress {
 	seconds?: number;
 	/** For Day details, the oldest day still to fetch. */
 	reached?: string;
-}
-
-/** What a date range takes (`SyncRunner.rangeCost`). */
-export interface RangeCost {
-	days: number;
-	requests: number;
-	bytes: number;
-	/** At once: about how long it takes; in the download: until it is done, held to the hour's budget. */
-	seconds: number;
-	/** It goes to the history download rather than syncing at once. */
-	background: boolean;
 }
 
 /** A recent sync in progress: what started it, which a press can change, and whether its probe stopped it. */
@@ -1674,46 +1663,20 @@ export class SyncRunner {
 		return { finished, failed, ...(fatal !== undefined ? { fatal } : {}) };
 	}
 
-	/** One segment of a chart index's walk, by its store name. */
 	/**
-	 * What syncing `from`..`to` takes, and how: at once when it's short, or in
-	 * the history download when it asks more than `FOREGROUND_RANGE_REQUESTS`
-	 * (after the setup; before it, every range syncs at once). A range synced
-	 * at once asks every route of every day; in the download, the masks and
-	 * the horizon leave out what they know is empty, and the hour's budget
-	 * sets the time.
+	 * Puts a long date range in the history download's queue (`backfill.json`)
+	 * and starts it (`estimateRange` says which ranges go there). Asking for one
+	 * lifts your own pause; a pause Garmin asked for stays.
 	 */
-	async rangeCost(from: string, to: string): Promise<RangeCost> {
-		const settings = this.settings();
-		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		const today = toIsoDate();
-		const [scan, charts, index, detailFiles] = await Promise.all([store.readScan(), store.readChartMetas(), store.readActivities(), store.readDetailCoverage()]);
-		const activities = index.rows.map((row) => this.candidateOf(row));
-		const input = { today, groups: settings.groups, scan, charts, activities, detailFiles };
-		const task: Task = { kind: "days", from, to };
-		const now = Date.now();
-		const at = unitsOf([task], costContext({ ...input, masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } }));
-		const requests = at.reduce((n, u) => n + u.requests, 0);
-		const days = spanDays(from, to);
-		if (!settings.setup || requests <= FOREGROUND_RANGE_REQUESTS) {
-			return { days, requests, bytes: Math.round(at.reduce((n, u) => n + u.bytes, 0)), seconds: at.reduce((n, u) => n + u.seconds, 0), background: false };
-		}
-		const masks = await store.readMasks(settings.groups, charts, scan);
-		const later = unitsOf([task], costContext({ ...input, masks }, { sizes: store.sizesFor(masks, activities, today) }));
-		return {
-			days,
-			requests: later.reduce((n, u) => n + u.requests, 0),
-			bytes: Math.round(later.reduce((n, u) => n + u.bytes, 0)),
-			seconds: timeFor(later, this.budget.outlook(now), now),
-			background: true,
-		};
-	}
-
-	/** Puts a long date range in the history download's queue (`backfill.json`), and starts it. */
 	async queueRange(from: string, to: string): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
 		const range: QueuedRange = { from, to, next: to, at: new Date().toISOString() };
-		await store.updateBackfill((fresh) => ({ ...fresh, ranges: [...(fresh.ranges ?? []), range] }));
+		await store.updateBackfill(({ paused, ...fresh }) => ({
+			...fresh,
+			...(paused && paused.reason !== "user" ? { paused } : {}),
+			ranges: [...(fresh.ranges ?? []), range],
+		}));
+		this.userPaused = false;
 		this.kickBackfill();
 	}
 
@@ -1772,6 +1735,7 @@ export class SyncRunner {
 		}
 	}
 
+	/** One segment of a chart index's walk, by its store name. */
 	private walkSegment(name: string, store: VaultSeriesStore, walk: SegmentOptions): Promise<Segment> {
 		if (name === "daily-stats") return this.dailyStatsSegment(store, walk);
 		if (name === "sleep") return this.sleepSegment(store, walk);

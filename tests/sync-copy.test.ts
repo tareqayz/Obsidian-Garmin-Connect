@@ -17,6 +17,8 @@ describe("sync copy", () => {
 			"src/ui/svelte/DataUpdate.svelte",
 			"src/ui/svelte/settings/DataStatus.svelte",
 			"src/ui/svelte/SyncRangeForm.svelte",
+			"src/ui/date-range.ts",
+			"src/ui/sync-range-modal.ts",
 			"src/ui/svelte/setup/Setup.svelte",
 			"src/ui/svelte/home/BackfillPill.svelte",
 			"src/ui/svelte/health/StatPageShell.svelte",

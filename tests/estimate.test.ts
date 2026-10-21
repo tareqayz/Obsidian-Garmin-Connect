@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { ACTIVITY_DETAILS_KEY, chartKeys, DAY_DETAILS_KEY } from "../src/sync/datasets";
 import { shiftDate } from "../src/sync/day-index";
-import { estimate, estimateDelta, formatBytes, formatDuration, type EstimateInput } from "../src/sync/estimate";
+import { estimate, estimateDelta, estimateRange, formatBytes, formatDuration, type EstimateInput } from "../src/sync/estimate";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { MEASURED, TEN_YEARS } from "./support/account-fixture";
 
@@ -104,5 +104,37 @@ describe("estimates — how they read", () => {
 	it("writes sizes and times as the setup shows them", () => {
 		assert.deepEqual([0, 600, 3_933_000, 15_950_500, 2_500_000_000].map(formatBytes), ["0 KB", "< 1 KB", "3.9 MB", "16 MB", "2.5 GB"]);
 		assert.deepEqual([20, 70, 1_000, 3_700, 9_000, 50_000].map(formatDuration), ["under a minute", "about 1 minute", "about 17 minutes", "about 1 hour", "about 2.5 hours", "about 14 hours"]);
+	});
+});
+
+describe("estimates — a date range", () => {
+	const set = input(MEASURED);
+
+	it("syncs a short range at once, every route and timeline asked", () => {
+		const got = estimateRange(set, "2026-10-10", MEASURED.today, { download: true });
+		// Twelve days of 15 requests in one chunk, its activity page and its five range calls.
+		assert.deepEqual([got.background, got.days, got.requests], [false, 12, 12 * 15 + 1 + 5]);
+		assert.equal(got.bytes, 12 * (4_780 + 52_100));
+		assert.equal(formatDuration(got.seconds), "under a minute");
+	});
+
+	it("sends a long range to the download, which leaves out the timelines Garmin no longer keeps", () => {
+		const atOnce = estimateRange(set, "2025-10-21", "2026-10-20", { download: false });
+		const later = estimateRange(set, "2025-10-21", "2026-10-20", { download: true });
+		assert.deepEqual([atOnce.background, later.background], [false, true]);
+		// 225 of its days are past the horizon: four timelines fewer each. Either way, the same days come back.
+		assert.equal(atOnce.requests - later.requests, 225 * 4);
+		assert.equal(later.bytes, atOnce.bytes);
+	});
+
+	it("runs until the range is done: after the walks and the ranges queued before it, held to the hour", () => {
+		const alone = estimateRange(input(MEASURED, { accepted: [] }), "2025-10-21", "2026-10-20", { download: true });
+		const afterWalks = estimateRange(set, "2025-10-21", "2026-10-20", { download: true });
+		const queued = [{ from: "2025-01-01", to: "2025-06-30", next: "2025-06-30", at: "2026-10-21T07:00:00.000Z" }];
+		const behind = estimateRange(input(MEASURED, { accepted: [], ranges: queued }), "2025-10-21", "2026-10-20", { download: true });
+		assert.ok(afterWalks.seconds > alone.seconds && behind.seconds > alone.seconds, `${alone.seconds} ${afterWalks.seconds} ${behind.seconds}`);
+		assert.deepEqual([behind.requests, behind.bytes], [alone.requests, alone.bytes]);
+		// Ten years' worth is more than an hour's budget.
+		assert.ok(estimateRange(input(TEN_YEARS), shiftDate(TEN_YEARS.today, -3_000), shiftDate(TEN_YEARS.today, -1), { download: true }).seconds > 3_600);
 	});
 });

@@ -170,16 +170,17 @@ export class GarminSettingTab extends PluginSettingTab {
 						render: (setting) => rows.attach(() => void setting.setDesc(rows.usageText())),
 					},
 					{
-						// The download in progress and the new data on offer: no name,
-						// nothing to search for, hidden while there is neither. Not the
-						// card's first row, whose divider would show above the next one.
+						// The download in progress, the new data on offer and the date
+						// ranges queued: no name, nothing to search for, hidden while there
+						// is none. Not the card's first row, whose divider would show above
+						// the next one.
 						name: "",
 						searchable: false,
 						render: (setting) => {
 							setting.infoEl.hide();
 							setting.controlEl.hide();
 							const panel = mount(DataStatus, { target: setting.settingEl, props: { plugin, rows } });
-							const detach = rows.attach(() => setting.settingEl.toggle(rows.progress !== null || rows.updates.length > 0));
+							const detach = rows.attach(() => setting.settingEl.toggle(rows.progress !== null || rows.updates.length > 0 || rows.ranges.length > 0));
 							return () => {
 								detach();
 								void unmount(panel);

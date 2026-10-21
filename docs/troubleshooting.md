@@ -84,8 +84,7 @@ this device's keychain, so another device signing in or out never touches it.
 
 Wait 15–30 minutes. Then:
 - **Let the history download do the long stretches.** It keeps to an hourly budget, halved for a day
-  after a 429. For months of days, choose a longer Day details range rather than a long **Sync a
-  date range…**.
+  after a 429, and **Sync a date range…** sends a long range there itself.
 - **Turn off metric groups you don't need.** That removes requests, except among `activity`,
   `heart`, `stress`, `respiration` and `spo2`, which share one daily request.
 - **Nothing recent was lost.** A sync goes newest day first, so a run cut short already covered the
@@ -132,8 +131,8 @@ shows each kind of failure once a session, and nothing while the device is offli
 ### A date range stopped early: "nothing older on Garmin"
 
 Working as intended. After 45 empty days in a row, **Sync a date range…** gives up and says so. It
-walks newest to oldest, so the empty stretch is the start of your Garmin history. Nothing is written
-for those days.
+walks newest to oldest, so the empty stretch is the start of your Garmin history, or a long stretch
+without your watch. Nothing is written for those days.
 
 ### Re-syncing keeps touching files
 
