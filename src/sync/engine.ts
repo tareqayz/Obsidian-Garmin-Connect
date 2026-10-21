@@ -207,6 +207,8 @@ export interface SyncOptions {
 	 * the day files alone, not `activities`, which wants the newest pages.
 	 */
 	activityRange?: boolean;
+	/** The newest page of the activity list as a probe already fetched it, and the page size it asked: the list starts from it. */
+	firstPage?: { page: readonly Activity[]; limit: number };
 	/**
 	 * How many of the newest days in a run get intraday series: six requests a
 	 * day. The runner passes the run's days inside Day details, or all of them
@@ -255,6 +257,8 @@ export interface DayResult {
 	 * it is left to fetch at this version.
 	 */
 	full?: true;
+	/** The day's series file was written: its timelines changed, whatever its day file did. */
+	seriesWritten?: true;
 }
 
 export interface SyncReport {
@@ -507,7 +511,7 @@ export async function syncRange(
 		try {
 			const { activities, requests, reachedEnd } = opts.activityRange
 				? await fetchActivitiesBetween(source, opts.from, opts.to)
-				: await fetchActivitiesFor(source, opts.from);
+				: await fetchActivitiesFor(source, opts.from, opts.firstPage);
 			report.requests += requests;
 			workoutsByDate = bucketWorkoutsByDate(activities);
 			log.detail("workouts found", activities.length);
@@ -678,7 +682,10 @@ export async function syncRange(
 		const writing = series && !isEmptySeries(series) ? series : null;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") {
+					report.seriesWritten += 1;
+					result.seriesWritten = true;
+				}
 			} catch (err) {
 				// A newer build's file: stop, as for a 429, rather than fail it day after day.
 				if (err instanceof NewerDataError) {
@@ -1588,24 +1595,39 @@ async function fetchActivitiesBetween(
 async function fetchActivitiesFor(
 	source: SyncSource,
 	from: string,
+	first?: { page: readonly Activity[]; limit: number },
 ): Promise<{ activities: Activity[]; requests: number; reachedEnd: boolean }> {
 	const activities: Activity[] = [];
 	let requests = 0;
+	let offset = 0;
+	// The probe's page, already in: the list goes on from its end only when it was full and doesn't reach back far enough.
+	if (first) {
+		activities.push(...first.page);
+		if (first.page.length < first.limit) return { activities, requests, reachedEnd: true };
+		const oldest = oldestDay(first.page);
+		if (oldest && oldest < from) return { activities, requests, reachedEnd: false };
+		offset = first.page.length;
+	}
 
 	for (let page = 0; page < MAX_ACTIVITY_PAGES; page++) {
-		const batch = await source.activities(page * ACTIVITY_PAGE, ACTIVITY_PAGE);
+		const batch = await source.activities(offset + page * ACTIVITY_PAGE, ACTIVITY_PAGE);
 		requests += 1;
 		activities.push(...batch);
 		if (batch.length < ACTIVITY_PAGE) return { activities, requests, reachedEnd: true };
 
-		const oldest = batch
-			.map((a) => localDateOf(a.startTimeLocal))
-			.filter((d): d is string => Boolean(d))
-			.sort()[0];
+		const oldest = oldestDay(batch);
 		if (oldest && oldest < from) break;
 	}
 
 	return { activities, requests, reachedEnd: false };
+}
+
+/** The local day the oldest of `batch` started on. */
+function oldestDay(batch: readonly Activity[]): string | undefined {
+	return batch
+		.map((a) => localDateOf(a.startTimeLocal))
+		.filter((d): d is string => Boolean(d))
+		.sort()[0];
 }
 
 export interface HistoryOptions {

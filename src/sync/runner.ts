@@ -1,5 +1,5 @@
 import { Notice, type App } from "obsidian";
-import type { GarminApi } from "../garmin/endpoints";
+import type { Activity, GarminApi } from "../garmin/endpoints";
 import { toIsoDate } from "../garmin/endpoints";
 import { GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
 import type { Log } from "../log";
@@ -31,7 +31,10 @@ import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
 import { NewerDataError } from "./file-health";
 import type { DayBuffer } from "./days";
-import { deviceUploadOf, markOf } from "./sync-state";
+import { deviceUploadOf } from "./sync-state";
+import { isFatal } from "./fatal";
+import { fingerprintOf, listKey, markFor, nextSyncState, PROBE_PAGE, shouldSkip, type Probe } from "./freshness";
+import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, type SyncTrigger } from "./sync-outcome";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
@@ -84,6 +87,9 @@ export interface BackfillProgress {
 	reached?: string;
 }
 
+/** How long a sync from the palette runs before its progress shows: a quick one ends first. */
+const PROGRESS_NOTICE_MS = 1_500;
+
 /** Activities per request when paging the whole history. The list honours 100. */
 const HISTORY_PAGE = 100;
 
@@ -127,6 +133,10 @@ interface DaysPlan {
 	allTimelines?: boolean;
 	/** The watch as the plan already asked for it, for the account file. */
 	device?: Record<string, unknown> | null;
+	/** The newest page of the activity list as the probe fetched it: the run's list starts from it. */
+	firstPage?: { page: Activity[]; limit: number };
+	/** Nothing new since the last good sync: the run stops at the probe. */
+	skip?: true;
 }
 
 /**
@@ -205,6 +215,8 @@ export class SyncRunner {
 		settings: () => RunnerSettings,
 		private readonly candidateOf: (row: ActivityRow) => DetailCandidate = (row) => ({ id: row.id, date: row.start.slice(0, 10), run: false, profile: "other" }),
 		private readonly device: DeviceIdentity = { id: "this-device", label: "this device" },
+		/** The plugin's version: a new one syncs in full once, in case it writes days differently. */
+		private readonly pluginVersion = "",
 	) {
 		this.app = app;
 		this.api = api;
@@ -284,43 +296,57 @@ export class SyncRunner {
 
 	/**
 	 * Everything since the last good recent sync, worked out once the runner is
-	 * held (see `recentRange`): another device may have synced meanwhile.
+	 * held (see `recentRange`): another device may have synced meanwhile. It
+	 * starts with a probe — the watch's last upload and the newest activities
+	 * (`freshness.ts`) — and a sync that started on its own stops there when
+	 * neither moved.
 	 */
-	syncRecent(log?: Log): Promise<SyncReport | null> {
-		return this.runPlan(() => this.planRecent(log), log);
+	syncRecent(trigger: SyncTrigger = "command", log?: Log): Promise<SyncOutcome | null> {
+		return this.runPlan(() => this.planRecent(trigger, log), trigger, log);
 	}
 
-	private async planRecent(log?: Log): Promise<DaysPlan> {
+	private async planRecent(trigger: SyncTrigger, log?: Log): Promise<DaysPlan> {
 		const startedAt = new Date().toISOString();
-		const series = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		const { from, to, capped } = recentRange(markOf(await series.readSyncState()), toIsoDate());
-		// Read before the days, so an upload that lands mid-sync is not taken as
-		// seen. A failure costs only the precision: the mark falls back to the
-		// sync's own time, and a 429 here stops the days too.
-		let deviceUpload: string | undefined;
-		let device: Record<string, unknown> | null | undefined;
-		try {
-			device = await this.api.lastUsedDevice();
-			deviceUpload = deviceUploadOf(device);
-		} catch (err) {
-			log?.warn(`last used device failed: ${explain(err)}`);
-		}
+		const settings = this.settings();
+		const series = new VaultSeriesStore(this.app, settings.dataFolder);
+		const state = await series.readSyncState();
+		const probe = await this.probe(log);
+		const fingerprint = fingerprintOf({ groups: settings.groups, units: settings.units, dayDetails: settings.data.dayDetails, dataVersion: DAY_DETAILS_VERSION, pluginVersion: this.pluginVersion });
+		if (trigger === "auto" && shouldSkip(state, probe, { now: Date.parse(startedAt), fingerprint }).skip) return { from: "", to: "", requests: 2, skip: true };
+		const { from, to, capped } = recentRange(markFor(state, probe), toIsoDate());
 		return {
 			from,
 			to,
-			requests: 1,
-			...(device !== undefined ? { device } : {}),
+			requests: 2,
+			...(probe.device.ok ? { device: probe.device.payload } : {}),
+			...(probe.list.ok ? { firstPage: { page: probe.list.page, limit: PROBE_PAGE } } : {}),
 			notes: capped ? [`Synced the last ${MAX_RECENT_DAYS} days only. Sync a range for the days before ${from}.`] : [],
 			// Only a run that covered the whole range moves the mark: one stopped
 			// early left its oldest days behind.
 			finish: async (report) => {
 				if (report.stoppedEarly) return;
-				await series.writeSyncState(deviceUpload ? { syncedAt: startedAt, deviceUpload } : { syncedAt: startedAt });
+				await series.writeSyncState(nextSyncState(state, probe, { startedAt, fingerprint, failed: report.failed, warnings: report.warnings }));
 			},
 		};
 	}
 
-	syncToday(log?: Log): Promise<SyncReport | null> {
+	/**
+	 * The watch's last upload and the newest activities, asked together, before
+	 * the days: an upload that lands mid-sync is not taken as seen. A failure
+	 * costs only the precision; a 429 or a dead session stops the sync.
+	 */
+	private async probe(log?: Log): Promise<Probe> {
+		const [device, page] = await Promise.allSettled([this.api.lastUsedDevice(), this.api.activities(0, PROBE_PAGE)]);
+		for (const got of [device, page]) if (got.status === "rejected" && isFatal(got.reason)) throw got.reason;
+		if (device.status === "rejected") log?.warn(`last used device failed: ${explain(device.reason)}`);
+		if (page.status === "rejected") log?.warn(`activity list failed: ${explain(page.reason)}`);
+		return {
+			device: device.status === "fulfilled" ? { ok: true, upload: deviceUploadOf(device.value), payload: device.value } : { ok: false },
+			list: page.status === "fulfilled" ? { ok: true, page: page.value, key: listKey(page.value) } : { ok: false },
+		};
+	}
+
+	syncToday(log?: Log): Promise<SyncOutcome | null> {
 		const today = toIsoDate();
 		return this.run(today, today, log);
 	}
@@ -374,37 +400,50 @@ export class SyncRunner {
 	 * by hand. It leaves the recent sync's mark alone: it need not cover what
 	 * changed since.
 	 */
-	run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
-		return this.runPlan(async () => ({ from, to, allTimelines: true }), log);
+	run(from: string, to: string, log?: Log): Promise<SyncOutcome | null> {
+		return this.runPlan(async () => ({ from, to, allTimelines: true }), "command", log);
 	}
 
-	private async runPlan(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
-		const report = await this.runDays(plan, log);
+	private async runPlan(plan: () => Promise<DaysPlan>, trigger: SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+		const outcome = await this.runDays(plan, trigger, log);
 		// New days and activities may have joined, or gaps opened: the backfill looks again.
-		if (report && !report.stoppedEarly) this.kickBackfill();
-		return report;
+		if (outcome && outcome.kind !== "stopped" && outcome.kind !== "failed") this.kickBackfill();
+		return outcome;
 	}
 
-	private async runDays(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
+	private async runDays(plan: () => Promise<DaysPlan>, trigger: SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+		// Only a sync someone started from the palette shows its progress and its end; the others stay quiet unless they fail.
+		const loud = trigger === "command";
 		if (!this.api.isAuthenticated) {
-			new Notice("Sign in to Garmin Connect first.");
+			if (trigger !== "auto") new Notice("Sign in to Garmin Connect first.");
 			return null;
 		}
 		const release = await this.claim("foreground");
 		if (!release) {
-			new Notice("A Garmin sync is already running.");
+			if (trigger !== "auto") new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const startedAt = Date.now();
-		const notice = new Notice(noticeBody({ done: 0, total: 0, date: null, eta: null }), 0);
+		// Shown only once the sync has run a moment: a quick one ends before it would appear.
+		let progress: SyncProgress = { done: 0, total: 0, date: null, eta: null };
+		let notice: Notice | null = null;
+		const showing = loud ? window.setTimeout(() => (notice = new Notice(noticeBody(progress), 0)), PROGRESS_NOTICE_MS) : undefined;
 		this.api.onSlowDown = (resumesAt) => {
 			const seconds = Math.max(1, Math.round((resumesAt - Date.now()) / 1000));
-			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
+			notice?.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
+		};
+		const hide = () => {
+			window.clearTimeout(showing);
+			notice?.hide();
 		};
 		try {
-			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device } = await plan();
+			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device, firstPage, skip } = await plan();
+			if (skip) {
+				hide();
+				return { kind: "up-to-date", days: 0, failed: 0, at: new Date().toISOString() };
+			}
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
 			// Once per sync, not per day: who you are, the watch, and the numbers
@@ -426,20 +465,15 @@ export class SyncRunner {
 				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
 				parallelDays: PACE.parallel,
 				stopAfterEmptyDays: EMPTY_DAYS_STOP,
+				...(firstPage ? { firstPage } : {}),
 				shouldStop: () => this.foregroundCancel,
 				log,
 				onProgress: (done, total, date) => {
-					notice.setMessage(
-						noticeBody({
-							done,
-							total,
-							date,
-							eta: etaSeconds(Date.now() - startedAt, done, total),
-						}),
-					);
+					progress = { done, total, date, eta: etaSeconds(Date.now() - startedAt, done, total) };
+					notice?.setMessage(noticeBody(progress));
 				},
 			}));
-			notice.hide();
+			hide();
 			this.lastSync = { at: new Date(startedAt).toISOString(), from, to, report };
 			await this.recordDays(series, report, log);
 
@@ -464,17 +498,45 @@ export class SyncRunner {
 				log?.warn(`sync state failed: ${explain(err)}`);
 			}
 			log?.detail("requests", describeRequests(this.api.stats.summary(startedAt)));
-			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
-			return report;
+			const outcome = outcomeOf(report, new Date().toISOString());
+			this.tell(trigger, outcome, report.warnings, report.fatal);
+			return outcome;
 		} catch (err) {
-			notice.hide();
-			new Notice(`Garmin sync failed: ${explain(err)}`, 10000);
-			return null;
+			hide();
+			const outcome = failedOutcome(err, new Date().toISOString());
+			this.tell(trigger, outcome, [], err);
+			return outcome;
 		} finally {
 			this.api.onSlowDown = null;
 			release();
 		}
 	}
+
+	/**
+	 * What a sync says when it ends. From the palette: its outcome, and the
+	 * warnings with it. From Home's ↻: only a failure, since Home shows the
+	 * rest. On its own: only a failure, once a session for each kind, and
+	 * nothing when the device is offline.
+	 */
+	private tell(trigger: SyncTrigger, outcome: SyncOutcome, warnings: readonly string[], err: unknown): void {
+		const bad = outcome.kind === "failed" || (outcome.kind === "stopped" && outcome.reason !== undefined) || outcome.failed > 0;
+		if (trigger === "command") {
+			const text = [`Garmin: ${outcomeText(outcome).replace(/^./, (c) => c.toLowerCase())}`, ...warnings].join("\n");
+			new Notice(text, bad ? 10000 : 5000);
+			return;
+		}
+		if (!bad) return;
+		if (trigger === "auto") {
+			if (err !== undefined && isOffline(err)) return;
+			const kind = outcome.reason ?? outcome.kind;
+			if (this.toldOnce.has(kind)) return;
+			this.toldOnce.add(kind);
+		}
+		new Notice(`Garmin: ${outcomeText(outcome).replace(/^./, (c) => c.toLowerCase())}`, 10000);
+	}
+
+	/** The failures an automatic sync already said this session, by kind. */
+	private toldOnce = new Set<string>();
 
 	/**
 	 * Fills the activity index with the whole history: about one request per
@@ -1582,19 +1644,6 @@ export class SyncRunner {
 	}
 }
 
-export function describe(report: SyncReport): string {
-	const parts = [`${report.written} written`];
-	if (report.unchanged) parts.push(`${report.unchanged} unchanged`);
-	if (report.skipped) parts.push(`${report.skipped} skipped`);
-	if (report.failed) parts.push(`${report.failed} failed`);
-
-	let summary = `Garmin sync: ${parts.join(", ")}`;
-	if (report.stoppedEarly) summary += ` — stopped: ${report.stoppedEarly}`;
-	// A range endpoint returning nothing used to be invisible: the run reported
-	// "N written" while a whole metric was quietly missing from every note.
-	if (report.warnings.length) summary += `\n${report.warnings.join("\n")}`;
-	return summary;
-}
 
 /**
  * The progress Notice.

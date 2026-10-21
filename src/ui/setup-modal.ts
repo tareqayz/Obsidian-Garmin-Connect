@@ -58,7 +58,7 @@ export class SetupModal extends Modal {
 						// The activity list, for Activity details' count: the first of the charts' walks anyway.
 						await this.plugin.sync.syncActivityHistory({ auto: true });
 						// Today and the days since the last sync while the user chooses, so Home has them.
-						void this.plugin.sync.syncRecent();
+						void this.plugin.sync.syncRecent("setup");
 					}
 					return got;
 				},

@@ -4,7 +4,11 @@ import type GarminPlugin from "../main";
 import { toIsoDate } from "../garmin/endpoints";
 import type { DayIndexData, IndexHistoryProgress, ReadIndex } from "../sync/day-index";
 import { dayIndex } from "../sync/day-indexes";
-import { describe, type BackfillProgress, type HistoryProgress, type SleepHistoryProgress, type StatsHistoryProgress } from "../sync/runner";
+import type { BackfillProgress, HistoryProgress, SleepHistoryProgress, StatsHistoryProgress } from "../sync/runner";
+import { outcomeLine } from "../sync/sync-outcome";
+
+/** The time a sync ended, as Home's line beside ↻ says it: "2:05 PM". */
+const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 import { VaultSeriesStore } from "../sync/series-store";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
@@ -223,8 +227,8 @@ export class GarminHomeView extends ItemView {
 				onPauseBackfill: () => void this.plugin.sync.pauseBackfill(),
 				onResumeBackfill: () => void this.plugin.sync.resumeBackfill(),
 				onSync: async () => {
-					const report = await this.plugin.sync.syncRecent();
-					return report ? describe(report).replace(/^Garmin sync: /, "") : null;
+					const outcome = await this.plugin.sync.syncRecent("button");
+					return outcome ? outcomeLine(outcome, (iso) => clock.format(new Date(iso))) : null;
 				},
 				onChange: (preset: PresetId, hidden: MoreId[], glance: GlanceId[] | undefined) =>
 					void this.plugin.data.saveHome({ preset, hidden, ...(glance ? { glance } : {}) }),

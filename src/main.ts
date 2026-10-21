@@ -143,7 +143,7 @@ export default class GarminPlugin extends Plugin {
 		this.addCommand({
 			id: "sync-recent",
 			name: "Sync recent days",
-			callback: () => void this.sync.syncRecent(),
+			callback: () => void this.sync.syncRecent("command"),
 		});
 		this.addCommand({
 			id: "sync-today",
@@ -492,7 +492,7 @@ export default class GarminPlugin extends Plugin {
 			domain: this.data.settings.domain,
 			limits: PACE.limits,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.candidateOf(row), this.device());
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.candidateOf(row), this.device(), this.manifest.version);
 	}
 
 	/** This device for the backfill's lease: an id kept in this vault's local storage, and a name a person knows it by. */
