@@ -6,6 +6,7 @@ import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_STORE, ACTIVITY_DETAILS_VERSION,
 import { shiftDate } from "../src/sync/day-index";
 import { chartTitle, debtItems, pendingItems, type DebtInput } from "../src/sync/debt";
 import type { AccountScan } from "../src/sync/scan";
+import { updateLinesOf } from "../src/ui/setup-flow";
 
 const TODAY = "2026-10-14";
 const scan: AccountScan = { scannedAt: `${TODAY}T06:00:00.000Z`, firstDay: "2025-08-02", days: 432, weeks: [["2025-07-31", 5]], activities: 341, complete: true };
@@ -60,9 +61,9 @@ describe("what an update offers", () => {
 
 	it("offers activity details only when they download, missing or older ones as the agreement allows", () => {
 		const activities = [
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		const base = { accepted: chartKeys(["sleep", "fitness"]), charts: complete(ALL_CHARTS), activities, detailFiles };
@@ -82,10 +83,10 @@ describe("what an update offers", () => {
 
 	it("counts the runs saved by the version before as upgrades, which the estimate prices apart", () => {
 		const activities = [
-			{ id: 4, date: "2026-10-03", run: true },
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 4, date: "2026-10-03", run: true, profile: "run" as const },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		// A run at the version before (upgraded in place), a ride at it (fetched whole), a run older still, and a gap.
 		const detailFiles = new Map([[1, UPGRADED_VERSION], [2, UPGRADED_VERSION - 1], [3, UPGRADED_VERSION]]);
@@ -113,3 +114,14 @@ describe("what an update offers", () => {
 		]);
 	});
 });
+
+describe("the update lines Settings and the update dialog show", () => {
+	it("price each item in size and time, never in requests", () => {
+		const charts = complete(ALL_CHARTS.filter((s) => s !== "index:heat-acclimation"));
+		const lines = updateLinesOf({ ...input({ accepted: chartKeys(["sleep"]), charts }), now: Date.parse(`${TODAY}T12:00:00Z`) }, "all");
+		assert.deepEqual(lines.map((l) => [l.key, l.title]), [["index:heat-acclimation@1", "Heat acclimation history"]]);
+		assert.ok(lines[0]!.bytes > 0 && lines[0]!.seconds > 0);
+		assert.deepEqual(Object.keys(lines[0]!).sort(), ["bytes", "detail", "key", "seconds", "title"]);
+	});
+});
+

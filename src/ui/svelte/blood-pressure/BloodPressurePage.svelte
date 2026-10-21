@@ -52,7 +52,7 @@
 	canGoBack={dayView?.canGoBack ?? periodView?.canGoBack ?? false}
 	{onBack}
 	{swap}
-	history={{ title: BLOOD_PRESSURE_INDEX.title, windowDays: BLOOD_PRESSURE_INDEX.windowDays, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: BLOOD_PRESSURE_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		<div class="blood-pressure">

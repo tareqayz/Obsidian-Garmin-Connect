@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+	eraOf,
 	heldElsewhere,
 	LEASE_MS,
 	nextChunk,
@@ -61,9 +62,9 @@ describe("backfill plan", () => {
 	it("lists the activities first, then the chart walks, then days newest first, then activity details", () => {
 		const accepted = [...chartKeys(GROUPS), "days@1", ACTIVITY_DETAILS_KEY];
 		const activities = [
-			{ id: 3, date: "2026-10-12", run: true },
-			{ id: 2, date: "2026-09-01", run: false },
-			{ id: 1, date: "2025-09-01", run: true },
+			{ id: 3, date: "2026-10-12", run: true, profile: "run" as const },
+			{ id: 2, date: "2026-09-01", run: false, profile: "other" as const },
+			{ id: 1, date: "2025-09-01", run: true, profile: "run" as const },
 		];
 		const tasks = planBackfill(input({ accepted, activityDetails: "1y", activities, daySpans: [[shiftDate(TODAY, -9), TODAY, 1]] }));
 		assert.deepEqual(
@@ -72,6 +73,36 @@ describe("backfill plan", () => {
 		);
 		assert.deepEqual(tasks[4], { kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -10) });
 		assert.deepEqual(tasks[5], { kind: "details", ids: [3, 2] });
+	});
+
+	it("takes recent history first: each era's days, then its activities, the last 90 days before the year before the rest", () => {
+		const activities = [
+			{ id: 30, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 20, date: "2026-01-01", run: true, profile: "run" as const },
+			{ id: 10, date: "2025-01-01", run: false, profile: "pool" as const },
+		];
+		const tasks = planBackfill(input({ accepted: ["days@1", ACTIVITY_DETAILS_KEY], dayDetails: "all", activityDetails: "all", activities, scan: scan("2024-06-01") }));
+		assert.deepEqual(tasks, [
+			{ kind: "days", from: shiftDate(TODAY, -90), to: shiftDate(TODAY, -1) },
+			{ kind: "details", ids: [30] },
+			{ kind: "days", from: shiftDate(TODAY, -365), to: shiftDate(TODAY, -91) },
+			{ kind: "details", ids: [20] },
+			{ kind: "days", from: "2024-06-01", to: shiftDate(TODAY, -366) },
+			{ kind: "details", ids: [10] },
+		]);
+		assert.deepEqual([eraOf(shiftDate(TODAY, -90), TODAY), eraOf(shiftDate(TODAY, -91), TODAY), eraOf(shiftDate(TODAY, -366), TODAY)], [0, 1, 2]);
+	});
+
+	it("takes the ranges you asked for after the walks and ahead of every era, each from where it got to", () => {
+		const ranges = [
+			{ from: "2019-03-01", to: "2019-06-30", next: "2019-05-10", at: "2026-10-21T09:00:00.000Z" },
+			{ from: "2018-01-01", to: "2018-01-31", next: "2017-12-31", at: "2026-10-21T09:05:00.000Z" },
+		];
+		const tasks = planBackfill(input({ accepted: [...chartKeys(["sleep"]), "days@1"], ranges }));
+		assert.deepEqual(tasks.map((t) => t.kind), ["walk", "days", "days"]);
+		assert.deepEqual(tasks[1], { kind: "days", from: "2019-03-01", to: "2019-05-10", range: "2026-10-21T09:00:00.000Z" });
+		// The second one is done: nothing of it is planned.
+		assert.equal(tasks.filter((t) => t.kind === "days" && t.range).length, 1);
 	});
 
 	it("skips a chart index whose history is complete, and walks one that a version bump reset", () => {
@@ -96,11 +127,11 @@ describe("backfill plan", () => {
 			[shiftDate(TODAY, -19), TODAY, 1],
 		];
 		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], daySpans })), [{ kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -20) }]);
-		// The history starts ten days ago: nothing older is asked.
-		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -9)) })), [{ kind: "days", from: shiftDate(TODAY, -9), to: TODAY }]);
+		// The history starts ten days ago: nothing older is asked. Nor today, which the routine sync keeps.
+		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -9)) })), [{ kind: "days", from: shiftDate(TODAY, -9), to: shiftDate(TODAY, -1) }]);
 		// A day after the scan is asked: the scan could not see it.
 		assert.deepEqual(planBackfill(input({ accepted: ["days@1"], scan: scan(shiftDate(TODAY, -40), shiftDate(TODAY, -5)), daySpans: [[shiftDate(TODAY, -29), shiftDate(TODAY, -6), 1]] })), [
-			{ kind: "days", from: shiftDate(TODAY, -5), to: TODAY },
+			{ kind: "days", from: shiftDate(TODAY, -5), to: shiftDate(TODAY, -1) },
 		]);
 	});
 
@@ -126,9 +157,9 @@ describe("backfill plan", () => {
 
 	it("fetches missing activities under an older agreement, and those of an older file only under today's", () => {
 		const activities = [
-			{ id: 3, date: "2026-10-02", run: false },
-			{ id: 2, date: "2026-10-01", run: true },
-			{ id: 1, date: "2026-09-01", run: false },
+			{ id: 3, date: "2026-10-02", run: false, profile: "other" as const },
+			{ id: 2, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 1, date: "2026-09-01", run: false, profile: "other" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		assert.deepEqual(planBackfill(input({ accepted: [DETAILS_BEFORE], activityDetails: "all", activities, detailFiles })), [{ kind: "details", ids: [3, 2] }]);
@@ -138,10 +169,10 @@ describe("backfill plan", () => {
 
 	it("keeps fetching runs, and only runs, under Run details until Activity details is agreed to", () => {
 		const activities = [
-			{ id: 4, date: "2026-10-03", run: false },
-			{ id: 3, date: "2026-10-02", run: true },
-			{ id: 2, date: "2026-10-01", run: false },
-			{ id: 1, date: "2026-09-01", run: true },
+			{ id: 4, date: "2026-10-03", run: false, profile: "other" as const },
+			{ id: 3, date: "2026-10-02", run: true, profile: "run" as const },
+			{ id: 2, date: "2026-10-01", run: false, profile: "other" as const },
+			{ id: 1, date: "2026-09-01", run: true, profile: "run" as const },
 		];
 		const detailFiles = new Map([[1, 1]]);
 		// Gaps only under an older Run details, and old files too at today's version.
@@ -156,7 +187,7 @@ describe("backfill plan", () => {
 	});
 
 	it("leaves out what failed this session", () => {
-		const activities = [{ id: 2, date: "2026-10-01", run: true }];
+		const activities = [{ id: 2, date: "2026-10-01", run: true, profile: "run" as const }];
 		const plan = planBackfill(
 			input({ accepted: ["days@1", ACTIVITY_DETAILS_KEY], activityDetails: "all", activities, dayDetails: "30d", skip: { days: new Set([TODAY]), details: new Set([2]) } }),
 		);
@@ -180,6 +211,13 @@ describe("backfill.json", () => {
 		// A bot check's pause is kept like a 429's, so a restart doesn't knock again at once.
 		const blocked = { paused: { reason: "blocked" as const, until: "2026-10-14T06:30:00.000Z" } };
 		assert.deepEqual(parseBackfill(serializeBackfill(blocked)), blocked);
+	});
+
+	it("keeps the download's progress across a restart, and drops one that makes no sense", () => {
+		const state = { lease: { device: "mac", label: "Mac", heartbeat: "2026-10-14T05:59:00.000Z" }, progress: { done: 4_210, since: "2026-10-14T05:00:00.000Z" } };
+		assert.deepEqual(parseBackfill(serializeBackfill(state)), state);
+		assert.deepEqual(parseBackfill(JSON.stringify({ version: 1, progress: { done: -3, since: "x" } })), {});
+		assert.deepEqual(parseBackfill(JSON.stringify({ version: 1, progress: { done: "lots", since: "2026-10-14" } })), {});
 	});
 
 	it("leaves the backfill to another device while its lease is fresh, and takes over a stale one", () => {
@@ -237,7 +275,36 @@ describe("hourly budget, kept across restarts", () => {
 		]);
 		const budget = new RequestBudget(() => 100, store);
 		assert.equal(budget.used(t0 + 1_000), 10);
-		assert.deepEqual(store.held, [{ at: t0, requests: 10 }]);
+		// An older build's bare list is read, and kept in today's shape.
+		assert.deepEqual(store.held, { entries: [{ at: t0, requests: 10 }] });
+	});
+
+	it("halves the hour for a day after a 429, across a restart, then gives it back", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const store = memoryStore();
+		const budget = new RequestBudget(() => 8_000, store);
+		budget.add(3_000, t0);
+		budget.halve(t0 + 60_000);
+		const restarted = new RequestBudget(() => 8_000, store);
+		assert.equal(restarted.limit(t0 + 120_000), 4_000);
+		assert.equal(restarted.waitFor(500, t0 + 120_000), 0);
+		// 1,500 more needs the 3,000 to leave the hour: 4,000 holds while halved.
+		assert.equal(restarted.waitFor(1_500, t0 + 120_000), 3_600_000 - 120_000);
+		// A day on, the whole hour again.
+		const dayOn = t0 + 60_000 + 24 * 3_600_000;
+		assert.equal(restarted.limit(dayOn), 8_000);
+		assert.equal(restarted.used(dayOn), 0);
+		assert.deepEqual(store.held, { entries: [] });
+	});
+
+	it("waits for the halving to end when that comes before the hour frees enough", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const budget = new RequestBudget(() => 8_000);
+		budget.halve(t0 - 24 * 3_600_000 + 600_000);
+		budget.add(3_900, t0);
+		// Halved until t0 + 10 min; then 8,000 holds, and 3,900 + 1,000 fits.
+		assert.equal(budget.waitFor(1_000, t0 + 60_000), 600_000 - 60_000);
+		assert.deepEqual(budget.outlook(t0 + 60_000), { entries: [{ at: t0, requests: 3_900 }], perHour: 8_000, halvedUntil: t0 + 600_000 });
 	});
 
 	it("waits half an hour after the edge's first refusal, doubling to twelve hours", () => {
@@ -258,3 +325,13 @@ describe("hourly budget", () => {
 		assert.equal(budget.used(t0 + 3_600_001), 30);
 	});
 });
+
+describe("backfill.json's queue of ranges", () => {
+	it("round-trips, reading by allowlist", () => {
+		const ranges = [{ from: "2019-03-01", to: "2019-06-30", next: "2019-05-10", at: "2026-10-21T09:00:00.000Z" }];
+		assert.deepEqual(parseBackfill(serializeBackfill({ ranges })), { ranges });
+		const raw = JSON.stringify({ version: 1, ranges: [...ranges, { from: "2019-07-01", to: "2019-06-01", next: "2019-06-01", at: "x" }, { from: "nope" }, "nope"] });
+		assert.deepEqual(parseBackfill(raw), { ranges });
+	});
+});
+

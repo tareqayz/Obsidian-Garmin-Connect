@@ -1,41 +1,48 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { GarminRateLimitError } from "../src/garmin/errors";
-import { ACTIVITY_DETAILS_KEY, chartKeys } from "../src/sync/datasets";
+import { ACTIVITY_DETAILS_KEY, chartKeys, DEFAULT_ACTIVITY_DETAILS, DEFAULT_DAY_DETAILS } from "../src/sync/datasets";
 import type { AccountScan } from "../src/sync/scan";
-import { afterScan, agreement, back, newDaysOnly, next, startFlow, stepState } from "../src/ui/setup-flow";
+import { afterScan, agreement, back, isRecommended, keptLabel, RECOMMENDED, startFlow } from "../src/ui/setup-flow";
 
 const scan = (over: Partial<AccountScan> = {}): AccountScan => ({ scannedAt: "2026-10-14T06:00:00.000Z", days: 432, weeks: [], activities: 341, complete: true, ...over });
 
 describe("setup flow", () => {
 	it("starts at the sign-in, or at the scan when signed in already", () => {
-		assert.deepEqual(startFlow(false), { step: "signin", scan: "scanning" });
-		assert.deepEqual(startFlow(true), { step: "scan", scan: "scanning" });
+		assert.deepEqual(startFlow(false), { step: "signin" });
+		assert.deepEqual(startFlow(true), { step: "scan", view: "scanning" });
 	});
 
-	it("shows a scan's result, an empty account, or an error to try again from", () => {
-		assert.deepEqual(afterScan({ scan: scan() }), { step: "scan", scan: "result" });
-		assert.deepEqual(afterScan({ scan: scan({ days: 0, activities: 0 }) }), { step: "scan", scan: "empty" });
-		assert.deepEqual(afterScan({ scan: scan(), fatal: new GarminRateLimitError("slow down") }), { step: "scan", scan: "error" });
-		assert.deepEqual(afterScan(null), { step: "scan", scan: "error" });
+	it("goes from a scan to the recommendation, an empty account, or an error to try again from", () => {
+		assert.deepEqual(afterScan({ scan: scan() }), { step: "recommend" });
+		assert.deepEqual(afterScan({ scan: scan({ days: 0, activities: 0 }) }), { step: "scan", view: "empty" });
+		assert.deepEqual(afterScan({ scan: scan(), fatal: new GarminRateLimitError("slow down") }), { step: "scan", view: "error" });
+		assert.deepEqual(afterScan(null), { step: "scan", view: "error" });
 		// Activities without health data is still history.
-		assert.deepEqual(afterScan({ scan: scan({ days: 0 }) }), { step: "scan", scan: "result" });
+		assert.deepEqual(afterScan({ scan: scan({ days: 0 }) }), { step: "recommend" });
 	});
 
-	it("goes forward a step at a time and back without undoing a sign-in", () => {
-		const result = afterScan({ scan: scan() });
-		const choose = next(result);
-		assert.deepEqual(choose, { step: "choose", scan: "result" });
-		assert.deepEqual(next(choose), { step: "start", scan: "result" });
-		assert.deepEqual(back(next(choose), true), choose);
-		assert.deepEqual(back(choose, true), result);
-		assert.deepEqual(back(result, true), result);
-		assert.deepEqual(back(result, false), { step: "signin", scan: "result" });
+	it("goes back from Advanced options to the recommendation, and nowhere else", () => {
+		assert.deepEqual(back({ step: "advanced" }), { step: "recommend" });
+		assert.deepEqual(back({ step: "recommend" }), { step: "recommend" });
+		assert.deepEqual(back({ step: "scan", view: "error" }), { step: "scan", view: "error" });
+	});
+});
+
+describe("the recommendation", () => {
+	it("is all of it, while the fallback defaults stay narrow", () => {
+		assert.deepEqual(RECOMMENDED, { dayDetails: "all", activityDetails: "all" });
+		assert.equal(isRecommended({ dayDetails: "all", activityDetails: "all" }), true);
+		assert.equal(isRecommended({ dayDetails: "all", activityDetails: "opened" }), false);
+		// The defaults stand in for a saved range that can't be read: they must never widen a download.
+		assert.notEqual(DEFAULT_DAY_DETAILS, "all");
+		assert.notEqual(DEFAULT_ACTIVITY_DETAILS, "all");
 	});
 
-	it("draws the steps before as done and the one shown as current", () => {
-		const choose = { step: "choose" as const, scan: "result" as const };
-		assert.deepEqual(["signin", "scan", "choose", "start"].map((s) => stepState(choose, s as never)), ["done", "done", "current", "todo"]);
+	it("names what a vault set up before keeps", () => {
+		assert.equal(keptLabel({ dayDetails: "90d", activityDetails: "opened" }), "last 90 days · activities you open");
+		assert.equal(keptLabel({ dayDetails: "new", activityDetails: "1y" }), "new days only · activities from the last year");
+		assert.equal(keptLabel(RECOMMENDED), "all history · all activities");
 	});
 });
 
@@ -46,12 +53,5 @@ describe("what the setup agrees to", () => {
 		const keys = agreement(groups);
 		assert.deepEqual(keys.accepted, [...chartKeys(groups), "days@1", ACTIVITY_DETAILS_KEY]);
 		assert.deepEqual(keys.deferred, []);
-	});
-
-	it("keeping new days only fetches no history, and puts the charts off rather than leaving them to ask", () => {
-		const only = newDaysOnly(groups);
-		assert.deepEqual(only.choices, { dayDetails: "new", activityDetails: "opened" });
-		assert.deepEqual(only.accepted, ["days@1", ACTIVITY_DETAILS_KEY]);
-		assert.deepEqual(only.deferred, chartKeys(groups));
 	});
 });

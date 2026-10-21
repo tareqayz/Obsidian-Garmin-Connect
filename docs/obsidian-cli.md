@@ -15,7 +15,7 @@ tasks, sync and so on) aren't needed here.
 
 | Command | Use | Watch out for |
 | --- | --- | --- |
-| `plugin:reload id=garmin-connect` | load a new `main.js` after a build (Hot Reload isn't enabled) | It prints nothing on success: check `app.plugins.plugins['garmin-connect']` with `eval` rather than looping on its output. A load runs **Sync on startup** if it is on. |
+| `plugin:reload id=garmin-connect` | load a new `main.js` after a build (Hot Reload isn't enabled) | It prints nothing on success: check `app.plugins.plugins['garmin-connect']` with `eval` rather than looping on its output. A load can start an automatic sync `STARTUP_SYNC_DELAY_MS` later (`src/main.ts`), when **Sync automatically** is on and the last sync is 15 minutes old; opening Home can too. |
 | `eval code=<javascript>` | read and drive the app | The CLI drops its output now and then. Use `scripts/dev/ev.sh`, which retries until a result comes back, and make every eval safe to run twice. |
 | `command id=<command-id>` | run a command, such as `garmin-connect:open-dashboard` (**Open home**) or `garmin-connect:sync-recent` | `commands filter=garmin-connect:` lists them. |
 | `dev:debug on`, `dev:cdp method=… params=…`, `dev:debug off` | real clicks, drags and key presses through the Chrome DevTools Protocol | `scripts/dev/click.sh` sends the CDP events but needs `dev:debug on` first; turn it off afterwards. |

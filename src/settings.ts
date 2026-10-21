@@ -4,61 +4,64 @@ import type { GarminDomain } from "./garmin/constants";
 import type GarminPlugin from "./main";
 import { DEFAULT_SETTINGS, type GarminSettings } from "./settings-data";
 import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, isActivityDetailsRange, isDayDetailsRange } from "./sync/datasets";
-import { ALL_GROUPS, FREE_GROUPS, RANGE_GROUPS, REQUESTS_PER_DAY, REQUESTS_PER_SYNC, type MetricGroup } from "./sync/metrics";
-import { isSyncSpeed, SPEED_LABELS } from "./sync/speed";
+import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { folderProblem } from "./sync/vault-paths";
 import { DeleteDataModal } from "./ui/delete-data-modal";
 import { SettingsDataRows } from "./ui/settings-data-rows";
 import DataStatus from "./ui/svelte/settings/DataStatus.svelte";
 
-const GROUP_LABELS: Record<MetricGroup, string> = {
-	activity: "Activity — steps, distance, calories, floors, intensity and active minutes",
-	heart: "Heart rate — resting, seven-day resting, min, max",
-	sleep: "Sleep — duration, stages, score, Sleep Coach need, respiration, SpO2, restlessness",
-	stress: "Stress and Body Battery — averages, peaks, time in each band, charge and drain",
-	hrv: "HRV — overnight average, status and your personal baseline range",
-	readiness: "Training readiness — score, recovery time and the factors behind it",
-	fitness: "Fitness — VO2 Max, fitness age, endurance and hill score, heat and altitude acclimation",
-	races: "Race predictions — 5K, 10K, half, marathon",
-	respiration: "Respiration — waking average, low and high",
-	spo2: "Pulse ox — average, lowest and latest SpO2",
-	body: "Body composition — weight, BMI, body fat, muscle and bone mass",
-	training: "Training load — status, acute and chronic load, load ratio, load focus, running tolerance",
-	workouts: "Workouts — a list of the day's activities",
-	intraday: "Intraday charts — heart rate, stress, Body Battery, steps and sleep stages, saved as a file per day",
-	health: "Health status — overnight HRV, heart rate, SpO2, respiration and skin temperature against your baseline, plus Health Snapshots",
-	profile:
-		"Profile — watch, avatar, lactate threshold, FTP, running economy, cycling ability, coach plan, upcoming events and personal records",
+/**
+ * Each metric group's row: a short name, what it holds in one sentence, and
+ * the words the longer list used to say, kept as search aliases. What a group
+ * costs in requests is for the docs (`docs/settings.md`, Metrics), not here.
+ */
+const GROUPS: Record<MetricGroup, { name: string; desc: string; aliases: string[] }> = {
+	activity: { name: "Activity", desc: "Steps, distance, calories, floors and intensity minutes.", aliases: ["active minutes"] },
+	heart: { name: "Heart rate", desc: "Resting, lowest and highest heart rate.", aliases: ["seven-day resting", "min", "max"] },
+	sleep: { name: "Sleep", desc: "Sleep score, stages, need and SpO2.", aliases: ["sleep coach", "respiration", "restlessness"] },
+	stress: { name: "Stress and Body Battery", desc: "Stress levels and Body Battery charge and drain.", aliases: ["body battery"] },
+	hrv: { name: "HRV", desc: "Overnight HRV, its status and your baseline.", aliases: ["heart rate variability"] },
+	readiness: { name: "Training readiness", desc: "Readiness score, recovery time and its factors.", aliases: ["recovery"] },
+	fitness: {
+		name: "Fitness",
+		desc: "VO2 Max, fitness age, endurance and hill scores.",
+		aliases: ["vo2 max", "fitness age", "endurance score", "hill score", "heat acclimation", "altitude acclimation"],
+	},
+	races: { name: "Race predictions", desc: "Predicted race times from 5K to marathon.", aliases: ["race predictor", "10k", "half marathon"] },
+	respiration: { name: "Respiration", desc: "Breathing rate while awake: average, low and high.", aliases: ["breathing", "waking"] },
+	spo2: { name: "Pulse ox", desc: "Blood oxygen: average, lowest and latest.", aliases: ["spo2", "oxygen"] },
+	body: { name: "Body composition", desc: "Weight, BMI, body fat, muscle and bone mass.", aliases: ["weight", "bmi", "body fat"] },
+	training: {
+		name: "Training load",
+		desc: "Training status, load, load focus and running tolerance.",
+		aliases: ["training status", "acute load", "chronic load", "load ratio", "load focus", "running tolerance"],
+	},
+	workouts: { name: "Workouts", desc: "Your activities, with their maps, laps and charts.", aliases: ["activities"] },
+	intraday: { name: "Intraday charts", desc: "Heart rate, stress, steps and sleep through the day.", aliases: ["timelines", "body battery", "sleep stages"] },
+	health: { name: "Health status", desc: "Overnight vitals against your baseline.", aliases: ["health snapshot", "skin temperature"] },
+	profile: {
+		name: "Profile",
+		desc: "Your watch, thresholds, FTP, race events and records.",
+		aliases: ["lactate threshold", "ftp", "running economy", "cycling ability", "coach plan", "personal records", "avatar"],
+	},
 };
 
-// Five of these ride along in the daily summary, so turning them on is free.
-// Saying which is the difference between an informed choice and a guess.
-const freeGroups = new Set<MetricGroup>(FREE_GROUPS);
-const rangeGroups = new Set<MetricGroup>(RANGE_GROUPS);
-
-function costOf(group: MetricGroup): string {
-	if (freeGroups.has(group)) return "Free — shares the daily summary request";
-	if (group === "intraday") {
-		return `${REQUESTS_PER_DAY.intraday} requests per day, for the days inside Day details (Data, above)`;
-	}
-	const perSync = REQUESTS_PER_SYNC[group];
-	if (perSync) return `About ${perSync} requests per sync, not per day — saved to account.json`;
-	if (rangeGroups.has(group)) return "1 request per sync, not per day";
-	const n = REQUESTS_PER_DAY[group] ?? 1;
-	return n === 1 ? "1 request per day" : `${n} requests per day`;
-}
-
 /** The settings a `control` row edits. A metric group's toggle is `group:<id>`. */
-type ControlKey = "email" | "syncOnStartup" | "units" | "mapTiles" | "syncSpeed" | "stopAfterEmptyDays" | "autoSaveLog" | `group:${MetricGroup}`;
+type ControlKey = "autoSync" | "units" | "mapTiles" | "autoSaveLog" | `group:${MetricGroup}`;
 
 const UNITS: ReadonlyArray<GarminSettings["units"]> = ["auto", "metric", "imperial"];
 
 /**
  * Settings → Garmin Connect, declared rather than drawn, so Obsidian's
- * settings search finds every row. Plain values are `control` rows bound
- * through `getControlValue`/`setControlValue`; rows with side effects or text
- * that moves (sign-in, the data folder, what the history holds) `render`
- * themselves with native `Setting` controls.
+ * settings search finds every row, sub-pages included. The main page keeps
+ * the everyday settings; History, Metrics and Advanced are sub-pages
+ * (`type: "page"`). Plain values are `control` rows bound through
+ * `getControlValue`/`setControlValue`; rows with side effects or text that
+ * moves (sign-in, the folders, what the history holds) `render` themselves
+ * with native `Setting` controls.
+ *
+ * A page's name is how Obsidian finds it again after `update()`, so the
+ * names stay fixed and what changes goes in the description.
  */
 export class GarminSettingTab extends PluginSettingTab {
 	private plugin: GarminPlugin;
@@ -79,37 +82,40 @@ export class GarminSettingTab extends PluginSettingTab {
 		if (key.startsWith("group:")) {
 			const group = key.slice("group:".length) as MetricGroup;
 			s.groups = value === true ? [...new Set([...s.groups, group])] : s.groups.filter((g) => g !== group);
-		} else if (key === "email" && typeof value === "string") s.email = value.trim();
-		else if (key === "units" && UNITS.includes(value as GarminSettings["units"])) s.units = value as GarminSettings["units"];
-		else if (key === "syncSpeed" && isSyncSpeed(value)) s.syncSpeed = value;
-		else if (key === "stopAfterEmptyDays" && typeof value === "number") s.stopAfterEmptyDays = value;
-		else if ((key === "syncOnStartup" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
+			await this.plugin.data.saveSettings();
+			// The main page's Metrics row counts the groups on.
+			this.update();
+			return;
+		}
+		if (key === "units" && UNITS.includes(value as GarminSettings["units"])) s.units = value as GarminSettings["units"];
+		else if ((key === "autoSync" || key === "mapTiles" || key === "autoSaveLog") && typeof value === "boolean") s[key] = value;
 		else return;
 		await this.plugin.data.saveSettings();
+		// Turned on: a sync may be due already.
+		if (key === "autoSync" && value === true) this.plugin.autoSync.poke();
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem<ControlKey>[] {
 		const plugin = this.plugin;
 		const s = plugin.data.settings;
-		// Shared by the Data rows that show what the history holds; it listens
+		// Shared by the History rows that show what the history holds; it listens
 		// to the sync only while one of them is on screen.
 		const rows = new SettingsDataRows(plugin);
 
 		return [
 			{
 				type: "group",
-				heading: "Connection",
 				items: [
 					{
-						name: "Status",
-						aliases: ["sign in", "sign out", "session"],
+						name: "Garmin account",
+						aliases: ["sign in", "sign out", "session", "email"],
 						render: (setting) => {
-							const session = plugin.garmin.session;
+							const signedIn = plugin.garmin.isAuthenticated;
 							setting
-								.setDesc(session ? `Signed in. Session saved ${new Date(session.savedAt).toLocaleString()}.` : "Not signed in.")
+								.setDesc(signedIn ? (s.email ? `Signed in as ${s.email}.` : "Signed in.") : "Not signed in.")
 								.addButton((b) =>
-									b.setButtonText(session ? "Sign out" : "Sign in").onClick(async () => {
-										if (session) {
+									b.setButtonText(signedIn ? "Sign out" : "Sign in").onClick(async () => {
+										if (signedIn) {
 											await plugin.signOut();
 											new Notice("Signed out of Garmin Connect.");
 											this.update();
@@ -121,65 +127,69 @@ export class GarminSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Garmin email",
-						desc: "Only the email is stored. The password is used to sign in and never saved.",
-						control: { type: "text", key: "email", placeholder: "you@example.com" },
-					},
-					{
-						name: "Region",
-						desc: "garmin.cn is the mainland China tenant; everyone else uses garmin.com.",
-						render: (setting) => {
-							setting.addDropdown((d) =>
-								d
-									.addOption("garmin.com", "garmin.com")
-									.addOption("garmin.cn", "garmin.cn")
-									.setValue(s.domain)
-									.onChange(async (v) => {
-										await plugin.setDomain(v as GarminDomain);
-										// A new region signs out: Status says so.
-										this.update();
-									}),
-							);
-						},
-					},
-				],
-			},
-			{
-				type: "group",
-				heading: "Sync",
-				items: [
-					{
-						name: "Sync on startup",
-						desc: "Runs a recent-days sync shortly after Obsidian loads.",
-						control: { type: "toggle", key: "syncOnStartup" },
+						name: "Sync automatically",
+						desc: "Sync new data when Obsidian starts and when you open Home.",
+						aliases: ["sync on startup", "auto sync"],
+						control: { type: "toggle", key: "autoSync" },
 					},
 					{
 						name: "Units",
-						desc: "Auto asks Garmin which system your account uses.",
-						control: {
-							type: "dropdown",
-							key: "units",
-							options: { auto: "Auto (from your Garmin account)", metric: "Metric — km", imperial: "Imperial — miles" },
-						},
+						desc: "Auto follows your Garmin account.",
+						control: { type: "dropdown", key: "units", options: { auto: "Auto", metric: "Metric", imperial: "Imperial" } },
+					},
+					{
+						name: "Map tiles",
+						desc: "Show OpenStreetMap under routes. OpenStreetMap sees each map's area.",
+						aliases: ["openstreetmap", "maps"],
+						control: { type: "toggle", key: "mapTiles" },
 					},
 				],
 			},
 			{
 				type: "group",
-				heading: "Data",
+				items: [
+					{ type: "page", name: "History", desc: rows.summaryText(), items: this.historyPage(rows) },
+					{ type: "page", name: "Metrics", desc: `${s.groups.length} of ${ALL_GROUPS.length} on.`, items: this.metricsPage() },
+					{ type: "page", name: "Advanced", desc: "Region, diagnostics and deleting data.", items: this.advancedPage() },
+				],
+			},
+		];
+	}
+
+	/** The download, what the vault holds, the ranges, and where it all goes. */
+	private historyPage(rows: SettingsDataRows): SettingDefinitionItem<ControlKey>[] {
+		const plugin = this.plugin;
+		const s = plugin.data.settings;
+		return [
+			{
+				type: "group",
 				items: [
 					{
-						name: "Data folder",
-						desc: "Where the synced JSON files live. Moving it does not move files already written.",
-						render: (setting) =>
-							folderInput(setting, plugin, DEFAULT_SETTINGS.dataFolder, () => s.dataFolder, (next) => (s.dataFolder = next)),
-					},
-					{
 						name: "On disk",
+						aliases: ["size", "storage"],
 						render: (setting) => rows.attach(() => void setting.setDesc(rows.usageText())),
 					},
 					{
+						// The download in progress, the new data on offer and the date
+						// ranges queued: no name, nothing to search for, hidden while there
+						// is none. Not the card's first row, whose divider would show above
+						// the next one.
+						name: "",
+						searchable: false,
+						render: (setting) => {
+							setting.infoEl.hide();
+							setting.controlEl.hide();
+							const panel = mount(DataStatus, { target: setting.settingEl, props: { plugin, rows } });
+							const detach = rows.attach(() => setting.settingEl.toggle(rows.progress !== null || rows.updates.length > 0 || rows.ranges.length > 0));
+							return () => {
+								detach();
+								void unmount(panel);
+							};
+						},
+					},
+					{
 						name: "Day details",
+						aliases: ["timelines", "range"],
 						render: (setting) => {
 							setting.addDropdown((d) => {
 								for (const range of DAY_DETAILS_RANGES) d.addOption(range.id, range.label);
@@ -194,6 +204,7 @@ export class GarminSettingTab extends PluginSettingTab {
 					},
 					{
 						name: "Activity details",
+						aliases: ["maps", "laps", "range"],
 						render: (setting) => {
 							setting.addDropdown((d) => {
 								for (const range of ACTIVITY_DETAILS_RANGES) d.addOption(range.id, range.label);
@@ -207,90 +218,87 @@ export class GarminSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						// The download in progress and the new data on offer: no name,
-						// nothing to search for, hidden while there is neither.
-						name: "",
-						searchable: false,
-						render: (setting) => {
-							setting.infoEl.hide();
-							setting.controlEl.hide();
-							const panel = mount(DataStatus, { target: setting.settingEl, props: { plugin, rows } });
-							const detach = rows.attach(() => setting.settingEl.toggle(rows.progress !== null || rows.updates.length > 0));
-							return () => {
-								detach();
-								void unmount(panel);
-							};
-						},
+						name: "Data folder",
+						desc: "Where the JSON files go. Existing files don't move.",
+						render: (setting) =>
+							folderInput(setting, plugin, DEFAULT_SETTINGS.dataFolder, () => s.dataFolder, (next) => (s.dataFolder = next)),
 					},
 					{
 						name: "Run setup again",
-						desc: "Scan your Garmin history again and choose what to keep.",
+						desc: "Scan your account and choose what to download.",
+						aliases: ["setup", "wizard"],
 						render: (setting) => {
 							setting.addButton((b) => b.setButtonText("Open setup").onClick(() => plugin.openSetup()));
 						},
 					},
 				],
 			},
+		];
+	}
+
+	/** One switch per metric group, each with what it holds. */
+	private metricsPage(): SettingDefinitionItem<ControlKey>[] {
+		return [
 			{
 				type: "group",
-				heading: "Metrics",
 				items: [
 					{
 						// A row without a name, control or render isn't drawn at all.
 						name: "",
 						searchable: false,
-						render: (setting) =>
-							void setting.setDesc(
-								"Each group says what it costs in Garmin requests: most per day synced, a few once per sync. The free " +
-									"ones share the daily summary request, so one request a day covers all of them.",
-							),
+						render: (setting) => void setting.setDesc("Turn off what you don't need."),
 					},
 					...ALL_GROUPS.map((group) => ({
-						name: GROUP_LABELS[group],
-						desc: costOf(group),
+						name: GROUPS[group].name,
+						desc: GROUPS[group].desc,
+						aliases: GROUPS[group].aliases,
 						control: { type: "toggle" as const, key: `group:${group}` as const },
 					})),
 				],
 			},
+		];
+	}
+
+	/** What few people change: the region, diagnostics, and deleting the data. */
+	private advancedPage(): SettingDefinitionItem<ControlKey>[] {
+		const plugin = this.plugin;
+		const s = plugin.data.settings;
+		return [
 			{
 				type: "group",
-				heading: "Maps",
 				items: [
 					{
-						name: "Map tiles",
-						desc: "Draws OpenStreetMap's map under an activity's route. The tiles come from tile.openstreetmap.org, which sees the area of each activity you open. Off, the route is drawn on its own.",
-						control: { type: "toggle", key: "mapTiles" },
+						name: "Region",
+						desc: "Use garmin.cn for accounts in mainland China.",
+						aliases: ["china", "domain"],
+						render: (setting) => {
+							setting.addDropdown((d) =>
+								d
+									.addOption("garmin.com", "garmin.com")
+									.addOption("garmin.cn", "garmin.cn")
+									.setValue(s.domain)
+									.onChange(async (v) => {
+										await plugin.setDomain(v as GarminDomain);
+										// A new region signs out and builds a new runner: redraw the rows on it.
+										this.update();
+									}),
+							);
+						},
 					},
 				],
 			},
 			{
 				type: "group",
-				heading: "Advanced",
+				heading: "Diagnostics",
 				items: [
 					{
-						name: "Sync speed",
-						desc:
-							"How hard a sync leans on Garmin. Gentle is the old pace; Normal about twice it, well " +
-							"under what Garmin was measured to allow. If Garmin asks to slow down, the sync waits and carries on slower.",
-						control: { type: "dropdown", key: "syncSpeed", options: SPEED_LABELS },
-					},
-					{
-						name: "Stop after empty days",
-						desc:
-							"For Sync a date range…, which walks newest to oldest: once it reaches past the start of your " +
-							"Garmin history it gives up after this many days with nothing in them, " +
-							"instead of asking all the way to the start date and being rate limited. " +
-							"Set to 0 to always walk the whole range. The download Data sets up already knows where your history starts.",
-						control: { type: "slider", key: "stopAfterEmptyDays", min: 0, max: 120, step: 5 },
-					},
-					{
-						name: "Save every diagnostics run to the vault",
-						desc: "The only practical way to read the diagnostics from a phone.",
+						name: "Save diagnostics runs",
+						desc: "Save each Run diagnostics result as a note.",
 						control: { type: "toggle", key: "autoSaveLog" },
 					},
 					{
 						name: "Log folder",
-						desc: "Where saved diagnostics runs and debug info go.",
+						desc: "Where diagnostics and debug notes go.",
 						render: (setting) =>
 							folderInput(setting, plugin, DEFAULT_SETTINGS.logFolder, () => s.logFolder, (next) => (s.logFolder = next)),
 					},
@@ -302,8 +310,10 @@ export class GarminSettingTab extends PluginSettingTab {
 				items: [
 					{
 						name: "Delete synced data",
-						desc: `Moves the plugin’s files in ${s.dataFolder} to the trash. Your notes and your Garmin account are not affected.`,
+						aliases: ["delete", "remove", "trash", "uninstall"],
 						render: (setting) => {
+							// The folder as it is now: the row sits a page away from Data folder.
+							setting.setDesc(`Moves this plugin's files in ${s.dataFolder} to the trash. Notes and your Garmin account stay.`);
 							setting.addButton((b) => {
 								b.setButtonText("Delete…").onClick(() => new DeleteDataModal(plugin.app, plugin).open());
 								b.buttonEl.addClass("gch-danger");

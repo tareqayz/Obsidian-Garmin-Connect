@@ -229,8 +229,9 @@ describe("DAY_INDEXES", () => {
 			kinds.add(def.kind);
 			folders.add(def.folder);
 			assert.ok(def.windowDays >= 1 && def.windowDays <= MAX_WINDOW_DAYS, def.kind);
-			// One route a window for every index but FTP (the watts and the W/kg) and the lactate threshold (the heart rate and the speed).
-			assert.equal(def.requestsPerWindow, ["ftp", "lactate-threshold"].includes(def.kind) ? 2 : 1, def.kind);
+			// One route a window for every index but FTP (the watts and the W/kg), the lactate threshold (the heart rate and the speed),
+			// Body Battery (the stats and the reports) and Weight (the weigh-ins and the height): see index-requests.test.ts.
+			assert.equal(def.requestsPerWindow, ["ftp", "lactate-threshold", "body-battery", "weight"].includes(def.kind) ? 2 : 1, def.kind);
 			assert.equal(dayIndex(def.kind), def);
 		}
 		assert.equal(dayIndex("nope"), undefined);

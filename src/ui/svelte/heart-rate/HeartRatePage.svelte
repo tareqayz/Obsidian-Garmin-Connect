@@ -105,7 +105,6 @@
 	{swap}
 	history={{
 		title: HEART_RATE_INDEX.title,
-		windowDays: HEART_RATE_INDEX.windowDays,
 		complete: meta?.complete ?? false,
 		walking: history[KIND],
 		canSync,

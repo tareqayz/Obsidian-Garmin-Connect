@@ -122,6 +122,8 @@ export const BODY_BATTERY_INDEX = defineDayIndex<BatteryRow>({
 	// The longest gap inside the history is five days (Jan 5 – 9), so two
 	// empty windows in a row mean the history has not started yet.
 	emptyWindowsToStop: 2,
+	// The stats route and the reports route, side by side.
+	requestsPerWindow: 2,
 	fetchWindow: async (api, start, end) => {
 		const [stats, reports] = await Promise.all([api.bodyBatteryDaily(start, end), api.bodyBattery(start, end)]);
 		return rowsOfWindow(stats, reports);

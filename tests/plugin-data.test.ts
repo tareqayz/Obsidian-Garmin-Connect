@@ -46,8 +46,8 @@ describe("PluginData", () => {
 	});
 
 	it("reads a current file without rewriting it", async () => {
-		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, home: { preset: "be-healthy", hidden: [] } }, new FakeTokens(AUTH));
-		assert.equal(data.settings.stopAfterEmptyDays, 7);
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, logFolder: "Mine" }, home: { preset: "be-healthy", hidden: [] } }, new FakeTokens(AUTH));
+		assert.equal(data.settings.logFolder, "Mine");
 		assert.equal(data.hasSession, true);
 		assert.equal(saved.length, 0);
 	});
@@ -136,7 +136,7 @@ describe("PluginData", () => {
 		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 4 } })).data.settings.setup, null);
 		// A version 1 file gets the groups switched on first, and their charts accepted.
 		const old = await load({ settings: { settingsVersion: 1, groups: ["activity"] }, auth: AUTH });
-		assert.ok(old.data.settings.data.accepted.includes("index:respiration@1"));
+		assert.ok(old.data.settings.data.accepted.includes("index:respiration@2"));
 	});
 
 	it("reads the setup and the ledger by allowlist", async () => {
@@ -154,37 +154,41 @@ describe("PluginData", () => {
 	});
 
 	it("takes another device's choices, and nothing else, when data.json changes underneath", async () => {
-		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 7 }, auth: AUTH };
+		let raw: Record<string, unknown> = { settings: { ...DEFAULT_SETTINGS, logFolder: "Mine" }, auth: AUTH };
 		const plugin = { loadData: async () => raw, saveData: async () => undefined } as unknown as Plugin;
 		const data = new PluginData(plugin, new FakeTokens());
 		await data.init();
-		raw = { settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 30, setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
+		raw = { settings: { ...DEFAULT_SETTINGS, logFolder: "Theirs", setup: { completedAt: "2026-10-14T06:00:00.000Z" }, data: { dayDetails: "1y", runDetails: "all", accepted: ["days@1"], deferred: [] } }, auth: null };
 		await data.reloadChoices();
 		assert.equal(data.settings.setup?.completedAt, "2026-10-14T06:00:00.000Z");
 		assert.deepEqual(data.settings.data.accepted, ["days@1"]);
-		assert.equal(data.settings.stopAfterEmptyDays, 7);
+		assert.equal(data.settings.logFolder, "Mine");
 		assert.equal(data.hasSession, true);
 	});
 
-	it("keeps values a slider can show", async () => {
-		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, stopAfterEmptyDays: 999, syncSpeed: "ludicrous", units: "furlongs", domain: "example.com" } });
-		assert.equal(data.settings.stopAfterEmptyDays, 365);
-		assert.equal(data.settings.syncSpeed, "gentle");
+	it("keeps only values the controls can show", async () => {
+		const { data } = await load({ settings: { ...DEFAULT_SETTINGS, units: "furlongs", domain: "example.com" } });
 		assert.equal(data.settings.units, DEFAULT_SETTINGS.units);
 		assert.equal(data.settings.domain, "garmin.com");
 	});
 
-	it("reads an older build's pause between days as the nearest sync speed", async () => {
-		const speedFor = async (pauseBetweenDays: unknown) => {
-			const { syncSpeed: _, ...rest } = DEFAULT_SETTINGS;
-			const { data } = await load({ settings: { ...rest, pauseBetweenDays } });
-			return data.settings.syncSpeed;
-		};
-		assert.equal(await speedFor(250), "normal");
-		assert.equal(await speedFor(0), "fast");
-		assert.equal(await speedFor(2000), "gentle");
-		// No pause saved at all: the default, Gentle.
-		assert.equal(await speedFor(undefined), "gentle");
+	it("drops the sync speed, the pause between days before it, and the empty-days stop from a version 5 file at once", async () => {
+		const { data, saved } = await load({ settings: { ...DEFAULT_SETTINGS, settingsVersion: 5, syncSpeed: "gentle", pauseBetweenDays: 250, stopAfterEmptyDays: 7 } });
+		for (const key of ["syncSpeed", "pauseBetweenDays", "stopAfterEmptyDays"]) assert.equal(key in data.settings, false, key);
+		assert.equal(data.settings.settingsVersion, SETTINGS_VERSION);
+		// Migrated, so saved straight away: the stale keys leave the file now.
+		const last = saved.at(-1) as { settings: Record<string, unknown> };
+		assert.deepEqual(Object.keys(last.settings).sort(), Object.keys(DEFAULT_SETTINGS).sort());
+	});
+
+	it("syncs automatically for every vault from before version 6, whatever Sync on startup said", async () => {
+		const { autoSync: _, ...v5 } = DEFAULT_SETTINGS;
+		const { data, saved } = await load({ settings: { ...v5, settingsVersion: 5, syncOnStartup: false } });
+		assert.equal(data.settings.autoSync, true);
+		const last = saved.at(-1) as { settings: Record<string, unknown> };
+		assert.equal("syncOnStartup" in last.settings, false);
+		// Turned off since: it stays off.
+		assert.equal((await load({ settings: { ...DEFAULT_SETTINGS, autoSync: false } })).data.settings.autoSync, false);
 	});
 
 	it("drops the Days to sync setting a build before smart sync saved", async () => {

@@ -61,15 +61,7 @@
 						: `${history.fetched.toLocaleString()} activities so far`,
 			};
 		}
-		const title = "Activity history isn’t synced";
-		if (data.total === undefined) {
-			return { title, detail: "Charts cover only what’s synced. The whole history takes about one request per hundred activities." };
-		}
-		const requests = Math.max(1, Math.ceil(data.total / 100));
-		return {
-			title,
-			detail: `Charts cover only what’s synced. All ${data.total.toLocaleString()} activities take about ${requests} ${requests === 1 ? "request" : "requests"}.`,
-		};
+		return { title: "Activity history isn’t synced", detail: "Charts cover only what’s synced." };
 	});
 
 	function set(change: Partial<CategoryRoute>) {

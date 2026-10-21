@@ -13,7 +13,7 @@ OpenStreetMap for map tiles, and to `tls.peet.ws` when you run the diagnostics' 
 flowchart LR
   subgraph device["This device only"]
     keychain["Keychain: the Garmin session"]
-    local["Local storage: device id, request budget"]
+    local["Local storage: device id, request budget, last automatic sync"]
     tiles["IndexedDB: cached map tiles"]
   end
   subgraph vault["Your vault, which your sync copies"]
@@ -66,7 +66,7 @@ privacy:
 | History indexes | `activities/`, `daily-stats/`, `sleep/` and one folder per stat | your activities, and a row a day of each metric's history |
 | Activity details | `activity-details/<id>.json` | **your GPS route: where you ran, rode or swam.** Also the samples, laps, zones, weather, gear, badges, the watch and its firmware, the sensors by name (never a serial number), and your weight on that day, for W/kg |
 | Account file | `account.json` | your full name and display name, avatar URLs, sex, your watch's name and last upload, lactate threshold, FTP per sport (with the weight and date behind its W/kg), running economy, cycling ability, training plans, upcoming events and personal records |
-| Bookkeeping | `scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, your activity count, the watch's last upload, which device runs the history download (a random id and a name such as "Mac"), and which days and activities the vault holds |
+| Bookkeeping | `scan.json`, `backfill.json`, `sync-state.json`, `days/index.json`, `activity-details/index.json` | where your Garmin history starts, your activity count, the watch's last upload, which device runs the history download (a random id and a name such as "Mac"), the date ranges queued for it, and which days and activities the vault holds. `sync-state.json` keeps your newest activities and the settings only as short hashes, which can't be turned back into them |
 
 `account.json` never holds the sign-in email or a token. Garmin's `userName` is the sign-in email, so
 it is deliberately left out.
@@ -80,8 +80,9 @@ it is deliberately left out.
 Besides the keychain entry, the plugin keeps a few things in the device's own storage. None of them
 syncs:
 - **Local storage:** `garmin-connect-device` (a random id for the history download's lease),
-  `garmin-connect-budget` (the last hour's requests), `garmin-connect-had-session` and
-  `garmin-connect-hide-sign-in` (which Home card to show).
+  `garmin-connect-budget` (the last hour's requests, and until when a 429 halved the budget),
+  `garmin-connect-auto` (when this device last synced on its own, and how long to wait after a
+  failure), `garmin-connect-had-session` and `garmin-connect-hide-sign-in` (which Home card to show).
 - **IndexedDB `garmin-connect-map-tiles`:** the map tiles this device drew. They are kept for at least
   a week, or as long as the server allows, so a map opened again asks for nothing. At most 2,500
   tiles are kept; the least recently drawn go first.
@@ -113,7 +114,7 @@ anyone with access to the device's Obsidian does.
 
   Nothing asks when the plugin's folder is deleted by hand, or the plugin is uninstalled on another
   device: delete the data folder yourself.
-- **Settings → Danger zone → Delete synced data** moves the plugin's own files in the data folder to
+- **Settings → Advanced → Delete synced data** moves the plugin's own files in the data folder to
   the trash, and the diagnostics notes if you tick the box. Anything else in that folder stays. It
   doesn't sign you out.
 - **The trash still holds them.** Files in the system trash or the vault's `.trash` folder stay on
@@ -125,9 +126,17 @@ anyone with access to the device's Obsidian does.
 | --- | --- | --- |
 | `sso.garmin.com` | signing in | your email and password, then your MFA code if Garmin asks for one |
 | `diauth.garmin.com` | signing in, and refreshing the session | the service ticket; later the refresh token and its DI client ID |
-| `connectapi.garmin.com` | syncing, and pages loading what they need | the bearer token, and the dates and ids being asked for |
+| `connectapi.garmin.com` | syncing, on its own or when you ask; the history download you agreed to; pages loading what they need | the bearer token, and the dates and ids being asked for |
 | `tile.openstreetmap.org` | drawing an activity's map, while **Map tiles** is on | requests for the tiles around the route (so roughly where the activity was) and a User-Agent naming this plugin |
 | `tls.peet.ws` | only when you run **Network fingerprint** in the diagnostics | a User-Agent string |
+
+**What it sends without being asked.** With **Sync automatically** on, the default, the plugin asks
+Garmin on its own: when Obsidian starts, when Home comes into view or the app comes back to the front
+with Home showing, and after a sign-in, once the last sync is 15 minutes old or from an earlier day.
+Each time it first asks for two things, the watch's last upload and your newest ten activities, and
+stops there when nothing changed. The history download you agreed to also runs in the background.
+With **Sync automatically** off, Garmin hears from the plugin only when you sync, when a page loads
+what it needs, and while the download runs.
 
 Like any server, each of these also sees your IP address. `tls.peet.ws`, a third-party echo service,
 also sees what your connection looks like (its TLS fingerprint): that is what it is for, and it is
@@ -143,7 +152,7 @@ is no telemetry and no analytics.
 **Run diagnostics** can save a run as a note in your vault, because a phone has no console and a note
 syncs back to your desktop. The folder is the **Log folder** in the Advanced settings
 (`Garmin/diagnostics` in a new vault). A run is saved only when you press **Save to vault**, unless
-**Save every diagnostics run to the vault** is on, which it isn't by default.
+**Save diagnostics runs** is on, which it isn't by default.
 
 **Save debug info** gathers what a bug report needs, with no network request and no sign-in:
 versions, platform, the settings without the email, the history download's state, the last sync

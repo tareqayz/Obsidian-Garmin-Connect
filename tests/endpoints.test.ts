@@ -582,3 +582,37 @@ describe("privacy-protected summaries", () => {
 		await assert.rejects(() => client.dailySummary("2026-09-12"), (err: unknown) => err instanceof GarminApiError && err.status === 403);
 	});
 });
+
+describe("asked once", () => {
+	it("shares one profile request among everything that needs it at once", async () => {
+		const { http, client } = await api([{ url: "/socialProfile", json: { displayName: "abc-123", profileId: 7 } }]);
+		const [a, b, pk] = await Promise.all([client.requireDisplayName(), client.requireDisplayName(), client.requireProfilePk()]);
+		assert.deepEqual([a, b, pk], ["abc-123", "abc-123", 7]);
+		assert.equal(http.urls.filter((u) => u.includes("/socialProfile")).length, 1);
+	});
+
+	it("remembers the account's settings for ten minutes, a failure not at all, and forgets them on sign-out", async () => {
+		let clock = 1_000_000;
+		const http = new FixtureHttpClient([
+			{ url: "/mobile/api/login", json: { responseStatus: { type: "SUCCESSFUL" }, serviceTicketId: "ST" } },
+			{ url: "diauth", json: { access_token: "a", refresh_token: "r", expires_in: 86_400 } },
+			{ url: "/user-settings", times: 1, status: 404, json: {} },
+			{ url: "/user-settings", times: 1, json: { userData: { height: 180 } } },
+			{ url: "/user-settings", json: { userData: { height: 181 } } },
+		]);
+		const client = new GarminApi({ http, store: new MemoryTokenStore(), now: () => clock, wait: async (ms) => void (clock += ms) });
+		await client.login("u", "p");
+		const asked = () => http.urls.filter((u) => u.includes("/user-settings")).length;
+		await assert.rejects(client.userSettings());
+		assert.deepEqual(await client.userSettings(), { userData: { height: 180 } });
+		clock += 9 * 60_000;
+		assert.deepEqual(await client.userSettings(), { userData: { height: 180 } });
+		assert.equal(asked(), 2);
+		clock += 2 * 60_000;
+		assert.deepEqual(await client.userSettings(), { userData: { height: 181 } });
+		await client.logout();
+		await client.login("u", "p");
+		await client.userSettings();
+		assert.equal(asked(), 4);
+	});
+});

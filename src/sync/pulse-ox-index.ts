@@ -56,7 +56,8 @@ export const PULSE_OX_INDEX = defineDayIndex<PulseOxRow>({
 	kind: "pulse-ox",
 	title: "pulse ox",
 	folder: "pulse-ox",
-	version: 1,
+	// 2: the elevation is kept for the days a routine sync adds (`windowToo`); before, only a history walk wrote it.
+	version: 2,
 	columns: { avg: {}, low: {}, latest: {}, elev: { signed: true } },
 	// The range has the average and elevation, the summary the lowest and latest.
 	keepOld: true,
@@ -64,6 +65,8 @@ export const PULSE_OX_INDEX = defineDayIndex<PulseOxRow>({
 	// `acclimationDaily` has no cap: the whole history in one request.
 	windowDays: 3660,
 	emptyWindowsToStop: 1,
+	// The summary has the lowest and latest; the elevation comes with the window.
+	windowToo: true,
 	fetchWindow: async (api, start, end) => rowsOfAcclimation(await api.acclimationDaily(start, end)),
 	fromSummary: (summary) => {
 		const s = summary as Record<string, unknown>;

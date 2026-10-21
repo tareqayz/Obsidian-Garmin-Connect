@@ -135,7 +135,7 @@
 	canGoForward={view.canGoForward}
 	{onBack}
 	{swap}
-	history={{ title: ENDURANCE_SCORE_INDEX.title, windowDays: ENDURANCE_SCORE_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: ENDURANCE_SCORE_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{@const across = width || PHONE}

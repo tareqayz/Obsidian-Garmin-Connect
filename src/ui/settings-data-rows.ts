@@ -1,11 +1,12 @@
 import type GarminPlugin from "../main";
+import type { QueuedRange } from "../sync/backfill";
 import { rangeStart } from "../sync/datasets";
-import { estimate, formatBytes, formatDuration, withBudget, type Estimate } from "../sync/estimate";
+import { estimate, formatBytes, formatDuration, type Estimate } from "../sync/estimate";
 import type { BackfillProgress } from "../sync/runner";
 import { historyStart } from "../sync/scan";
 import { VaultSeriesStore, type DiskUsage } from "../sync/series-store";
-import { SYNC_SPEEDS } from "../sync/speed";
-import type { UpdateLine } from "./setup-flow";
+import { Coalesced } from "./coalesced";
+import { updateLinesOf, type UpdateLine } from "./setup-flow";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
@@ -13,19 +14,24 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute:
 const count = new Intl.NumberFormat();
 
 /**
- * Settings → Data's live half: what the vault holds, what is missing for the
- * ranges chosen, and the download in progress. Each row that shows some of it
- * attaches a repaint; the first attach starts listening to the sync and the
- * last detach stops, so a closed settings tab costs nothing.
+ * Settings → History's live half: what the vault holds, what is missing for
+ * the ranges chosen, the download in progress and the date ranges queued for
+ * it. Each row that shows some of it attaches a repaint; the first attach
+ * starts listening to the sync and the last detach stops, so a closed
+ * settings tab costs nothing.
  */
 export class SettingsDataRows {
 	usage: DiskUsage;
 	progress: BackfillProgress | null;
 	updates: UpdateLine[] = [];
+	/** Date ranges waiting for the download (`SyncRunner.queueRange`), oldest asked first. */
+	ranges: QueuedRange[] = [];
 	private est: Estimate | null = null;
 	private start: string | undefined;
 	private readonly painters = new Set<() => void>();
 	private unsubscribe: Array<() => void> = [];
+	/** During a download the progress moves every few seconds: one refresh at a time, at most every 3 s. */
+	private readonly refreshing = new Coalesced(() => this.load(), 3_000);
 
 	constructor(private readonly plugin: GarminPlugin) {
 		this.usage = new VaultSeriesStore(plugin.app, plugin.data.settings.dataFolder).diskUsage();
@@ -61,39 +67,25 @@ export class SettingsDataRows {
 	}
 
 	/** What is missing for the ranges chosen, from the last scan and what the vault holds. */
-	async refresh(): Promise<void> {
+	refresh(): Promise<void> {
+		return this.refreshing.run();
+	}
+
+	/** One read of the vault for the update lines and the estimate both. */
+	private async load(): Promise<void> {
 		const plugin = this.plugin;
 		const s = plugin.data.settings;
-		const store = new VaultSeriesStore(plugin.app, s.dataFolder);
-		this.usage = store.diskUsage();
-		this.updates = await plugin.updateLines("all");
-		const scan = await store.readScan();
-		if (!scan) {
+		this.usage = new VaultSeriesStore(plugin.app, s.dataFolder).diskUsage();
+		const input = await plugin.historyInput();
+		this.updates = input && s.setup ? updateLinesOf(input, "all") : [];
+		this.ranges = input?.ranges ? [...input.ranges] : [];
+		if (!input?.scan) {
 			this.est = null;
 			this.paint();
 			return;
 		}
-		const [index, coverage, detailFiles, charts] = await Promise.all([
-			store.readActivities(),
-			store.readDayCoverage(s.groups.includes("intraday")),
-			store.readDetailCoverage(),
-			store.readChartMetas(),
-		]);
-		this.start = historyStart(scan);
-		this.est = estimate({
-			today: new Date().toISOString().slice(0, 10),
-			groups: s.groups,
-			speed: s.syncSpeed,
-			scan,
-			dayDetails: s.data.dayDetails,
-			activityDetails: s.data.activityDetails,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: plugin.isRun(row) })),
-			held: {
-				daySpans: coverage.spans,
-				details: detailFiles,
-				charts: new Map([...charts].filter((entry): entry is [string, { complete: boolean; from?: string }] => entry[1] !== null)),
-			},
-		});
+		this.start = historyStart(input.scan);
+		this.est = estimate(input);
 		this.paint();
 	}
 
@@ -102,26 +94,44 @@ export class SettingsDataRows {
 	}
 
 	usageText(): string {
-		const u = this.usage;
-		return `${formatBytes(u.total)} — Charts & trends ${formatBytes(u.charts)} · Day details ${formatBytes(u.days)} · Activity details ${formatBytes(u.details)} · Other ${formatBytes(u.other)}`;
+		return `${formatBytes(this.usage.total)} in ${this.plugin.data.settings.dataFolder}.`;
+	}
+
+	/** The History row on the main page: what the folder holds, and the download, as the page was drawn. */
+	summaryText(): string {
+		const size = `${formatBytes(this.usage.total)} in ${this.plugin.data.settings.dataFolder}`;
+		const p = this.progress;
+		if (!p) return `${size}.`;
+		if (p.status === "running" || p.status === "waiting") return `${size} · downloading, ${this.percent}%.`;
+		if (p.status === "elsewhere") return `${size} · downloading on ${p.device ?? "another device"}.`;
+		return `${size} · download paused.`;
 	}
 
 	dayText(): string {
 		const s = this.plugin.data.settings;
+		if (s.data.dayDetails === "new") return "New days only.";
 		const days = this.est?.sets.find((x) => x.id === "day-details");
-		const from = s.data.dayDetails === "new" ? null : rangeStart(s.data.dayDetails, new Date().toISOString().slice(0, 10), this.start);
-		if (s.data.dayDetails === "new") return "Keeps every new day from the setup on.";
-		if (days?.units) return `Keeps every new day. Older days back to ${day(from)}: + ${count.format(days.units)} days · ≈ ${formatBytes(days.bytes)} · ${formatDuration(days.seconds)} to fill.`;
-		if (this.est) return `Keeps every new day. Everything back to ${day(from)} is in this vault.`;
-		return "Keeps every new day.";
+		const from = rangeStart(s.data.dayDetails, new Date().toISOString().slice(0, 10), this.start);
+		const back = from ? `Back to ${day(from)} · ` : "";
+		if (days?.units) return `${back}${count.format(days.units)} ${days.units === 1 ? "day" : "days"} left, ≈ ${formatBytes(days.bytes)}.`;
+		if (this.est) return from ? `${back}all here.` : "All here.";
+		return "New days are always kept.";
 	}
 
 	detailText(): string {
-		if (this.plugin.data.settings.data.activityDetails === "opened") return "An activity downloads when you open it.";
+		if (this.plugin.data.settings.data.activityDetails === "opened") return "Downloaded when you open one.";
 		const details = this.est?.sets.find((x) => x.id === "activity-details");
-		return details?.units
-			? `Every activity is saved. ${count.format(details.units)} ${details.units === 1 ? "activity" : "activities"} left to download.`
-			: "Every activity is saved.";
+		return details?.units ? `${count.format(details.units)} left to download.` : "All here.";
+	}
+
+	/** "Oct 21, 2024 – Oct 21, 2026". */
+	rangeDates(range: QueuedRange): string {
+		return `${day(range.from)} – ${day(range.to)}`;
+	}
+
+	/** How far the download has got with a range: it walks back from the end. */
+	rangeState(range: QueuedRange): string {
+		return range.next >= range.to ? "waiting" : `back to ${monthFormat.format(new Date(`${range.next}T12:00:00`))}`;
 	}
 
 	get percent(): number {
@@ -140,11 +150,10 @@ export class SettingsDataRows {
 		if (p.status === "paused" && p.reason === "blocked") return `Garmin's bot check refused this device · trying again at ${until}`;
 		if (p.status === "paused" && p.reason === "update") return "Another device runs a newer version of the plugin. Update it here to keep downloading.";
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
-		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;
+		// The hourly rest is part of the download's pace, not a stop.
+		if (p.status === "waiting") return `Downloading ${what}${reached} · ${percent}% · continues at ${until}`;
 		if (p.status === "elsewhere") return `Downloading on ${p.device ?? "another device"}. This device leaves it to that one.`;
-		const speed = this.plugin.data.settings.syncSpeed;
-		const left = withBudget(p.remaining, p.remaining / SYNC_SPEEDS[speed].limits.rate, speed);
-		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(left)} left`;
+		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(p.seconds ?? 0)} left`;
 	}
 }
 

@@ -21,14 +21,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export type DayProperties = Map<string, Properties>;
 
 /**
- * A day's properties over what the file already held. Merged rather than
- * replaced, as frontmatter was: a group switched off since does not wipe the
- * values it wrote.
+ * A day's properties over what `days` held for it, in place. Merged rather
+ * than replaced, as frontmatter was: a group switched off since does not wipe
+ * the values it wrote.
  */
-export function mergeDay(days: DayProperties, date: string, properties: Properties): DayProperties {
-	const next = new Map(days);
-	next.set(date, { ...(days.get(date) ?? {}), ...properties });
-	return next;
+function mergeInto(days: DayProperties, date: string, properties: Properties): Properties {
+	const merged = { ...(days.get(date) ?? {}), ...properties };
+	days.set(date, merged);
+	return merged;
 }
 
 /**
@@ -64,8 +64,8 @@ export function parseDays(text: string): DayProperties {
 export interface DayYearStore {
 	/** The year file's text as it stands now, or null when there is none. */
 	readYear(year: string): Promise<string | null>;
-	/** Skips the write when the text would not change. */
-	writeYear(year: string, body: string): Promise<"written" | "unchanged">;
+	/** Skips the write when the text would not change. `held` is the file's text as just read, so it isn't read again. */
+	writeYear(year: string, body: string, held?: string): Promise<"written" | "unchanged">;
 }
 
 /**
@@ -82,6 +82,8 @@ export class DayBuffer {
 	private incoming: DayProperties = new Map();
 	/** Each year as first read, with the run's days merged in: what `write` compares against. */
 	private seen = new Map<string, DayProperties>();
+	/** Each year's text as first read: a file still the same at flush needs no second parse. */
+	private firstText = new Map<string, string | null>();
 
 	constructor(private readonly store: DayYearStore) {}
 
@@ -95,13 +97,13 @@ export class DayBuffer {
 		let days = this.seen.get(year);
 		if (!days) {
 			const text = await this.store.readYear(year);
+			this.firstText.set(year, text);
 			days = text ? parseDays(text) : new Map();
+			this.seen.set(year, days);
 		}
-		const before = days.get(date);
-		const next = mergeDay(days, date, properties);
-		this.seen.set(year, next);
-		if (JSON.stringify(before) === JSON.stringify(next.get(date))) return "unchanged";
-		this.incoming = mergeDay(this.incoming, date, properties);
+		const before = JSON.stringify(days.get(date));
+		if (before === JSON.stringify(mergeInto(days, date, properties))) return "unchanged";
+		mergeInto(this.incoming, date, properties);
 		return "written";
 	}
 
@@ -118,11 +120,15 @@ export class DayBuffer {
 		const years = [...new Set([...held.keys()].map((date) => date.slice(0, 4)))].sort();
 		for (const year of years) {
 			const text = await this.store.readYear(year);
-			let days: DayProperties = text ? parseDays(text) : new Map<string, Properties>();
-			for (const [date, properties] of held) {
-				if (date.startsWith(`${year}-`)) days = mergeDay(days, date, properties);
+			// Unchanged since the first read: the run's days are merged into that already.
+			let days = text === this.firstText.get(year) ? this.seen.get(year) : undefined;
+			if (!days) {
+				days = text ? parseDays(text) : new Map<string, Properties>();
+				for (const [date, properties] of held) if (date.startsWith(`${year}-`)) mergeInto(days, date, properties);
 			}
-			if ((await this.store.writeYear(year, serializeDays(year, days))) === "written") written += 1;
+			if ((await this.store.writeYear(year, serializeDays(year, days), text ?? undefined)) === "written") written += 1;
+			this.seen.delete(year);
+			this.firstText.delete(year);
 		}
 		return written;
 	}

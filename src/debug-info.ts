@@ -1,6 +1,7 @@
 import { Platform, TFile, TFolder, apiVersion, normalizePath, type App } from "obsidian";
 import { describe as describeRequests } from "./garmin/request-stats";
 import { scrub } from "./log";
+import { HOURLY_BUDGET, PACE } from "./sync/pace";
 import type GarminPlugin from "./main";
 import { seenConflictCopies, VaultSeriesStore } from "./sync/series-store";
 
@@ -29,10 +30,8 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 	add("Units", s.units);
 	add("Metric groups", s.groups.join(", "));
 	add("Data folder", s.dataFolder);
-	add("Sync speed", s.syncSpeed);
-	add("Sync on startup", s.syncOnStartup);
+	add("Sync automatically", s.autoSync);
 	add("Map tiles", s.mapTiles);
-	add("Stop after empty days", s.stopAfterEmptyDays);
 	add("Set up", s.setup ? `${s.setup.completedAt}${s.setup.migrated ? " (migrated)" : ""}` : "no");
 	add("Day details", s.data.dayDetails);
 	add("Activity details", s.data.activityDetails);
@@ -47,6 +46,10 @@ export async function debugInfo(plugin: GarminPlugin, opts: { error?: unknown } 
 
 	const store = new VaultSeriesStore(app, s.dataFolder);
 	lines.push("", "History download");
+	add("Pace", `${PACE.limits.rate} requests/s, ${PACE.parallel} days at once, up to ${HOURLY_BUDGET.toLocaleString("en")} an hour for the history download`);
+	const hour = plugin.sync.budgetOutlook();
+	const spent = hour.entries.reduce((n, entry) => n + entry.requests, 0);
+	add("This hour", `${spent} spent${hour.halvedUntil ? `, halved after a 429 until ${new Date(hour.halvedUntil).toISOString()}` : ""}`);
 	const progress = plugin.sync.backfillProgress;
 	add("State", progress ? [progress.status, progress.reason, progress.task, progress.until && `until ${progress.until}`].filter(Boolean).join(" · ") : "idle");
 	if (progress) add("Requests", `${progress.done} done, about ${progress.remaining} left`);

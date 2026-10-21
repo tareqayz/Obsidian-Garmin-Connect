@@ -200,8 +200,9 @@ The maintainer's working copy is the live plugin folder, `.obsidian/plugins/garm
 a real vault. That has consequences:
 - **A build replaces the live plugin's `main.js`.** Hot Reload isn't enabled, so nothing changes in
   the running app until `obsidian plugin:reload id=garmin-connect` (see
-  [obsidian-cli.md](obsidian-cli.md)). A load also runs a sync when **Sync on startup** is on. The
-  vault lives in iCloud, so the new `main.js` reaches the phone too.
+  [obsidian-cli.md](obsidian-cli.md)). A load can also start an automatic sync a few seconds later,
+  while **Sync automatically** is on. The vault lives in iCloud, so the new `main.js` reaches the
+  phone too.
 - **Parallel work goes in a `git worktree` outside iCloud,** not in a second branch checked out
   here: switching branches in place changes the source the next build uses.
 - **Secrets and personal data live beside the code.** Never commit, print or paste them:
@@ -300,6 +301,12 @@ request that changes behaviour updates that home in the same pull request.
   in Obsidian. The text before a diagram must say the same thing.
 - **Use GitHub alerts** (`> [!NOTE]`, `> [!WARNING]` …) at the top level, with the marker alone on
   its line, and `<details>` only for depth few readers need.
+
+**UI text** (settings, dialogs, Home's cards, notices):
+- **One short sentence per description.** Say what it does, in plain words. Numbers, mechanics and
+  caveats go in `docs/settings.md` or `docs/GUIDE.md`, not on screen.
+- **Recommend first.** Lead with the choice most people want, and keep the rest behind **Advanced**.
+- **Words a row drops stay findable** as search `aliases` on its definition (`src/settings.ts`).
 
 <details>
 <summary>Before the first directory submission</summary>

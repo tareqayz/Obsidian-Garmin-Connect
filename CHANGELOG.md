@@ -6,6 +6,101 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [1.2.0-beta.1] — 2026-10-21
+
+### Added
+
+- **Sync automatically.** The plugin keeps your vault current on its own: when Obsidian starts and
+  when you open Home, once the last sync is 15 minutes old. When nothing changed on Garmin, it stops
+  after a two-request check and writes nothing. It replaces **Sync on startup** and is on for
+  everyone, existing vaults included; turn it off in Settings.
+- **Long date ranges download in the background.** Before you start, **Sync a date range…** says
+  what it will do, with the size and time: a short range syncs now, a long one joins the history
+  download, which keeps to the hourly budget and picks up where it left off. **Settings → History**
+  lists the ranges waiting and takes one out. A range starts where your Garmin history starts.
+
+### Changed
+
+- **A simpler setup.** After the scan it recommends one thing: download your whole history, with its
+  size and how long it takes. **Advanced options** holds the Day details and Activity details ranges,
+  for anyone who wants less. The step indicator, the separate Choose and Start steps and **Keep new
+  days only** are gone.
+- **Shorter settings.** The main page keeps your account, **Sync automatically**, Units and Map
+  tiles. The rest moved to three pages, **History**, **Metrics** and **Advanced**, which Obsidian's
+  settings search still finds. The Garmin email row is gone: the account row says who is signed in.
+- **Clearer, shorter text** in every plugin dialog, Home's setup cards, the sign-in form and
+  diagnostics.
+- **Faster syncs and downloads.** A sync starts its requests together rather than in stages, at one
+  pace the plugin sets. The history download keeps to 8,000 requests an hour, halved for a day after
+  Garmin asks it to slow down, and fetches activity pages a few at a time: a download that took about
+  two hours on the vault it was measured on now takes about an hour.
+- **Recent history first.** The history download fetches the last 90 days' days and activities
+  first, then back to a year, then the rest, so last week's run no longer waits behind ten-year-old
+  days.
+- **A lighter history download.** It skips what your complete charts show is empty, such as a
+  weigh-in on a day without one, once it has checked that this holds on your account. Past about 140
+  days it stops asking for the fine-grained timelines Garmin no longer keeps.
+- **Honest estimates.** The setup, Settings → History, the update dialog and the download's time
+  left all come from one model of what the download really does. Sizes are measured per sport, then
+  taken from your own files once the vault holds enough of them, and the time left follows the
+  download's real pace.
+- **Sizes and times, not request counts.** The update dialog gives every item a size and a time and
+  totals the ticked ones as one download. Settings → Metrics says what each group holds, and the
+  history banners and the date range dialog drop their request counts.
+- **The hourly rest reads as downloading.** While the download waits for the hour's budget, Home, the
+  status bar and Settings → History keep its progress and **Pause**, and say when it continues.
+- **Quieter syncs.** From the command palette, progress shows only after a moment, and the end reads
+  "Garmin: 3 days updated." or "Garmin: up to date.". From ↻, Home's line says how it went ("Synced
+  2:05 PM"), and only a failure shows a notice.
+- **A watch left in a drawer** no longer makes every sync fetch the same days again: until it
+  uploads, a sync covers only the days since the last one.
+- **Fewer requests a sync.** An automatic sync fetches your profile (the watch, thresholds, records)
+  only when your newest activities changed, or every six hours, and a sync no longer asks for your
+  profile and Garmin settings several times over.
+- **Home keeps up during a sync.** It redraws once when the sync ends instead of after every day,
+  and re-reads only the files that changed. Settings → History refreshes at most every few seconds
+  during the download, and listing a long activity history takes far less memory, which matters on
+  a phone.
+- **Sync activity history is now Refresh the activity list.** Its command id is unchanged, so a
+  hotkey keeps working.
+
+### Removed
+
+- **Sync speed.** Every request runs at one pace the plugin sets, and the history download keeps to
+  8,000 requests an hour.
+- **Stop after empty days.** A date range still gives up after 45 days in a row with nothing in
+  them.
+- **Sync today.** **Sync automatically** keeps today current, ↻ and **Sync recent days** sync at
+  once, and **Sync a date range…** covers any one day.
+- **The 26 single-history commands** (**Sync sleep history**, **Sync stress history**, …). The
+  history download fetches every history you agreed to, and each page's **Sync history** button
+  fetches its own at once.
+
+### Fixed
+
+- **The sign-in saves your email once it succeeds**, rather than on every keystroke, and diagnostics
+  no longer saves it.
+- **The setup's size for every activity no longer comes up short** when the activity list's download
+  gave way to a sync.
+- **A setup that can't work out its estimate** now offers **Try again** instead of stopping on the
+  scan.
+- **Account details vanished when one request failed:** the watch, records or training plans were
+  missing until a later sync. They now stay as they were.
+- **Respiration's night average and Pulse Ox's elevation** were missing for every day a sync added.
+  Syncs keep them now, and the update dialog offers once to fill in the days you have.
+- **The history download asked again every session for days Garmin has nothing for**, when Garmin
+  answered one of their requests with a 400 or 404, such as HRV before the watch measured it.
+- **Pages fetched a day's details again after every sync**, even when the day hadn't changed.
+- **An imperial account's days were written in metric** for the rest of the session after one
+  failed request.
+- **The download's progress started over at 0% after a restart.** It now carries on, on any device.
+- **Pausing the download while it was busy** set it back to downloading once the piece in hand
+  finished. It now stays paused, and another device's heartbeat no longer undoes a pause.
+- **Estimates were off.** Body Battery's and Weight's histories cost twice what was counted, and the
+  old sizes said 72 MB for a history that takes 55 MB.
+- **On a first run, two parts of the plugin creating the same index file at once** could make one of
+  them fail. The second now writes over the first.
+
 ## [1.1.0] — 2026-10-21
 
 ### Added

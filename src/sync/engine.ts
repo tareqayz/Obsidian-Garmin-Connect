@@ -24,9 +24,12 @@ import {
 	type StepsChartEntry,
 	type TrainingStatus,
 } from "../garmin/endpoints";
-import { GarminRateLimitError } from "../garmin/errors";
+import { GarminApiError, GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { isFatal } from "./fatal";
+import { routeEmpty, type MaskRoute } from "./day-facts";
+import { timelineVerdict, type TimelineVerdict } from "./horizons";
+import { rowOf, type ActivityRow } from "./activity-index";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
 import { shiftDate, type DayIndexBatch, type DayIndexDef, type DayRow, type DayRowInput } from "./day-index";
@@ -207,6 +210,14 @@ export interface SyncOptions {
 	 * the day files alone, not `activities`, which wants the newest pages.
 	 */
 	activityRange?: boolean;
+	/** The newest page of the activity list as a probe already fetched it, and the page size it asked: the list starts from it. */
+	firstPage?: { page: readonly Activity[]; limit: number };
+	/**
+	 * The history download's masks (`day-facts.ts`): the routes a day leaves
+	 * out, and the masked routes asked anyway to check them, each reported
+	 * with whether it came back empty. A routine sync has none.
+	 */
+	masks?: DayMasks;
 	/**
 	 * How many of the newest days in a run get intraday series: six requests a
 	 * day. The runner passes the run's days inside Day details, or all of them
@@ -255,6 +266,8 @@ export interface DayResult {
 	 * it is left to fetch at this version.
 	 */
 	full?: true;
+	/** The day's series file was written: its timelines changed, whatever its day file did. */
+	seriesWritten?: true;
 }
 
 export interface SyncReport {
@@ -360,6 +373,14 @@ export const SETTLE_DAYS = 1;
 export const MAX_RECENT_DAYS = 30;
 
 /**
+ * Empty days in a row after which a foreground run stops: a range reaching
+ * back past the start of the account's history would otherwise ask for every
+ * day before the account existed. Not a setting; a recent sync never reaches
+ * it (`MAX_RECENT_DAYS`).
+ */
+export const EMPTY_DAYS_STOP = 45;
+
+/**
  * The days a recent sync covers: from the day before `mark` through today,
  * never fewer than yesterday and today, never more than `MAX_RECENT_DAYS`.
  *
@@ -444,12 +465,64 @@ export async function syncRange(
 		return finish(report, log);
 	}
 
+	// Everything that needs nothing local starts now, side by side, and the
+	// client's throttle paces it: the range calls, the first days, and the
+	// windows of the indexes that read neither the summaries nor the days'
+	// payloads. Only the mapping below waits, for the activity list and the
+	// range calls, so a sync takes about a round trip more than its days.
+	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
+	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
+	// Blocks kept from the day's own payloads go where the series go.
+	const extras = opts.series ? (opts.extras ?? []) : [];
+	const kept = keptKeys(extras);
+	const withSeries = Boolean(wanted.intraday && opts.series);
+	const ahead = Math.max(1, Math.floor(opts.parallelDays ?? 1));
+	// The next few days are fetched while this one is written. Only the fetch
+	// runs ahead: everything below still happens a day at a time, in order, so
+	// an early stop leaves the same days behind it as before — and at most
+	// `ahead - 1` days' requests unused.
+	const fetching = new Map<number, Promise<DayFetch>>();
+	const fetchAt = (index: number): Promise<DayFetch> | undefined => {
+		if (index >= due.length) return undefined;
+		let pending = fetching.get(index);
+		if (!pending) {
+			const skip = opts.masks?.skip(due[index]) ?? NO_ROUTES;
+			const old = opts.masks?.pastHorizon?.(due[index]) ?? false;
+			pending = fetchDay(source, due[index], withoutRoutes({ ...wanted, intraday: withSeries && index < intradayDays }, skip), skip, old);
+			fetching.set(index, pending);
+		}
+		return pending;
+	};
+
+	// VO2 Max and race predictions come back for a whole range in one request,
+	// so they are fetched once here rather than four hundred times below.
+	const oldest = due[due.length - 1] ?? opts.from;
+	const newest = due[0] ?? opts.to;
+	const ranged = due.length > 0;
+	// A fatal one stops the run where it is taken, below; the others are already on their way.
+	const maxMetricsRange = ranged && wanted.maxMetrics ? fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b)) : null;
+	const racesRange = ranged && wanted.races ? fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b)) : null;
+	// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
+	const hillRange = ranged && wanted.hillScores ? fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS) : null;
+	// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
+	const toleranceRange = ranged && wanted.runningTolerance ? fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS) : null;
+	const snapshotsRange = ranged && wanted.healthSnapshots ? fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS) : null;
+	for (let next = 0; next < ahead; next++) void fetchAt(next);
+	// An index that reads neither the summaries nor the days asks its windows for the run whatever the days bring.
+	const early = new Map<IndexRun, Promise<unknown>>();
+	if (ranged) for (const run of runs) if (!run.runtime.def.fromSummary && !run.runtime.def.fromDay) early.set(run, feed(run, true));
+	/** Stops the run, once the early feeds have merged what they fetched. */
+	const stopNow = async (err: unknown): Promise<SyncReport> => {
+		await Promise.all(early.values());
+		return stop(report, err, log);
+	};
+
 	let workoutsByDate = new Map<string, Activity[]>();
 	if (wanted.workouts) {
 		try {
 			const { activities, requests, reachedEnd } = opts.activityRange
 				? await fetchActivitiesBetween(source, opts.from, opts.to)
-				: await fetchActivitiesFor(source, opts.from);
+				: await fetchActivitiesFor(source, opts.from, opts.firstPage);
 			report.requests += requests;
 			workoutsByDate = bucketWorkoutsByDate(activities);
 			log.detail("workouts found", activities.length);
@@ -461,7 +534,7 @@ export async function syncRange(
 				}
 			}
 		} catch (err) {
-			if (isFatal(err)) return stop(report, err, log);
+			if (isFatal(err)) return stopNow(err);
 			log.warn(`activity list failed: ${message(err)}`);
 		}
 	}
@@ -482,35 +555,15 @@ export async function syncRange(
 		return finish(report, log);
 	}
 
-	// VO2 Max and race predictions come back for a whole range in one request,
-	// so they are fetched once here rather than four hundred times below.
-	const oldest = due[due.length - 1] ?? opts.from;
-	const newest = due[0] ?? opts.to;
-
 	/** Range parts that came back whole: what a `fromDay` index may read for every day of the run. */
 	const rangeOk = new Set<keyof DayData>();
-
-	// All asked for at once — they do not depend on each other, and the
-	// client's throttle paces them — then taken in order below. A fatal one
-	// still stops the run there; the others are already on their way.
-	const maxMetricsRange = wanted.maxMetrics ? fetchRange(oldest, newest, (a, b) => source.maxMetrics(a, b)) : null;
-	const racesRange = wanted.races ? fetchRange(oldest, newest, (a, b) => source.racePredictions(a, b)) : null;
-	// The route takes 401 days (402 is HTTP 400): a year a request, as the hill-score index walks it.
-	const hillRange = wanted.hillScores ? fetchRange(oldest, newest, (a, b) => source.hillScores(a, b), RANGE_CHUNK_DAYS) : null;
-	// The route takes 366 days (367 is HTTP 400): a year a request, as the running-tolerance index walks it.
-	const toleranceRange = wanted.runningTolerance
-		? fetchRange(oldest, newest, (a, b) => source.runningTolerance(a, b), RANGE_CHUNK_DAYS)
-		: null;
-	const snapshotsRange = wanted.healthSnapshots
-		? fetchRange(oldest, newest, (a, b) => source.healthSnapshots(a, b), SHORT_RANGE_DAYS)
-		: null;
 
 	let maxMetricsByDate = new Map<string, MaxMetrics>();
 	if (maxMetricsRange) {
 		const got = await maxMetricsRange;
 		report.requests += got.requests;
 		maxMetricsByDate = byDate(got.rows, maxMetricsDate);
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("maxMetrics");
 		if (got.error) note(report, log, `VO2 Max: ${got.error}`);
 		// No rows is an account without VO2 Max (a scale, a bike computer, no
@@ -524,7 +577,7 @@ export async function syncRange(
 		const got = await racesRange;
 		report.requests += got.requests;
 		racesByDate = byCalendarDate(got.rows);
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("races");
 		// A window holding any prediction sends every day, null where there is none: count the days with a time.
 		const predicted = [...racesByDate.values()].filter(hasRaceTime).length;
@@ -537,7 +590,7 @@ export async function syncRange(
 	if (hillRange) {
 		const got = await hillRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("hillScore");
 		if (got.error) note(report, log, `hill score: ${got.error}`);
 		// Several devices can report the same day; the primary one wins.
@@ -551,7 +604,7 @@ export async function syncRange(
 	if (toleranceRange) {
 		const got = await toleranceRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (!got.error) rangeOk.add("runningTolerance");
 		if (got.error) note(report, log, `running tolerance: ${got.error}`);
 		toleranceByDate = byCalendarDate(got.rows);
@@ -561,7 +614,7 @@ export async function syncRange(
 	if (snapshotsRange) {
 		const got = await snapshotsRange;
 		report.requests += got.requests;
-		if (got.fatal) return stop(report, got.fatal, log);
+		if (got.fatal) return stopNow(got.fatal);
 		if (got.error) note(report, log, `health snapshots: ${got.error}`);
 		for (const row of got.rows) {
 			const date = row?.calendarDate;
@@ -570,30 +623,8 @@ export async function syncRange(
 		}
 	}
 
-	const emptyLimit = opts.stopAfterEmptyDays ?? 0;
-	const intradayDays = Math.max(0, opts.intradayDays ?? INTRADAY_DAYS);
-	// Blocks kept from the day's own payloads go where the series go.
-	const extras = opts.series ? (opts.extras ?? []) : [];
-	const kept = keptKeys(extras);
 	let emptyRun = 0;
 	let done = 0;
-
-	const withSeries = Boolean(wanted.intraday && opts.series);
-	const ahead = Math.max(1, Math.floor(opts.parallelDays ?? 1));
-	// The next few days are fetched while this one is written. Only the fetch
-	// runs ahead: everything below still happens a day at a time, in order, so
-	// an early stop leaves the same days behind it as before — and at most
-	// `ahead - 1` days' requests unused.
-	const fetching = new Map<number, Promise<DayFetch>>();
-	const fetchAt = (index: number): Promise<DayFetch> | undefined => {
-		if (index >= due.length) return undefined;
-		let pending = fetching.get(index);
-		if (!pending) {
-			pending = fetchDay(source, due[index], { ...wanted, intraday: withSeries && index < intradayDays });
-			fetching.set(index, pending);
-		}
-		return pending;
-	};
 
 	for (const [index, date] of due.entries()) {
 		if (opts.shouldStop?.()) {
@@ -608,8 +639,26 @@ export async function syncRange(
 		if (fetched.fatal) {
 			// What earlier days gave the index costs nothing more to keep.
 			if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
-			for (const run of runs) await feed(run, false);
-			return stop(report, fetched.fatal, log);
+			for (const run of runs) if (!early.has(run)) await feed(run, false);
+			return stopNow(fetched.fatal);
+		}
+		if (opts.masks?.heardTimelines && fetched.intradayFetched && !fetched.pastHorizon) {
+			try {
+				opts.masks.heardTimelines(date, timelineVerdict(fetched.intraday, fetched.data.summary));
+			} catch {
+				// An answer the mappers can't read says nothing of the horizon.
+			}
+		}
+		if (opts.masks) {
+			// A masked route asked anyway, to check the mask: did it come back empty?
+			for (const route of opts.masks.audit(date)) {
+				if (!fetched.ok.has(ROUTE_PART[route]) || fetched.masked.has(route)) continue;
+				try {
+					opts.masks.heard(route, routeEmpty(route, fetched.data, fetched.intraday, { groups: opts.groups, units: opts.units, date }));
+				} catch {
+					// An answer the mappers can't read checks nothing.
+				}
+			}
 		}
 		// Reading Garmin's answers: a payload in a shape the mappers don't expect
 		// fails this day alone, which stays unfetched for the next sync, rather
@@ -660,16 +709,21 @@ export async function syncRange(
 		if (fetched.warnings.length) result.warnings = fetched.warnings;
 
 		const writing = series && !isEmptySeries(series) ? series : null;
+		let seriesFailed = false;
 		if (opts.series && (writing || Object.keys(fresh).length)) {
 			try {
-				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") report.seriesWritten += 1;
+				if ((await writeSeries(opts.series, date, writing, fresh, kept, { intraday: fetched.intradayFetched })) === "written") {
+					report.seriesWritten += 1;
+					result.seriesWritten = true;
+				}
 			} catch (err) {
 				// A newer build's file: stop, as for a 429, rather than fail it day after day.
 				if (err instanceof NewerDataError) {
 					if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
-					for (const run of runs) await feed(run, false);
-					return stop(report, err, log);
+					for (const run of runs) if (!early.has(run)) await feed(run, false);
+					return stopNow(err);
 				}
+				seriesFailed = true;
 				(result.warnings ??= []).push(`series file: ${message(err)}`);
 				log.warn(`${date}: series file failed: ${message(err)}`);
 			}
@@ -696,7 +750,10 @@ export async function syncRange(
 			}
 		}
 
-		if (result.status !== "failed" && !result.warnings?.length && (!withSeries || fetched.intradayFetched)) result.full = true;
+		// A route the masks left out is known empty, and one Garmin answered 400 or 404 has nothing:
+		// the day is as whole as one that asked and heard everything.
+		const short = fetched.blocking > 0 || seriesFailed;
+		if (result.status !== "failed" && !short && (!withSeries || fetched.intradayFetched || fetched.masked.has("summary"))) result.full = true;
 		report.days.push(result);
 
 		if (emptyLimit > 0 && emptyRun >= emptyLimit) {
@@ -724,8 +781,8 @@ export async function syncRange(
 	if (stats) feeds.push(feedDailyStats(source, stats, opts.from, opts.to, report, log, !report.stoppedEarly));
 	// Cancelled or cut short, the nights cost nothing to skip: the next sync fetches them.
 	if (sleepSink && !report.stoppedEarly) feeds.push(feedSleep(source, sleepSink, opts.from, opts.to, report, log));
-	// Cut short, an index keeps what the summaries gave it and fetches nothing.
-	for (const run of runs) feeds.push(feed(run, !report.stoppedEarly));
+	// Cut short, an index keeps what the summaries gave it and fetches nothing. One that started early has its windows already.
+	for (const run of runs) feeds.push(early.get(run) ?? feed(run, !report.stoppedEarly));
 	const fatal = (await Promise.all(feeds)).find(Boolean);
 	if (fatal) return stop(report, fatal, log);
 	return finish(report, log);
@@ -969,7 +1026,8 @@ export async function feedIndex<R extends DayRow>(
 			if (refresh < start) start = refresh;
 		}
 		let failed = false;
-		const missing = dateRange(start, to).filter((d) => !dates.has(d));
+		// An index whose window holds columns the summary lacks asks it for the run's own days too.
+		const missing = dateRange(start, to).filter((d) => def.windowToo || !dates.has(d));
 		windows: for (const span of spansOf(missing)) {
 			for (const window of chunkRange(span.from, span.to, def.windowDays)) {
 				out.requests += def.requestsPerWindow;
@@ -995,12 +1053,33 @@ export async function feedIndex<R extends DayRow>(
 
 	if (dates.size) {
 		try {
-			out.written = await sink.merge({ rows, dates: [...dates] }, covered);
+			out.written = await sink.merge({ rows: def.windowToo ? overlayByDate(rows) : rows, dates: [...dates] }, covered);
 		} catch (err) {
 			out.warnings.push(message(err));
 		}
 	}
 	return out;
+}
+
+/**
+ * One row a day from rows that may hold several for a day, merged column by
+ * column: the summary's row, which comes first, keeps its values, and the
+ * window's fills in the columns it lacks. A merge keeps only the last row of
+ * a day, so without this the window's row would drop the summary's columns.
+ */
+function overlayByDate<R extends DayRow>(rows: readonly R[]): R[] {
+	const byDate = new Map<string, R>();
+	for (const row of rows) {
+		const held = byDate.get(row.date);
+		if (!held) {
+			byDate.set(row.date, row);
+			continue;
+		}
+		const merged: Record<string, unknown> = { ...(row as Record<string, unknown>) };
+		for (const [key, value] of Object.entries(held)) if (value !== undefined && value !== null) merged[key] = value;
+		byDate.set(row.date, merged as unknown as R);
+	}
+	return [...byDate.values()];
 }
 
 export interface WalkOptions {
@@ -1342,14 +1421,62 @@ interface DayFetch {
 	ok: Set<keyof DayData>;
 	/** Whether the day's intraday requests went out, so its series write may refresh more than the night. */
 	intradayFetched: boolean;
+	/** The routes the masks left out: known empty, not asked. */
+	masked: ReadonlySet<MaskRoute>;
+	/** Past the horizon: the four timelines Garmin no longer keeps weren't asked. */
+	pastHorizon: boolean;
+	/**
+	 * Failures that leave the day short: anything but a 400 or 404, which is
+	 * Garmin saying it has nothing for that route on that day — asking again
+	 * would only hear it again.
+	 */
+	blocking: number;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
+}
+
+/** The history download's masks for a run (`SyncOptions.masks`). */
+export interface DayMasks {
+	skip(date: string): ReadonlySet<MaskRoute>;
+	audit(date: string): ReadonlySet<MaskRoute>;
+	heard(route: MaskRoute, empty: boolean): void;
+	/** A day past the timelines' horizon: its four fine-grained timelines aren't asked (`horizons.ts`). */
+	pastHorizon?(date: string): boolean;
+	/** What a day's four timelines said, for a day that asked them. */
+	heardTimelines?(date: string, verdict: TimelineVerdict): void;
+}
+
+const NO_ROUTES: ReadonlySet<MaskRoute> = new Set();
+
+/** The payload a masked route's answer lands in. */
+const ROUTE_PART: Record<MaskRoute, keyof DayData> = { body: "body", health: "health", hrv: "hrv", readiness: "readiness", training: "training", summary: "summary" };
+
+/** Garmin's way of saying a route has nothing for a day: a 400 or a 404. A 403 is something else, and blocks. */
+function nothingThere(err: unknown): boolean {
+	return err instanceof GarminApiError && (err.status === 400 || err.status === 404);
+}
+
+/** What a day asks once the masks have left routes out. The summary takes the day's timelines with it. */
+function withoutRoutes<W extends ReturnType<typeof endpointsFor>>(wanted: W, skip: ReadonlySet<MaskRoute>): W {
+	if (!skip.size) return wanted;
+	return {
+		...wanted,
+		summary: wanted.summary && !skip.has("summary"),
+		intraday: wanted.intraday && !skip.has("summary"),
+		body: wanted.body && !skip.has("body"),
+		health: wanted.health && !skip.has("health"),
+		hrv: wanted.hrv && !skip.has("hrv"),
+		readiness: wanted.readiness && !skip.has("readiness"),
+		training: wanted.training && !skip.has("training"),
+	};
 }
 
 async function fetchDay(
 	source: SyncSource,
 	date: string,
 	wanted: ReturnType<typeof endpointsFor>,
+	masked: ReadonlySet<MaskRoute> = NO_ROUTES,
+	pastHorizon = false,
 ): Promise<DayFetch> {
 	const jobs: Array<{ name: keyof DayData | IntradayJob; run: () => Promise<unknown> }> = [];
 	if (wanted.summary) jobs.push({ name: "summary", run: () => source.dailySummary(date) });
@@ -1362,11 +1489,16 @@ async function fetchDay(
 	if (wanted.fitnessAge) jobs.push({ name: "fitnessAge", run: () => source.fitnessAge(date) });
 	if (wanted.health) jobs.push({ name: "health", run: () => source.healthStatus(date) });
 	if (wanted.intraday) {
-		jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
-		jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
+		// Past the horizon Garmin answers these four with totals and no points (`horizons.ts`).
+		if (!pastHorizon) {
+			jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
+			jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
+		}
 		jobs.push({ name: "intraday.steps", run: () => source.stepsChart(date) });
-		jobs.push({ name: "intraday.floors", run: () => source.floorsChart(date) });
-		jobs.push({ name: "intraday.intensity", run: () => source.intensityMinutesChart(date) });
+		if (!pastHorizon) {
+			jobs.push({ name: "intraday.floors", run: () => source.floorsChart(date) });
+			jobs.push({ name: "intraday.intensity", run: () => source.intensityMinutesChart(date) });
+		}
 		jobs.push({ name: "intraday.bodyBatteryEvents", run: () => source.bodyBatteryEvents(date) });
 	}
 
@@ -1380,6 +1512,9 @@ async function fetchDay(
 		summaryFetched: false,
 		ok: new Set(),
 		intradayFetched: Boolean(wanted.intraday),
+		masked,
+		pastHorizon: pastHorizon && Boolean(wanted.intraday),
+		blocking: 0,
 	};
 	settled.forEach((result, i) => {
 		const name = jobs[i].name;
@@ -1395,7 +1530,10 @@ async function fetchDay(
 		// One endpoint being unavailable for one day must not lose the rest of
 		// the day — but a 429 or a dead session means every later call fails too.
 		if (isFatal(result.reason) && !out.fatal) out.fatal = result.reason;
-		else out.warnings.push(`${name}: ${message(result.reason)}`);
+		else {
+			out.warnings.push(`${name}: ${message(result.reason)}`);
+			if (!nothingThere(result.reason)) out.blocking += 1;
+		}
 	});
 
 	return out;
@@ -1550,24 +1688,39 @@ async function fetchActivitiesBetween(
 async function fetchActivitiesFor(
 	source: SyncSource,
 	from: string,
+	first?: { page: readonly Activity[]; limit: number },
 ): Promise<{ activities: Activity[]; requests: number; reachedEnd: boolean }> {
 	const activities: Activity[] = [];
 	let requests = 0;
+	let offset = 0;
+	// The probe's page, already in: the list goes on from its end only when it was full and doesn't reach back far enough.
+	if (first) {
+		activities.push(...first.page);
+		if (first.page.length < first.limit) return { activities, requests, reachedEnd: true };
+		const oldest = oldestDay(first.page);
+		if (oldest && oldest < from) return { activities, requests, reachedEnd: false };
+		offset = first.page.length;
+	}
 
 	for (let page = 0; page < MAX_ACTIVITY_PAGES; page++) {
-		const batch = await source.activities(page * ACTIVITY_PAGE, ACTIVITY_PAGE);
+		const batch = await source.activities(offset + page * ACTIVITY_PAGE, ACTIVITY_PAGE);
 		requests += 1;
 		activities.push(...batch);
 		if (batch.length < ACTIVITY_PAGE) return { activities, requests, reachedEnd: true };
 
-		const oldest = batch
-			.map((a) => localDateOf(a.startTimeLocal))
-			.filter((d): d is string => Boolean(d))
-			.sort()[0];
+		const oldest = oldestDay(batch);
 		if (oldest && oldest < from) break;
 	}
 
 	return { activities, requests, reachedEnd: false };
+}
+
+/** The local day the oldest of `batch` started on. */
+function oldestDay(batch: readonly Activity[]): string | undefined {
+	return batch
+		.map((a) => localDateOf(a.startTimeLocal))
+		.filter((d): d is string => Boolean(d))
+		.sort()[0];
 }
 
 export interface HistoryOptions {
@@ -1582,8 +1735,14 @@ export interface HistoryOptions {
 }
 
 export interface HistoryFetch {
-	/** Newest first, from the first page down, with nothing missing in between. */
-	activities: Activity[];
+	/**
+	 * Newest first, from the first page down, with nothing missing in between,
+	 * as the activity index keeps them: a few hundred bytes each rather than
+	 * the list's few kilobytes, as a long history comes in.
+	 */
+	rows: ActivityRow[];
+	/** Activities listed, rows or not: what Garmin's count is held against. */
+	listed: number;
 	requests: number;
 	/** The list ran out: this is the whole history. */
 	complete: boolean;
@@ -1602,7 +1761,7 @@ export async function fetchAllActivities(
 ): Promise<HistoryFetch> {
 	const size = Math.max(1, opts.pageSize ?? 100);
 	const wait = opts.wait ?? defaultWait;
-	const out: HistoryFetch = { activities: [], requests: 0, complete: false };
+	const out: HistoryFetch = { rows: [], listed: 0, requests: 0, complete: false };
 	const seen = new Set<unknown>();
 
 	for (let page = 0; ; page++) {
@@ -1624,9 +1783,13 @@ export async function fetchAllActivities(
 			out.error = "the activity list stopped advancing";
 			return out;
 		}
-		for (const a of fresh) seen.add(a.activityId);
-		out.activities.push(...fresh);
-		opts.onPage?.(out.activities.length);
+		for (const a of fresh) {
+			seen.add(a.activityId);
+			const row = rowOf(a);
+			if (row) out.rows.push(row);
+		}
+		out.listed += fresh.length;
+		opts.onPage?.(out.listed);
 
 		if (batch.length < size) {
 			out.complete = true;

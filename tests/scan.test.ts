@@ -159,6 +159,10 @@ describe("what a scan tells the estimates", () => {
 
 	it("round-trips scan.json, and refuses another version", () => {
 		assert.deepEqual(parseScan(serializeScan(scan)), scan);
+		// What the download learned of the account rides along, read by allowlist.
+		const learned = { ...scan, learned: { masks: { body: "trusted" as const, hrv: 2 } } };
+		assert.deepEqual(parseScan(serializeScan(learned)), learned);
+		assert.deepEqual(parseScan(serializeScan({ ...scan, learned: { masks: { body: "maybe" } } } as never)), scan);
 		assert.equal(parseScan(JSON.stringify({ ...scan, version: 2 })), null);
 		assert.equal(parseScan("nope"), null);
 	});

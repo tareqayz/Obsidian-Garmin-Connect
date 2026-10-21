@@ -88,7 +88,6 @@
 	{swap}
 	history={{
 		title: RESPIRATION_INDEX.title,
-		windowDays: RESPIRATION_INDEX.windowDays,
 		complete: meta?.complete ?? false,
 		walking: history[KIND],
 		canSync,

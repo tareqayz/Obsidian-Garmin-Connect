@@ -1,11 +1,12 @@
 import { Notice, type App } from "obsidian";
-import type { GarminApi } from "../garmin/endpoints";
+import type { Activity, GarminApi } from "../garmin/endpoints";
 import { toIsoDate } from "../garmin/endpoints";
 import { GarminAuthError, GarminBlockedError, GarminRateLimitError, GarminRefreshError } from "../garmin/errors";
 import type { Log } from "../log";
 import type { DayIndexDef, IndexHistoryProgress } from "./day-index";
 import { DAY_INDEXES, dayIndex } from "./day-indexes";
 import {
+	EMPTY_DAYS_STOP,
 	fetchAllActivities,
 	fetchDailyStatsHistory,
 	fetchSleepHistory,
@@ -18,23 +19,28 @@ import {
 	type SleepSink,
 	type SyncReport,
 } from "./engine";
-import { fetchAccount } from "./account";
+import { fetchAccount, mergeAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
-import { loadActivity, type ActivityLoad } from "./activity-detail";
+import { loadActivity, type ActivityDetailStore, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
-import { SYNC_SPEEDS, type SyncSpeed } from "./speed";
+import { HOURLY_BUDGET, PACE } from "./pace";
 import { describe as describeRequests } from "../garmin/request-stats";
 import { etaSeconds, fraction, formatEta, type SyncProgress } from "./progress";
 import { VaultSeriesStore } from "./series-store";
 import { NewerDataError } from "./file-health";
 import type { DayBuffer } from "./days";
-import { deviceUploadOf, markOf } from "./sync-state";
+import { deviceUploadOf } from "./sync-state";
+import { isFatal } from "./fatal";
+import { fingerprintOf, listKey, markFor, nextSyncState, PROBE_PAGE, shouldSkip, wantsAccount, type Probe } from "./freshness";
+import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, type SyncTrigger } from "./sync-outcome";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetStore, type PauseReason, type Task } from "./backfill";
-import { chunkDays, DETAIL_REQUESTS, HOURLY_BUDGET, requestsPerChunk, requestsPerDay } from "./estimate";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type QueuedRange, type Task } from "./backfill";
+import { cutOf, learn, type HorizonStreak, type TimelineVerdict } from "./horizons";
+import { auditedRoutes, MASK_STORES, PREPARED_STORES, skippedRoutes, tally, type MaskRoute, type Masks } from "./day-facts";
+import { asObserved, chunkDays, costContext, detailBatch, detailUnit, nextUnit, observe, timeFor, unitsOf, type CostContext, type Observed } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -44,8 +50,6 @@ export interface RunnerSettings {
 
 	dataFolder: string;
 
-	syncSpeed: SyncSpeed;
-	stopAfterEmptyDays: number;
 	/** Null until the setup ran: nothing walks history in the background before it. */
 	setup: { completedAt: string } | null;
 	/** What to keep, and what was agreed to (see `datasets.ts`). */
@@ -79,18 +83,24 @@ export interface BackfillProgress {
 	/** Requests spent this session, and about how many are left: the progress bar. */
 	done: number;
 	remaining: number;
+	/** About how long what is left takes from now, held to the hourly budget. */
+	seconds?: number;
 	/** For Day details, the oldest day still to fetch. */
 	reached?: string;
 }
 
+/** A recent sync in progress: what started it, which a press can change, and whether its probe stopped it. */
+interface RecentRun {
+	trigger: SyncTrigger;
+	skipped: boolean;
+	done: Promise<SyncOutcome | null>;
+}
+
+/** How long a sync from the palette runs before its progress shows: a quick one ends first. */
+const PROGRESS_NOTICE_MS = 1_500;
+
 /** Activities per request when paging the whole history. The list honours 100. */
 const HISTORY_PAGE = 100;
-
-/**
- * The least time between two activities downloaded in the background: about
- * the pace of someone opening them one after another, ten requests each.
- */
-const DOWNLOAD_PAUSE_MS = 2000;
 
 /** A history sync in progress, for the Activities pages' banner. */
 export interface HistoryProgress {
@@ -127,9 +137,17 @@ interface DaysPlan {
 	/** Lines for the done notice. */
 	notes?: string[];
 	/** Called with the report before the done notice. */
-	finish?: (report: SyncReport) => Promise<void>;
+	finish?: (report: SyncReport, done: { account: boolean }) => Promise<void>;
+	/** Whether to fetch the account file this run; true unless the plan says otherwise. */
+	account?: boolean;
 	/** Every day's timelines, not only those inside Day details: a range asked for by hand. */
 	allTimelines?: boolean;
+	/** The watch as the plan already asked for it, for the account file. */
+	device?: Record<string, unknown> | null;
+	/** The newest page of the activity list as the probe fetched it: the run's list starts from it. */
+	firstPage?: { page: Activity[]; limit: number };
+	/** Nothing new since the last good sync: the run stops at the probe. */
+	skip?: true;
 }
 
 /**
@@ -151,6 +169,14 @@ export class SyncRunner {
 	private draining = false;
 	/** The backfill's plan, worked out again once used up or when what it depends on changes. */
 	private backfillTasks: Task[] | null = null;
+	/** What the plan's units cost, worked out with the plan (`cost.ts`). */
+	private backfillCtx: CostContext | null = null;
+	/** What the complete indexes say about each day, and this account's verdicts: what a chunk of days leaves out (`day-facts.ts`). */
+	private backfillMasks: Masks | null = null;
+	/** The run of days whose timelines came back empty, across chunks (`horizons.ts`). */
+	private horizonStreak: HorizonStreak = { misses: 0 };
+	/** A day past the horizon asked its timelines this session, to see whether Garmin keeps them again. */
+	private horizonChecked = false;
 	/** Whether the plan may have work: the drain asks for a unit only then. */
 	private backfillPending = false;
 	/** Days and activities that failed this session, and walks that kept failing: left for the next. */
@@ -161,8 +187,16 @@ export class SyncRunner {
 	private backfillStopped = false;
 	private backfillState: BackfillProgress | null = null;
 	private backfillListeners = new Set<(progress: BackfillProgress | null) => void>();
-	/** Requests the backfill spent this session, for the progress bar. */
-	private backfillDone = 0;
+	/** Requests the download has spent, as backfill.json last said (`progress.done`). */
+	private savedDone = 0;
+	/** Requests this device spent on it since it last wrote its progress. */
+	private unsaved = 0;
+	/** The user paused it: a unit in hand when they did ends on "paused", not "running". */
+	private userPaused = false;
+	/** How this session's units ran against the model, for the time left (`cost.ts`, `observe`). */
+	private observed: Observed = {};
+	/** The unit in hand stopped early for something waiting: its run says nothing about the pace. */
+	private unitCut = false;
 	/** 429s in a row, for the growing pause. */
 	private rateLimits = 0;
 	/** Refusals from Garmin's edge in a row, for their growing pause. */
@@ -188,20 +222,23 @@ export class SyncRunner {
 	private indexHistoryListeners = new Set<(kind: string, progress: IndexHistoryProgress | null) => void>();
 
 	/**
-	 * `isRun` picks the index rows that are runs: all an older Run details
-	 * agreement downloads, before Activity details is agreed to.
+	 * `candidateOf` reads an index row as the history download plans it:
+	 * whether it is a run (all an older Run details agreement downloads) and
+	 * what its page costs.
 	 */
 	constructor(
 		app: App,
 		api: GarminApi,
 		settings: () => RunnerSettings,
-		private readonly isRun: (row: ActivityRow) => boolean = () => false,
+		private readonly candidateOf: (row: ActivityRow) => DetailCandidate = (row) => ({ id: row.id, date: row.start.slice(0, 10), run: false, profile: "other" }),
 		private readonly device: DeviceIdentity = { id: "this-device", label: "this device" },
+		/** The plugin's version: a new one syncs in full once, in case it writes days differently. */
+		private readonly pluginVersion = "",
 	) {
 		this.app = app;
 		this.api = api;
 		this.settings = settings;
-		this.budget = new RequestBudget(() => HOURLY_BUDGET[this.settings().syncSpeed], localBudget(app));
+		this.budget = new RequestBudget(() => HOURLY_BUDGET, localBudget(app));
 	}
 
 	get isRunning(): boolean {
@@ -214,10 +251,9 @@ export class SyncRunner {
 	}
 
 	/**
-	 * The runner, for `priority` (see `RunnerLock`), with the sync speed applied
-	 * — so a speed changed in settings takes effect from the next piece of
-	 * work. The release hands it on and then starts any loads still waiting.
-	 * Null when another sync holds it or waits for it.
+	 * The runner, for `priority` (see `RunnerLock`). The release counts what was
+	 * asked meanwhile against the hour, hands the runner on, and then starts any
+	 * loads still waiting. Null when another sync holds it or waits for it.
 	 */
 	private async claim(priority: Priority): Promise<Release | null> {
 		const release = this.applied(await this.lock.acquire(priority));
@@ -265,7 +301,6 @@ export class SyncRunner {
 
 	private applied(release: Release | null): Release | null {
 		if (!release) return null;
-		this.api.throttle.setLimits(SYNC_SPEEDS[this.settings().syncSpeed].limits);
 		const since = Date.now();
 		return () => {
 			// Whatever Garmin was asked while the runner was held — a sync, a
@@ -278,42 +313,75 @@ export class SyncRunner {
 
 	/**
 	 * Everything since the last good recent sync, worked out once the runner is
-	 * held (see `recentRange`): another device may have synced meanwhile.
+	 * held (see `recentRange`): another device may have synced meanwhile. It
+	 * starts with a probe — the watch's last upload and the newest activities
+	 * (`freshness.ts`) — and a sync that started on its own stops there when
+	 * neither moved.
 	 */
-	syncRecent(log?: Log): Promise<SyncReport | null> {
-		return this.runPlan(() => this.planRecent(log), log);
+	syncRecent(trigger: SyncTrigger = "command", log?: Log): Promise<SyncOutcome | null> {
+		const running = this.recentRun;
+		if (running) {
+			if (trigger === "auto") return running.done;
+			// A press during an automatic check makes it a full sync: the check
+			// doesn't skip once it has heard, and one that already skipped runs again.
+			if (running.trigger === "auto") running.trigger = trigger;
+			return running.done.then((outcome) => (running.skipped ? this.syncRecent(trigger, log) : outcome));
+		}
+		const run: RecentRun = { trigger, skipped: false, done: Promise.resolve(null) };
+		this.recentRun = run;
+		run.done = this.runPlan(() => this.planRecent(run, log), () => run.trigger, log).finally(() => {
+			if (this.recentRun === run) this.recentRun = null;
+		});
+		return run.done;
 	}
 
-	private async planRecent(log?: Log): Promise<DaysPlan> {
-		const startedAt = new Date().toISOString();
-		const series = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		const { from, to, capped } = recentRange(markOf(await series.readSyncState()), toIsoDate());
-		// Read before the days, so an upload that lands mid-sync is not taken as
-		// seen. A failure costs only the precision: the mark falls back to the
-		// sync's own time, and a 429 here stops the days too.
-		let deviceUpload: string | undefined;
-		try {
-			deviceUpload = deviceUploadOf(await this.api.lastUsedDevice());
-		} catch (err) {
-			log?.warn(`last used device failed: ${explain(err)}`);
+	/** The recent sync in progress, which another ask joins. */
+	private recentRun: RecentRun | null = null;
+
+	private async planRecent(run: RecentRun, log?: Log): Promise<DaysPlan> {
+		const startedAt = new Date(Date.now()).toISOString();
+		const settings = this.settings();
+		const series = new VaultSeriesStore(this.app, settings.dataFolder);
+		const state = await series.readSyncState();
+		const probe = await this.probe(log);
+		const fingerprint = fingerprintOf({ groups: settings.groups, units: settings.units, dayDetails: settings.data.dayDetails, dataVersion: DAY_DETAILS_VERSION, pluginVersion: this.pluginVersion });
+		if (run.trigger === "auto" && shouldSkip(state, probe, { now: Date.parse(startedAt), fingerprint }).skip) {
+			run.skipped = true;
+			return { from: "", to: "", requests: 2, skip: true };
 		}
+		const { from, to, capped } = recentRange(markFor(state, probe), toIsoDate());
+		const account = wantsAccount(state, probe, { now: Date.parse(startedAt), manual: run.trigger !== "auto" });
 		return {
 			from,
 			to,
-			requests: 1,
+			requests: 2,
+			account,
+			...(probe.device.ok ? { device: probe.device.payload } : {}),
+			...(probe.list.ok ? { firstPage: { page: probe.list.page, limit: PROBE_PAGE } } : {}),
 			notes: capped ? [`Synced the last ${MAX_RECENT_DAYS} days only. Sync a range for the days before ${from}.`] : [],
 			// Only a run that covered the whole range moves the mark: one stopped
 			// early left its oldest days behind.
-			finish: async (report) => {
+			finish: async (report, done) => {
 				if (report.stoppedEarly) return;
-				await series.writeSyncState(deviceUpload ? { syncedAt: startedAt, deviceUpload } : { syncedAt: startedAt });
+				await series.writeSyncState(nextSyncState(state, probe, { startedAt, fingerprint, failed: report.failed, warnings: report.warnings, account: done.account }));
 			},
 		};
 	}
 
-	syncToday(log?: Log): Promise<SyncReport | null> {
-		const today = toIsoDate();
-		return this.run(today, today, log);
+	/**
+	 * The watch's last upload and the newest activities, asked together, before
+	 * the days: an upload that lands mid-sync is not taken as seen. A failure
+	 * costs only the precision; a 429 or a dead session stops the sync.
+	 */
+	private async probe(log?: Log): Promise<Probe> {
+		const [device, page] = await Promise.allSettled([this.api.lastUsedDevice(), this.api.activities(0, PROBE_PAGE)]);
+		for (const got of [device, page]) if (got.status === "rejected" && isFatal(got.reason)) throw got.reason;
+		if (device.status === "rejected") log?.warn(`last used device failed: ${explain(device.reason)}`);
+		if (page.status === "rejected") log?.warn(`activity list failed: ${explain(page.reason)}`);
+		return {
+			device: device.status === "fulfilled" ? { ok: true, upload: deviceUploadOf(device.value), payload: device.value } : { ok: false },
+			list: page.status === "fulfilled" ? { ok: true, page: page.value, key: listKey(page.value) } : { ok: false },
+		};
 	}
 
 	/** The history sync in progress, or null. */
@@ -365,39 +433,66 @@ export class SyncRunner {
 	 * by hand. It leaves the recent sync's mark alone: it need not cover what
 	 * changed since.
 	 */
-	run(from: string, to: string, log?: Log): Promise<SyncReport | null> {
-		return this.runPlan(async () => ({ from, to, allTimelines: true }), log);
+	run(from: string, to: string, log?: Log): Promise<SyncOutcome | null> {
+		return this.runPlan(async () => ({ from, to, allTimelines: true }), () => "command", log);
 	}
 
-	private async runPlan(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
-		const report = await this.runDays(plan, log);
+	/** `triggerOf` is asked as the run goes: a press can join an automatic sync (`syncRecent`). */
+	private async runPlan(plan: () => Promise<DaysPlan>, triggerOf: () => SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+		const outcome = await this.runDays(plan, triggerOf, log);
+		if (outcome) {
+			this.lastOutcome = outcome;
+			for (const listener of this.outcomeListeners) listener(outcome);
+		}
 		// New days and activities may have joined, or gaps opened: the backfill looks again.
-		if (report && !report.stoppedEarly) this.kickBackfill();
-		return report;
+		if (outcome && outcome.kind !== "stopped" && outcome.kind !== "failed") this.kickBackfill();
+		return outcome;
 	}
 
-	private async runDays(plan: () => Promise<DaysPlan>, log?: Log): Promise<SyncReport | null> {
+	private async runDays(plan: () => Promise<DaysPlan>, triggerOf: () => SyncTrigger, log?: Log): Promise<SyncOutcome | null> {
+		// Only a sync someone started from the palette shows its progress and its end; the others stay quiet unless they fail.
+		const loud = triggerOf() === "command";
 		if (!this.api.isAuthenticated) {
-			new Notice("Sign in to Garmin Connect first.");
+			if (triggerOf() !== "auto") new Notice("Sign in to Garmin Connect first.");
 			return null;
 		}
 		const release = await this.claim("foreground");
 		if (!release) {
-			new Notice("A Garmin sync is already running.");
+			if (triggerOf() !== "auto") new Notice("A Garmin sync is already running.");
 			return null;
 		}
 
 		const settings = this.settings();
 		const startedAt = Date.now();
-		const notice = new Notice(noticeBody({ done: 0, total: 0, date: null, eta: null }), 0);
+		let writing = false;
+		// Shown only once the sync has run a moment: a quick one ends before it would appear.
+		let progress: SyncProgress = { done: 0, total: 0, date: null, eta: null };
+		let notice: Notice | null = null;
+		const showing = loud ? window.setTimeout(() => (notice = new Notice(noticeBody(progress), 0)), PROGRESS_NOTICE_MS) : undefined;
 		this.api.onSlowDown = (resumesAt) => {
 			const seconds = Math.max(1, Math.round((resumesAt - Date.now()) / 1000));
-			notice.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
+			notice?.setMessage(`Garmin asked us to slow down — resuming in ${seconds}s.`);
+		};
+		const hide = () => {
+			window.clearTimeout(showing);
+			notice?.hide();
 		};
 		try {
-			const { from, to, requests: planned = 0, notes = [], finish, allTimelines } = await plan();
+			const { from, to, requests: planned = 0, notes = [], finish, allTimelines, device, firstPage, skip, account: wantAccount = true } = await plan();
+			if (skip) {
+				hide();
+				return { kind: "up-to-date", days: 0, failed: 0, at: new Date().toISOString() };
+			}
+			// From here the sync writes days: Home spins ↻ and holds its redraws until the end.
+			writing = true;
+			this.setSyncing(startedAt);
 			const units = await this.resolveUnits(settings.units);
 			const series = new VaultSeriesStore(this.app, settings.dataFolder);
+			// Once per sync, not per day: who you are, the watch, and the numbers
+			// Garmin only serves as "latest". Asked alongside the days.
+			const account = settings.groups.includes("profile") && wantAccount ? fetchAccount(this.api, toIsoDate(), units, log, device !== undefined ? { device } : {}) : null;
+			/** The account file fetched whole: every request answered. */
+			let accountWhole = false;
 			// The day files are written a year at a time once the days are in.
 			const days = series.dayBuffer();
 			const report = await syncDays(days, () => syncRange(this.api, days, {
@@ -412,59 +507,123 @@ export class SyncRunner {
 				indexes: DAY_INDEXES.map((def) => this.indexRuntime(series, def)),
 				extras: INTRADAY_EXTRAS,
 				...(allTimelines ? { intradayDays: spanDays(from, to) } : this.intradayFor(from, to)),
-				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
-				stopAfterEmptyDays: settings.stopAfterEmptyDays,
+				parallelDays: PACE.parallel,
+				stopAfterEmptyDays: EMPTY_DAYS_STOP,
+				...(firstPage ? { firstPage } : {}),
 				shouldStop: () => this.foregroundCancel,
 				log,
 				onProgress: (done, total, date) => {
-					notice.setMessage(
-						noticeBody({
-							done,
-							total,
-							date,
-							eta: etaSeconds(Date.now() - startedAt, done, total),
-						}),
-					);
+					progress = { done, total, date, eta: etaSeconds(Date.now() - startedAt, done, total) };
+					notice?.setMessage(noticeBody(progress));
 				},
 			}));
-			notice.hide();
+			hide();
 			this.lastSync = { at: new Date(startedAt).toISOString(), from, to, report };
 			await this.recordDays(series, report, log);
 
-			// Once per sync, not per day: who you are, the watch, and the numbers
-			// Garmin only serves as "latest". Skipped after a 429 or a dead
-			// session, which every one of these calls would hit too.
-			if (settings.groups.includes("profile") && !report.stoppedEarly) {
-				const got = await fetchAccount(this.api, toIsoDate(), units, log);
+			if (account) {
+				const got = await account;
+				accountWhole = got.failed.size === 0 && got.fatal === undefined;
 				report.requests += got.requests;
 				report.warnings.push(...got.warnings.map((w) => `account ${w}`));
-				if (got.account) {
-					try {
-						await series.writeAccount(got.account);
-					} catch (err) {
-						log?.warn(`account file failed: ${explain(err)}`);
-					}
+				try {
+					// A request that failed keeps what the file held for its fields.
+					const account = mergeAccount(got.failed.size ? await series.readAccount() : null, got.account, got.failed);
+					if (account) await series.writeAccount(account);
+				} catch (err) {
+					log?.warn(`account file failed: ${explain(err)}`);
 				}
 			}
 
 			report.requests += planned;
 			report.warnings.push(...notes);
 			try {
-				await finish?.(report);
+				await finish?.(report, { account: accountWhole });
 			} catch (err) {
 				log?.warn(`sync state failed: ${explain(err)}`);
 			}
 			log?.detail("requests", describeRequests(this.api.stats.summary(startedAt)));
-			new Notice(describe(report), report.failed || report.stoppedEarly ? 10000 : 5000);
-			return report;
+			const outcome = outcomeOf(report, new Date().toISOString());
+			this.tell(triggerOf(), outcome, report.warnings, report.fatal);
+			return outcome;
 		} catch (err) {
-			notice.hide();
-			new Notice(`Garmin sync failed: ${explain(err)}`, 10000);
-			return null;
+			hide();
+			const outcome = failedOutcome(err, new Date().toISOString());
+			this.tell(triggerOf(), outcome, [], err);
+			return outcome;
 		} finally {
 			this.api.onSlowDown = null;
+			if (writing) this.setSyncing(0);
 			release();
 		}
+	}
+
+	/**
+	 * What a sync says when it ends. From the palette: its outcome, and the
+	 * warnings with it. From Home's ↻: only a failure, since Home shows the
+	 * rest. On its own: only a failure, once a session for each kind, and
+	 * nothing when the device is offline.
+	 */
+	private tell(trigger: SyncTrigger, outcome: SyncOutcome, warnings: readonly string[], err: unknown): void {
+		const bad = outcome.kind === "failed" || (outcome.kind === "stopped" && outcome.reason !== undefined) || outcome.failed > 0;
+		if (trigger === "command") {
+			const text = [`Garmin: ${outcomeText(outcome).replace(/^./, (c) => c.toLowerCase())}`, ...warnings].join("\n");
+			new Notice(text, bad ? 10000 : 5000);
+			return;
+		}
+		if (!bad) return;
+		if (trigger === "auto") {
+			if (err !== undefined && isOffline(err)) return;
+			const kind = outcome.reason ?? outcome.kind;
+			if (this.toldOnce.has(kind)) return;
+			this.toldOnce.add(kind);
+		}
+		new Notice(`Garmin: ${outcomeText(outcome).replace(/^./, (c) => c.toLowerCase())}`, 10000);
+	}
+
+	/** The failures an automatic sync already said this session, by kind. */
+	private toldOnce = new Set<string>();
+
+	private outcomeListeners = new Set<(outcome: SyncOutcome) => void>();
+
+	/** How the last recent or range sync this session ended, for a Home opened since. */
+	lastOutcome: SyncOutcome | null = null;
+
+	/** Called with how each recent or range sync ended, a quiet one included. Returns the unsubscribe. */
+	onOutcome(listener: (outcome: SyncOutcome) => void): () => void {
+		this.outcomeListeners.add(listener);
+		return () => this.outcomeListeners.delete(listener);
+	}
+
+	/** A sync or history walk someone asked for holds the runner or waits for it. */
+	get foregroundBusy(): boolean {
+		return this.foregroundRunning || this.lock.waiting("foreground") > 0;
+	}
+
+	/** Garmin asked for a rest — a 429 or its bot check — and it hasn't ended: nothing starts on its own meanwhile. */
+	get resting(): boolean {
+		const p = this.backfillProgress;
+		return p?.status === "paused" && (p.reason === "rate-limit" || p.reason === "blocked") && (!p.until || Date.parse(p.until) > Date.now());
+	}
+
+	/** When the recent or range sync in progress started (epoch ms), or 0. */
+	private syncStarted = 0;
+	private syncingListeners = new Set<(startedAt: number) => void>();
+
+	/** When the sync writing days now started, or 0: Home rebuilds once it ends rather than after each day. */
+	get syncingSince(): number {
+		return this.syncStarted;
+	}
+
+	/** Called with a sync's start time as it starts, and with 0 as it ends. Returns the unsubscribe. */
+	onSyncing(listener: (startedAt: number) => void): () => void {
+		this.syncingListeners.add(listener);
+		return () => this.syncingListeners.delete(listener);
+	}
+
+	private setSyncing(startedAt: number): void {
+		this.syncStarted = startedAt;
+		for (const listener of this.syncingListeners) listener(startedAt);
 	}
 
 	/**
@@ -551,13 +710,13 @@ export class SyncRunner {
 		requests += got.requests;
 		// Even cut short, what came back is the newest stretch with no gaps,
 		// which is what a routine sync merges too.
-		await store.mergeActivities(got.activities, {
+		await store.mergeActivityRows(got.rows, {
 			complete: got.complete,
 			units,
-			...(total !== undefined ? { total } : got.complete ? { total: got.activities.length } : {}),
+			...(total !== undefined ? { total } : got.complete ? { total: got.listed } : {}),
 		});
 		return {
-			fetched: got.activities.length,
+			fetched: got.listed,
 			complete: got.complete,
 			requests,
 			...(got.fatal ? { fatal: got.fatal } : {}),
@@ -773,13 +932,11 @@ export class SyncRunner {
 	/**
 	 * Books the days a run fetched whole in the day coverage. A failure costs a
 	 * day fetched again later. Today goes on changing until it ends, so it is
-	 * never booked: the history download fetches it again in a later session —
-	 * not straight after the sync that just did.
+	 * never booked, and the history download never plans it (`planBackfill`).
 	 */
 	private async recordDays(store: VaultSeriesStore, report: SyncReport, log?: Log): Promise<void> {
 		const today = toIsoDate();
 		const full = report.days.filter((day) => day.full).map((day) => day.date);
-		if (full.includes(today)) this.backfillSkip.days.add(today);
 		try {
 			await store.recordDays(full.filter((date) => date < today), DAY_DETAILS_VERSION, this.settings().groups.includes("intraday"));
 		} catch (err) {
@@ -994,17 +1151,8 @@ export class SyncRunner {
 		if (this.draining) return;
 		this.draining = true;
 		try {
-			let rested = true;
 			while (this.loadsWaiting) {
 				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
-				const pause = pageWaiting ? 0 : this.backfillTasks?.[0]?.kind === "details" ? DOWNLOAD_PAUSE_MS : 0;
-				if (!rested && pause > 0) {
-					await pauseFor(pause);
-					rested = true;
-					// Then whatever waits by now: a page opened in the pause goes ahead of a download.
-					continue;
-				}
-				rested = false;
 				// A page's load goes after any sync waiting; the backfill only when nothing waits at all.
 				const release = this.claimNow(pageWaiting ? "page" : "background");
 				if (!release) break;
@@ -1057,6 +1205,11 @@ export class SyncRunner {
 	/*  The backfill                                                     */
 	/* ---------------------------------------------------------------- */
 
+	/** What the history download's hour has spent and allows, for Save debug info. */
+	budgetOutlook(): BudgetOutlook {
+		return this.budget.outlook(Date.now());
+	}
+
 	/** The backfill in progress, or null when there is none. */
 	get backfillProgress(): BackfillProgress | null {
 		return this.backfillState;
@@ -1086,7 +1239,10 @@ export class SyncRunner {
 	/** The user's Pause: kept in backfill.json, so every device stops. */
 	async pauseBackfill(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		await store.writeBackfill({ paused: { reason: "user" } });
+		const now = Date.now();
+		// The lease goes with the pause: whichever device resumes takes the download on.
+		await store.updateBackfill(({ lease: _lease, ...state }) => ({ ...state, paused: { reason: "user" }, progress: this.progressFrom(state, now) }));
+		this.userPaused = true;
 		this.backfillPending = false;
 		this.setBackfill(this.backfillState ? { ...this.backfillState, status: "paused", reason: "user" } : null);
 	}
@@ -1094,8 +1250,8 @@ export class SyncRunner {
 	/** The user's Resume, or a sign-in after "sign in to continue": lifts any pause. */
 	async resumeBackfill(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		const state = await store.readBackfill();
-		if (state.paused) await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
+		await store.updateBackfill(({ paused: _paused, ...state }) => state);
+		this.userPaused = false;
 		this.rateLimits = 0;
 		this.blocks = 0;
 		this.refreshFailures = 0;
@@ -1107,7 +1263,7 @@ export class SyncRunner {
 	async signedIn(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
 		const state = await store.readBackfill();
-		if (state.paused?.reason === "sign-in") await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
+		if (state.paused?.reason === "sign-in") await store.updateBackfill(({ paused: _paused, ...rest }) => rest);
 		this.kickBackfill();
 	}
 
@@ -1135,13 +1291,18 @@ export class SyncRunner {
 	private async planBackfillFor(store: VaultSeriesStore): Promise<Task[]> {
 		const settings = this.settings();
 		const today = toIsoDate();
-		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
+		const [scan, coverage, charts, index, detailFiles, state] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
 			store.readChartMetas(),
 			store.readActivities(),
 			store.readDetailCoverage(),
+			store.readBackfill(),
 		]);
+		const activities = index.rows.map((row) => this.candidateOf(row));
+		const masks = await store.readMasks(settings.groups, charts, scan);
+		this.backfillMasks = masks;
+		this.backfillCtx = costContext({ today, groups: settings.groups, scan, charts, activities, detailFiles, masks }, { sizes: store.sizesFor(masks, activities, today) });
 		const tasks = planBackfill({
 			today,
 			groups: settings.groups,
@@ -1151,25 +1312,34 @@ export class SyncRunner {
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			activities,
 			detailFiles,
 			...(settings.setup ? { since: settings.setup.completedAt.slice(0, 10) } : {}),
 			skip: this.backfillSkip,
+			...(state.ranges ? { ranges: state.ranges } : {}),
 		});
 		return tasks.filter((task) => task.kind !== "walk" || !this.backfillSkip.walks.has(task.store));
 	}
 
-	/** About how many requests the plan has left, for the progress bar. */
-	private remainingRequests(tasks: readonly Task[]): number {
-		const groups = this.settings().groups;
-		let n = 0;
-		for (const task of tasks) {
-			if (task.kind === "activities") n += 10;
-			else if (task.kind === "walk") n += 20;
-			else if (task.kind === "details") n += task.ids.length * DETAIL_REQUESTS;
-			else n += spanDays(task.from, task.to) * requestsPerDay(groups);
-		}
-		return n;
+	/** Requests the download has spent, this device's since its last write included. */
+	private get doneNow(): number {
+		return this.savedDone + this.unsaved;
+	}
+
+	/** backfill.json's progress with what this device spent since it last wrote it; the next write starts from zero. */
+	private progressFrom(state: BackfillState, now: number): NonNullable<BackfillState["progress"]> {
+		const progress = { done: (state.progress?.done ?? 0) + this.unsaved, since: state.progress?.since ?? new Date(now).toISOString() };
+		this.unsaved = 0;
+		this.savedDone = progress.done;
+		return progress;
+	}
+
+	/** About how many requests the plan has left and how long they take from now: the progress bar and its time left. */
+	private left(tasks: readonly Task[]): { remaining: number; seconds?: number } {
+		if (!this.backfillCtx) return { remaining: 0 };
+		const units = asObserved(unitsOf(tasks, this.backfillCtx), this.observed);
+		const now = Date.now();
+		return { remaining: units.reduce((n, unit) => n + unit.requests, 0), seconds: timeFor(units, this.budget.outlook(now), now) };
 	}
 
 	/**
@@ -1188,12 +1358,12 @@ export class SyncRunner {
 			const task = this.backfillState?.task ?? "days";
 			if (err instanceof NewerDataError) {
 				new Notice(`Garmin: ${err.message}`, 15000);
-				this.setBackfill({ status: "paused", reason: "update", task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+				this.setBackfill({ status: "paused", reason: "update", task, done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 				return;
 			}
 			const until = new Date(Date.now() + 10 * 60_000).toISOString();
 			this.backfillLater(10 * 60_000);
-			this.setBackfill({ status: "paused", reason: "error", until, task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "paused", reason: "error", until, task, done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 		}
 	}
 
@@ -1202,17 +1372,18 @@ export class SyncRunner {
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		const now = Date.now();
 		const state = await store.readBackfill();
+		this.savedDone = state.progress?.done ?? 0;
 		if (stillPaused(state, now)) {
 			this.backfillPending = false;
 			const until = state.paused!.until;
 			if (until) this.backfillLater(Date.parse(until) - now);
-			this.setBackfill({ status: "paused", reason: state.paused!.reason, ...(until ? { until } : {}), task: this.backfillState?.task ?? "days", done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "paused", reason: state.paused!.reason, ...(until ? { until } : {}), task: this.backfillState?.task ?? "days", done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 			return;
 		}
 		const elsewhere = heldElsewhere(state, this.device.id, now);
 		if (elsewhere) {
 			this.backfillLater(LEASE_MS / 2);
-			this.setBackfill({ status: "elsewhere", device: elsewhere.label, task: this.backfillState?.task ?? "days", done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "elsewhere", device: elsewhere.label, task: this.backfillState?.task ?? "days", done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 			return;
 		}
 
@@ -1220,52 +1391,60 @@ export class SyncRunner {
 		const task = this.backfillTasks[0];
 		if (!task) {
 			this.backfillPending = false;
-			if (state.lease?.device === this.device.id || state.paused) await store.writeBackfill({});
+			// Done: the lease, an old pause and the progress go; the next download counts from zero.
+			if (state.lease?.device === this.device.id || state.paused || state.progress) await store.writeBackfill({});
+			this.savedDone = 0;
+			this.unsaved = 0;
 			this.setBackfill(null);
 			return;
 		}
-		const cost = this.unitCost(task);
-		const wait = this.budget.waitFor(cost, now);
+		const predicted = nextUnit(this.backfillTasks, this.backfillCtx!);
+		const wait = this.budget.waitFor(predicted?.requests ?? 0, now);
 		if (wait > 0) {
 			this.backfillLater(wait);
-			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (now - this.leaseWrittenAt > 60_000 || state.lease?.device !== this.device.id) {
-			await store.writeBackfill({ lease: { device: this.device.id, label: this.device.label, heartbeat: new Date(now).toISOString() } });
+			const lease = { device: this.device.id, label: this.device.label, heartbeat: new Date(now).toISOString() };
+			await store.updateBackfill((fresh) => ({ ...fresh, lease, progress: this.progressFrom(fresh, now) }));
 			this.leaseWrittenAt = now;
 		}
 		this.setBackfill({
 			status: "running",
 			task: task.kind,
-			done: this.backfillDone,
-			remaining: this.remainingRequests(this.backfillTasks),
+			done: this.doneNow,
+			...this.left(this.backfillTasks),
 			...(task.kind === "days" ? { reached: task.to } : {}),
 		});
 
-		let requests = 0;
 		let fatal: unknown;
+		const started = Date.now();
+		this.unitCut = false;
 		try {
-			const got = await this.runUnit(task, store);
-			requests = got.requests;
-			fatal = got.fatal;
+			fatal = (await this.runUnit(task, store)).fatal;
 		} catch (err) {
 			fatal = err;
 		}
-		this.backfillDone += requests;
+		// What the unit really asked, retries included.
+		const spent = this.api.stats.since(started).length;
+		this.unsaved += spent;
+		if (predicted && fatal === undefined && !this.unitCut) this.observed = observe(this.observed, predicted, (Date.now() - started) / 1000, spent);
 
 		if (fatal instanceof GarminAuthError) {
-			await store.writeBackfill({ paused: { reason: "sign-in" } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "sign-in" }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillPending = false;
-			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRateLimitError) {
+			// Garmin said the pace was too much: half the hour for a day, as well as the pause.
+			this.budget.halve(Date.now());
 			this.rateLimits += 1;
 			const until = new Date(Date.now() + rateLimitWait(this.rateLimits)).toISOString();
-			await store.writeBackfill({ paused: { reason: "rate-limit", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "rate-limit", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(rateLimitWait(this.rateLimits));
-			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminBlockedError) {
@@ -1274,9 +1453,9 @@ export class SyncRunner {
 			this.blocks += 1;
 			const wait = blockedWait(this.blocks);
 			const until = new Date(Date.now() + wait).toISOString();
-			await store.writeBackfill({ paused: { reason: "blocked", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "blocked", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRefreshError) {
@@ -1286,7 +1465,7 @@ export class SyncRunner {
 			const wait = rateLimitWait(this.refreshFailures);
 			const until = new Date(Date.now() + wait).toISOString();
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof NewerDataError) {
@@ -1294,14 +1473,14 @@ export class SyncRunner {
 			// pause stays on this device: backfill.json would stop that one too.
 			this.backfillPending = false;
 			new Notice(`Garmin: ${fatal.message}`, 15000);
-			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal !== undefined && ++this.unitFailures >= MAX_UNIT_FAILURES) {
 			// The same unit failed three times running for no reason the client
 			// knows: leave it for the next session rather than wedge the download.
 			this.unitFailures = 0;
-			const skipped = unitName(task, chunkDays(settings.groups, settings.syncSpeed));
+			const skipped = unitName(task, chunkDays(settings.groups));
 			this.skipUnit(task);
 			new Notice(`Garmin: the history download skipped ${skipped} for now, after it failed ${MAX_UNIT_FAILURES} times: ${explain(fatal)}`, 15000);
 			this.backfillLater(1_000);
@@ -1310,9 +1489,9 @@ export class SyncRunner {
 		if (fatal !== undefined) {
 			// Something else went wrong with the whole unit: try again in a while rather than at once.
 			const until = new Date(Date.now() + 10 * 60_000).toISOString();
-			await store.writeBackfill({ paused: { reason: "error", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "error", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(10 * 60_000);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, remaining: this.remainingRequests(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		this.rateLimits = 0;
@@ -1321,19 +1500,25 @@ export class SyncRunner {
 		this.unitFailures = 0;
 		const left = this.backfillTasks;
 		const next = left[0];
+		// Paused while the unit ran: it finished, and the download stays paused.
+		if (this.userPaused) {
+			this.setBackfill({ status: "paused", reason: "user", task: next?.kind ?? task.kind, done: this.doneNow, ...this.left(left) });
+			return;
+		}
 		this.setBackfill(
 			left.length
 				? {
 						status: "running",
 						task: next?.kind ?? task.kind,
-						done: this.backfillDone,
-						remaining: this.remainingRequests(left),
+						done: this.doneNow,
+						...this.left(left),
 						...(next?.kind === "days" ? { reached: next.to } : {}),
 					}
 				: null,
 		);
-		// Used up: plan once more, for whatever arrived meanwhile.
-		if (!left.length) this.backfillTasks = null;
+		// Used up: plan once more, for whatever arrived meanwhile. So too once the
+		// last walk is done: the indexes now vouch for days the chunks may leave out.
+		if (!left.length || (task.kind === "walk" && !left.some((t) => t.kind === "walk"))) this.backfillTasks = null;
 	}
 
 	/** Leaves the unit of `task` that keeps failing for the next session, and moves the plan past it. */
@@ -1342,7 +1527,7 @@ export class SyncRunner {
 		if (!tasks) return;
 		const settings = this.settings();
 		if (task.kind === "days") {
-			const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
+			const chunk = nextChunk(task, chunkDays(settings.groups));
 			for (let date = chunk.from; date <= chunk.to; date = shiftDay(date, 1)) this.backfillSkip.days.add(date);
 			if (chunk.from <= task.from) tasks.shift();
 			else task.to = shiftDay(chunk.from, -1);
@@ -1357,16 +1542,6 @@ export class SyncRunner {
 		} else if (tasks[0] === task) tasks.shift();
 	}
 
-	/** Requests a unit of `task` is about to spend, for the budget. */
-	private unitCost(task: Task): number {
-		const groups = this.settings().groups;
-		if (task.kind === "activities") return 10;
-		if (task.kind === "walk") return 20 * SYNC_SPEEDS[this.settings().syncSpeed].parallelDays;
-		if (task.kind === "details") return DETAIL_REQUESTS;
-		const chunk = nextChunk(task, chunkDays(groups, this.settings().syncSpeed));
-		return spanDays(chunk.from, chunk.to) * requestsPerDay(groups) + requestsPerChunk(groups);
-	}
-
 	/** Runs one unit of a task, and moves the plan on past it. */
 	private async runUnit(task: Task, store: VaultSeriesStore): Promise<{ requests: number; fatal?: unknown }> {
 		const tasks = this.backfillTasks!;
@@ -1379,10 +1554,10 @@ export class SyncRunner {
 		}
 		if (task.kind === "walk") {
 			// The walks at the plan's head go side by side, each into its own index.
-			const walks = tasks.filter((t): t is Extract<Task, { kind: "walk" }> => t.kind === "walk").slice(0, SYNC_SPEEDS[settings.syncSpeed].parallelDays);
+			const walks = tasks.filter((t): t is Extract<Task, { kind: "walk" }> => t.kind === "walk").slice(0, PACE.parallel);
 			const notBefore = await this.notBefore(store);
 			const segments = await Promise.all(
-				walks.map(async (walk) => ({ walk, got: await this.walkSegment(walk.store, store, { ...(notBefore ? { notBefore } : {}), emptyStreak: this.walkStreaks.get(walk.store) ?? 0, shouldStop: () => this.backfillStopped }) })),
+				walks.map(async (walk) => ({ walk, got: await this.walkSegment(walk.store, store, { ...(notBefore ? { notBefore } : {}), emptyStreak: this.walkStreaks.get(walk.store) ?? 0, shouldStop: this.unitShouldStop }) })),
 			);
 			let requests = 0;
 			let fatal: unknown;
@@ -1398,23 +1573,166 @@ export class SyncRunner {
 			return { requests, ...(fatal ? { fatal } : {}) };
 		}
 		if (task.kind === "details") {
-			const id = task.ids[0];
-			const load = await this.loadActivityFor(id, true);
-			if (load.fatal) return { requests: DETAIL_REQUESTS, fatal: load.fatal };
-			task.ids.shift();
-			if (load.reason) this.backfillSkip.details.add(id);
+			const batch = detailBatch(task.ids, this.backfillCtx!);
+			const got = await this.downloadDetails(batch, store);
+			// What finished leaves the plan, the failures for the next session; what never started stays at its head.
+			for (const id of got.failed) this.backfillSkip.details.add(id);
+			task.ids = task.ids.filter((id) => !got.finished.has(id));
 			if (!task.ids.length) tasks.shift();
-			return { requests: DETAIL_REQUESTS };
+			return { requests: detailUnit(batch, this.backfillCtx!).requests, ...(got.fatal !== undefined ? { fatal: got.fatal } : {}) };
 		}
-		const chunk = nextChunk(task, chunkDays(settings.groups, settings.syncSpeed));
+		const chunk = nextChunk(task, chunkDays(settings.groups));
 		const report = await this.chunkSync(store, chunk);
 		const fatal = report.fatal ?? (report.stoppedEarly && report.stoppedEarly !== "cancelled" ? new Error(report.stoppedEarly) : undefined);
 		if (fatal) return { requests: report.requests, fatal };
 		// What came back incomplete is left for the next session.
 		for (const day of report.days) if (!day.full) this.backfillSkip.days.add(day.date);
-		if (chunk.from <= task.from) tasks.shift();
-		else task.to = shiftDay(chunk.from, -1);
+		// Cut short — a page or a sync waiting, Obsidian closing — the plan moves past only the days it reached.
+		const reached = report.stoppedEarly === "cancelled" ? report.days.reduce<string | undefined>((oldest, day) => (!oldest || day.date < oldest ? day.date : oldest), undefined) : chunk.from;
+		if (reached !== undefined) {
+			if (reached <= task.from) tasks.shift();
+			else task.to = shiftDay(reached, -1);
+			// A range asked for keeps its place in backfill.json, and leaves it once done.
+			if (task.range) {
+				const id = task.range;
+				const done = reached <= task.from;
+				await store.updateBackfill((fresh) => {
+					const ranges = (fresh.ranges ?? []).flatMap((r) => (r.at !== id ? [r] : done ? [] : [{ ...r, next: shiftDay(reached, -1) }]));
+					const { ranges: _, ...rest } = fresh;
+					return ranges.length ? { ...rest, ranges } : rest;
+				});
+			}
+		}
 		return { requests: report.requests };
+	}
+
+	/** Something waits for the runner: a page's load, or a sync. */
+	private get othersWaiting(): boolean {
+		return this.lock.waiting() > 0 || this.intradayJobs.size > 0 || this.activityJobs.size > 0;
+	}
+
+	/** Where a unit stops early: Obsidian closing, or something waiting for the runner, which then goes next. */
+	private readonly unitShouldStop = (): boolean => {
+		const stop = this.backfillStopped || this.othersWaiting;
+		if (stop) this.unitCut = true;
+		return stop;
+	};
+
+	/**
+	 * A batch of activities' pages, `PACE.parallel` at a time, the index read
+	 * once for their rows and their versions booked once in the coverage: two
+	 * loads booking at once would each lose the other's entry. Says which
+	 * finished, which of those failed, and the error that stops the download.
+	 */
+	private async downloadDetails(ids: readonly number[], store: VaultSeriesStore): Promise<{ finished: Set<number>; failed: Set<number>; fatal?: unknown }> {
+		const settings = this.settings();
+		const rows = new Map((await store.readActivities()).rows.map((row) => [row.id, row]));
+		const versions = new Map<number, number>();
+		const files: ActivityDetailStore = {
+			readActivityDetail: (id) => store.readActivityDetail(id),
+			writeActivityDetail: async (id, detail) => {
+				const outcome = await store.writeActivityDetailFile(id, detail);
+				versions.set(id, detail.version);
+				return outcome;
+			},
+		};
+		const finished = new Set<number>();
+		const failed = new Set<number>();
+		let fatal: unknown;
+		let next = 0;
+		const worker = async () => {
+			while (next < ids.length && fatal === undefined && !this.unitShouldStop()) {
+				const id = ids[next++];
+				const row = rows.get(id);
+				const load = await loadActivity(this.api, files, id, {
+					signedIn: this.api.isAuthenticated,
+					groups: settings.groups,
+					row: row ? { name: row.name, distance: row.distance, duration: row.duration } : null,
+				});
+				// A 429 or a dead session: this one is asked again, and nothing more starts.
+				if (load.fatal !== undefined) {
+					fatal ??= load.fatal;
+					continue;
+				}
+				finished.add(id);
+				if (load.reason) failed.add(id);
+			}
+		};
+		await Promise.all(Array.from({ length: Math.min(PACE.parallel, ids.length) }, worker));
+		await store.bookDetails(versions);
+		return { finished, failed, ...(fatal !== undefined ? { fatal } : {}) };
+	}
+
+	/**
+	 * Puts a long date range in the history download's queue (`backfill.json`)
+	 * and starts it (`estimateRange` says which ranges go there). Asking for one
+	 * lifts your own pause; a pause Garmin asked for stays.
+	 */
+	async queueRange(from: string, to: string): Promise<void> {
+		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
+		const range: QueuedRange = { from, to, next: to, at: new Date().toISOString() };
+		await store.updateBackfill(({ paused, ...fresh }) => ({
+			...fresh,
+			...(paused && paused.reason !== "user" ? { paused } : {}),
+			ranges: [...(fresh.ranges ?? []), range],
+		}));
+		this.userPaused = false;
+		this.kickBackfill();
+	}
+
+	/** Takes a range out of the queue, what it fetched staying. */
+	async removeRange(at: string): Promise<void> {
+		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
+		await store.updateBackfill((fresh) => {
+			const ranges = (fresh.ranges ?? []).filter((r) => r.at !== at);
+			const { ranges: _, ...rest } = fresh;
+			return ranges.length ? { ...rest, ranges } : rest;
+		});
+		this.kickBackfill();
+	}
+
+	/** The ranges waiting for the download, oldest asked first. */
+	async queuedRanges(): Promise<QueuedRange[]> {
+		return (await new VaultSeriesStore(this.app, this.settings().dataFolder).readBackfill()).ranges ?? [];
+	}
+
+	/**
+	 * The setup's history check, before you choose: the five indexes that
+	 * vouch for the masks (`PREPARED_STORES`), walked whole. A request or a
+	 * few each — about 40 for ten years — so the setup's estimate already
+	 * leaves out the days they show empty. They are the download's first walks
+	 * anyway. Quiet: a failure only leaves the estimate without them.
+	 */
+	async prepareHistory(): Promise<void> {
+		const settings = this.settings();
+		if (!this.api.isAuthenticated) return;
+		const release = await this.claim("foreground");
+		if (!release) return;
+		try {
+			const store = new VaultSeriesStore(this.app, settings.dataFolder);
+			const charts = await store.readChartMetas();
+			const notBefore = await this.notBefore(store);
+			const stores = PREPARED_STORES.filter((name) => {
+				const group = Object.values(MASK_STORES)
+					.flat()
+					.find((s) => s.store === name)?.group;
+				return group !== undefined && settings.groups.includes(group) && charts.get(name)?.complete !== true;
+			});
+			await Promise.all(
+				stores.map(async (name) => {
+					let emptyStreak = 0;
+					for (let segment = 0; segment < 20; segment++) {
+						const got = await this.walkSegment(name, store, { ...(notBefore ? { notBefore } : {}), emptyStreak, shouldStop: () => this.foregroundCancel });
+						emptyStreak = got.emptyStreak;
+						if (got.complete || got.requests === 0 || got.error || got.fatal) return;
+					}
+				}),
+			);
+		} catch {
+			// The estimate goes without them.
+		} finally {
+			release();
+		}
 	}
 
 	/** One segment of a chart index's walk, by its store name. */
@@ -1435,6 +1753,13 @@ export class SyncRunner {
 		const settings = this.settings();
 		const units = await this.resolveUnits(settings.units);
 		const days = store.dayBuffer();
+		const masks = this.backfillMasks;
+		// The masked routes asked anyway, to check them, and what came back.
+		const heard: Array<{ route: MaskRoute; empty: boolean }> = [];
+		// What each day's four timelines said, newest first, for the horizon.
+		const timelines: Array<[string, TimelineVerdict]> = [];
+		const today = toIsoDate();
+		const cut = masks ? cutOf(masks.horizon, today) : null;
 		const report = await syncDays(days, () =>
 			syncRange(this.api, days, {
 				from: chunk.from,
@@ -1446,11 +1771,51 @@ export class SyncRunner {
 				indexes: [],
 				activityRange: true,
 				intradayDays: spanDays(chunk.from, chunk.to),
-				parallelDays: SYNC_SPEEDS[settings.syncSpeed].parallelDays,
-				shouldStop: () => this.backfillStopped,
+				parallelDays: PACE.parallel,
+				shouldStop: this.unitShouldStop,
+				...(masks
+					? {
+							masks: {
+								skip: (date: string) => skippedRoutes(date, masks),
+								audit: (date: string) => auditedRoutes(date, masks),
+								heard: (route: MaskRoute, empty: boolean) => void heard.push({ route, empty }),
+								pastHorizon: (date: string) => {
+									if (cut === null || date > cut) return false;
+									// Once a session, one such day asks them all: Garmin may keep them again.
+									if (this.horizonChecked) return true;
+									this.horizonChecked = true;
+									return false;
+								},
+								heardTimelines: (date: string, verdict: TimelineVerdict) => void timelines.push([date, verdict]),
+							},
+						}
+					: {}),
 			}),
 		);
 		await this.recordDays(store, report);
+		if (masks && timelines.length) {
+			const learned = learn(masks.horizon, this.horizonStreak, timelines, today);
+			this.horizonStreak = learned.streak;
+			if (learned.horizon !== masks.horizon) {
+				masks.horizon = learned.horizon;
+				try {
+					if (learned.horizon !== undefined) await store.writeHorizon(learned.horizon);
+				} catch {
+					// Kept for this session; learned again in the next.
+				}
+			}
+		}
+		if (masks && heard.length) {
+			const verdicts = tally(masks.verdicts, heard);
+			if (JSON.stringify(verdicts) !== JSON.stringify(masks.verdicts)) {
+				masks.verdicts = verdicts;
+				try {
+					await store.writeVerdicts(verdicts);
+				} catch {
+					// Kept for this session; the check runs again in the next.
+				}
+			}
+		}
 		return report;
 	}
 
@@ -1478,11 +1843,13 @@ export class SyncRunner {
 			};
 			const system = settings?.userData?.measurementSystem ?? "";
 			this.unitsCache = system.startsWith("statute") ? "imperial" : "metric";
+			return this.unitsCache;
 		} catch {
-			// Not worth failing a sync over; metric is the safer default.
-			this.unitsCache = "metric";
+			// Not worth failing a sync over: metric this time, and Garmin is asked
+			// again next time, rather than an imperial account written in metric
+			// for the rest of the session after one bad moment.
+			return "metric";
 		}
-		return this.unitsCache;
 	}
 
 	/** Called on sign-out, so a second account does not inherit the first's units. */
@@ -1499,19 +1866,6 @@ export class SyncRunner {
 	}
 }
 
-export function describe(report: SyncReport): string {
-	const parts = [`${report.written} written`];
-	if (report.unchanged) parts.push(`${report.unchanged} unchanged`);
-	if (report.skipped) parts.push(`${report.skipped} skipped`);
-	if (report.failed) parts.push(`${report.failed} failed`);
-
-	let summary = `Garmin sync: ${parts.join(", ")}`;
-	if (report.stoppedEarly) summary += ` — stopped: ${report.stoppedEarly}`;
-	// A range endpoint returning nothing used to be invisible: the run reported
-	// "N written" while a whole metric was quietly missing from every note.
-	if (report.warnings.length) summary += `\n${report.warnings.join("\n")}`;
-	return summary;
-}
 
 /**
  * The progress Notice.
@@ -1633,9 +1987,6 @@ function shiftDay(date: string, days: number): string {
 	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-function pauseFor(ms: number): Promise<void> {
-	return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
 
 /** An activity load as a page gets it: the queue's fatal error stays behind. */
 function withoutActivityFatal(load: ActivityLoad & { fatal?: unknown }): ActivityLoad {
@@ -1731,7 +2082,7 @@ export const BUDGET_KEY = "garmin-connect-budget";
 function localBudget(app: App): BudgetStore {
 	return {
 		load: () => app.loadLocalStorage(BUDGET_KEY) as unknown,
-		save: (entries) => app.saveLocalStorage(BUDGET_KEY, entries),
+		save: (ledger) => app.saveLocalStorage(BUDGET_KEY, ledger),
 	};
 }
 

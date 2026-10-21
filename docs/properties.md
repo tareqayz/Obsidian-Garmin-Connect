@@ -11,7 +11,7 @@ in `src/sync/`. If the two ever disagree, the code is right.
 
 ## The data folder
 
-Everything is plain JSON under the data folder, `Garmin/data` by default (**Settings → Data → Data
+Everything is plain JSON under the data folder, `Garmin/data` by default (**Settings → History → Data
 folder**), arranged by the data set it belongs to:
 
 ```text
@@ -29,9 +29,9 @@ Garmin/data/
 │   ├── 12345678901.json
 │   └── index.json           each file's version
 ├── account.json             the profile group: the watch, thresholds, plans, records
-├── sync-state.json          where the last Sync recent days got to
-├── scan.json                where your Garmin history starts and ends
-└── backfill.json            the history download's pause and the device running it
+├── sync-state.json          where the last recent sync got to, and what it saw
+├── scan.json                where your history starts and ends, and what the download learned
+└── backfill.json            the history download's pause, progress, queued ranges and device
 ```
 
 **Delete synced data** removes exactly these folders and files, conflict copies and set-aside
@@ -423,7 +423,9 @@ and a baseline pair. The baseline pair is left out while it reads 0–0, which m
 
 ### profile — `account.json`
 
-Nothing goes into the day files. About nine requests a sync write `<dataFolder>/account.json`:
+Nothing goes into the day files. About eight requests write `<dataFolder>/account.json`, on every
+sync you ask for. An automatic sync fetches it only when the newest activities changed, or six hours
+after the last time. A request that fails leaves the fields it fills as the file had them.
 
 | Key | Source |
 | --- | --- |
@@ -443,6 +445,11 @@ Nothing goes into the day files. About nine requests a sync write `<dataFolder>/
 A day of heart rate is hundreds of points, so the timelines go to a file per day instead of the day
 file. Every day a sync writes gets one while `intraday` is on. Only the days inside Day details spend
 the six requests; the others carry what the day's other payloads hold, such as the night's sleep.
+
+Garmin keeps a day's fine-grained timelines for about 140 days. Once the history download has learned
+that for your account, a day it fetches past that has `steps` and `bodyBatteryEvents` but no
+`stress`, `bodyBattery`, `heartRate`, `floors` or `intensity`, and its `dayStart` comes from the steps
+chart.
 
 ```jsonc
 // series/2026-09-20.json
@@ -482,8 +489,10 @@ Every timestamp is epoch milliseconds, UTC, and a key is left out when Garmin ha
   Training Readiness reading of the day). It writes them from calls it already makes, and never
   erases them: Garmin drops old HRV readings.
 - **A sync's write merges** (`keepBlocks`). It refreshes the blocks it fetched and keeps any block
-  Garmin no longer sends. A write that fetched the day's timelines drops the on-view extras and
-  `checked`, so the next view fetches them fresh; a write that fetched only the night keeps them.
+  Garmin no longer sends. A write that fetched the day's timelines and found the day changed drops
+  the on-view extras and `checked`, so the next view fetches them fresh. When every timeline came
+  back as the file had it, they stay and nothing is written. A write that fetched only the night
+  keeps them.
 
 ## Activity details — `activity-details/`
 
@@ -547,9 +556,10 @@ folder under the data folder.
   fetching further back found nothing).
 - **Every sync** keeps each index current. Its own days come free from what it fetched anyway. Any
   other days in the run, and the stretch since the index's newest day, are asked of the index's range
-  request.
-- **The whole history** comes once, from the history download or a **Sync … history** command,
-  walking back a year of windows at a time.
+  request. Respiration and Pulse Ox ask it for the run's own days too, for the columns only it has
+  (`windowToo`).
+- **The whole history** comes once, from the history download or the page's **Sync history**
+  button, walking back a year of windows at a time.
 
 ### The activity index — `activities/`
 
@@ -661,6 +671,11 @@ The columns are:
 | `critical-swim-speed/` | `workouts` | Critical Swim Speed | `speed` (m/s, 4 dp); the pace per 100 m is 100 ÷ `speed` seconds | 367 | 0 |
 | `hrv-stress/` | `hrv` | HRV Stress | `score` (0–100, the day's last test), `n` (tests that day) | 3660 | 0 |
 
+Respiration's `sleep` and Pulse Ox's `elev` come only with the range request, so every sync asks it
+for its own days as well (`windowToo`) and merges a day's two rows column by column. Before version 2
+of these two indexes, the days a sync added lacked those columns; the update dialog offers to walk
+both again once.
+
 Critical Swim Speed's and HRV Stress's field names are inferred from the routes' names, their
 sibling routes and Garmin's help, until a real result is recorded.
 
@@ -671,8 +686,51 @@ sync like any other file.
 
 | Path | Holds | Written by |
 | --- | --- | --- |
-| `sync-state.json` | the watch's last upload at the last **Sync recent days**: its mark | **Sync recent days** |
-| `scan.json` | where your Garmin history starts and ends, as the scan found it | the setup |
-| `backfill.json` | whether the history download is paused, and which device runs it | the history download |
+| `sync-state.json` | where the last recent sync got to (its mark), and what it saw | every recent sync that runs to the end, automatic ones included |
+| `scan.json` | where your Garmin history starts and ends, as the scan found it, and what the history download learned of the account | the setup; the history download, for `learned` |
+| `backfill.json` | whether the history download is paused, which device runs it, how far it has got, and the date ranges queued for it | the history download, **Pause** and **Resume**, and `SyncRunner.queueRange` |
 | `days/index.json` | which days' details were fetched whole, and at which version of Day details | every sync and the history download |
 | `activity-details/index.json` | each activity file's version | each activity's page as it is saved |
+
+The first three also hold their file's `version`, 1 for each.
+
+### `sync-state.json`
+
+| Key | Holds |
+| --- | --- |
+| `syncedAt` | when the last recent sync started, ISO |
+| `deviceUpload` | the watch's last upload as Garmin reported it then, ISO: the mark |
+| `list` | a hash of the newest ten activities, by the fields the vault keeps of them. Written only after a clean sync |
+| `fingerprint` | a hash of what shapes the files: the groups, units, Day details range, data version and plugin version. Written only after a clean sync |
+| `warn` | a hash of the last sync's warnings, so a warning that lasts doesn't make every sync a full one |
+| `accountAt` | when `account.json` was last fetched with every request answered, ISO |
+
+An automatic sync that its check stops writes nothing. Without `list` and `fingerprint`, the next sync
+runs in full. The hashes say nothing of the activities or settings themselves.
+
+### `scan.json`
+
+| Key | Holds |
+| --- | --- |
+| `scannedAt` | when the scan ran, ISO |
+| `lastUpload` | the watch's last upload, ISO |
+| `firstDay`, `days`, `weeks` | the first day with health data, how many days have it, and each week with data as `[its first day, days with data]` |
+| `activities`, `firstActivity` | how many activities the list holds, and the oldest one's day |
+| `complete` | whether the weeks were walked back past the start of the history |
+| `learned` | what the history download learned of the account. `masks`: each route's verdict, a count of empty days toward trust, `trusted` or `off`. `horizon`: `{days, version}`, how many days back Garmin keeps a day's fine-grained timelines (`null` once it served one past that), for that version of Day details. A new scan keeps it |
+
+### `backfill.json`
+
+| Key | Holds |
+| --- | --- |
+| `paused` | `{reason, until?}`: `user`, `sign-in`, `rate-limit`, `blocked` or `error`, and until when |
+| `lease` | `{device, label, heartbeat}`: the device running the download, a name such as "Mac", and when it last finished a piece |
+| `progress` | `{done, since}`: requests the download has spent since it started, so its percentage carries over a restart or to another device |
+| `ranges` | the date ranges queued for the download, oldest asked first, as `{from, to, next, at}`: `next` is the newest day still to fetch, `at` when it was asked for |
+
+> [!NOTE]
+> A build from before these keys, on another device, drops `sync-state.json`'s `list`,
+> `fingerprint`, `warn` and `accountAt` when it writes the file, so the next sync here runs in full.
+> On its next write to `backfill.json` it drops `progress` and `ranges`: the percentage starts over,
+> and a queued range keeps only the days it fetched. It keeps `scan.json`'s `learned` unless it scans
+> again.

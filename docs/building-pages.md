@@ -14,7 +14,7 @@ an activity lacks only when it opens.
 
 | Pages | Read | Kept current by |
 | --- | --- | --- |
-| Activities, All Activities, Cycling Power Curve | the activity index, `activities/` (`activity-index.ts`) | each sync's pages of the activity list (50 a page, up to five, back to the run's oldest day); the whole history once, from the backfill or **Sync activity history** |
+| Activities, All Activities, Cycling Power Curve | the activity index, `activities/` (`activity-index.ts`) | each sync's newest activities: the probe's page, then 50 a page, up to five, back to the run's oldest day; the whole history once, from the backfill or **Refresh the activity list** |
 | Steps, Floors, Intensity Minutes | the daily stats index, `daily-stats/` (`daily-stats.ts`) | each synced day's summary, at no cost; the range endpoints for days whose summary failed |
 | Sleep | the sleep index, `sleep/` (`sleep-index.ts`), and the night in the day's series file | every sync with the `sleep` group on |
 | Health and Performance Stats | mostly a day index each (see [Day indexes](#day-indexes)), and blocks loaded on view | routine syncs and the backfill |
@@ -121,7 +121,7 @@ Each registration switches on the rest without further edits:
 flowchart LR
   idx["DAY_INDEXES"] --> feed["Routine syncs feed the index"]
   idx --> walk["The backfill walks its history"]
-  idx --> cmd["A Sync … history command"]
+  idx --> button["onSyncHistory(kind): the page's Sync history"]
   idx --> read["readIndex(kind) for its pages"]
   extras["INTRADAY_EXTRAS"] --> load["loadIntraday(date, keys)"]
   pages["HEALTH_PAGES or PERFORMANCE_PAGES"] --> hub["A row in the area's list and the rail"]
@@ -132,7 +132,7 @@ flowchart LR
 
 | Registration | What it switches on |
 | --- | --- |
-| `DAY_INDEXES` | Routine syncs feed the index. The backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to and its group is on. It also adds a `Sync <title> history` command and `readIndex(kind)`, and Home watches its folder |
+| `DAY_INDEXES` | Routine syncs feed the index. The backfill walks its history once its consent key (`index:<kind>@<version>`) is agreed to and its group is on. `onSyncHistory(kind)` walks it at once, for the page's **Sync history** button, `readIndex(kind)` reads it, and Home watches its folder. It adds no command |
 | `INTRADAY_EXTRAS` | `loadIntraday(date, [key])` fetches the payload for any day and keeps it in the series file under `extra[key]` |
 | `HEALTH_PAGES` | the stat's row in the area's list and the rail, an `Open <stat>` command, its At a Glance card opening the page, and Home rendering it for the `health-stat` route |
 | `PERFORMANCE_PAGES` | the same for the `performance-stat` route, and its In Focus card (Training Readiness, Training Status). A `hub: false` stat gets no row and no command. The Performance Stats area (its rail row and tab) and **Open performance stats** appear with the first hub stat |
@@ -225,7 +225,7 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 
 | Field | Meaning |
 | --- | --- |
-| `kind`, `title`, `folder` | The id (`readIndex(kind)`, the history command, the progress map), how it reads mid-sentence ("Sync stress history"), and its folder. `kind` and `folder` are lowercase and hyphenated |
+| `kind`, `title`, `folder` | The id (`readIndex(kind)`, `onSyncHistory(kind)`, the progress map), how it reads mid-sentence ("Stress history isn't synced", "Fetching stress history…"), and its folder. `kind` and `folder` are lowercase and hyphenated |
 | `version` | Bump when a row's meaning changes. An `index.json` of another version reads as none, and the history is fetched again once its new consent key is agreed to. See [Data versions](CONTRIBUTING.md#data-versions) |
 | `listKey` | The list's key in a year file: `days` unless the stat reads better otherwise |
 | `columns` | The row's keys, in order. A number is rounded to `precision` decimals (whole by default). A negative is Garmin's "not measured" and is dropped, unless `signed`. `text` keeps a trimmed word. Unknown keys, nulls and empty rows are dropped |
@@ -234,15 +234,11 @@ export const STRESS_INDEX = defineDayIndex<StressRow>({
 | `windowDays` | Days one window request covers: `DEFAULT_WINDOW_DAYS` (28) unless the route takes more, up to `MAX_WINDOW_DAYS` (3660) |
 | `refreshDays` | Days back from a routine sync's last day that are fetched again on every sync, for a stat Garmin revises late. 0 by default |
 | `emptyWindowsToStop`, `maxHistoryDays` | When a history walk stops: after that many windows in a row without a row (once past the oldest activity), or at how far back Garmin keeps the stat |
-| `requestsPerWindow` | What one window costs when `fetchWindow` asks more than one route: FTP and lactate threshold take 2. It is booked in sync reports, walk logs and estimates |
+| `requestsPerWindow` | What one window costs when `fetchWindow` asks more than one route: Body Battery, Weight, FTP and lactate threshold take 2. It is booked in sync reports, walk logs and the cost model |
 | `fetchWindow(api, start, end)` | One window's rows. The definition owns its requests |
 | `fromSummary(summary, date)` | The run's own days, taken from the daily summary the sync fetches anyway, at no cost |
 | `fromDay` | A `DayFeed` (`needs`, `read(day, date)`): the run's own days, taken from what the day sync fetched for the day file (`maxMetrics`, `hillScore`, `runningTolerance` and so on). Not allowed with `fromSummary`. A day counts as covered only when every part in `needs` came back |
-
-> [!WARNING]
-> Body Battery and Weight each ask two routes per window but leave `requestsPerWindow` at 1, so
-> sync reports and estimates undercount them. The hourly budget is unaffected: it counts real
-> requests.
+| `windowToo` | The run's own days are asked of the window as well, and a day's two rows merge column by column, the summary's first: for columns only the window has, such as Respiration's night average and Pulse Ox's elevation. One request a sync |
 
 `defineDayIndex` throws on a definition that cannot work, so the mistake fails the tests rather
 than a sync. It checks:
@@ -253,13 +249,15 @@ than a sync. It checks:
 - `fromDay` beside `fromSummary`, or a `fromDay` that needs nothing.
 
 `tests/day-index.test.ts` catches two indexes sharing a folder. `RESERVED_INDEX_NAMES` doesn't list
-`days`, the day files' folder.
+`days`, the day files' folder. Two more tests hold an index to the cost model:
+`tests/index-requests.test.ts` counts the routes `fetchWindow` asks against `requestsPerWindow`, and
+`tests/cost.test.ts` fails until the index has its bytes a day in `ROW_BYTES` (`src/sync/cost.ts`).
 
 How an index fills:
 - `takeSummary` and `takeDay` (`src/sync/engine.ts`) take the run's own days at no cost.
 - `feedIndex` asks `fetchWindow` for the days they missed, the stretch since `index.json`'s `to`,
-  and the `refreshDays`. An index with neither `fromSummary` nor `fromDay` therefore asks a window
-  on every routine sync.
+  and the `refreshDays`; with `windowToo`, for the run's own days too. An index with neither
+  `fromSummary` nor `fromDay` therefore asks a window on every routine sync.
 - `walkHistory` goes back a window at a time, a year of windows per backfill segment.
 - `VaultSeriesStore.mergeDayIndex` merges each batch. Home re-reads an index only when
   `versions[kind]` moves.
@@ -272,7 +270,9 @@ Each index's folder, columns, window and refresh are listed in the
 ### Intraday on view
 
 A routine sync spends intraday requests only on the days inside Day details. **Sync a date range…**
-spends them on every day it covers. A day page asks for what it draws instead:
+spends them on every day it covers, and the history download on every day it fetches, less those
+past the timelines' horizon (see [Architecture](architecture.md#the-timelines-horizon)). A day page
+asks for what it draws instead:
 `loadIntraday(date, keys)` fetches whatever of `keys` the day's series file lacks, merges it in,
 writes the file and resolves with the day's series.
 
@@ -327,7 +327,8 @@ keeps it in `<dataFolder>/activity-details/<id>.json` (`src/sync/activity-detail
   with the blocks version 6 changed (`CHANGED_IN_6`: the summary and the badges) left to fetch.
 - **The loads queue with the intraday ones,** in the same runner and gated on the `workouts` group.
   With **Activity details** past `opened`, the backfill's `details` task loads the rest the same
-  way: newest first, one a unit, at least two seconds apart.
+  way, newest first within each era, in batches of about `UNIT_SECONDS` of work, `PACE.parallel`
+  side by side (`downloadDetails`).
 - **The view keeps the last few details in memory,** so a page coming back (Back from the map)
   draws at once and holds its scroll position.
 
@@ -374,7 +375,7 @@ from a finished stat: Stress (`src/ui/svelte/stress/`) or Respiration
 
 `StatPageShell` takes the page's `route`, `today`, `onBack` and `swap`, plus `label` and
 `canGoBack` from the stat's view. Its optional props:
-- `history` (`{ title, windowDays, complete, walking, canSync, onSync }`) drives the banner;
+- `history` (`{ title, complete, walking, canSync, onSync }`) drives the banner;
 - `style` sets custom properties, such as the stat's colours;
 - `ranges` and `rangeLabels` override the registry's;
 - `steppers={false}` shows the label alone;
@@ -403,8 +404,8 @@ export function averagesPlot(view: RespirationPeriodView, width: number, pane: b
 ```svelte
 <!-- src/ui/svelte/respiration/RespirationPage.svelte, the 7d / 4w body (simplified) -->
 <StatPageShell {route} {today} {onBack} {swap} label={periodView.label} canGoBack={periodView.canGoBack}
-	history={{ title: RESPIRATION_INDEX.title, windowDays: RESPIRATION_INDEX.windowDays,
-		complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}>
+	history={{ title: RESPIRATION_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND],
+		canSync, onSync: () => onSyncHistory(KIND) }}>
 	{#snippet children({ pane, move })}
 		<StatPeriodLayout>
 			{#snippet chart()}<RespirationAverages view={periodView} {pane} />{/snippet}

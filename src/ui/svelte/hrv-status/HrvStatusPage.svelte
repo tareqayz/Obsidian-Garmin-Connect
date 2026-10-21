@@ -91,7 +91,7 @@
 	canGoBack={view.canGoBack}
 	{onBack}
 	{swap}
-	history={{ title: HRV_STATUS_INDEX.title, windowDays: HRV_STATUS_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: HRV_STATUS_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane, move })}
 		<div class="hrv" bind:clientWidth={width}>

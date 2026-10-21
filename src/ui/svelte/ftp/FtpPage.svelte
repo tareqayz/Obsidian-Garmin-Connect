@@ -106,8 +106,6 @@
 		? undefined
 		: {
 				title: FTP_INDEX.title,
-				// A window is two requests (watts, W/kg): the banner's "a year takes about N requests" counts both.
-				windowDays: FTP_INDEX.windowDays / FTP_INDEX.requestsPerWindow,
 				complete,
 				walking: history[KIND],
 				canSync,

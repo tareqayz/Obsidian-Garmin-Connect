@@ -106,7 +106,8 @@ One request per day synced, for each group that is on.
 | `healthStatus(date)` | `POST /graphql-gateway/graphql`, `healthStatusSummary` | `health` |
 
 - **`dailySummary` serves five groups from one request,** so switching off only some of them saves
-  nothing. Respiration and Pulse Ox cost no requests of their own.
+  nothing. Respiration and Pulse Ox cost no requests of their own a day; each asks its history
+  index's window once a sync (see [History index endpoints](#history-index-endpoints)).
 - **`dailySummary` throws `GarminApiError` (status 403) for a `privacyProtected: true` answer.**
   Read as empty, it would pass for a day without data. The summary is dropped with a warning, the
   rest of the day is still written (and not booked as whole), and the session is fine: signing in
@@ -134,8 +135,16 @@ as much.
 
 ### Once per sync (`profile`)
 
-Written to `account.json`, about nine requests a sync. A tenth (`socialProfile`) is made when the
-display name isn't cached yet this session.
+Written to `account.json`, about eight requests, asked beside the days. A sync someone asked for
+always fetches it; an automatic one only when `wantsAccount` (`src/sync/freshness.ts`) says it may
+have changed. Fewer requests than the table's rows:
+- `lastUsedDevice()` comes from the sync's probe, not a request of its own;
+- `userSettings()` is remembered for `SETTINGS_MEMO_MS` (`src/garmin/endpoints.ts`), shared with the
+  units lookup and the weight windows;
+- `socialProfile()`, for the display name, is one request a session, shared by everything that needs
+  it at once.
+
+A request that fails keeps the fields it fills as `account.json` had them (`mergeAccount`).
 
 | Method | Path |
 | --- | --- |
@@ -149,9 +158,11 @@ display name isn't cached yet this session.
 | `cyclingAbility(date)` | GraphQL `cyclingAbility` |
 | `upcomingEvents(date)` | GraphQL `myDayCardEventsScalar` |
 
-**Sync recent days** also calls `lastUsedDevice()` once before the days, for the watch's last upload,
-which is the sync's mark. See [properties → profile](properties.md#profile--accountjson) for what
-lands in `account.json`.
+**Sync recent days** starts with a probe: `lastUsedDevice()` and `activities(0, PROBE_PAGE)`
+together (`SyncRunner.probe`). The watch's last upload sets the sync's range, the page starts its
+activity list, and an automatic sync stops there when neither moved (see
+[Architecture](architecture.md#a-sync-end-to-end)). See
+[properties → profile](properties.md#profile--accountjson) for what lands in `account.json`.
 
 ### Intraday (the days inside Day details)
 
@@ -173,6 +184,12 @@ These go to `<dataFolder>/series/<date>.json`, not the day files (see
 - **Before the setup:** a sync, for its newest seven days (`INTRADAY_DAYS`, `src/sync/engine.ts`).
 - **Sync a date range…:** every day it covers.
 
+The history download leaves some out. Past the timelines' horizon (`src/sync/horizons.ts`) a day
+asks only `stepsChart` and `bodyBatteryEvents`: Garmin answers the other four with the day's totals
+and no points. A day the summary's mask leaves out asks none (`src/sync/day-facts.ts`). See
+[Architecture → Masks](architecture.md#masks) and
+[the timelines' horizon](architecture.md#the-timelines-horizon).
+
 ## Range endpoints
 
 Called once for the whole run, in windows of up to a year (`RANGE_CHUNK_DAYS`).
@@ -185,8 +202,10 @@ Called once for the whole run, in windows of up to a year (`RANGE_CHUNK_DAYS`).
 | `activitiesByDate(from, to, start, limit)` | `/activitylist-service/activities/search/activities?startDate=&endDate=&start=&limit=` | `workouts` |
 
 - **`racePredictions` rejects ranges longer than a year,** so a long run is cut into years.
-- **`activities` is paged rather than dated.** A sync pages back through it 50 at a time, five pages
-  at most, to the run's oldest day. It files each activity under the local day it started on.
+- **`activities` is paged rather than dated.** A sync starts from the probe's page, the newest
+  `PROBE_PAGE` (`src/sync/freshness.ts`). Only when that page doesn't reach the run's oldest day does
+  it page on, 50 at a time and five pages at most. It files each activity under the local day it
+  started on.
 - **A history-download chunk** lists its days' activities with `activitiesByDate` instead, a request
   per hundred, since paging from today would never reach a chunk far back. That list feeds the day files only, not the
   activity index.
@@ -227,6 +246,8 @@ On a routine sync:
   - Health Status, Fitness Age, Blood Pressure, weekly Running Tolerance, Running Economy, Critical
     Swim Speed and HRV Stress, one request each;
   - Weight, FTP and Running Lactate Threshold, two each.
+- **Respiration and Pulse Ox** take the run's days from the summaries, and ask their window for them
+  too, one request each (`windowToo`): the night's average and the elevation come only from it.
 - **Some indexes re-read their last days** (`refreshDays`); see the
   [Data reference](properties.md#history-indexes).
 
@@ -285,7 +306,8 @@ An activity's page loads when it opens, never in a sync (see
 - **After that, none:** the answer is kept in the vault.
 
 With an **Activity details** range, the history download loads every activity in it the same way,
-one at a time, at least two seconds apart.
+in batches of about `UNIT_SECONDS` of work, `PACE.parallel` side by side (`detailBatch`,
+`downloadDetails`), paced by the throttle and the hourly budget.
 
 | Method | Path | Gives the page |
 | --- | --- | --- |
@@ -382,21 +404,24 @@ A sync costs roughly:
   groups), sleep, HRV, readiness, endurance, fitness age, training status, body composition and
   Health Status.
 - **Per sync,** with every group on, about 30:
-  - about nine for `profile`;
-  - one `lastUsedDevice` for **Sync recent days**;
-  - one or more pages of the activity list;
+  - the probe: `lastUsedDevice` and the newest `PROBE_PAGE` activities, two;
+  - more pages of the activity list, only when the probe's page doesn't reach the run's oldest day;
+  - about eight for `profile`, on a sync someone asked for; an automatic one fetches it only when
+    `wantsAccount` says so;
   - the range calls: `maxMetrics`, `racePredictions`, hill score and running tolerance (one a year of
     the run each), and Health Snapshots (one per 28 days);
   - one for the sleep index;
-  - the window feeds and refreshes of the history indexes listed above, about thirteen.
+  - the window feeds and refreshes of the history indexes listed above, about fifteen.
+- **An automatic sync that stops at its probe** costs the probe's two and nothing more.
 
-Five of the sixteen groups cost nothing in requests: `activity`, `heart`, `stress`, `respiration`
-and `spo2` share the daily summary. The settings screen shows each group's cost.
+Five of the sixteen groups cost nothing a day: `activity`, `heart`, `stress`, `respiration` and
+`spo2` share the daily summary. Each group's cost is in [Settings → Metrics](settings.md#metrics);
+the settings screen doesn't show it.
 
 **History walks.** Each index fetches its whole history once. The history download does it once
-Charts & trends is agreed to (in the setup or an update dialog), or a **Sync … history** command does
-it by hand. A walk goes a year of windows at a time and merges each year as it lands, so a walk cut
-short keeps every year it finished.
+Charts & trends is agreed to (in the setup or an update dialog), or a page's **Sync history** button
+does it at once (**Refresh the activity list** for the activity list). A walk goes a year of windows
+at a time and merges each year as it lands, so a walk cut short keeps every year it finished.
 
 | Index | Cost |
 | --- | --- |
@@ -412,21 +437,30 @@ short keeps every year it finished.
 All of Charts & trends comes to about 150 requests a year of history. The walks stop past the
 earlier of the scan's first day and the oldest activity.
 
-**The history download** runs one unit of about ten seconds at a time, and starts a unit only when
-no sync or page load is waiting:
+**The history download** runs one unit of about `UNIT_SECONDS` of work at a time
+(`src/sync/cost.ts`), and starts a unit only when no sync or page load is waiting. Its units, in the
+order `planBackfill` takes them:
 - the activity list first, a request per hundred activities;
-- a year of a few chart walks side by side (as many as the sync speed's days at once);
-- a chunk of Day details. Each day costs its per-day requests plus the six intraday ones, 15 with
-  everything on, plus the range calls once a chunk. A chunk is sized to about ten seconds: 5 days at
-  Gentle, 13 at Normal, 21 at Fast;
-- one activity of Activity details: up to eleven requests, at least two seconds after the last.
+- a year of up to `PACE.parallel` chart walks side by side;
+- a chunk of a queued date range, then of Day details, era by era (`ERAS`), most recent first. Each
+  day costs its per-day requests plus the six intraday ones, 15 with everything on, less what the
+  masks and the horizon leave out, plus the range calls once a chunk. A chunk is sized to about
+  `UNIT_SECONDS` at the pace (`chunkDays`): 13 days with everything on;
+- after each era's days, its Activity details: a batch of as many activities as fit in about
+  `UNIT_SECONDS` (`detailBatch`), `PACE.parallel` side by side, up to eleven requests each.
 
-It stays under an hourly budget of 2,500 requests at Gentle, 5,000 at Normal and 8,000 at Fast
-(`HOURLY_BUDGET`), counting everything the device asked in the hour. When Garmin pushes back:
+It stays under `HOURLY_BUDGET` requests an hour (`src/sync/pace.ts`), counting everything the device
+asked in the hour. When Garmin pushes back:
 - an HTML 403 from Garmin's edge pauses it for half an hour, doubling up to twelve hours;
 - a 429 that outlasts the client's own pauses stops it for 5 minutes, then 10, 20 and so on, up to
-  an hour;
+  an hour, and halves the hourly budget for `HALVING_MS`;
 - a dead session stops it until a sign-in.
+
+**What the download leaves out.** It skips a route on a day the complete chart indexes show empty,
+once that mask has earned its trust on the account, and past the timelines' horizon it skips the four
+timelines Garmin no longer keeps (see [Architecture → Masks](architecture.md#masks) and
+[the timelines' horizon](architecture.md#the-timelines-horizon)). A route Garmin answers with a 400
+or 404 has nothing for that day, and isn't asked again.
 
 **On view.** A page that needs what a sync didn't fetch asks for it when it opens:
 - a day's blocks: one or two requests a day, more for Health Snapshots;
@@ -436,8 +470,8 @@ These wait for any sync, run one at a time at the same pace, and go ahead of the
 A 429 that outlasts the pause answers every one still waiting.
 
 The sync runs **newest day first**, so a run cut short has already covered the days you care about
-most. Every API request goes through one throttle on the client (`src/garmin/throttle.ts`), paced by the
-**Sync speed** setting.
+most. Every API request goes through one throttle on the client (`src/garmin/throttle.ts`), paced by
+`PACE` (`src/sync/pace.ts`), which isn't a setting.
 
 ## Keeping this honest
 
@@ -477,10 +511,18 @@ three times the first stage's, or 5% server errors.
 
 On 2026-10-12, from a home connection, every stage ran clean: no 429 and no slowdown. 47 requests a second for a minute is a floor on the limit, not the limit. A
 minute-long test can't see a quota over hours, or an account flagged for the pattern, which is why
-the speeds stay well under it.
+the plugin stays well under it. Every install looks alike to Garmin, so a quota or a rule against the
+pattern would meet every user at once. Neither of these is a setting:
+- **`PACE`** (`src/sync/pace.ts`) paces every request the client makes, syncs, the history download
+  and on-view loads alike, at about 40% of the fastest pace measured. `PACE.parallel` is how many
+  days a sync fetches at once and how many walks run side by side. The client is built with
+  `PACE.limits`; `tests/client.test.ts` checks that its own `DEFAULT_LIMITS` match, since `garmin/`
+  can't import `sync/`.
+- **`HOURLY_BUDGET`** caps what the history download asks in an hour, the device's syncs and page
+  loads counted in; a 429 halves it for `HALVING_MS`.
 
 <details>
-<summary>The ramp's stages, and the sync speeds measured against it</summary>
+<summary>The ramp's stages, and the paces measured against it</summary>
 
 | Stage (calls/s × in flight) | HTTP requests/s | Requests | p50 | p95 |
 | --- | --- | --- | --- | --- |
@@ -491,16 +533,16 @@ the speeds stay well under it.
 | 16 × 24 | 31.7 | 1,910 | 262 ms | 539 ms |
 | 24 × 36 | 47.4 | 2,862 | 254 ms | 405 ms |
 
-| Sync speed (`SYNC_SPEEDS`) | Pace | Days at once | 30-day sync, measured |
-| --- | --- | --- | --- |
-| Gentle (default) | 8 requests/s | 1 | 43 s |
-| Normal | 20 requests/s | 3 | 17 s |
-| Fast | 32 requests/s | 5 | 12 s |
+| Pace | Days at once | 30-day sync, measured |
+| --- | --- | --- |
+| 8 requests/s (the old Gentle speed) | 1 | 43 s |
+| 20 requests/s (`PACE`, the old Normal) | 3 | 17 s |
+| 32 requests/s (the old Fast) | 5 | 12 s |
 
 The old fixed 250 ms pause between days took 34 s for the same 30 days (344 requests). A day's
-requests go out together and the day lands with the slowest, about 0.85 s, so the pace was set by
-latency and the pause, not by Garmin. The days are now fetched a few at a time, and the calls before
-and after them side by side.
+requests go out together and the day lands with the slowest, about 0.85 s (`LATENCY`), so the pace
+was set by latency and the pause, not by Garmin. The days are now fetched a few at a time, and
+everything a sync can ask before them starts together.
 
 </details>
 

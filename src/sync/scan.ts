@@ -1,5 +1,7 @@
 import type { Activity, ActivityCount, DailyStepStat, WeeklyStepsRow } from "../garmin/endpoints";
 import { GarminAuthError, GarminRateLimitError } from "../garmin/errors";
+import { parseVerdicts, type MaskVerdicts } from "./day-facts";
+import type { Horizon } from "./horizons";
 import { shiftDate } from "./day-index";
 import { localDateOf } from "./metrics";
 import { deviceUploadOf } from "./sync-state";
@@ -51,6 +53,8 @@ export interface AccountScan {
 	firstActivity?: string;
 	/** The weeks were walked back past the start of the history. False when a request failed first. */
 	complete: boolean;
+	/** What the history download learned of this account, kept across scans (`day-facts.ts`, `horizons.ts`). */
+	learned?: Learned;
 }
 
 /** A step of the scan, for the setup's checklist. */
@@ -192,6 +196,23 @@ export function daysSince(scan: AccountScan, from: string): number {
 	return days;
 }
 
+/** What the history download learned of an account. */
+export interface Learned {
+	masks?: MaskVerdicts;
+	horizon?: Horizon;
+}
+
+/** What scan.json says was learned, by allowlist; undefined for nothing. */
+function parseLearned(raw: unknown): Learned | undefined {
+	if (!raw || typeof raw !== "object") return undefined;
+	const r = raw as Record<string, unknown>;
+	const masks = parseVerdicts(r.masks);
+	const h = r.horizon as Record<string, unknown> | undefined;
+	const horizon = h && typeof h === "object" && Number.isInteger(h.version) && (h.days === null || (typeof h.days === "number" && Number.isInteger(h.days) && h.days > 0)) ? { days: h.days, version: h.version as number } : undefined;
+	const out: Learned = { ...(Object.keys(masks).length ? { masks } : {}), ...(horizon ? { horizon } : {}) };
+	return Object.keys(out).length ? out : undefined;
+}
+
 /** The scan's fields, then its weeks a line each. */
 export function serializeScan(scan: AccountScan): string {
 	const { weeks, ...rest } = scan;
@@ -209,9 +230,11 @@ export function parseScan(text: string): AccountScan | null {
 		const weeks = raw.weeks.filter(
 			(w): w is [string, number] => Array.isArray(w) && typeof w[0] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(w[0]) && Number.isInteger(w[1]),
 		);
-		const { version: _version, ...scan } = raw;
+		const { version: _version, learned: _learned, ...scan } = raw;
+		const learned = parseLearned(raw.learned);
 		return {
 			...(scan as AccountScan),
+			...(learned ? { learned } : {}),
 			weeks,
 			days: typeof raw.days === "number" ? raw.days : weeks.reduce((n, [, d]) => n + d, 0),
 			activities: typeof raw.activities === "number" ? raw.activities : 0,

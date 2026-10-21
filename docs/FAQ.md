@@ -28,8 +28,9 @@ other types**, which is off by default.
 It is not official, and not affiliated with Garmin. It signs in the way Garmin's mobile app does,
 then makes ordinary reads, at a deliberately gentle pace.
 - With every metric group on, a day costs nine requests, plus six for its timelines.
-- A sync costs about 30 more.
-- Your history downloads once, in the background, under an hourly request budget.
+- A sync costs about 30 more. An automatic one that finds nothing new costs two.
+- Your history downloads once, in the background, under 8,000 requests an hour, halved for a day
+  after Garmin asks it to slow down.
 
 Garmin does limit login attempts per IP and can lock an account after repeated failures, so sign in
 deliberately and never retry in a loop. The breakdown is in
@@ -41,6 +42,12 @@ Garmin keeps revising a day after it ends: sleep is finalised late, and a watch 
 morning rewrites yesterday. So **Sync recent days** covers everything since the watch's last upload,
 at least yesterday and today, and at most 30 days. See
 [the Guide](GUIDE.md#how-sync-recent-days-picks-its-days).
+
+## Does it sync on its own?
+
+Yes, unless you turn off **Sync automatically** in Settings. It syncs when Obsidian starts and when
+you open Home, once the last sync is 15 minutes old. When nothing changed on Garmin, that costs two
+requests and writes nothing. See [Sync automatically](GUIDE.md#sync-automatically).
 
 ## Will it overwrite my daily notes?
 
@@ -70,23 +77,24 @@ the [Data reference](properties.md).
 
 ## Can I backfill years of data?
 
-Yes. Choose **All history** for Day details and **All activities** for Activity details, in the
-setup or **Settings → Data**. The history download fetches them in the background, and the setup
-says how long that takes. Charts & trends always cover your whole history.
+Yes, and it's what the setup recommends: **Download all history** fetches every day and every
+activity in the background, and says how long that takes. Later, choose **All history** and **All
+activities** in **Settings → History**. Charts & trends always cover your whole history.
 
-**Sync a date range…** also fetches any stretch by hand, back as far as 2010, and shows the cost
-before you start.
+**Sync a date range…** also fetches any stretch by hand. Before you start it says what it will do,
+with the size and time: a short range syncs now, a long one downloads in the background. See
+[Date ranges](GUIDE.md#date-ranges).
 
 ## What is the "history isn't synced" banner?
 
-A page whose history isn't complete yet says so, with a rough request count and a **Sync history**
-button that fetches it at once. Otherwise the history download fills it in the background, once you
-have agreed to Charts & trends.
+A page whose history isn't complete yet says so, with a **Sync history** button that fetches it at
+once. Otherwise the history download fills it in the background, once you have agreed to Charts &
+trends.
 
 ## Will an update download things without asking?
 
 No. A release that adds data for your history asks once, the first time a Garmin page opens after
-it. **Download now** fetches the ticked items; **Later** leaves them in **Settings → Data**. What
+it. **Download now** fetches the ticked items; **Later** leaves them in **Settings → History**. What
 you already agreed to, such as new days and the gaps in your ranges, keeps filling without a
 question. See [After an update](GUIDE.md#after-an-update).
 
@@ -95,7 +103,7 @@ question. See [After an update](GUIDE.md#after-an-update).
 Obsidian's **Uninstall** deletes the plugin's folder, with your settings. Your data folder stays,
 because it is part of your vault. On the device you uninstall from, the plugin then offers to **Keep
 data** or **Move to trash**, and clears its session and map tiles from that device. To remove the data
-and keep the plugin, use **Settings → Danger zone → Delete synced data**. See
+and keep the plugin, use **Settings → Advanced → Delete synced data**. See
 [Security](SECURITY.md#removing-the-plugin-and-its-data).
 
 ## Why does a page differ from the phone app?
@@ -145,7 +153,7 @@ JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads 
 
 ## Does it work with a Garmin China account?
 
-Choose **garmin.cn** under **Region** when you sign in, or in **Settings → Connection**: every
+Choose **garmin.cn** under **Region** when you sign in, or in **Settings → Advanced → Region**: every
 Garmin host changes accordingly, and changing it signs you out. It is untested, because nobody with a China
 account has tried it yet, so a report either way helps.
 
@@ -166,8 +174,8 @@ map draws the tiles this device has cached, and the route alone elsewhere.
 ## What are the diagnostics logs in my vault?
 
 They are **Run diagnostics** runs you saved as notes, because a phone has no console. A run is saved
-when you press **Save to vault**, or whenever a check ends in a verdict while **Save every diagnostics
-run to the vault** is on (it is off by default). They go in the **Log folder**, `Garmin/diagnostics` in
+when you press **Save to vault**, or whenever a check ends in a verdict while **Save diagnostics
+runs** is on (it is off by default). They go in the **Log folder**, `Garmin/diagnostics` in
 vaults set up since 0.2, and they are redacted before they are written. See
 [Security](SECURITY.md#diagnostics-logs).
 

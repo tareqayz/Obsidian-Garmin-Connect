@@ -62,8 +62,13 @@ import {
 	type DetailCoverage,
 	type Span,
 } from "./coverage";
-import { parseScan, serializeScan, type AccountScan } from "./scan";
-import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
+import { parseScan, serializeScan, type AccountScan, type Learned } from "./scan";
+import { parseHorizon, plannedCut } from "./horizons";
+import { DAY_DETAILS_VERSION } from "./datasets";
+import { factSpan, factStores, type DayFacts, type FactSpans, type Masks, type MaskVerdicts } from "./day-facts";
+import { calibrate, MEASURED_SIZES, type MeasuredFiles, type SizeModel } from "./cost";
+import type { MetricGroup } from "./metrics";
+import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta, type DetailCandidate } from "./backfill";
 import { NewerDataError, asideName, isConflictCopy, isReadable, versionOf } from "./file-health";
 
 /**
@@ -175,6 +180,8 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	private folder: string;
 	/** Files this store set aside rather than write over, by their old path (see `put`). */
 	private aside = new Set<string>();
+	/** Series files' text as `read` found it, until `write` puts the day back: the write then reads nothing again. */
+	private seriesTexts = new Map<string, string>();
 
 	constructor(app: App, dataFolder: string) {
 		this.app = app;
@@ -190,7 +197,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	}
 
 	async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
-		return this.put(this.path(date), serializeSeries(date, series));
+		const path = this.path(date);
+		const held = this.seriesTexts.get(path);
+		this.seriesTexts.delete(path);
+		return this.put(path, serializeSeries(date, series), held);
 	}
 
 	get daysFolder(): string {
@@ -214,11 +224,15 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				const file = this.app.vault.getAbstractFileByPath(this.join(`${DAYS_FOLDER}/${year}.json`));
 				return file instanceof TFile ? this.app.vault.read(file) : null;
 			},
-			writeYear: (year, body) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body),
+			writeYear: (year, body, held) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body, held),
 		});
 	}
 
-	/** Every synced day, oldest first. */
+	/**
+	 * Every synced day, oldest first. A year file is parsed again only once it
+	 * changed (`parsedDays`): Home rebuilds after every sync, and a sync
+	 * rewrites this year's file at most.
+	 */
 	async readDays(): Promise<HomeDayRow[]> {
 		const folder = this.app.vault.getAbstractFileByPath(this.daysFolder);
 		const rows: HomeDayRow[] = [];
@@ -229,9 +243,13 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				this.noteCopy(child);
 				continue;
 			}
-			for (const [date, properties] of parseDays(await this.app.vault.cachedRead(child))) {
-				rows.push(dayRowOf(date, properties));
+			const stamp = `${child.stat.mtime}:${child.stat.size}`;
+			let year = parsedDays.get(child.path);
+			if (year?.stamp !== stamp) {
+				year = { stamp, rows: [...parseDays(await this.app.vault.cachedRead(child))].map(([date, properties]) => dayRowOf(date, properties)) };
+				parsedDays.set(child.path, year);
 			}
+			rows.push(...year.rows);
 		}
 		return rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	}
@@ -239,7 +257,9 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	async read(date: string): Promise<DaySeries | null> {
 		const file = this.app.vault.getAbstractFileByPath(this.path(date));
 		if (!(file instanceof TFile)) return null;
-		return parseSeries(await this.app.vault.cachedRead(file));
+		const text = await this.app.vault.cachedRead(file);
+		this.seriesTexts.set(file.path, text);
+		return parseSeries(text);
 	}
 
 	activityDetailPath(id: number): string {
@@ -254,13 +274,27 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	/** Writes the activity's file and books its version in the coverage. */
 	async writeActivityDetail(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
-		const outcome = await this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
-		const files = await this.readDetailCoverage();
-		if (files.get(id) !== detail.version) {
-			files.set(id, detail.version);
-			await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
-		}
+		const outcome = await this.writeActivityDetailFile(id, detail);
+		await this.bookDetails(new Map([[id, detail.version]]));
 		return outcome;
+	}
+
+	/** The activity's file alone: a batch books its versions together (`bookDetails`). */
+	writeActivityDetailFile(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
+		return this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
+	}
+
+	/** Books files' versions in the detail coverage: one read and one write, however many. */
+	async bookDetails(versions: ReadonlyMap<number, number>): Promise<void> {
+		if (!versions.size) return;
+		const files = await this.readDetailCoverage();
+		let changed = false;
+		for (const [id, version] of versions) {
+			if (files.get(id) === version) continue;
+			files.set(id, version);
+			changed = true;
+		}
+		if (changed) await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
 	}
 
 	/** The activities with a detail file, by id, read from the folder's listing. */
@@ -308,8 +342,71 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return file instanceof TFile ? parseScan(await this.app.vault.cachedRead(file)) : null;
 	}
 
+	/** A new scan keeps what the download learned of the account: a scan run again doesn't make it learn twice. */
 	async writeScan(scan: AccountScan): Promise<"written" | "unchanged"> {
-		return this.put(this.scanPath, serializeScan(scan));
+		const learned = scan.learned ?? (await this.readScan())?.learned;
+		return this.put(this.scanPath, serializeScan({ ...scan, ...(learned ? { learned } : {}) }));
+	}
+
+	/** Saves the masks' verdicts in scan.json, keeping the rest of it. Nothing without a scan. */
+	writeVerdicts(masks: MaskVerdicts): Promise<void> {
+		return this.writeLearned({ masks });
+	}
+
+	/** Saves the timelines' horizon in scan.json (`horizons.ts`). */
+	writeHorizon(days: number | null): Promise<void> {
+		return this.writeLearned({ horizon: { days, version: DAY_DETAILS_VERSION } });
+	}
+
+	private async writeLearned(change: Learned): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(this.scanPath);
+		if (!(file instanceof TFile)) return;
+		const text = await this.app.vault.read(file);
+		const scan = parseScan(text);
+		if (!scan) return;
+		await this.put(this.scanPath, serializeScan({ ...scan, learned: { ...scan.learned, ...change } }), text);
+	}
+
+	/**
+	 * What the complete chart indexes say about each day, for the history
+	 * download's masks (`day-facts.ts`), with the verdicts scan.json keeps.
+	 */
+	async readMasks(groups: readonly MetricGroup[], charts: ReadonlyMap<string, ChartMeta | null>, scan: AccountScan | null): Promise<Masks> {
+		const facts: DayFacts = {};
+		const spans: FactSpans = {};
+		for (const [route, stores] of factStores(groups, charts)) {
+			const days = new Set<string>();
+			for (const store of stores) for (const date of await this.datesIn(store)) days.add(date);
+			facts[route] = days;
+			spans[route] = factSpan(stores, charts);
+		}
+		const horizon = parseHorizon(scan?.learned?.horizon, DAY_DETAILS_VERSION);
+		return { facts, spans, verdicts: scan?.learned?.masks ?? {}, ...(horizon !== undefined ? { horizon } : {}) };
+	}
+
+	/**
+	 * The days a chart store lists a row for — daily stats, sleep or a
+	 * registered index — kept with its files' modified times and sizes and
+	 * read again only once one changed: the download asks before each unit.
+	 */
+	async datesIn(store: string): Promise<ReadonlySet<string>> {
+		const def = store.startsWith("index:") ? DAY_INDEXES.find((d) => `index:${d.kind}` === store) : undefined;
+		const folder = store === "daily-stats" ? DAILY_STATS_FOLDER : store === "sleep" ? SLEEP_FOLDER : def?.folder;
+		if (!folder) return new Set();
+		const dir = this.app.vault.getAbstractFileByPath(this.join(folder));
+		if (!(dir instanceof TFolder)) return new Set();
+		const stamp = dir.children
+			.filter((child): child is TFile => child instanceof TFile && isYearFile(child.name))
+			.map((child) => `${child.name}:${child.stat.mtime}:${child.stat.size}`)
+			.sort()
+			.join("|");
+		const key = this.join(folder);
+		const held = storeDates.get(key);
+		if (held?.stamp === stamp) return held.dates;
+		const rows: ReadonlyArray<{ date: string }> = store === "daily-stats" ? (await this.readDailyStats()).rows : store === "sleep" ? (await this.readSleep()).rows : def ? (await this.readDayIndex(def)).rows : [];
+		const dates = new Set(rows.map((row) => row.date));
+		storeDates.set(key, { stamp, dates });
+		return dates;
 	}
 
 	/**
@@ -346,6 +443,42 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return usage;
 	}
 
+	/**
+	 * What the vault's own series files and activity pages weigh, for the
+	 * estimate (`calibrate`): from the vault's file list alone, nothing read.
+	 */
+	measuredFiles(): MeasuredFiles {
+		const series: Array<[string, number]> = [];
+		const details: Array<[number, number]> = [];
+		const walk = (folder: TFolder, take: (file: TFile) => void) => {
+			for (const child of folder.children) {
+				if (child instanceof TFolder) walk(child, take);
+				else if (child instanceof TFile) take(child);
+			}
+		};
+		const seriesFolder = this.app.vault.getAbstractFileByPath(this.join(SERIES_FOLDER));
+		if (seriesFolder instanceof TFolder) {
+			walk(seriesFolder, (file) => {
+				const date = /^(\d{4}-\d{2}-\d{2})\.json$/.exec(file.name)?.[1];
+				if (date) series.push([date, file.stat.size]);
+			});
+		}
+		const detailsFolder = this.app.vault.getAbstractFileByPath(this.join(ACTIVITY_DETAILS_FOLDER));
+		if (detailsFolder instanceof TFolder) {
+			walk(detailsFolder, (file) => {
+				const id = /^(\d+)\.json$/.exec(file.name)?.[1];
+				if (id) details.push([Number(id), file.stat.size]);
+			});
+		}
+		return { series, details };
+	}
+
+	/** The size model for this vault's estimates: the measured sizes, with its own averages where it holds enough files (`calibrate`). */
+	sizesFor(masks: Masks, activities: readonly DetailCandidate[], today: string): SizeModel {
+		const profiles = new Map(activities.map((a) => [a.id, a.profile]));
+		return calibrate(MEASURED_SIZES, this.measuredFiles(), { cut: plannedCut(masks.horizon, today), profileOf: (id) => profiles.get(id) });
+	}
+
 	/** Whether any day or activity has reached this device's data folder. */
 	hasData(): boolean {
 		for (const name of [DAYS_FOLDER, ACTIVITIES_FOLDER]) {
@@ -369,16 +502,26 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return this.put(this.backfillPath, serializeBackfill(state));
 	}
 
+	/**
+	 * Changes backfill.json from what it holds now, read fresh: another device's
+	 * pause, lease or progress written meanwhile is kept, not overwritten by a
+	 * copy read a unit ago.
+	 */
+	async updateBackfill(change: (state: BackfillState) => BackfillState): Promise<"written" | "unchanged"> {
+		return this.writeBackfill(change(await this.readBackfill()));
+	}
+
 	/** The chart indexes' metas by store (`activities`, `daily-stats`, `sleep`, `index:<kind>`): what the backfill plans walks from. */
 	async readChartMetas(): Promise<Map<string, ChartMeta | null>> {
 		const out = new Map<string, ChartMeta | null>();
-		const [activities, daily, sleep] = await Promise.all([this.readActivities(), this.readDailyStatsMeta(), this.readSleepMeta()]);
-		out.set("activities", activities.meta ? { complete: activities.meta.complete === true } : null);
-		out.set("daily-stats", daily ? { complete: daily.complete === true, ...(daily.from ? { from: daily.from } : {}) } : null);
-		out.set("sleep", sleep ? { complete: sleep.complete === true, ...(sleep.from ? { from: sleep.from } : {}) } : null);
+		const [activities, daily, sleep] = await Promise.all([this.readActivitiesMeta(), this.readDailyStatsMeta(), this.readSleepMeta()]);
+		out.set("activities", activities ? { complete: activities.complete === true } : null);
+		const span = (m: { from?: string; to?: string }) => ({ ...(m.from ? { from: m.from } : {}), ...(m.to ? { to: m.to } : {}) });
+		out.set("daily-stats", daily ? { complete: daily.complete === true, ...span(daily) } : null);
+		out.set("sleep", sleep ? { complete: sleep.complete === true, ...span(sleep) } : null);
 		for (const def of DAY_INDEXES) {
 			const meta = await this.readDayIndexMeta(def);
-			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...(meta.from ? { from: meta.from } : {}) } : null);
+			out.set(`index:${def.kind}`, meta ? { complete: meta.complete === true, ...span(meta) } : null);
 		}
 		return out;
 	}
@@ -465,18 +608,60 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return { rows: sortRows(dedupeById(rows)), meta };
 	}
 
+	/** Only what the activity index knows about itself: one small file. */
+	async readActivitiesMeta(): Promise<IndexMeta | null> {
+		const file = this.app.vault.getAbstractFileByPath(this.join(`${ACTIVITIES_FOLDER}/${ACTIVITY_META_FILE}`));
+		return file instanceof TFile ? parseMeta(await this.app.vault.cachedRead(file)) : null;
+	}
+
+	/**
+	 * Sets aside each of `folder`'s year files outside `only` that no longer
+	 * reads, as a merge that rewrote it would (see `put`): a merge leaves those
+	 * years alone, and must not leave one broken. Its rows are walked again
+	 * (`lostYears`).
+	 */
+	private async checkYears(folder: string, only: ReadonlySet<string>): Promise<void> {
+		const dir = this.app.vault.getAbstractFileByPath(this.join(folder));
+		if (!(dir instanceof TFolder)) return;
+		for (const child of [...dir.children]) {
+			if (!(child instanceof TFile) || !isYearFile(child.name) || only.has(child.basename)) continue;
+			const stamp = `${child.stat.mtime}:${child.stat.size}`;
+			if (healthyYears.get(child.path) === stamp) continue;
+			if (isReadable(await this.app.vault.cachedRead(child))) healthyYears.set(child.path, stamp);
+			else await this.setAside(child);
+		}
+	}
+
+	/** The years a chart folder holds a file for, from its listing alone. */
+	private yearsIn(folder: string): string[] {
+		const dir = this.app.vault.getAbstractFileByPath(this.join(folder));
+		if (!(dir instanceof TFolder)) return [];
+		return dir.children.filter((child): child is TFile => child instanceof TFile && isYearFile(child.name)).map((child) => child.basename);
+	}
+
 	/**
 	 * Folds an activity listing into the index. Returns how many files changed:
 	 * a year nobody touched keeps its text, so a routine sync rewrites only the
 	 * current year, and only when an activity was added or edited.
 	 */
 	async mergeActivities(listing: readonly Activity[], opts: MergeOptions): Promise<number> {
-		const current = await this.readIndex();
-		const listed = listing.map(rowOf).filter((r): r is ActivityRow => r !== null);
+		return this.mergeActivityRows(
+			listing.map(rowOf).filter((r): r is ActivityRow => r !== null),
+			opts,
+		);
+	}
+
+	/** `mergeActivities` for a listing already made rows, as the history walk keeps it. */
+	async mergeActivityRows(listed: readonly ActivityRow[], opts: MergeOptions): Promise<number> {
 		// A short page partway down reads as the end of the list, so only a
 		// listing about as long as Garmin's count may replace the index.
-		const expected = opts.total ?? current.meta?.total;
+		const expected = opts.total ?? (await this.readActivitiesMeta())?.total;
 		const whole = opts.complete && (expected === undefined || listed.length >= Math.floor(expected * WHOLE_LISTING));
+		// A whole listing replaces every year; a page from the top changes only
+		// the years from its oldest activity on, where a deleted one may drop out.
+		const only = whole ? undefined : listingYears(listed, this.yearsIn(ACTIVITIES_FOLDER));
+		if (only) await this.checkYears(ACTIVITIES_FOLDER, only);
+		const current = await this.readIndex(only);
 		const rows = mergeListing(dedupeById(current.rows), listed, whole);
 
 		const meta: IndexMeta = { version: INDEX_VERSION, complete: whole || current.meta?.complete === true };
@@ -490,11 +675,11 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		// A year whose every activity was deleted on Garmin is emptied, not left stale.
 		for (const year of current.years) if (!years.has(year)) years.set(year, []);
 		for (const [year, list] of years) {
-			if ((await this.put(this.join(`${ACTIVITIES_FOLDER}/${year}.json`), serializeYear(year, list))) === "written") written += 1;
+			if ((await this.put(this.join(`${ACTIVITIES_FOLDER}/${year}.json`), serializeYear(year, list), current.texts.get(`${year}.json`))) === "written") written += 1;
 		}
 		// A year file set aside took its activities with it: list them all again.
 		if (this.lostYears(ACTIVITIES_FOLDER)) meta.complete = false;
-		if ((await this.put(this.join(`${ACTIVITIES_FOLDER}/${ACTIVITY_META_FILE}`), serializeMeta(meta))) === "written") written += 1;
+		if ((await this.put(this.join(`${ACTIVITIES_FOLDER}/${ACTIVITY_META_FILE}`), serializeMeta(meta), current.texts.get(ACTIVITY_META_FILE))) === "written") written += 1;
 		return written;
 	}
 
@@ -520,7 +705,9 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	 * when a number moved.
 	 */
 	async mergeDailyStats(batch: DailyStatsBatch, opts: DailyStatsMergeOptions = {}): Promise<number> {
-		const current = await this.readDailyIndex();
+		const only = batchYears(batch);
+		await this.checkYears(DAILY_STATS_FOLDER, only);
+		const current = await this.readDailyIndex(only);
 		const rows = mergeDays(dedupeByDate(current.rows), batch);
 
 		const meta: DailyStatsMeta = { version: DAILY_STATS_VERSION, complete: opts.complete === true || current.meta?.complete === true };
@@ -532,10 +719,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		const years = daysByYear(rows);
 		for (const year of current.years) if (!years.has(year)) years.set(year, []);
 		for (const [year, list] of years) {
-			if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${year}.json`), serializeDailyYear(year, list))) === "written") written += 1;
+			if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${year}.json`), serializeDailyYear(year, list), current.texts.get(`${year}.json`))) === "written") written += 1;
 		}
 		if (this.lostYears(DAILY_STATS_FOLDER)) forgetSpan(meta);
-		if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${DAILY_STATS_META_FILE}`), serializeDailyMeta(meta))) === "written") written += 1;
+		if ((await this.put(this.join(`${DAILY_STATS_FOLDER}/${DAILY_STATS_META_FILE}`), serializeDailyMeta(meta), current.texts.get(DAILY_STATS_META_FILE))) === "written") written += 1;
 		return written;
 	}
 
@@ -561,7 +748,9 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	 * when a night moved.
 	 */
 	async mergeSleep(batch: SleepBatch, opts: DailyStatsMergeOptions = {}): Promise<number> {
-		const current = await this.readSleepIndex();
+		const only = batchYears(batch);
+		await this.checkYears(SLEEP_FOLDER, only);
+		const current = await this.readSleepIndex(only);
 		const rows = mergeNights(dedupeNights(current.rows), batch);
 
 		const meta: SleepIndexMeta = { version: SLEEP_INDEX_VERSION, complete: opts.complete === true || current.meta?.complete === true };
@@ -573,10 +762,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		const years = nightsByYear(rows);
 		for (const year of current.years) if (!years.has(year)) years.set(year, []);
 		for (const [year, list] of years) {
-			if ((await this.put(this.join(`${SLEEP_FOLDER}/${year}.json`), serializeSleepYear(year, list))) === "written") written += 1;
+			if ((await this.put(this.join(`${SLEEP_FOLDER}/${year}.json`), serializeSleepYear(year, list), current.texts.get(`${year}.json`))) === "written") written += 1;
 		}
 		if (this.lostYears(SLEEP_FOLDER)) forgetSpan(meta);
-		if ((await this.put(this.join(`${SLEEP_FOLDER}/${SLEEP_META_FILE}`), serializeSleepMeta(meta))) === "written") written += 1;
+		if ((await this.put(this.join(`${SLEEP_FOLDER}/${SLEEP_META_FILE}`), serializeSleepMeta(meta), current.texts.get(SLEEP_META_FILE))) === "written") written += 1;
 		return written;
 	}
 
@@ -598,7 +787,9 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	 * when a row moved.
 	 */
 	async mergeDayIndex<R extends DayRow>(def: DayIndexDef<R>, batch: DayIndexBatch<R>, opts: DailyStatsMergeOptions = {}): Promise<number> {
-		const current = await this.readDayIndexFiles(def);
+		const only = batchYears(batch);
+		await this.checkYears(def.folder, only);
+		const current = await this.readDayIndexFiles(def, only);
 		const rows = def.merge(dedupeRows(current.rows), batch);
 
 		const meta: DayIndexMeta = { version: def.version, complete: opts.complete === true || current.meta?.complete === true };
@@ -610,10 +801,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		const years = rowsByYear(rows);
 		for (const year of current.years) if (!years.has(year)) years.set(year, []);
 		for (const [year, list] of years) {
-			if ((await this.put(this.join(`${def.folder}/${year}.json`), def.serializeYear(year, list))) === "written") written += 1;
+			if ((await this.put(this.join(`${def.folder}/${year}.json`), def.serializeYear(year, list), current.texts.get(`${year}.json`))) === "written") written += 1;
 		}
 		if (this.lostYears(def.folder)) forgetSpan(meta);
-		if ((await this.put(this.join(`${def.folder}/${DAY_INDEX_META_FILE}`), def.serializeMeta(meta))) === "written") written += 1;
+		if ((await this.put(this.join(`${def.folder}/${DAY_INDEX_META_FILE}`), def.serializeMeta(meta), current.texts.get(DAY_INDEX_META_FILE))) === "written") written += 1;
 		return written;
 	}
 
@@ -640,82 +831,105 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		);
 	}
 
-	private async readDayIndexFiles<R extends DayRow>(def: DayIndexDef<R>): Promise<DayIndexData<R> & { years: string[] }> {
+	private async readDayIndexFiles<R extends DayRow>(def: DayIndexDef<R>, only?: ReadonlySet<string>): Promise<DayIndexData<R> & HeldFiles> {
 		const folder = this.app.vault.getAbstractFileByPath(this.join(def.folder));
-		const out: DayIndexData<R> & { years: string[] } = { rows: [], meta: null, years: [] };
+		const out: DayIndexData<R> & HeldFiles = { rows: [], meta: null, years: [], texts: new Map() };
 		if (!(folder instanceof TFolder)) return out;
 		for (const child of folder.children) {
 			if (!(child instanceof TFile)) continue;
 			if (child.name === DAY_INDEX_META_FILE) {
-				out.meta = def.parseMeta(await this.app.vault.cachedRead(child));
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
+				out.meta = def.parseMeta(text);
 			} else if (isYearFile(child.name)) {
+				if (only && !only.has(child.basename)) continue;
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
 				out.years.push(child.basename);
-				out.rows.push(...def.parseYear(await this.app.vault.cachedRead(child)));
+				out.rows.push(...def.parseYear(text));
 			} else this.noteCopy(child);
 		}
 		return out;
 	}
 
-	private async readSleepIndex(): Promise<SleepIndex & { years: string[] }> {
+	private async readSleepIndex(only?: ReadonlySet<string>): Promise<SleepIndex & HeldFiles> {
 		const folder = this.app.vault.getAbstractFileByPath(this.sleepFolder);
-		const out: SleepIndex & { years: string[] } = { rows: [], meta: null, years: [] };
+		const out: SleepIndex & HeldFiles = { rows: [], meta: null, years: [], texts: new Map() };
 		if (!(folder instanceof TFolder)) return out;
 		for (const child of folder.children) {
 			if (!(child instanceof TFile)) continue;
 			if (child.name === SLEEP_META_FILE) {
-				out.meta = parseSleepMeta(await this.app.vault.cachedRead(child));
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
+				out.meta = parseSleepMeta(text);
 			} else if (isYearFile(child.name)) {
+				if (only && !only.has(child.basename)) continue;
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
 				out.years.push(child.basename);
-				out.rows.push(...parseSleepYear(await this.app.vault.cachedRead(child)));
+				out.rows.push(...parseSleepYear(text));
 			} else this.noteCopy(child);
 		}
 		return out;
 	}
 
-	private async readDailyIndex(): Promise<DailyStatsIndex & { years: string[] }> {
+	private async readDailyIndex(only?: ReadonlySet<string>): Promise<DailyStatsIndex & HeldFiles> {
 		const folder = this.app.vault.getAbstractFileByPath(this.dailyStatsFolder);
-		const out: DailyStatsIndex & { years: string[] } = { rows: [], meta: null, years: [] };
+		const out: DailyStatsIndex & HeldFiles = { rows: [], meta: null, years: [], texts: new Map() };
 		if (!(folder instanceof TFolder)) return out;
 		for (const child of folder.children) {
 			if (!(child instanceof TFile)) continue;
 			if (child.name === DAILY_STATS_META_FILE) {
-				out.meta = parseDailyMeta(await this.app.vault.cachedRead(child));
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
+				out.meta = parseDailyMeta(text);
 			} else if (isYearFile(child.name)) {
+				if (only && !only.has(child.basename)) continue;
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
 				out.years.push(child.basename);
-				out.rows.push(...parseDailyYear(await this.app.vault.cachedRead(child)));
+				out.rows.push(...parseDailyYear(text));
 			} else this.noteCopy(child);
 		}
 		return out;
 	}
 
-	private async readIndex(): Promise<ActivityIndex & { years: string[] }> {
+	private async readIndex(only?: ReadonlySet<string>): Promise<ActivityIndex & HeldFiles> {
 		const folder = this.app.vault.getAbstractFileByPath(this.activitiesFolder);
-		const out: ActivityIndex & { years: string[] } = { rows: [], meta: null, years: [] };
+		const out: ActivityIndex & HeldFiles = { rows: [], meta: null, years: [], texts: new Map() };
 		if (!(folder instanceof TFolder)) return out;
 		for (const child of folder.children) {
 			if (!(child instanceof TFile)) continue;
 			if (child.name === ACTIVITY_META_FILE) {
-				out.meta = parseMeta(await this.app.vault.cachedRead(child));
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
+				out.meta = parseMeta(text);
 			} else if (isYearFile(child.name)) {
+				if (only && !only.has(child.basename)) continue;
+				const text = await this.app.vault.cachedRead(child);
+				out.texts.set(child.name, text);
 				out.years.push(child.basename);
-				out.rows.push(...parseYear(await this.app.vault.cachedRead(child)));
+				out.rows.push(...parseYear(text));
 			} else this.noteCopy(child);
 		}
 		return out;
 	}
 
 	/**
-	 * Writes `body` to `path` unless the file already says the same.
+	 * Writes `body` to `path` unless the file already says the same. `known` is
+	 * the file's text as the caller just read it, so it isn't read twice; the
+	 * write itself still checks the file, should another device have changed
+	 * it since.
 	 *
 	 * A file that can't be read is set aside, never written over: whatever
 	 * built `body` read it as empty, and replacing it would lose everything it
 	 * held (see `file-health.ts`). A file a newer build of the plugin wrote is
 	 * left alone, and the write fails.
 	 */
-	private async put(path: string, body: string): Promise<"written" | "unchanged"> {
+	private async put(path: string, body: string, known?: string): Promise<"written" | "unchanged"> {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) {
-			const held = await this.app.vault.read(existing);
+			const held = known ?? (await this.app.vault.read(existing));
 			if (held === body) return "unchanged";
 			if (!isReadable(held)) {
 				await this.setAside(existing);
@@ -741,7 +955,13 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		}
 		const dir = path.slice(0, path.lastIndexOf("/"));
 		if (dir) await ensureFolder(this.app, dir);
-		await this.app.vault.create(path, body);
+		try {
+			await this.app.vault.create(path, body);
+		} catch (err) {
+			// Another write made the file meanwhile — two readers building the same index at once: write over it as usual.
+			if (this.app.vault.getAbstractFileByPath(path) instanceof TFile) return this.put(path, body);
+			throw err;
+		}
 		return "written";
 	}
 
@@ -819,6 +1039,50 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 /** How much of Garmin's count a listing that reached its end must hold to replace the activity index. */
 const WHOLE_LISTING = 0.95;
+
+/** A chart folder's files as a merge read them: the years parsed, and each file's text by name, for the write to compare against. */
+interface HeldFiles {
+	years: string[];
+	texts: Map<string, string>;
+}
+
+/** Each chart store's days, by folder, with its year files' stamps (`datesIn`). */
+const storeDates = new Map<string, { stamp: string; dates: ReadonlySet<string> }>();
+
+/** Each day year file's days as Home reads them, with the file's modified time and size: parsed again only once it changes. */
+const parsedDays = new Map<string, { stamp: string; rows: HomeDayRow[] }>();
+
+/** Lets go of the parsed day files: no Garmin view is open to read them. */
+export function forgetParsedDays(): void {
+	parsedDays.clear();
+}
+
+/**
+ * Year files found readable this session, by path, with the modified time and
+ * size they had then: a merge that leaves a year alone checks it again only
+ * once it changed — as a sync service's conflicting copy would change it.
+ */
+const healthyYears = new Map<string, string>();
+
+/** The years a batch of days touches: those of the days it asked about and of the rows it brought. */
+function batchYears(batch: { dates: readonly string[]; rows: ReadonlyArray<{ date: string }> }): Set<string> {
+	const years = new Set<string>();
+	for (const date of batch.dates) years.add(date.slice(0, 4));
+	for (const row of batch.rows) years.add(row.date.slice(0, 4));
+	return years;
+}
+
+/**
+ * The years a page of the activity list can change: those its activities
+ * start in, and every year held from its oldest on, where an activity
+ * deleted on Garmin drops out (`mergeListing`).
+ */
+function listingYears(listed: readonly ActivityRow[], held: readonly string[]): Set<string> {
+	const years = new Set(listed.map((row) => row.start.slice(0, 4)));
+	const oldest = [...years].sort()[0];
+	if (oldest) for (const year of held) if (year >= oldest) years.add(year);
+	return years;
+}
 
 /** A chart index's meta once one of its year files was set aside: incomplete and with no span, so the backfill walks it again. */
 function forgetSpan(meta: { complete: boolean; from?: string; to?: string }): void {

@@ -1,0 +1,218 @@
+import { strict as assert } from "node:assert";
+import { describe, it } from "node:test";
+import type { Task } from "../src/sync/backfill";
+import {
+	asObserved,
+	calibrate,
+	CALIBRATE_MIN,
+	chunkDays,
+	costContext,
+	dayUnit,
+	detailBatch,
+	detailRequests,
+	detailUnit,
+	freshHour,
+	listRequests,
+	MEASURED_SIZES,
+	nextUnit,
+	observe,
+	requestsOn,
+	requestsPerDay,
+	ROW_BYTES,
+	timeFor,
+	unitsOf,
+	type CostContext,
+	type Unit,
+} from "../src/sync/cost";
+import { shiftDate } from "../src/sync/day-index";
+import { DAY_INDEXES } from "../src/sync/day-indexes";
+import { ASSUMED_HORIZON_DAYS } from "../src/sync/horizons";
+import { ALL_GROUPS } from "../src/sync/metrics";
+import { MEASURED } from "./support/account-fixture";
+
+const ctx = (over: Partial<Parameters<typeof costContext>[0]> = {}): CostContext =>
+	costContext({ today: MEASURED.today, groups: ALL_GROUPS, scan: MEASURED.scan, charts: new Map(), activities: MEASURED.activities, detailFiles: new Map(), ...over });
+
+const requestsOf = (units: readonly Unit[]) => units.reduce((n, u) => n + u.requests, 0);
+
+describe("cost — requests", () => {
+	it("counts a day's requests from the groups on, and sizes a chunk to about ten seconds", () => {
+		assert.equal(requestsPerDay(ALL_GROUPS), 15);
+		assert.equal(requestsPerDay(["activity", "heart", "stress", "respiration", "spo2"]), 1);
+		assert.equal(requestsPerDay(["intraday"]), 6);
+		assert.equal(chunkDays(ALL_GROUPS), 13);
+	});
+
+	it("lists the activities a hundred a page, the count first, until a page comes back short", () => {
+		assert.deepEqual([0, 99, 100, 344, 3_000].map(listRequests), [2, 2, 3, 5, 32]);
+	});
+
+	it("prices an activity's page by what it records", () => {
+		assert.deepEqual(
+			[detailRequests("run"), detailRequests("indoorRun"), detailRequests("ride", true), detailRequests("ride"), detailRequests("gpsOther"), detailRequests("pool"), detailRequests("gym"), detailRequests("other")],
+			[11, 10, 11, 9, 9, 8, 8, 10],
+		);
+	});
+
+	it("prices a chunk of 13 days: their requests, the activities by date, and the range routes once", () => {
+		const unit = dayUnit("2026-10-01", "2026-10-13", ctx());
+		assert.deepEqual([unit.days, unit.requests], [13, 13 * 15 + 1 + 5]);
+		// The 195 day requests set the pace, 9.75 s, after the list and the range routes.
+		assert.ok(Math.abs(unit.seconds - (0.6 + 0.6 + 9.75 + 0.3)) < 1e-9, String(unit.seconds));
+	});
+
+	it("downloads activities' pages a batch of about ten seconds at a time, three side by side", () => {
+		const runs = MEASURED.activities.filter((a) => a.profile === "run").map((a) => a.id);
+		const batch = detailBatch(runs, ctx());
+		// Fifteen runs: five rounds of three, two trips each at 0.85 s, 8.8 s with the unit's own work.
+		assert.equal(batch.length, 15);
+		assert.ok(Math.abs(detailUnit(batch, ctx()).seconds - 8.8) < 1e-9);
+		assert.deepEqual(detailBatch(runs.slice(0, 1), ctx()), runs.slice(0, 1));
+	});
+
+	it("asks two requests, and writes nothing new, for a run an older version saved", () => {
+		const run = MEASURED.activities.find((a) => a.profile === "run")!;
+		const unit = detailUnit([run.id], ctx({ detailFiles: new Map([[run.id, 5]]) }));
+		assert.deepEqual([unit.requests, unit.bytes], [2, 0]);
+	});
+});
+
+describe("cost — history walks", () => {
+	// 446 days of history: the windows that reach its first day, then the empty ones that end the walk.
+	const walk = (store: string, c = ctx()) => requestsOf(unitsOf([{ kind: "walk", store }], c));
+
+	it("walks each index back to the history's start", () => {
+		assert.equal(walk("daily-stats"), 16 * 3 + 4);
+		assert.equal(walk("sleep"), 16 + 4);
+		assert.equal(walk("index:stress"), 16 + 2);
+		assert.equal(walk("index:body-battery"), (16 + 2) * 2);
+		assert.equal(walk("index:respiration"), 15 + 2);
+		assert.equal(walk("index:fitness-age"), 16 + 1);
+		assert.equal(walk("index:health-status"), 1 + 1);
+		assert.equal(walk("index:weight"), (1 + 1) * 2);
+		assert.equal(walk("index:hrv-status"), 2 + 1);
+		assert.equal(walk("index:ftp"), (2 + 2) * 2);
+	});
+
+	it("asks nothing of a complete index, and carries on from where one stopped", () => {
+		assert.equal(walk("index:stress", ctx({ charts: new Map([["index:stress", { complete: true }]]) })), 0);
+		// 2025-08-02 → 2025-12-31 is 152 days: six windows of 28, then the two empty ones.
+		assert.equal(walk("index:stress", ctx({ charts: new Map([["index:stress", { complete: false, from: "2026-01-01" }]]) })), 6 + 2);
+	});
+
+	it("runs the walks three at a time, a segment each, as the runner does", () => {
+		const tasks: Task[] = ["daily-stats", "sleep", "index:stress", "index:heart-rate"].map((store) => ({ kind: "walk", store }));
+		const units = unitsOf(tasks, ctx());
+		assert.deepEqual(
+			units.map((u) => (u.kind === "walk" ? u.stores : [])),
+			[["daily-stats", "sleep", "index:stress"], ["daily-stats", "sleep", "index:stress"], ["index:heart-rate"], ["index:heart-rate"]],
+		);
+		assert.equal(nextUnit(tasks, ctx())?.requests, units[0]!.requests);
+		// A segment of 14 windows: daily stats' 42 requests with steps, sleep's 14, stress's 14.
+		assert.equal(units[0]!.requests, 42 + 14 + 14);
+	});
+
+	it("has a size for every chart store", () => {
+		for (const def of DAY_INDEXES) assert.ok(def.kind in ROW_BYTES, def.kind);
+		assert.ok("daily-stats" in ROW_BYTES && "sleep" in ROW_BYTES);
+	});
+});
+
+describe("cost — time under the hourly budget", () => {
+	const now = Date.parse("2026-10-21T08:00:00Z");
+	const units = (n: number, requests: number, seconds: number): Unit[] => Array.from({ length: n }, () => ({ kind: "activities", requests, bytes: 0, seconds }));
+
+	it("adds the units up while the hour has room", () => {
+		assert.equal(timeFor(units(8, 1_000, 10), freshHour(), now), 80);
+	});
+
+	it("waits for the hour to free up past 8,000", () => {
+		// The ninth unit waits for the first to leave the hour, 3,610 s in; the tenth fits after it.
+		assert.equal(timeFor(units(10, 1_000, 10), freshHour(), now), 3_630);
+	});
+
+	it("starts from what the hour spent already", () => {
+		const spent = { entries: [{ at: now - 600_000, requests: 7_500 }], perHour: 8_000 };
+		// 1,000 more needs the 7,500 to leave the hour: 50 minutes, then the unit's 10 s.
+		assert.equal(timeFor(units(1, 1_000, 10), spent, now), 3_010);
+	});
+
+	it("holds half the hour while a 429's halving lasts", () => {
+		const halved = { entries: [], perHour: 8_000, halvedUntil: now + 24 * 3_600_000 };
+		assert.equal(timeFor(units(5, 1_000, 10), halved, now), 3_620);
+	});
+});
+
+describe("cost — the time left, from the download's own pace", () => {
+	const unit: Unit = { kind: "days", from: "2026-10-01", to: "2026-10-13", days: 13, requests: 201, bytes: 0, seconds: 10 };
+
+	it("takes the first unit's run as it came, then leans toward the latest", () => {
+		let seen = observe({}, unit, 8, 201);
+		assert.deepEqual(seen.days, { time: 0.8, requests: 1 });
+		seen = observe(seen, unit, 12, 201);
+		assert.ok(Math.abs(seen.days!.time - (0.8 + 0.3 * (1.2 - 0.8))) < 1e-9);
+		// A unit of another kind says nothing about these.
+		assert.equal(seen.details, undefined);
+	});
+
+	it("keeps a wild run within a factor of four, and reads units as they have been running", () => {
+		const seen = observe({}, unit, 100, 2_000);
+		assert.deepEqual(seen.days, { time: 4, requests: 4 });
+		const [got] = asObserved([unit], observe({}, unit, 5, 201));
+		assert.deepEqual([got!.seconds, got!.requests], [5, 201]);
+		assert.deepEqual(asObserved([unit], {}), [unit]);
+	});
+});
+
+describe("a masked day's cost", () => {
+	it("leaves out the routes the facts say are empty, and the summary's timelines with it, unless the mask was turned off", () => {
+		const date = shiftDate(MEASURED.today, -10);
+		const facts = { body: new Set<string>(), summary: new Set<string>() };
+		assert.equal(requestsOn(date, ctx()), 15);
+		assert.equal(requestsOn(date, ctx({ masks: { facts, spans: {}, verdicts: {} } })), 15 - 1 - 1 - 6);
+		assert.equal(requestsOn(date, ctx({ masks: { facts, spans: {}, verdicts: { summary: "off" } } })), 15 - 1);
+		// A day the indexes list asks everything.
+		assert.equal(requestsOn(date, ctx({ masks: { facts: { body: new Set([date]), summary: new Set([date]) }, spans: {}, verdicts: {} } })), 15);
+	});
+
+	it("prices a chunk by its days' own routes, and a day the summary shows empty as an empty day", () => {
+		const [from, to] = [shiftDate(MEASURED.today, -11), shiftDate(MEASURED.today, -10)];
+		const facts = { summary: new Set([to]) };
+		const unit = dayUnit(from, to, ctx({ masks: { facts, spans: {}, verdicts: {} } }));
+		const plain = dayUnit(from, to, ctx());
+		assert.equal(plain.requests - unit.requests, 7);
+		assert.ok(unit.bytes < plain.bytes);
+	});
+});
+
+describe("the timelines' horizon in the cost", () => {
+	it("asks two timelines on a day past it — the assumed one until learned, none once Garmin served past it", () => {
+		const recent = shiftDate(MEASURED.today, -ASSUMED_HORIZON_DAYS);
+		const old = shiftDate(MEASURED.today, -(ASSUMED_HORIZON_DAYS + 1));
+		assert.equal(requestsOn(recent, ctx()), 15);
+		assert.equal(requestsOn(old, ctx()), 11);
+		assert.equal(requestsOn(old, ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } })), 15);
+		assert.equal(requestsOn(shiftDate(MEASURED.today, -60), ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: 50 } })), 11);
+	});
+});
+
+describe("the vault's own sizes", () => {
+	const series = (n: number, date: string, bytes: number) => Array.from({ length: n }, () => [date, bytes] as const);
+
+	it("stand in for the measured ones once the vault holds enough files of a kind", () => {
+		const cut = "2026-06-01";
+		const files = {
+			series: [...series(CALIBRATE_MIN.series, "2026-09-01", 40_000), ...series(CALIBRATE_MIN.series - 1, "2026-01-01", 1_000)],
+			details: Array.from({ length: CALIBRATE_MIN.details }, (_, i) => [i, 90_000] as const),
+		};
+		const sizes = calibrate(MEASURED_SIZES, files, { cut, profileOf: (id) => (id < 5 ? "run" : id < 10 ? "run" : undefined) });
+		assert.equal(sizes.timelines, 40_000);
+		// One file short of enough: the measured size stays.
+		assert.equal(sizes.oldTimelines, MEASURED_SIZES.oldTimelines);
+		assert.equal(sizes.details.run, 90_000);
+		assert.equal(sizes.details.ride, MEASURED_SIZES.details.ride);
+		// A vault just set up holds nothing of its own.
+		assert.deepEqual(calibrate(MEASURED_SIZES, { series: [], details: [] }, { cut, profileOf: () => undefined }), MEASURED_SIZES);
+	});
+});
+

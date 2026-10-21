@@ -25,13 +25,12 @@
 			password: string,
 			requestMfaCode: MfaPrompt,
 		) => Promise<string | null>;
-		onEmailChange: (email: string) => void;
 		onCancel: () => void;
 		/** Inside the setup wizard, which titles the step itself: no heading, and the buttons at the end. */
 		embedded?: boolean;
 	}
 
-	let { initialEmail, initialDomain = "garmin.com", onDomainChange, onSubmit, onEmailChange, onCancel, embedded = false }: Props = $props();
+	let { initialEmail, initialDomain = "garmin.com", onDomainChange, onSubmit, onCancel, embedded = false }: Props = $props();
 
 	// svelte-ignore state_referenced_locally
 	let email = $state(initialEmail);
@@ -130,10 +129,7 @@
 			bind:this={codeInput}
 			onkeydown={(e) => e.key === "Enter" && code.trim() && answer(code.trim())}
 		/>
-		<div class="hint">
-			This account has multi-factor authentication switched on. Enter the code from
-			{mfaCodeSource(challenge.method)}.
-		</div>
+		<div class="hint">Enter the code from {mfaCodeSource(challenge.method)}.</div>
 	</div>
 
 	{#if challenge.error}
@@ -163,7 +159,6 @@
 			autocomplete="username"
 			placeholder="you@example.com"
 			bind:value={email}
-			oninput={() => onEmailChange(email.trim())}
 		/>
 	</div>
 
@@ -186,7 +181,7 @@
 			bind:value={password}
 			onkeydown={(e) => e.key === "Enter" && submit()}
 		/>
-		<div class="hint">Used for this sign-in only. The session is kept in this device's keychain.</div>
+		<div class="hint">Used only to sign in, never saved.</div>
 	</div>
 
 	<div class="status" role="status">{status}</div>

@@ -74,7 +74,7 @@
 	canGoBack={view.canGoBack}
 	{onBack}
 	{swap}
-	history={{ title: RUNNING_ECONOMY_INDEX.title, windowDays: RUNNING_ECONOMY_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: RUNNING_ECONOMY_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{#if view.current}

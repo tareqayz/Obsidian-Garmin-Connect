@@ -56,7 +56,7 @@
 	canGoBack={view.canGoBack}
 	{onBack}
 	{swap}
-	history={{ title: PULSE_OX_INDEX.title, windowDays: PULSE_OX_INDEX.windowDays, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: PULSE_OX_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{@const p = acclimationPlot(view, measured || (pane ? PANE_COLUMN : PHONE), pane)}

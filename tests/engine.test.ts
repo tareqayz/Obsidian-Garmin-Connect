@@ -507,14 +507,16 @@ describe("syncRange — workouts", () => {
 		assert.deepEqual(target.written.get("2026-09-12"), { steps: 8000 });
 	});
 
-	it("stops before any day when the activity list is rate limited", async () => {
+	it("stops before writing any day when the activity list is rate limited", async () => {
 		const source = new FakeSource();
 		source.failWith["activities:0:50"] = new GarminRateLimitError("rate limited");
-		const target = new FakeTarget(new Set(["2026-09-12"]));
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
 
-		const report = await syncRange(source, target, options({ groups: ALL_GROUPS }));
+		const report = await syncRange(source, target, options({ groups: ALL_GROUPS, parallelDays: 2 }));
 		assert.match(report.stoppedEarly!, /rate limited/);
-		assert.equal(source.calls.filter((c) => c.startsWith("dailySummary")).length, 0);
+		assert.equal(target.written.size, 0);
+		// The first days were already asked, side by side with the list; nothing after them.
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("dailySummary")).sort(), ["dailySummary:2026-09-11", "dailySummary:2026-09-12"]);
 	});
 });
 
@@ -594,7 +596,10 @@ describe("fetchAllActivities", () => {
 		const got = await fetchAllActivities(source, { pause: 250, wait: async (ms) => void waits.push(ms), onPage: (n) => seen.push(n) });
 
 		assert.deepEqual(source.calls, ["0:100", "100:100", "200:100"]);
-		assert.equal(got.activities.length, 250);
+		assert.equal(got.listed, 250);
+		// Kept as the index's rows, not the list's objects.
+		assert.equal(got.rows.length, 250);
+		assert.deepEqual(Object.keys(got.rows[0]!).sort(), ["begin", "id", "start", "type"]);
 		assert.equal(got.complete, true);
 		assert.equal(got.requests, 3);
 		assert.deepEqual(seen, [100, 200, 250]);
@@ -603,14 +608,14 @@ describe("fetchAllActivities", () => {
 
 	it("stops on a 429 and keeps what came before it", async () => {
 		const got = await fetchAllActivities(paged(100), { wait: async () => {} });
-		assert.equal(got.activities.length, 100);
+		assert.equal(got.listed, 100);
 		assert.equal(got.complete, false);
 		assert.ok(got.fatal instanceof GarminRateLimitError);
 	});
 
 	it("reports any other failure without calling it fatal", async () => {
 		const got = await fetchAllActivities(paged(200, new GarminApiError("HTTP 500", 500, "")), { wait: async () => {} });
-		assert.equal(got.activities.length, 200);
+		assert.equal(got.listed, 200);
 		assert.equal(got.fatal, undefined);
 		assert.match(got.error!, /500/);
 	});
@@ -618,7 +623,7 @@ describe("fetchAllActivities", () => {
 	it("gives up on a list that ignores the page it was asked for", async () => {
 		const stuck = { async activities() { return history.slice(0, 100); } };
 		const got = await fetchAllActivities(stuck, { wait: async () => {} });
-		assert.equal(got.activities.length, 100);
+		assert.equal(got.listed, 100);
 		assert.equal(got.complete, false);
 		assert.match(got.error!, /stopped advancing/);
 	});
@@ -1490,12 +1495,15 @@ describe("syncRange — range-fetched metrics", () => {
 		assert.equal(report.written, 3);
 	});
 
-	it("stops before any day when the range call is rate limited", async () => {
+	it("stops before writing any day when the range call is rate limited", async () => {
 		const source = new FakeSource();
 		source.failWith["maxMetrics:2026-09-10:2026-09-12"] = new GarminRateLimitError("slow down");
-		const report = await syncRange(source, always, options({ groups: ["fitness"] }));
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const report = await syncRange(source, target, options({ groups: ["fitness"] }));
 		assert.match(report.stoppedEarly ?? "", /rate limited/);
-		assert.equal(source.calls.filter((c) => c.startsWith("enduranceScore")).length, 0);
+		assert.equal(target.written.size, 0);
+		// Only the newest day was asked, alongside the range call.
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("enduranceScore")), ["enduranceScore:2026-09-12"]);
 	});
 });
 
@@ -1567,5 +1575,117 @@ describe("syncRange — range endpoints that come back empty", () => {
 		);
 		assert.match(report.warnings.join(" "), /race predictions: .*400/);
 		assert.equal(report.written, 3, "the rest of the sync still ran");
+	});
+});
+
+describe("syncRange — what starts together", () => {
+	it("asks the range calls and the first days while the activity list is still on its way", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((done) => (release = done));
+		const source = new FakeSource();
+		const list = source.activities.bind(source);
+		source.activities = async (start?: number, limit?: number) => {
+			await gate;
+			return list(start, limit);
+		};
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const run = syncRange(source, target, options({ groups: ALL_GROUPS, parallelDays: 2 }));
+		await new Promise((done) => setImmediate(done));
+		// Before the list answers: the range calls, and the two newest days.
+		assert.ok(source.calls.some((c) => c.startsWith("maxMetrics")), source.calls.join(" "));
+		assert.deepEqual(source.calls.filter((c) => c.startsWith("dailySummary")).sort(), ["dailySummary:2026-09-11", "dailySummary:2026-09-12"]);
+		// Nothing is written until the list is in: a day's workouts come from it.
+		assert.equal(target.written.size, 0);
+		release();
+		const report = await run;
+		assert.equal(report.stoppedEarly, undefined);
+		assert.equal(target.written.size, 3);
+	});
+});
+
+describe("syncRange — the history download's masks", () => {
+	it("leaves out what a day's masks skip, counts the day whole, and reports the routes it checks", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const heard: Array<[string, boolean]> = [];
+		const report = await syncRange(
+			source,
+			target,
+			options({
+				groups: ALL_GROUPS,
+				series: new FakeSeries(),
+				intradayDays: 3,
+				masks: {
+					// The 11th had no weigh-in and no wear; the 12th's weigh-in is asked anyway, to check the mask.
+					skip: (date) => new Set(date === "2026-09-11" ? (["body", "summary"] as const) : []),
+					audit: (date) => new Set(date === "2026-09-12" ? (["body"] as const) : []),
+					heard: (route, empty) => void heard.push([route, empty]),
+				},
+			}),
+		);
+		const on = (date: string) => source.calls.filter((c) => c.endsWith(`:${date}`)).map((c) => c.split(":")[0]).sort();
+		assert.ok(!on("2026-09-11").includes("bodyComposition"));
+		assert.ok(!on("2026-09-11").includes("dailySummary"));
+		// The summary takes the day's timelines with it; the other days ask theirs.
+		assert.ok(!on("2026-09-11").includes("stress") && !on("2026-09-11").includes("stepsChart"));
+		assert.ok(on("2026-09-10").includes("stress") && on("2026-09-10").includes("stepsChart"));
+		assert.ok(on("2026-09-11").includes("sleep") && on("2026-09-11").includes("fitnessAge"));
+		assert.ok(on("2026-09-12").includes("bodyComposition"));
+		// The fake's weigh-in holds a weight: the check heard data.
+		assert.deepEqual(heard, [["body", false]]);
+		// The weigh-in, the summary and its six timelines fewer than the same run without masks.
+		const plain = await syncRange(new FakeSource(), new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"])), options({ groups: ALL_GROUPS, series: new FakeSeries(), intradayDays: 3 }));
+		assert.equal(report.requests, plain.requests - 8);
+		// A masked day is as whole as one that asked everything.
+		assert.equal(report.days.find((d) => d.date === "2026-09-11")?.full, report.days.find((d) => d.date === "2026-09-10")?.full);
+	});
+
+	it("asks a day past the timelines' horizon for its steps chart and Body Battery's events alone, and hears the others", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const heard: string[] = [];
+		const report = await syncRange(
+			source,
+			target,
+			options({
+				groups: ALL_GROUPS,
+				series: new FakeSeries(),
+				intradayDays: 3,
+				masks: {
+					skip: () => new Set(),
+					audit: () => new Set(),
+					heard: () => {},
+					pastHorizon: (date) => date === "2026-09-10",
+					heardTimelines: (date, verdict) => void heard.push(`${date} ${verdict}`),
+				},
+			}),
+		);
+		const on = (date: string) => source.calls.filter((c) => c.endsWith(`:${date}`)).map((c) => c.split(":")[0]);
+		assert.ok(on("2026-09-10").includes("stepsChart") && on("2026-09-10").includes("bodyBatteryEvents"));
+		for (const route of ["stress", "heartRate", "floorsChart", "intensityMinutesChart"]) assert.ok(!on("2026-09-10").includes(route), route);
+		assert.ok(on("2026-09-11").includes("stress"));
+		// The fake serves points: the two days that asked them say so, newest first.
+		assert.deepEqual(heard, ["2026-09-12 served", "2026-09-11 served"]);
+		assert.ok(report.days.find((d) => d.date === "2026-09-10")?.full);
+	});
+});
+
+describe("syncRange — what leaves a day short", () => {
+	const whole = async (err: unknown) => {
+		const source = new FakeSource();
+		source.failWith.hrv = err;
+		const report = await syncRange(source, new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"])), options({ groups: ALL_GROUPS }));
+		return report.days.map((d) => d.full === true);
+	};
+
+	it("keeps a day whole when a route answers 400 or 404: Garmin has nothing for it there", async () => {
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 404", 404, "")), [true, true, true]);
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 400", 400, "")), [true, true, true]);
+	});
+
+	it("leaves it short for a 403, a server error or an answer that never came, so the next session asks again", async () => {
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 403", 403, "")), [false, false, false]);
+		assert.deepEqual(await whole(new GarminApiError("hrv: HTTP 500", 500, "")), [false, false, false]);
+		assert.deepEqual(await whole(new Error("socket hang up")), [false, false, false]);
 	});
 });

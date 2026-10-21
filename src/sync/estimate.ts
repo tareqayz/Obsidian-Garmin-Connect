@@ -1,127 +1,37 @@
-import { CHANGED_IN_6 } from "./activity-detail";
-import type { Span } from "./coverage";
-import { versionOn } from "./coverage";
-import type { DetailCandidate } from "./backfill";
-import { ACTIVITY_DETAILS_VERSION, DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DataSetId, type DayDetailsRange } from "./datasets";
+import { planBackfill, type BudgetOutlook, type PlanInput, type Task } from "./backfill";
+import { costContext, freshHour, ROW_BYTES, spanDays, timeFor, unitsOf, type CostContext, type SizeModel, type Unit } from "./cost";
+import { rangeStart, type ConsentKey, type DataSetId } from "./datasets";
+import type { Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { DAY_INDEXES } from "./day-indexes";
-import { endpointsFor, type MetricGroup } from "./metrics";
-import { daysSince, historyStart, type AccountScan } from "./scan";
-import { secondsPerDay, SYNC_SPEEDS, type SyncSpeed } from "./speed";
+import { FOREGROUND_RANGE_REQUESTS, type Latency } from "./pace";
+import { daysSince, historyStart } from "./scan";
 
 /**
- * How much a choice of data sets stores and how long its backfill takes, for
- * the setup and Settings → Data. Sizes were measured on a vault of 439 days
- * and 233 run pages on 2026-10-14; times follow the sync speed and the backfill's
- * hourly budget. Every figure is an estimate, shown as "about".
+ * How much a choice of data sets stores and how long its download takes, for
+ * the setup, Settings → History and the update dialog: the plan the download
+ * would run (`planBackfill`), costed a unit at a time as the download runs
+ * it, through the same hourly budget (`cost.ts`). Every figure is an
+ * estimate, shown as "about".
  *
  * Pure.
  */
 
-/** A day's file. */
-export const DAY_FILE_BYTES = 3_700;
-/** A day's full timelines: the median series file with intraday. */
-export const TIMELINE_BYTES = 40_000;
-/** An activity's page: a run's, as measured. */
-export const DETAIL_BYTES = 154_000;
-/** A row on the activity list. */
-export const ACTIVITY_ROW_BYTES = 355;
-/** Requests an activity's page takes: a run's or a ride's, the most (a pool swim or yoga skips three). */
-export const DETAIL_REQUESTS = 11;
-/** An activity downloads no faster than one each this long: a pause between them, and its requests. */
-export const DETAIL_SECONDS = 2.85;
-/** A run's page saved by the version before: only what changed, kept in the same file (`CHANGED_IN_6`). */
-export const UPGRADE_REQUESTS = CHANGED_IN_6.length;
-/** …and its pause, with two requests instead of eleven. */
-export const UPGRADE_SECONDS = 2.15;
-/** How long one window of a history walk waits on Garmin. */
-export const WINDOW_SECONDS = 0.6;
-/** Day chunks are sized to take about this long, so a sync never waits longer for one. */
-export const CHUNK_SECONDS = 10;
-
-/**
- * Requests an hour this device's history download stays under, by speed, with
- * the manual syncs counted in: far inside the ~17,600 an hour measured clean
- * once on one account (`docs/garmin-api.md`, Request pace). Every install
- * looks alike to Garmin, so a quota it counts over hours, or a rule against
- * the pattern, would meet every user at once; the margin is for that.
- */
-export const HOURLY_BUDGET: Record<SyncSpeed, number> = { gentle: 2_500, normal: 5_000, fast: 8_000 };
-
-/** Bytes a day each chart index keeps, measured. Sparse ones (a row a week or a test) count `SPARSE_ROW_BYTES`. */
-const ROW_BYTES: Record<string, number> = {
-	"training-readiness": 415,
-	"health-status": 359,
-	sleep: 291,
-	"training-status": 184,
-	"daily-stats": 164,
-	"hrv-status": 156,
-	"body-battery": 130,
-	"heat-acclimation": 110,
-	"running-tolerance": 98,
-	stress: 89,
-	"hill-score": 89,
-	"fitness-age": 87,
-	"endurance-score": 84,
-	"race-predictions": 83,
-	"heart-rate": 59,
-	respiration: 46,
-	"pulse-ox": 35,
-	"vo2-max": 20,
-};
-const SPARSE_ROW_BYTES = 5;
-
-/** Per-day requests the groups ask for, intraday's six included. */
-export function requestsPerDay(groups: readonly MetricGroup[]): number {
-	const w = endpointsFor(groups);
-	const perDay = [w.summary, w.sleep, w.hrv, w.readiness, w.endurance, w.training, w.body, w.fitnessAge, w.health].filter(Boolean).length;
-	return perDay + (w.intraday ? 6 : 0);
-}
-
-/** Requests a backfill chunk of days costs on top of its days: one per range route, the activity list among them. */
-export function requestsPerChunk(groups: readonly MetricGroup[]): number {
-	const w = endpointsFor(groups);
-	return [w.maxMetrics, w.races, w.workouts, w.hillScores, w.runningTolerance, w.healthSnapshots].filter(Boolean).length;
-}
-
-/** Days in a chunk: as many as fit in about `CHUNK_SECONDS` at the speed. */
-export function chunkDays(groups: readonly MetricGroup[], speed: SyncSpeed): number {
-	return Math.max(1, Math.floor(CHUNK_SECONDS / secondsPerDay(requestsPerDay(groups), SYNC_SPEEDS[speed])));
-}
-
-/** Seconds for `requests` that take `seconds` at the speed's pace, held to the hourly budget. */
-export function withBudget(requests: number, seconds: number, speed: SyncSpeed): number {
-	const budget = HOURLY_BUDGET[speed];
-	if (requests <= budget || seconds <= 0) return seconds;
-	const hours = Math.ceil(requests / budget) - 1;
-	return hours * 3600 + ((requests - hours * budget) / requests) * seconds;
-}
-
-/** What the vault already holds, so only the rest counts. */
-export interface Held {
-	/** The day coverage's spans. */
-	daySpans?: readonly Span[];
-	/** The activity details' coverage: file version by activity. */
-	details?: ReadonlyMap<number, number>;
-	/** The chart indexes' metas by store (`index:<kind>`, `daily-stats`, `sleep`, `activities`): complete, or how far back they reach. */
-	charts?: ReadonlyMap<string, { complete: boolean; from?: string }>;
-}
-
-export interface EstimateInput {
-	today: string;
-	groups: readonly MetricGroup[];
-	speed: SyncSpeed;
-	scan: AccountScan;
-	dayDetails: DayDetailsRange;
-	activityDetails: ActivityDetailsRange;
-	/** The activities on the index, by local day: what Activity details would download. */
-	activities: readonly DetailCandidate[];
-	held?: Held;
+export interface EstimateInput extends PlanInput {
+	/** What the complete indexes say about each day: the routes a day leaves out (`day-facts.ts`). */
+	masks?: Masks;
+	/** Bytes per day and per activity: measured, or the vault's own (`calibrate`). */
+	sizes?: SizeModel;
+	latency?: Latency;
+	/** The hour as it stands (`RequestBudget.outlook`); a fresh one without it. */
+	budget?: BudgetOutlook;
+	/** Epoch ms the download would start at. */
+	now?: number;
 }
 
 export interface SetEstimate {
 	id: DataSetId;
-	/** Days, or activities, to fetch. */
+	/** Days, or activities, to fetch; for Charts & trends, the days of history with data. */
 	units: number;
 	bytes: number;
 	requests: number;
@@ -140,189 +50,170 @@ export interface Estimate {
 	largestFile: number;
 }
 
+const SETS: readonly DataSetId[] = ["charts", "day-details", "activity-details"];
+
 export function estimate(input: EstimateInput): Estimate {
-	const start = historyStart(input.scan);
-	const parts = [charts(input, start), dayDetails(input, start), activityDetails(input, start)];
-	const sets = parts.map((part) => part.set);
-	const requests = sum(sets, (s) => s.requests);
-	// The budget holds across the whole backfill, not set by set.
-	const raw = sum(parts, (part) => part.raw);
-	const activitiesPerYear = perYear(input.scan.activities, input.scan, input.today);
+	const ctx = contextOf(input);
+	const units = unitsOf(planBackfill(input), ctx);
+	const outlook = input.budget ?? freshHour();
+	const now = input.now ?? Date.now();
+	const sets = SETS.map((id): SetEstimate => {
+		const mine = units.filter((unit) => setOf(unit) === id);
+		return {
+			id,
+			units: unitCount(id, mine, input),
+			bytes: Math.round(sum(mine, (u) => u.bytes)),
+			requests: sum(mine, (u) => u.requests),
+			// A set alone, as if the others were done.
+			seconds: timeFor(mine, outlook, now),
+			bytesPerYear: Math.round(perYear(id, input, ctx)),
+		};
+	});
+	const activitiesPerYear = lastYear(input).length;
 	return {
 		sets,
-		bytes: sum(sets, (s) => s.bytes),
-		requests,
-		seconds: withBudget(requests, raw, input.speed),
+		// Every unit, the date ranges asked for included: they belong to no set.
+		bytes: Math.round(sum(units, (u) => u.bytes)),
+		requests: sum(units, (u) => u.requests),
+		// The budget holds across the whole download, not set by set.
+		seconds: timeFor(units, outlook, now),
 		bytesPerYear: sum(sets, (s) => s.bytesPerYear),
-		largestFile: Math.max(365 * DAY_FILE_BYTES, Math.round(activitiesPerYear * ACTIVITY_ROW_BYTES)),
+		largestFile: Math.max(365 * ctx.sizes.dayFile, activitiesPerYear * ctx.sizes.activityRow),
 	};
 }
 
-/** What one store's fetch costs: a chart index's walk over `units` days, Day details' `units` days, or Activity details' `units` activities. */
-export function costOf(
-	item: { set: DataSetId; store: string; units: number; upgrades?: number },
-	groups: readonly MetricGroup[],
-	speed: SyncSpeed,
-): { requests: number; bytes: number; seconds: number } {
-	const preset = SYNC_SPEEDS[speed];
-	let requests = 0;
-	let bytes = 0;
-	let raw = 0;
-	if (item.set === "activity-details") {
-		// A run saved by the version before is kept: two requests, and its file stays its size.
-		const upgrades = Math.min(item.upgrades ?? 0, item.units);
-		const full = item.units - upgrades;
-		requests = full * DETAIL_REQUESTS + upgrades * UPGRADE_REQUESTS;
-		bytes = full * DETAIL_BYTES;
-		raw = full * DETAIL_SECONDS + upgrades * UPGRADE_SECONDS;
-	} else if (item.set === "day-details") {
-		const chunks = item.units ? Math.ceil(item.units / chunkDays(groups, speed)) : 0;
-		requests = item.units * requestsPerDay(groups) + chunks * requestsPerChunk(groups);
-		bytes = item.units * (DAY_FILE_BYTES + (groups.includes("intraday") ? TIMELINE_BYTES : 0));
-		raw = item.units * secondsPerDay(requestsPerDay(groups), preset) + (chunks * requestsPerChunk(groups)) / preset.limits.rate;
-	} else {
-		const kind = item.store.replace(/^index:/, "");
-		const def = DAY_INDEXES.find((d) => d.kind === kind);
-		const windowDays = def?.windowDays ?? 28;
-		const windows = Math.ceil(item.units / windowDays) + (def?.emptyWindowsToStop ?? 4);
-		requests = item.store === "activities" ? 10 : windows * (def?.requestsPerWindow ?? (item.store === "daily-stats" ? 3 : 1));
-		bytes = item.units * (ROW_BYTES[kind] ?? (def ? SPARSE_ROW_BYTES : ROW_BYTES[item.store] ?? SPARSE_ROW_BYTES));
-		raw = requests * WINDOW_SECONDS;
+/**
+ * What agreeing to `keys` adds to the download over what is agreed already:
+ * a line of the update dialog, or its picked lines together, timed as one.
+ */
+export function estimateDelta(input: EstimateInput, keys: readonly ConsentKey[]): { requests: number; bytes: number; seconds: number } {
+	const before = planBackfill(input);
+	const after = planBackfill({ ...input, accepted: [...new Set([...input.accepted, ...keys])] });
+	const units = unitsOf(added(before, after), contextOf(input));
+	return {
+		requests: sum(units, (u) => u.requests),
+		bytes: Math.round(sum(units, (u) => u.bytes)),
+		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+	};
+}
+
+/** What a date range takes, and how it runs (`SyncRangeModal`). */
+export interface RangeEstimate {
+	days: number;
+	requests: number;
+	bytes: number;
+	/** At once, about how long it takes; in the download, until it is done, after what the download takes first and held to the hour's budget. */
+	seconds: number;
+	/** Too long to sync at once: it goes to the history download (`SyncRunner.queueRange`). */
+	background: boolean;
+}
+
+/** The range being priced, as the plan keys it: no queued range is keyed so. */
+const PRICED = "priced";
+
+/**
+ * A date range, priced the way it would run. Synced at once, it asks every
+ * route of every day and every timeline, as a sync by hand does. Past
+ * `FOREGROUND_RANGE_REQUESTS`, once the setup is done (`download`), it goes
+ * to the history download instead, which leaves out what the masks and the
+ * horizon know is empty and takes it after the walks and the ranges queued
+ * before it. Either way its size is what Garmin's answers hold.
+ */
+export function estimateRange(input: EstimateInput, from: string, to: string, opts: { download: boolean }): RangeEstimate {
+	const ctx = contextOf(input);
+	const days = spanDays(from, to);
+	const task: Task = { kind: "days", from, to };
+	const asked = unitsOf([task], { ...ctx, masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } });
+	const requests = sum(asked, (u) => u.requests);
+	if (!opts.download || requests <= FOREGROUND_RANGE_REQUESTS) {
+		return { days, requests, bytes: Math.round(sum(unitsOf([task], ctx), (u) => u.bytes)), seconds: sum(asked, (u) => u.seconds), background: false };
 	}
-	return { requests, bytes, seconds: withBudget(requests, raw, speed) };
+	// The plan up to this range, the last one asked for: what comes after doesn't hold it up.
+	const plan = planBackfill({ ...input, ranges: [...(input.ranges ?? []), { from, to, next: to, at: PRICED }] });
+	const units = unitsOf(plan.slice(0, plan.findIndex((t) => t.kind === "days" && t.range === PRICED) + 1), ctx);
+	const mine = units.filter((u) => u.kind === "days" && u.range === PRICED);
+	return {
+		days,
+		requests: sum(mine, (u) => u.requests),
+		bytes: Math.round(sum(mine, (u) => u.bytes)),
+		seconds: timeFor(units, input.budget ?? freshHour(), input.now ?? Date.now()),
+		background: true,
+	};
 }
 
-/** A set's estimate, and its time before the hourly budget. */
-interface Part {
-	set: SetEstimate;
-	raw: number;
+function contextOf(input: EstimateInput): CostContext {
+	return costContext(input, { ...(input.sizes ? { sizes: input.sizes } : {}), ...(input.latency ? { latency: input.latency } : {}) });
 }
 
-/** The chart indexes: a walk each over the history they do not hold yet. */
-function charts(input: EstimateInput, start: string | undefined): Part {
+function setOf(unit: Unit): DataSetId | null {
+	if (unit.kind === "days") return unit.range ? null : "day-details";
+	return unit.kind === "details" ? "activity-details" : "charts";
+}
+
+function unitCount(id: DataSetId, units: readonly Unit[], input: EstimateInput): number {
+	if (id === "day-details") return sum(units, (u) => (u.kind === "days" ? u.days : 0));
+	if (id === "activity-details") return sum(units, (u) => (u.kind === "details" ? u.ids.length : 0));
+	const start = historyStart(input.scan);
+	return start && input.scan ? daysSince(input.scan, start) : 0;
+}
+
+/** What a year of new days, or activities, adds to a set. */
+function perYear(id: DataSetId, input: EstimateInput, ctx: CostContext): number {
 	const on = new Set(input.groups);
-	const held = input.held?.charts;
-	const parallel = SYNC_SPEEDS[input.speed].parallelDays;
-	/** Days still to walk for a store, and those of them with data. */
-	const toWalk = (store: string): { days: number; withData: number } => {
-		const meta = held?.get(store);
-		if (!start || meta?.complete) return { days: 0, withData: 0 };
-		const until = meta?.from ? shiftDate(meta.from, -1) : input.today;
-		if (until < start) return { days: 0, withData: 0 };
-		const days = spanDays(start, until);
-		return { days, withData: Math.max(0, daysSince(input.scan, start) - (meta?.from ? daysSince(input.scan, meta.from) : 0)) };
-	};
-
-	let requests = 0;
-	let bytes = 0;
-	let rowBytes = 0;
-	if (on.has("workouts") && !held?.get("activities")?.complete) requests += 1 + Math.ceil(input.scan.activities / 100);
-	if (on.has("workouts")) bytes += held?.get("activities")?.complete ? 0 : input.scan.activities * ACTIVITY_ROW_BYTES;
-	if (on.has("activity")) {
-		// Three requests a window with steps, one a window without, and the empty windows that end the walk.
-		const walk = toWalk("daily-stats");
-		const windows = Math.ceil(walk.days / 28);
-		const withSteps = Math.min(windows, Math.ceil(walk.withData / 28));
-		requests += walk.days ? withSteps * 3 + (windows - withSteps) + 4 : 0;
-		bytes += walk.withData * ROW_BYTES["daily-stats"];
-		rowBytes += ROW_BYTES["daily-stats"];
+	if (id === "day-details") return 365 * (ctx.sizes.dayFile + (on.has("intraday") ? ctx.sizes.timelines : 0));
+	if (id === "activity-details") {
+		if (!rangeStart(input.activityDetails, input.today, historyStart(input.scan)) || !on.has("workouts")) return 0;
+		return sum(lastYear(input), (a) => ctx.sizes.details[a.profile]);
 	}
-	if (on.has("sleep")) {
-		const walk = toWalk("sleep");
-		requests += walk.days ? Math.ceil(walk.days / 28) + 4 : 0;
-		bytes += walk.withData * ROW_BYTES.sleep;
-		rowBytes += ROW_BYTES.sleep;
+	let row = 0;
+	if (on.has("activity")) row += ROW_BYTES["daily-stats"] ?? 0;
+	if (on.has("sleep")) row += ROW_BYTES.sleep ?? 0;
+	for (const def of DAY_INDEXES) if (on.has(def.group)) row += ROW_BYTES[def.kind] ?? 0;
+	return 365 * row + (on.has("workouts") ? lastYear(input).length * ctx.sizes.activityRow : 0);
+}
+
+function lastYear(input: EstimateInput) {
+	const from = shiftDate(input.today, -364);
+	return input.activities.filter((a) => a.date >= from);
+}
+
+/** The tasks of `after` that `before` lacks: whole lists and walks, and the days and activities on their own. */
+function added(before: readonly Task[], after: readonly Task[]): Task[] {
+	const listed = before.some((t) => t.kind === "activities");
+	const walks = new Set(before.flatMap((t) => (t.kind === "walk" ? [t.store] : [])));
+	const days = new Set(before.flatMap((t) => (t.kind === "days" ? datesOf(t.from, t.to) : [])));
+	const ids = new Set(before.flatMap((t) => (t.kind === "details" ? t.ids : [])));
+	const out: Task[] = [];
+	for (const task of after) {
+		if (task.kind === "activities") {
+			if (!listed) out.push(task);
+		} else if (task.kind === "walk") {
+			if (!walks.has(task.store)) out.push(task);
+		} else if (task.kind === "days") {
+			for (const stretch of stretchesOf(datesOf(task.from, task.to).filter((d) => !days.has(d))).reverse()) out.push({ kind: "days", ...stretch });
+		} else {
+			const fresh = task.ids.filter((id) => !ids.has(id));
+			if (fresh.length) out.push({ kind: "details", ids: fresh });
+		}
 	}
-	for (const def of DAY_INDEXES) {
-		if (!on.has(def.group)) continue;
-		const walk = toWalk(`index:${def.kind}`);
-		const row = ROW_BYTES[def.kind] ?? SPARSE_ROW_BYTES;
-		if (walk.days) requests += (Math.ceil(walk.days / def.windowDays) + def.emptyWindowsToStop) * def.requestsPerWindow;
-		bytes += walk.withData * row;
-		rowBytes += row;
+	return out;
+}
+
+function datesOf(from: string, to: string): string[] {
+	const out: string[] = [];
+	for (let date = from; date <= to; date = shiftDate(date, 1)) out.push(date);
+	return out;
+}
+
+/** Consecutive days as stretches, oldest first. */
+function stretchesOf(days: readonly string[]): Array<{ from: string; to: string }> {
+	const out: Array<{ from: string; to: string }> = [];
+	for (const date of days) {
+		const last = out[out.length - 1];
+		if (last && shiftDate(last.to, 1) === date) last.to = date;
+		else out.push({ from: date, to: date });
 	}
-	// The walks of different indexes go side by side, as many as the days a sync fetches at once.
-	const raw = (requests * WINDOW_SECONDS) / parallel;
-	const activitiesPerYear = perYear(input.scan.activities, input.scan, input.today);
-	return {
-		raw,
-		set: {
-			id: "charts",
-			units: start ? daysSince(input.scan, start) : 0,
-			bytes,
-			requests,
-			seconds: withBudget(requests, raw, input.speed),
-			bytesPerYear: Math.round(365 * rowBytes + (on.has("workouts") ? activitiesPerYear * ACTIVITY_ROW_BYTES : 0)),
-		},
-	};
-}
-
-/** Each day of the range with data that the coverage does not hold at today's version. */
-function dayDetails(input: EstimateInput, start: string | undefined): Part {
-	const intraday = input.groups.includes("intraday");
-	const dayBytes = DAY_FILE_BYTES + (intraday ? TIMELINE_BYTES : 0);
-	const from = rangeStart(input.dayDetails, input.today, start);
-	let units = 0;
-	if (from) {
-		const covered = countCovered(input.held?.daySpans ?? [], from, input.today);
-		units = Math.max(0, daysSince(input.scan, from) - covered);
-	}
-	const chunks = units ? Math.ceil(units / chunkDays(input.groups, input.speed)) : 0;
-	const preset = SYNC_SPEEDS[input.speed];
-	const perChunk = requestsPerChunk(input.groups);
-	const requests = units * requestsPerDay(input.groups) + chunks * perChunk;
-	const raw = units * secondsPerDay(requestsPerDay(input.groups), preset) + (chunks * perChunk) / preset.limits.rate;
-	return {
-		raw,
-		set: {
-			id: "day-details",
-			units,
-			bytes: units * dayBytes,
-			requests,
-			seconds: withBudget(requests, raw, input.speed),
-			bytesPerYear: 365 * dayBytes,
-		},
-	};
-}
-
-/** Each activity in the range without a file of today's version. */
-function activityDetails(input: EstimateInput, start: string | undefined): Part {
-	const from = rangeStart(input.activityDetails, input.today, start);
-	const held = input.held?.details;
-	const units = from ? input.activities.filter((a) => a.date >= from && held?.get(a.id) !== ACTIVITY_DETAILS_VERSION).length : 0;
-	const lastYear = shiftDate(input.today, -364);
-	const perYear = input.activities.filter((a) => a.date >= lastYear).length;
-	const requests = units * DETAIL_REQUESTS;
-	const raw = units * DETAIL_SECONDS;
-	return {
-		raw,
-		set: {
-			id: "activity-details",
-			units,
-			bytes: units * DETAIL_BYTES,
-			requests,
-			seconds: withBudget(requests, raw, input.speed),
-			bytesPerYear: input.activityDetails === "opened" ? 0 : perYear * DETAIL_BYTES,
-		},
-	};
-}
-
-/** Days of `from..to` the spans hold at today's version of Day details. */
-function countCovered(spans: readonly Span[], from: string, to: string): number {
-	let n = 0;
-	for (let date = from; date <= to; date = shiftDate(date, 1)) if (versionOn(spans, date) === DAY_DETAILS_VERSION) n += 1;
-	return n;
-}
-
-/** How many of `count` fall in a year, over the span the scan covers. */
-function perYear(count: number, scan: AccountScan, today: string): number {
-	const start = historyStart(scan);
-	if (!start || !count) return 0;
-	return (count * 365) / Math.max(30, spanDays(start, today));
-}
-
-function spanDays(from: string, to: string): number {
-	return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+	return out;
 }
 
 function sum<T>(items: readonly T[], of: (item: T) => number): number {

@@ -77,7 +77,6 @@
 		? undefined
 		: {
 				title: FITNESS_AGE_INDEX.title,
-				windowDays: FITNESS_AGE_INDEX.windowDays,
 				complete: meta?.complete ?? false,
 				walking: history[KIND],
 				canSync,

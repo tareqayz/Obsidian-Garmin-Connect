@@ -61,7 +61,6 @@
 	style={HRV_STRESS_STYLE}
 	history={{
 		title: HRV_STRESS_INDEX.title,
-		windowDays: HRV_STRESS_INDEX.windowDays,
 		complete,
 		walking: history[KIND],
 		canSync,

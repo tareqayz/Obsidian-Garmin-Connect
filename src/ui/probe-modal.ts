@@ -33,10 +33,6 @@ export class ProbeModal extends Modal {
 				initialEmail: settings.email,
 				autoSaveLog: settings.autoSaveLog,
 				platformReport: reportPlatform,
-				onEmailChange: (email: string) => {
-					settings.email = email;
-					void this.plugin.data.saveSettings();
-				},
 				runFingerprint: (log: ProbeLog) => runFingerprintProbe(new ObsidianHttpClient(), log),
 				runLogin: (log: ProbeLog, email: string, password: string, requestMfaCode: MfaPrompt) =>
 					runGarminProbe(new ObsidianHttpClient(), log, {

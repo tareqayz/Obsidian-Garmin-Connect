@@ -53,7 +53,7 @@
 	canGoForward={view.canGoForward}
 	{onBack}
 	{swap}
-	history={{ title: HEAT_ACCLIMATION_INDEX.title, windowDays: HEAT_ACCLIMATION_INDEX.windowDays, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
+	history={{ title: HEAT_ACCLIMATION_INDEX.title, complete, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane })}
 		{#if view.range === "1d"}

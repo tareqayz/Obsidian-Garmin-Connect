@@ -183,7 +183,7 @@ GARMIN_TOKENS="$(cat .garmin-token.json)" npm run api:check
 ## Measuring the rate limit
 
 `npm run api:ramp` finds how fast Garmin lets the plugin ask, and stops at the first sign it
-objects. That is how the sync speeds in [Garmin API](../docs/garmin-api.md#request-pace) were
+objects. That is how the plugin's pace in [Garmin API](../docs/garmin-api.md#request-pace) was
 chosen.
 
 ```bash
@@ -192,8 +192,9 @@ npm run api:ramp -- --stages 1x3,2x6,4x9 --stage-seconds 60 --cooldown 120
 ```
 
 Without a fresh token, run it inside Obsidian on the plugin's own session: `npm run api:ramp:eval`,
-then follow the header of `scripts/api/ramp-eval.ts`. Either way, pause the plugin's syncing while
-it runs, and expect a long wait before the next sync if it does hit a 429.
+then follow the header of `scripts/api/ramp-eval.ts`. Either way, turn off **Sync automatically**
+and pause the history download while it runs, and expect a long wait before the next sync if it
+does hit a 429.
 
 ## Accepting a change
 

@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { FixtureHttpClient, fakeJwt, type FixtureRule } from "./support/fixture-http";
 import {
+	DEFAULT_LIMITS,
 	GarminClient,
 	MAX_ATTEMPTS,
 	MAX_RATE_LIMIT_WAIT_MS,
@@ -20,6 +21,7 @@ import {
 	GarminRateLimitError,
 	GarminRefreshError,
 } from "../src/garmin/errors";
+import { PACE } from "../src/sync/pace";
 import { MFA_MAX_ATTEMPTS } from "../src/garmin/auth";
 import { MemoryTokenStore } from "../src/garmin/tokens";
 
@@ -523,5 +525,11 @@ describe("retrying a transient failure", () => {
 
 		await assert.rejects(() => client.request("/wellness-service/x"), GarminRateLimitError);
 		assert.equal(http.urls.filter((u) => u.includes("/wellness-service")).length, 1);
+	});
+});
+
+describe("the client's own limits", () => {
+	it("are the plugin's one pace: garmin/ can't import sync/, so a test keeps them the same", () => {
+		assert.deepEqual(DEFAULT_LIMITS, PACE.limits);
 	});
 });

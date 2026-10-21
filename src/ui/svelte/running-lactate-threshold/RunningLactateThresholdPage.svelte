@@ -108,8 +108,6 @@
 		const { def } = shown;
 		return {
 			title: def.title,
-			// A window is two requests (heart rate and speed; watts and W/kg): the banner's "a year takes about N requests" counts both.
-			windowDays: def.windowDays / def.requestsPerWindow,
 			complete: shown.complete,
 			walking: history[def.kind],
 			canSync,

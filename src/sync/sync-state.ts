@@ -18,6 +18,18 @@ export interface SyncState {
 	syncedAt: string;
 	/** The watch's last upload as Garmin reported it when the sync started, ISO. */
 	deviceUpload?: string;
+	/**
+	 * The newest activities as that sync listed them, and the settings it ran
+	 * under, as keys (`freshness.ts`): what lets a later sync stop at its
+	 * probe. Only after a clean sync. An older build drops them when it writes
+	 * the file, which costs one full sync.
+	 */
+	list?: string;
+	fingerprint?: string;
+	/** The last sync's warnings, as a key: the same lasting warning doesn't make every sync a full one. */
+	warn?: string;
+	/** When the account file was last fetched whole, ISO: an automatic sync fetches it again only when it may have changed (`freshness.ts`). */
+	accountAt?: string;
 }
 
 const instant = (v: unknown): string | undefined =>
@@ -40,7 +52,19 @@ export function parseSyncState(text: string): SyncState | null {
 	const syncedAt = instant(r.syncedAt);
 	if (!syncedAt) return null;
 	const deviceUpload = instant(r.deviceUpload);
-	return deviceUpload ? { syncedAt, deviceUpload } : { syncedAt };
+	const key = (v: unknown): string | undefined => (typeof v === "string" && /^[0-9a-z]{1,16}$/.test(v) ? v : undefined);
+	const list = key(r.list);
+	const fingerprint = key(r.fingerprint);
+	const warn = key(r.warn);
+	const accountAt = instant(r.accountAt);
+	return {
+		syncedAt,
+		...(deviceUpload ? { deviceUpload } : {}),
+		...(list ? { list } : {}),
+		...(fingerprint ? { fingerprint } : {}),
+		...(warn ? { warn } : {}),
+		...(accountAt ? { accountAt } : {}),
+	};
 }
 
 /**

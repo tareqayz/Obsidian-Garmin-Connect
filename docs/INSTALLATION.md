@@ -85,5 +85,5 @@ because beta version numbers are only stamped into the release files.
 
 ## Get started
 
-Enable the plugin to open setup, sign in to Garmin Connect, scan your history and choose how much
-data to keep. See the [Guide](GUIDE.md) for the full walkthrough.
+Enable the plugin to open setup, sign in to Garmin Connect, scan your history and download all of
+it, or choose less under **Advanced options**. See the [Guide](GUIDE.md) for the full walkthrough.

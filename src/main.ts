@@ -1,5 +1,5 @@
 import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
-import { categoryOf } from "./dashboard/activities";
+import { categoryOf, detailProfileOf } from "./dashboard/activities";
 import { areaStack, inArea } from "./dashboard/areas";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
@@ -14,9 +14,9 @@ import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
-import { DAY_INDEXES } from "./sync/day-indexes";
 import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
+import { AUTO_SYNC_KEY, AutoSync, parseLocal } from "./sync/auto-sync";
 import { GARMIN_ICON } from "./ui/icon";
 import { HEALTH_PAGES } from "./ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "./ui/svelte/performance/pages";
@@ -31,13 +31,15 @@ import { RemovedDataModal } from "./ui/removed-data-modal";
 import { watchForUninstall } from "./uninstall-watch";
 import { TILE_DB } from "./ui/map/tiles";
 import { DataUpdateModal } from "./ui/data-update-modal";
-import { debtItems, pendingItems, type DebtItem } from "./sync/debt";
-import { costOf } from "./sync/estimate";
-import type { UpdateLine } from "./ui/setup-flow";
+import type { DebtInput } from "./sync/debt";
+import { estimateDelta, type EstimateInput } from "./sync/estimate";
+import type { DetailCandidate } from "./sync/backfill";
+import { PACE } from "./sync/pace";
+import { updateLinesOf, type UpdateLine, type UpdateTotal } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
 
-/** Long enough for the vault's metadata cache to be ready before a sync reads it. */
+/** Long enough for the vault's metadata cache to be ready before a sync reads it: nothing syncs on its own sooner. */
 const STARTUP_SYNC_DELAY_MS = 5000;
 /** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id, its request budget and its Garmin session. */
 function forgetThisDevice(app: App): void {
@@ -50,6 +52,7 @@ function forgetThisDevice(app: App): void {
 	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
 	app.saveLocalStorage(BUDGET_KEY, null);
 	app.saveLocalStorage(HAD_SESSION_KEY, null);
+	app.saveLocalStorage(AUTO_SYNC_KEY, null);
 	app.secretStorage?.setSecret(SESSION_SECRET, "");
 }
 
@@ -64,6 +67,8 @@ export default class GarminPlugin extends Plugin {
 	data!: PluginData;
 	garmin!: GarminApi;
 	sync!: SyncRunner;
+	/** Starts a recent sync on its own when one is due (`auto-sync.ts`). */
+	autoSync!: AutoSync;
 	/** This device's Garmin session, in Obsidian's keychain rather than data.json. */
 	tokens!: SecretTokenStore;
 
@@ -75,6 +80,7 @@ export default class GarminPlugin extends Plugin {
 		await this.data.init();
 
 		this.buildClient();
+		this.autoSync = this.buildAutoSync();
 		await this.garmin.restore();
 		this.bindStatusBar();
 
@@ -141,35 +147,15 @@ export default class GarminPlugin extends Plugin {
 		this.addCommand({
 			id: "sync-recent",
 			name: "Sync recent days",
-			callback: () => void this.sync.syncRecent(),
+			callback: () => void this.sync.syncRecent("command"),
 		});
-		this.addCommand({
-			id: "sync-today",
-			name: "Sync today",
-			callback: () => void this.sync.syncToday(),
-		});
+		// The id from when it was "Sync activity history", so a hotkey bound to it still works. The only way
+		// to list again activities past the newest few a sync sees: one edited long ago, say.
 		this.addCommand({
 			id: "sync-activity-history",
-			name: "Sync activity history",
+			name: "Refresh the activity list",
 			callback: () => void this.sync.syncActivityHistory(),
 		});
-		this.addCommand({
-			id: "sync-daily-stats-history",
-			name: "Sync step, floor and intensity history",
-			callback: () => void this.sync.syncDailyStatsHistory(),
-		});
-		this.addCommand({
-			id: "sync-sleep-history",
-			name: "Sync sleep history",
-			callback: () => void this.sync.syncSleepHistory(),
-		});
-		for (const def of DAY_INDEXES) {
-			this.addCommand({
-				id: `sync-${def.kind}-history`,
-				name: `Sync ${def.title} history`,
-				callback: () => void this.sync.syncIndexHistory(def.kind),
-			});
-		}
 		this.addCommand({
 			id: "sync-range",
 			name: "Sync a date range…",
@@ -213,12 +199,22 @@ export default class GarminPlugin extends Plugin {
 
 		this.addSettingTab(new GarminSettingTab(this.app, this));
 
-		if (this.data.settings.syncOnStartup && this.garmin.isAuthenticated) {
-			// Deferred: a sync at load time competes with vault indexing.
-			this.registerInterval(
-				window.setTimeout(() => void this.sync.syncRecent(), STARTUP_SYNC_DELAY_MS),
-			);
-		}
+		// A sync starts on its own when one is due: once Obsidian has started,
+		// when Home comes into view, and when the app comes back to the front
+		// with Home showing. Each only asks; `AutoSync` decides.
+		this.register(() => this.autoSync.stop());
+		this.app.workspace.onLayoutReady(() => this.autoSync.poke());
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", (leaf) => {
+				if (leaf?.view instanceof GarminHomeView) this.autoSync.poke();
+			}),
+		);
+		const backToFront = () => {
+			if (activeDocument.visibilityState !== "visible") return;
+			if (this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW).some((leaf) => leaf.view.containerEl.isShown())) this.autoSync.poke();
+		};
+		this.registerDomEvent(activeDocument, "visibilitychange", backToFront);
+		this.registerDomEvent(window, "focus", backToFront);
 		// A backfill agreed to carries on where the files say it stopped, whether or not the startup sync runs.
 		this.app.workspace.onLayoutReady(() =>
 			this.registerInterval(window.setTimeout(() => this.sync.kickBackfill(), STARTUP_BACKFILL_DELAY_MS)),
@@ -295,7 +291,7 @@ export default class GarminPlugin extends Plugin {
 	/**
 	 * The history download in the status bar, on a computer: how far it has
 	 * got, or why it waits. Gone once nothing is left. Clicking it opens
-	 * Settings → Data.
+	 * Settings → History.
 	 */
 	private bindStatusBar(): void {
 		if (!Platform.isDesktopApp) return;
@@ -314,7 +310,7 @@ export default class GarminPlugin extends Plugin {
 			const total = progress.done + progress.remaining;
 			const percent = total > 0 ? Math.min(99, Math.round((progress.done / total) * 100)) : 0;
 			const text =
-				progress.status === "running"
+				progress.status === "running" || progress.status === "waiting"
 					? `Garmin · history ${percent}%`
 					: progress.status === "elsewhere"
 						? `Garmin · downloading on ${progress.device ?? "another device"}`
@@ -338,47 +334,70 @@ export default class GarminPlugin extends Plugin {
 	/** Asked once a session at most: what an update offers. */
 	private askedForUpdates = false;
 
+	/** What the update lines and their total are worked out from, read once: null before the setup or without data here. */
 	/**
-	 * What the data sets offer that has not been agreed to — every item with
-	 * something to fetch, or only those not put off yet — as dialog lines.
+	 * What the history download and the update lines are worked out from, in
+	 * one read of the vault: the scan, the coverage, the chart metas, the
+	 * activity index and the detail files. Null when the data folder is empty.
 	 */
-	async updateLines(only: "pending" | "all"): Promise<UpdateLine[]> {
+	async historyInput(): Promise<(DebtInput & EstimateInput) | null> {
 		const settings = this.data.settings;
-		if (!settings.setup) return [];
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
-		if (!store.hasData()) return [];
-		const [scan, coverage, charts, index, detailFiles] = await Promise.all([
+		if (!store.hasData()) return null;
+		const [scan, coverage, charts, index, detailFiles, backfill] = await Promise.all([
 			store.readScan(),
 			store.readDayCoverage(settings.groups.includes("intraday")),
 			store.readChartMetas(),
 			store.readActivities(),
 			store.readDetailCoverage(),
+			store.readBackfill(),
 		]);
-		const input = {
-			today: toIsoDate(),
+		const today = toIsoDate();
+		const activities = index.rows.map((row) => this.candidateOf(row));
+		const masks = await store.readMasks(settings.groups, charts, scan);
+		return {
+			today,
 			groups: settings.groups,
 			accepted: settings.data.accepted,
 			deferred: settings.data.deferred,
 			dayDetails: settings.data.dayDetails,
 			activityDetails: settings.data.activityDetails,
-			since: settings.setup.completedAt.slice(0, 10),
+			...(settings.setup ? { since: settings.setup.completedAt.slice(0, 10) } : {}),
 			scan,
 			daySpans: coverage.spans,
 			charts,
-			activities: index.rows.map((row) => ({ id: row.id, date: row.start.slice(0, 10), run: this.isRun(row) })),
+			activities,
 			detailFiles,
+			masks,
+			sizes: store.sizesFor(masks, activities, today),
+			...(backfill.ranges ? { ranges: backfill.ranges } : {}),
+			budget: this.sync.budgetOutlook(),
+			now: Date.now(),
 		};
-		const items: DebtItem[] = only === "pending" ? pendingItems(input) : debtItems(input);
-		return items.map((item) => ({ key: item.key, title: item.title, detail: item.detail, ...costOf(item, settings.groups, settings.syncSpeed) }));
+	}
+
+	/**
+	 * What the data sets offer that has not been agreed to — every item with
+	 * something to fetch, or only those not put off yet — as dialog lines.
+	 */
+	async updateLines(only: "pending" | "all"): Promise<UpdateLine[]> {
+		const input = this.data.settings.setup ? await this.historyInput() : null;
+		return input ? updateLinesOf(input, only) : [];
+	}
+
+	/** What picked update lines add together, as one download under one hourly budget. */
+	async updateTotal(): Promise<UpdateTotal> {
+		const input = this.data.settings.setup ? await this.historyInput() : null;
+		return (keys) => (input && keys.length ? estimateDelta(input, keys) : { bytes: 0, seconds: 0 });
 	}
 
 	/** The first Garmin view after an update: one dialog for whatever the update offers. */
 	async askForUpdates(): Promise<void> {
 		if (this.askedForUpdates || !this.garmin.isAuthenticated) return;
-		const lines = await this.updateLines("pending");
+		const [lines, total] = await Promise.all([this.updateLines("pending"), this.updateTotal()]);
 		if (!lines.length || this.askedForUpdates) return;
 		this.askedForUpdates = true;
-		this.track(new DataUpdateModal(this.app, this, lines));
+		this.track(new DataUpdateModal(this.app, this, lines, total));
 	}
 
 	/** Yes to `keys`, later to `later`: the ledger keeps both, and the backfill starts on the yeses. */
@@ -392,6 +411,11 @@ export default class GarminPlugin extends Plugin {
 		if (keys.length) this.sync.kickBackfill();
 	}
 
+	/** An activity on the index as the history download plans it: its day, whether it's a run, and what its page costs. */
+	candidateOf(row: ActivityRow): DetailCandidate {
+		return { id: row.id, date: row.start.slice(0, 10), run: this.isRun(row), profile: detailProfileOf(row), ...(row.power ? { power: true } : {}) };
+	}
+
 	/** The rows that are runs: all an older Run details agreement downloads, before Activity details is agreed to. */
 	isRun(row: ActivityRow): boolean {
 		return categoryOf(row) === "running";
@@ -402,6 +426,8 @@ export default class GarminPlugin extends Plugin {
 		if (this.garmin.isAuthenticated) {
 			this.app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
 			void this.sync.signedIn();
+			// Signed in: a sync is likely due.
+			this.autoSync.poke();
 		}
 		this.refreshViews();
 	}
@@ -460,14 +486,38 @@ export default class GarminPlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
+	/** Reads `this.sync` and the settings each time: signing in again replaces the runner, and the setting can change. */
+	private buildAutoSync(): AutoSync {
+		return new AutoSync(
+			{
+				now: () => Date.now(),
+				allowed: () => {
+					const s = this.data.settings;
+					return s.autoSync && s.setup !== null && this.garmin.isAuthenticated && !this.sync.foregroundBusy && !this.sync.resting;
+				},
+				loadLocal: () => parseLocal(this.app.loadLocalStorage(AUTO_SYNC_KEY)),
+				saveLocal: (local) => this.app.saveLocalStorage(AUTO_SYNC_KEY, local),
+				syncedAt: async () => {
+					const state = await new VaultSeriesStore(this.app, this.data.settings.dataFolder).readSyncState();
+					return state ? Date.parse(state.syncedAt) : null;
+				},
+				sync: () => this.sync.syncRecent("auto"),
+				setTimeout: (run, ms) => window.setTimeout(run, ms),
+				clearTimeout: (id) => window.clearTimeout(id),
+			},
+			STARTUP_SYNC_DELAY_MS,
+		);
+	}
+
 	/** The domain is baked into every URL, so changing it needs a fresh client. */
 	buildClient(): void {
 		this.garmin = new GarminApi({
 			http: new ObsidianHttpClient(),
 			store: this.tokens,
 			domain: this.data.settings.domain,
+			limits: PACE.limits,
 		});
-		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.isRun(row), this.device());
+		this.sync = new SyncRunner(this.app, this.garmin, () => this.data.settings, (row) => this.candidateOf(row), this.device(), this.manifest.version);
 	}
 
 	/** This device for the backfill's lease: an id kept in this vault's local storage, and a name a person knows it by. */

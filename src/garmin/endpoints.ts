@@ -1405,28 +1405,47 @@ function isProfilePk(value: unknown): value is number {
  * Typed endpoint wrappers. Extends the client so callers hold one object while
  * auth and endpoints stay in separate files.
  */
+/** How long the account's settings are remembered: long enough for a sync, short enough to see a change made in the app. */
+export const SETTINGS_MEMO_MS = 10 * 60_000;
+
 export class GarminApi extends GarminClient {
 	private displayName: string | null = null;
 	private fullName: string | null = null;
 	private lastProfile: SocialProfile | null = null;
+	/** The profile request in flight: a sync's first days all need the display name at once, and share the one request. */
+	private profilePending: Promise<SocialProfile> | null = null;
+	/** `userSettings()` as last answered, kept briefly: the units, the account's details and the height for BMI all ask it. */
+	private settingsMemo: { at: number; answer: Promise<Record<string, unknown>> } | null = null;
 
 	/** Signing in as someone else must not inherit the previous account's URLs. */
 	async login(email: string, password: string, opts: LoginOptions = {}): Promise<void> {
 		await super.login(email, password, opts);
-		this.displayName = null;
-		this.fullName = null;
-		this.lastProfile = null;
+		this.forgetAccount();
 	}
 
 	/** Cleared alongside the session so a second account cannot inherit the first's URLs. */
 	async logout(): Promise<void> {
-		this.displayName = null;
-		this.fullName = null;
-		this.lastProfile = null;
+		this.forgetAccount();
 		await super.logout();
 	}
 
-	async socialProfile(): Promise<SocialProfile> {
+	private forgetAccount(): void {
+		this.displayName = null;
+		this.fullName = null;
+		this.lastProfile = null;
+		this.profilePending = null;
+		this.settingsMemo = null;
+	}
+
+	/** The account's profile. Asked while one is on its way, it waits for that one rather than asking again. */
+	socialProfile(): Promise<SocialProfile> {
+		this.profilePending ??= this.fetchProfile().finally(() => {
+			this.profilePending = null;
+		});
+		return this.profilePending;
+	}
+
+	private async fetchProfile(): Promise<SocialProfile> {
 		const profile = await this.request<SocialProfile>("/userprofile-service/socialProfile");
 		if (typeof profile?.displayName === "string" && profile.displayName.trim()) {
 			this.displayName = profile.displayName;
@@ -1476,8 +1495,21 @@ export class GarminApi extends GarminClient {
 		return pk;
 	}
 
-	async userSettings(): Promise<Record<string, unknown>> {
-		return this.request("/userprofile-service/userprofile/user-settings");
+	/**
+	 * The account's settings, remembered for `SETTINGS_MEMO_MS`: one sync asks
+	 * them for the units, for the account file and for each weight window. A
+	 * failure is not remembered.
+	 */
+	userSettings(): Promise<Record<string, unknown>> {
+		const now = this.now();
+		if (this.settingsMemo && now - this.settingsMemo.at < SETTINGS_MEMO_MS) return this.settingsMemo.answer;
+		const answer = this.request<Record<string, unknown>>("/userprofile-service/userprofile/user-settings");
+		const memo = { at: now, answer };
+		this.settingsMemo = memo;
+		answer.catch(() => {
+			if (this.settingsMemo === memo) this.settingsMemo = null;
+		});
+		return answer;
 	}
 
 	async dailySummary(date: string): Promise<DailySummary> {
