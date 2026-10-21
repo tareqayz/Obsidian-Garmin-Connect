@@ -5,6 +5,7 @@ import {
 	chunkDays,
 	costContext,
 	dayUnit,
+	detailBatch,
 	detailRequests,
 	detailUnit,
 	freshHour,
@@ -50,6 +51,15 @@ describe("cost — requests", () => {
 		assert.deepEqual([unit.days, unit.requests], [13, 13 * 15 + 1 + 5]);
 		// The 195 day requests set the pace, 9.75 s, after the list and the range routes.
 		assert.ok(Math.abs(unit.seconds - (0.6 + 0.6 + 9.75 + 0.3)) < 1e-9, String(unit.seconds));
+	});
+
+	it("downloads activities' pages a batch of about ten seconds at a time, three side by side", () => {
+		const runs = MEASURED.activities.filter((a) => a.profile === "run").map((a) => a.id);
+		const batch = detailBatch(runs, ctx());
+		// Fifteen runs: five rounds of three, two trips each at 0.85 s, 8.8 s with the unit's own work.
+		assert.equal(batch.length, 15);
+		assert.ok(Math.abs(detailUnit(batch, ctx()).seconds - 8.8) < 1e-9);
+		assert.deepEqual(detailBatch(runs.slice(0, 1), ctx()), runs.slice(0, 1));
 	});
 
 	it("asks two requests, and writes nothing new, for a run an older version saved", () => {

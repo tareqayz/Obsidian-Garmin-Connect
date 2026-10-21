@@ -22,7 +22,7 @@ import {
 import { fetchAccount } from "./account";
 import { INTRADAY_EXTRAS } from "./intraday-extras";
 import { DayJobs, loadDay, type IntradayLoad } from "./intraday-registry";
-import { loadActivity, type ActivityLoad } from "./activity-detail";
+import { loadActivity, type ActivityDetailStore, type ActivityLoad } from "./activity-detail";
 import type { ActivityRow } from "./activity-index";
 import type { MetricGroup } from "./metrics";
 import { HOURLY_BUDGET, PACE } from "./pace";
@@ -34,8 +34,8 @@ import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
-import { chunkDays, costContext, detailUnit, nextUnit, timeFor, unitsOf, type CostContext } from "./cost";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
+import { chunkDays, costContext, detailBatch, detailUnit, nextUnit, timeFor, unitsOf, type CostContext } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -86,12 +86,6 @@ export interface BackfillProgress {
 
 /** Activities per request when paging the whole history. The list honours 100. */
 const HISTORY_PAGE = 100;
-
-/**
- * The least time between two activities downloaded in the background: about
- * the pace of someone opening them one after another, ten requests each.
- */
-const DOWNLOAD_PAUSE_MS = 2000;
 
 /** A history sync in progress, for the Activities pages' banner. */
 export interface HistoryProgress {
@@ -164,8 +158,12 @@ export class SyncRunner {
 	private backfillStopped = false;
 	private backfillState: BackfillProgress | null = null;
 	private backfillListeners = new Set<(progress: BackfillProgress | null) => void>();
-	/** Requests the backfill spent this session, for the progress bar. */
-	private backfillDone = 0;
+	/** Requests the download has spent, as backfill.json last said (`progress.done`). */
+	private savedDone = 0;
+	/** Requests this device spent on it since it last wrote its progress. */
+	private unsaved = 0;
+	/** The user paused it: a unit in hand when they did ends on "paused", not "running". */
+	private userPaused = false;
 	/** 429s in a row, for the growing pause. */
 	private rateLimits = 0;
 	/** Refusals from Garmin's edge in a row, for their growing pause. */
@@ -994,17 +992,8 @@ export class SyncRunner {
 		if (this.draining) return;
 		this.draining = true;
 		try {
-			let rested = true;
 			while (this.loadsWaiting) {
 				const pageWaiting = this.intradayJobs.size > 0 || this.activityJobs.size > 0;
-				const pause = pageWaiting ? 0 : this.backfillTasks?.[0]?.kind === "details" ? DOWNLOAD_PAUSE_MS : 0;
-				if (!rested && pause > 0) {
-					await pauseFor(pause);
-					rested = true;
-					// Then whatever waits by now: a page opened in the pause goes ahead of a download.
-					continue;
-				}
-				rested = false;
 				// A page's load goes after any sync waiting; the backfill only when nothing waits at all.
 				const release = this.claimNow(pageWaiting ? "page" : "background");
 				if (!release) break;
@@ -1091,7 +1080,10 @@ export class SyncRunner {
 	/** The user's Pause: kept in backfill.json, so every device stops. */
 	async pauseBackfill(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		await store.writeBackfill({ paused: { reason: "user" } });
+		const now = Date.now();
+		// The lease goes with the pause: whichever device resumes takes the download on.
+		await store.updateBackfill(({ lease: _lease, ...state }) => ({ ...state, paused: { reason: "user" }, progress: this.progressFrom(state, now) }));
+		this.userPaused = true;
 		this.backfillPending = false;
 		this.setBackfill(this.backfillState ? { ...this.backfillState, status: "paused", reason: "user" } : null);
 	}
@@ -1099,8 +1091,8 @@ export class SyncRunner {
 	/** The user's Resume, or a sign-in after "sign in to continue": lifts any pause. */
 	async resumeBackfill(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
-		const state = await store.readBackfill();
-		if (state.paused) await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
+		await store.updateBackfill(({ paused: _paused, ...state }) => state);
+		this.userPaused = false;
 		this.rateLimits = 0;
 		this.blocks = 0;
 		this.refreshFailures = 0;
@@ -1112,7 +1104,7 @@ export class SyncRunner {
 	async signedIn(): Promise<void> {
 		const store = new VaultSeriesStore(this.app, this.settings().dataFolder);
 		const state = await store.readBackfill();
-		if (state.paused?.reason === "sign-in") await store.writeBackfill({ ...(state.lease ? { lease: state.lease } : {}) });
+		if (state.paused?.reason === "sign-in") await store.updateBackfill(({ paused: _paused, ...rest }) => rest);
 		this.kickBackfill();
 	}
 
@@ -1166,6 +1158,19 @@ export class SyncRunner {
 		return tasks.filter((task) => task.kind !== "walk" || !this.backfillSkip.walks.has(task.store));
 	}
 
+	/** Requests the download has spent, this device's since its last write included. */
+	private get doneNow(): number {
+		return this.savedDone + this.unsaved;
+	}
+
+	/** backfill.json's progress with what this device spent since it last wrote it; the next write starts from zero. */
+	private progressFrom(state: BackfillState, now: number): NonNullable<BackfillState["progress"]> {
+		const progress = { done: (state.progress?.done ?? 0) + this.unsaved, since: state.progress?.since ?? new Date(now).toISOString() };
+		this.unsaved = 0;
+		this.savedDone = progress.done;
+		return progress;
+	}
+
 	/** About how many requests the plan has left and how long they take from now: the progress bar and its time left. */
 	private left(tasks: readonly Task[]): { remaining: number; seconds?: number } {
 		if (!this.backfillCtx) return { remaining: 0 };
@@ -1190,12 +1195,12 @@ export class SyncRunner {
 			const task = this.backfillState?.task ?? "days";
 			if (err instanceof NewerDataError) {
 				new Notice(`Garmin: ${err.message}`, 15000);
-				this.setBackfill({ status: "paused", reason: "update", task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+				this.setBackfill({ status: "paused", reason: "update", task, done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 				return;
 			}
 			const until = new Date(Date.now() + 10 * 60_000).toISOString();
 			this.backfillLater(10 * 60_000);
-			this.setBackfill({ status: "paused", reason: "error", until, task, done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "paused", reason: "error", until, task, done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 		}
 	}
 
@@ -1204,17 +1209,18 @@ export class SyncRunner {
 		const store = new VaultSeriesStore(this.app, settings.dataFolder);
 		const now = Date.now();
 		const state = await store.readBackfill();
+		this.savedDone = state.progress?.done ?? 0;
 		if (stillPaused(state, now)) {
 			this.backfillPending = false;
 			const until = state.paused!.until;
 			if (until) this.backfillLater(Date.parse(until) - now);
-			this.setBackfill({ status: "paused", reason: state.paused!.reason, ...(until ? { until } : {}), task: this.backfillState?.task ?? "days", done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "paused", reason: state.paused!.reason, ...(until ? { until } : {}), task: this.backfillState?.task ?? "days", done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 			return;
 		}
 		const elsewhere = heldElsewhere(state, this.device.id, now);
 		if (elsewhere) {
 			this.backfillLater(LEASE_MS / 2);
-			this.setBackfill({ status: "elsewhere", device: elsewhere.label, task: this.backfillState?.task ?? "days", done: this.backfillDone, remaining: this.backfillState?.remaining ?? 0 });
+			this.setBackfill({ status: "elsewhere", device: elsewhere.label, task: this.backfillState?.task ?? "days", done: this.doneNow, remaining: this.backfillState?.remaining ?? 0 });
 			return;
 		}
 
@@ -1222,43 +1228,46 @@ export class SyncRunner {
 		const task = this.backfillTasks[0];
 		if (!task) {
 			this.backfillPending = false;
-			if (state.lease?.device === this.device.id || state.paused) await store.writeBackfill({});
+			// Done: the lease, an old pause and the progress go; the next download counts from zero.
+			if (state.lease?.device === this.device.id || state.paused || state.progress) await store.writeBackfill({});
+			this.savedDone = 0;
+			this.unsaved = 0;
 			this.setBackfill(null);
 			return;
 		}
 		const wait = this.budget.waitFor(nextUnit(this.backfillTasks, this.backfillCtx!)?.requests ?? 0, now);
 		if (wait > 0) {
 			this.backfillLater(wait);
-			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (now - this.leaseWrittenAt > 60_000 || state.lease?.device !== this.device.id) {
-			await store.writeBackfill({ lease: { device: this.device.id, label: this.device.label, heartbeat: new Date(now).toISOString() } });
+			const lease = { device: this.device.id, label: this.device.label, heartbeat: new Date(now).toISOString() };
+			await store.updateBackfill((fresh) => ({ ...fresh, lease, progress: this.progressFrom(fresh, now) }));
 			this.leaseWrittenAt = now;
 		}
 		this.setBackfill({
 			status: "running",
 			task: task.kind,
-			done: this.backfillDone,
+			done: this.doneNow,
 			...this.left(this.backfillTasks),
 			...(task.kind === "days" ? { reached: task.to } : {}),
 		});
 
-		let requests = 0;
 		let fatal: unknown;
+		const started = Date.now();
 		try {
-			const got = await this.runUnit(task, store);
-			requests = got.requests;
-			fatal = got.fatal;
+			fatal = (await this.runUnit(task, store)).fatal;
 		} catch (err) {
 			fatal = err;
 		}
-		this.backfillDone += requests;
+		// What the unit really asked, retries included.
+		this.unsaved += this.api.stats.since(started).length;
 
 		if (fatal instanceof GarminAuthError) {
-			await store.writeBackfill({ paused: { reason: "sign-in" } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "sign-in" }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillPending = false;
-			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "sign-in", task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRateLimitError) {
@@ -1266,9 +1275,9 @@ export class SyncRunner {
 			this.budget.halve(Date.now());
 			this.rateLimits += 1;
 			const until = new Date(Date.now() + rateLimitWait(this.rateLimits)).toISOString();
-			await store.writeBackfill({ paused: { reason: "rate-limit", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "rate-limit", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(rateLimitWait(this.rateLimits));
-			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "rate-limit", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminBlockedError) {
@@ -1277,9 +1286,9 @@ export class SyncRunner {
 			this.blocks += 1;
 			const wait = blockedWait(this.blocks);
 			const until = new Date(Date.now() + wait).toISOString();
-			await store.writeBackfill({ paused: { reason: "blocked", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "blocked", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "blocked", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof GarminRefreshError) {
@@ -1289,7 +1298,7 @@ export class SyncRunner {
 			const wait = rateLimitWait(this.refreshFailures);
 			const until = new Date(Date.now() + wait).toISOString();
 			this.backfillLater(wait);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal instanceof NewerDataError) {
@@ -1297,7 +1306,7 @@ export class SyncRunner {
 			// pause stays on this device: backfill.json would stop that one too.
 			this.backfillPending = false;
 			new Notice(`Garmin: ${fatal.message}`, 15000);
-			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "update", task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		if (fatal !== undefined && ++this.unitFailures >= MAX_UNIT_FAILURES) {
@@ -1313,9 +1322,9 @@ export class SyncRunner {
 		if (fatal !== undefined) {
 			// Something else went wrong with the whole unit: try again in a while rather than at once.
 			const until = new Date(Date.now() + 10 * 60_000).toISOString();
-			await store.writeBackfill({ paused: { reason: "error", until } });
+			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "error", until }, progress: this.progressFrom(fresh, Date.now()) }));
 			this.backfillLater(10 * 60_000);
-			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.backfillDone, ...this.left(this.backfillTasks) });
+			this.setBackfill({ status: "paused", reason: "error", until, task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
 			return;
 		}
 		this.rateLimits = 0;
@@ -1324,12 +1333,17 @@ export class SyncRunner {
 		this.unitFailures = 0;
 		const left = this.backfillTasks;
 		const next = left[0];
+		// Paused while the unit ran: it finished, and the download stays paused.
+		if (this.userPaused) {
+			this.setBackfill({ status: "paused", reason: "user", task: next?.kind ?? task.kind, done: this.doneNow, ...this.left(left) });
+			return;
+		}
 		this.setBackfill(
 			left.length
 				? {
 						status: "running",
 						task: next?.kind ?? task.kind,
-						done: this.backfillDone,
+						done: this.doneNow,
 						...this.left(left),
 						...(next?.kind === "days" ? { reached: next.to } : {}),
 					}
@@ -1375,7 +1389,7 @@ export class SyncRunner {
 			const walks = tasks.filter((t): t is Extract<Task, { kind: "walk" }> => t.kind === "walk").slice(0, PACE.parallel);
 			const notBefore = await this.notBefore(store);
 			const segments = await Promise.all(
-				walks.map(async (walk) => ({ walk, got: await this.walkSegment(walk.store, store, { ...(notBefore ? { notBefore } : {}), emptyStreak: this.walkStreaks.get(walk.store) ?? 0, shouldStop: () => this.backfillStopped }) })),
+				walks.map(async (walk) => ({ walk, got: await this.walkSegment(walk.store, store, { ...(notBefore ? { notBefore } : {}), emptyStreak: this.walkStreaks.get(walk.store) ?? 0, shouldStop: this.unitShouldStop }) })),
 			);
 			let requests = 0;
 			let fatal: unknown;
@@ -1391,14 +1405,13 @@ export class SyncRunner {
 			return { requests, ...(fatal ? { fatal } : {}) };
 		}
 		if (task.kind === "details") {
-			const id = task.ids[0];
-			const load = await this.loadActivityFor(id, true);
-			const requests = detailUnit([id], this.backfillCtx!).requests;
-			if (load.fatal) return { requests, fatal: load.fatal };
-			task.ids.shift();
-			if (load.reason) this.backfillSkip.details.add(id);
+			const batch = detailBatch(task.ids, this.backfillCtx!);
+			const got = await this.downloadDetails(batch, store);
+			// What finished leaves the plan, the failures for the next session; what never started stays at its head.
+			for (const id of got.failed) this.backfillSkip.details.add(id);
+			task.ids = task.ids.filter((id) => !got.finished.has(id));
 			if (!task.ids.length) tasks.shift();
-			return { requests };
+			return { requests: detailUnit(batch, this.backfillCtx!).requests, ...(got.fatal !== undefined ? { fatal: got.fatal } : {}) };
 		}
 		const chunk = nextChunk(task, chunkDays(settings.groups));
 		const report = await this.chunkSync(store, chunk);
@@ -1406,9 +1419,66 @@ export class SyncRunner {
 		if (fatal) return { requests: report.requests, fatal };
 		// What came back incomplete is left for the next session.
 		for (const day of report.days) if (!day.full) this.backfillSkip.days.add(day.date);
-		if (chunk.from <= task.from) tasks.shift();
-		else task.to = shiftDay(chunk.from, -1);
+		// Cut short — a page or a sync waiting, Obsidian closing — the plan moves past only the days it reached.
+		const reached = report.stoppedEarly === "cancelled" ? report.days.reduce<string | undefined>((oldest, day) => (!oldest || day.date < oldest ? day.date : oldest), undefined) : chunk.from;
+		if (reached !== undefined) {
+			if (reached <= task.from) tasks.shift();
+			else task.to = shiftDay(reached, -1);
+		}
 		return { requests: report.requests };
+	}
+
+	/** Something waits for the runner: a page's load, or a sync. */
+	private get othersWaiting(): boolean {
+		return this.lock.waiting() > 0 || this.intradayJobs.size > 0 || this.activityJobs.size > 0;
+	}
+
+	/** Where a unit stops early: Obsidian closing, or something waiting for the runner, which then goes next. */
+	private readonly unitShouldStop = (): boolean => this.backfillStopped || this.othersWaiting;
+
+	/**
+	 * A batch of activities' pages, `PACE.parallel` at a time, the index read
+	 * once for their rows and their versions booked once in the coverage: two
+	 * loads booking at once would each lose the other's entry. Says which
+	 * finished, which of those failed, and the error that stops the download.
+	 */
+	private async downloadDetails(ids: readonly number[], store: VaultSeriesStore): Promise<{ finished: Set<number>; failed: Set<number>; fatal?: unknown }> {
+		const settings = this.settings();
+		const rows = new Map((await store.readActivities()).rows.map((row) => [row.id, row]));
+		const versions = new Map<number, number>();
+		const files: ActivityDetailStore = {
+			readActivityDetail: (id) => store.readActivityDetail(id),
+			writeActivityDetail: async (id, detail) => {
+				const outcome = await store.writeActivityDetailFile(id, detail);
+				versions.set(id, detail.version);
+				return outcome;
+			},
+		};
+		const finished = new Set<number>();
+		const failed = new Set<number>();
+		let fatal: unknown;
+		let next = 0;
+		const worker = async () => {
+			while (next < ids.length && fatal === undefined && !this.unitShouldStop()) {
+				const id = ids[next++];
+				const row = rows.get(id);
+				const load = await loadActivity(this.api, files, id, {
+					signedIn: this.api.isAuthenticated,
+					groups: settings.groups,
+					row: row ? { name: row.name, distance: row.distance, duration: row.duration } : null,
+				});
+				// A 429 or a dead session: this one is asked again, and nothing more starts.
+				if (load.fatal !== undefined) {
+					fatal ??= load.fatal;
+					continue;
+				}
+				finished.add(id);
+				if (load.reason) failed.add(id);
+			}
+		};
+		await Promise.all(Array.from({ length: Math.min(PACE.parallel, ids.length) }, worker));
+		await store.bookDetails(versions);
+		return { finished, failed, ...(fatal !== undefined ? { fatal } : {}) };
 	}
 
 	/** One segment of a chart index's walk, by its store name. */
@@ -1441,7 +1511,7 @@ export class SyncRunner {
 				activityRange: true,
 				intradayDays: spanDays(chunk.from, chunk.to),
 				parallelDays: PACE.parallel,
-				shouldStop: () => this.backfillStopped,
+				shouldStop: this.unitShouldStop,
 			}),
 		);
 		await this.recordDays(store, report);
@@ -1627,9 +1697,6 @@ function shiftDay(date: string, days: number): string {
 	return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
-function pauseFor(ms: number): Promise<void> {
-	return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
 
 /** An activity load as a page gets it: the queue's fatal error stays behind. */
 function withoutActivityFatal(load: ActivityLoad & { fatal?: unknown }): ActivityLoad {

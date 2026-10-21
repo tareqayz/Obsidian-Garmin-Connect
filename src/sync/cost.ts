@@ -117,9 +117,6 @@ export function detailRequests(profile: DetailProfile, power = false): number {
 /** A run saved by the version before every sport had a page: only what changed is asked again. */
 export const UPGRADE_REQUESTS = CHANGED_IN_6.length;
 
-/** The fixed pause before each activity the download fetches (`runner.ts`, `DOWNLOAD_PAUSE_MS`). */
-export const DETAIL_PAUSE_SECONDS = 2;
-
 /** The target length of a unit of the download, in seconds: a sync waiting behind one never waits longer. */
 export const UNIT_SECONDS = 10;
 
@@ -215,7 +212,7 @@ export function nextUnit(tasks: readonly Task[], ctx: CostContext): Unit | null 
 /**
  * The plan's units, taken as `runUnit` takes them: the activity list whole;
  * the walks `PACE.parallel` at a time, a segment each; Day details a chunk at
- * a time, newest first; one activity at a time.
+ * a time, newest first; activities a batch at a time (`detailBatch`).
  */
 function consume(tasks: readonly Task[], ctx: CostContext, limit: number): Unit[] {
 	const out: Unit[] = [];
@@ -253,8 +250,9 @@ function consume(tasks: readonly Task[], ctx: CostContext, limit: number): Unit[
 			if (chunk.from <= task.from) queue.shift();
 			else task.to = shiftDate(chunk.from, -1);
 		} else {
-			const id = task.ids.shift();
-			if (id !== undefined) out.push(detailUnit([id], ctx));
+			const ids = detailBatch(task.ids, ctx);
+			task.ids.splice(0, ids.length);
+			if (ids.length) out.push(detailUnit(ids, ctx));
 			if (!task.ids.length) queue.shift();
 		}
 	}
@@ -317,7 +315,11 @@ function dataChance(date: string, scan: AccountScan | null): number {
 	return 0;
 }
 
-/** Activities' pages: each by its profile, or two requests and no new bytes for a run an older version saved. */
+/**
+ * Activities' pages, `PACE.parallel` at a time: each by its profile, or two
+ * requests and no new bytes for a run an older version saved. An activity
+ * asks in two rounds, what the summary decides coming second.
+ */
 export function detailUnit(ids: readonly number[], ctx: CostContext): Extract<Unit, { kind: "details" }> {
 	let requests = 0;
 	let bytes = 0;
@@ -326,7 +328,15 @@ export function detailUnit(ids: readonly number[], ctx: CostContext): Extract<Un
 		requests += cost.requests;
 		bytes += cost.bytes;
 	}
-	return { kind: "details", ids: [...ids], requests, bytes, seconds: ids.length * (DETAIL_PAUSE_SECONDS + 2 * ctx.latency.batch) + ctx.latency.overhead };
+	const rounds = Math.ceil(ids.length / PACE.parallel) * 2;
+	return { kind: "details", ids: [...ids], requests, bytes, seconds: Math.max(requests / PACE.limits.rate, rounds * ctx.latency.batch) + ctx.latency.overhead };
+}
+
+/** The next activities to download together: as many from the head as fit in about `UNIT_SECONDS`, one at least. */
+export function detailBatch(ids: readonly number[], ctx: CostContext): number[] {
+	let n = 1;
+	while (n < ids.length && detailUnit(ids.slice(0, n + 1), ctx).seconds <= UNIT_SECONDS) n += 1;
+	return ids.slice(0, n);
 }
 
 function detailCost(id: number, ctx: CostContext): { requests: number; bytes: number } {

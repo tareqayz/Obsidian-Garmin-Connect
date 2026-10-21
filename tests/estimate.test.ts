@@ -45,10 +45,10 @@ describe("estimates — the measured vault, from scratch", () => {
 		assert.equal(formatBytes(got.bytes), "55 MB");
 	});
 
-	it("takes past an hour: one hour's 8,000 requests, then the activities left, a pause before each", () => {
+	it("takes about an hour: one hour's 8,000 requests, then the few minutes the rest take", () => {
 		assert.equal(got.requests, 10_631);
-		assert.equal(formatDuration(got.seconds), "about 1.5 hours");
-		assert.ok(got.seconds > 3_600, String(got.seconds));
+		assert.equal(formatDuration(got.seconds), "about 1 hour");
+		assert.ok(got.seconds > 3_600 && got.seconds < 3_600 + 15 * 60, String(got.seconds));
 	});
 });
 

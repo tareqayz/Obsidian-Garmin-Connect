@@ -182,6 +182,13 @@ describe("backfill.json", () => {
 		assert.deepEqual(parseBackfill(serializeBackfill(blocked)), blocked);
 	});
 
+	it("keeps the download's progress across a restart, and drops one that makes no sense", () => {
+		const state = { lease: { device: "mac", label: "Mac", heartbeat: "2026-10-14T05:59:00.000Z" }, progress: { done: 4_210, since: "2026-10-14T05:00:00.000Z" } };
+		assert.deepEqual(parseBackfill(serializeBackfill(state)), state);
+		assert.deepEqual(parseBackfill(JSON.stringify({ version: 1, progress: { done: -3, since: "x" } })), {});
+		assert.deepEqual(parseBackfill(JSON.stringify({ version: 1, progress: { done: "lots", since: "2026-10-14" } })), {});
+	});
+
 	it("leaves the backfill to another device while its lease is fresh, and takes over a stale one", () => {
 		const lease = (minutesAgo: number) => ({ lease: { device: "phone", label: "iPhone", heartbeat: new Date(now - minutesAgo * 60_000).toISOString() } });
 		assert.equal(heldElsewhere(lease(2), "mac", now)?.label, "iPhone");

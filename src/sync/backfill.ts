@@ -219,6 +219,12 @@ export interface BackfillState {
 	paused?: { reason: PauseReason; until?: string };
 	/** The device running it, and when it last finished a unit. */
 	lease?: Lease;
+	/**
+	 * Requests the download has spent since it started (`since`, ISO), kept
+	 * with the lease so its progress carries over a restart, or to another
+	 * device. An older build drops it on its next write: the bar starts over.
+	 */
+	progress?: { done: number; since: string };
 }
 
 export interface Lease {
@@ -238,7 +244,7 @@ export function serializeBackfill(state: BackfillState): string {
 
 export function parseBackfill(text: string): BackfillState {
 	try {
-		const raw = JSON.parse(text) as { version?: unknown; paused?: unknown; lease?: unknown };
+		const raw = JSON.parse(text) as { version?: unknown; paused?: unknown; lease?: unknown; progress?: unknown };
 		if (!raw || raw.version !== BACKFILL_FILE_VERSION) return {};
 		const out: BackfillState = {};
 		const paused = raw.paused as { reason?: unknown; until?: unknown } | undefined;
@@ -248,6 +254,10 @@ export function parseBackfill(text: string): BackfillState {
 		const lease = raw.lease as Partial<Lease> | undefined;
 		if (lease && typeof lease.device === "string" && typeof lease.label === "string" && typeof lease.heartbeat === "string") {
 			out.lease = { device: lease.device, label: lease.label, heartbeat: lease.heartbeat };
+		}
+		const progress = raw.progress as { done?: unknown; since?: unknown } | undefined;
+		if (progress && typeof progress.done === "number" && Number.isFinite(progress.done) && progress.done >= 0 && typeof progress.since === "string") {
+			out.progress = { done: Math.round(progress.done), since: progress.since };
 		}
 		return out;
 	} catch {

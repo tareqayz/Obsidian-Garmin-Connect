@@ -172,3 +172,31 @@ describe("VaultSeriesStore: conflict copies", () => {
 		assert.equal(notices.filter((text) => text.includes("conflict copy")).length, 1);
 	});
 });
+
+describe("VaultSeriesStore: backfill.json and the detail coverage", () => {
+	it("changes backfill.json from what it holds now, keeping what another device wrote", async () => {
+		const vault = new MemoryVault();
+		const store = new VaultSeriesStore(vault.asApp(), "Garmin/data");
+		await store.writeBackfill({ lease: { device: "mac", label: "Mac", heartbeat: "2026-10-14T06:00:00.000Z" } });
+		// Another device pauses it, then this one's heartbeat comes in.
+		await store.updateBackfill((state) => ({ ...state, paused: { reason: "user" } }));
+		await store.updateBackfill((state) => ({ ...state, progress: { done: 120, since: "2026-10-14T05:00:00.000Z" } }));
+		assert.deepEqual(await store.readBackfill(), {
+			paused: { reason: "user" },
+			lease: { device: "mac", label: "Mac", heartbeat: "2026-10-14T06:00:00.000Z" },
+			progress: { done: 120, since: "2026-10-14T05:00:00.000Z" },
+		});
+	});
+
+	it("books a batch of activities' versions in one write", async () => {
+		const vault = new MemoryVault();
+		const store = new VaultSeriesStore(vault.asApp(), "Garmin/data");
+		await store.bookDetails(new Map([[1, 6], [2, 6], [3, 5]]));
+		const writes = vault.writes.length;
+		assert.deepEqual([...(await store.readDetailCoverage())].sort(), [[1, 6], [2, 6], [3, 5]]);
+		// Nothing new to book: no write.
+		await store.bookDetails(new Map([[1, 6]]));
+		assert.equal(vault.writes.length, writes);
+	});
+});
+

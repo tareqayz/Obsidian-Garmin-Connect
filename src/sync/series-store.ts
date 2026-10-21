@@ -254,13 +254,27 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	/** Writes the activity's file and books its version in the coverage. */
 	async writeActivityDetail(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
-		const outcome = await this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
-		const files = await this.readDetailCoverage();
-		if (files.get(id) !== detail.version) {
-			files.set(id, detail.version);
-			await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
-		}
+		const outcome = await this.writeActivityDetailFile(id, detail);
+		await this.bookDetails(new Map([[id, detail.version]]));
 		return outcome;
+	}
+
+	/** The activity's file alone: a batch books its versions together (`bookDetails`). */
+	writeActivityDetailFile(id: number, detail: ActivityDetail): Promise<"written" | "unchanged"> {
+		return this.put(this.activityDetailPath(id), serializeActivityDetail(detail));
+	}
+
+	/** Books files' versions in the detail coverage: one read and one write, however many. */
+	async bookDetails(versions: ReadonlyMap<number, number>): Promise<void> {
+		if (!versions.size) return;
+		const files = await this.readDetailCoverage();
+		let changed = false;
+		for (const [id, version] of versions) {
+			if (files.get(id) === version) continue;
+			files.set(id, version);
+			changed = true;
+		}
+		if (changed) await this.put(this.detailCoveragePath, serializeDetailCoverage(files));
 	}
 
 	/** The activities with a detail file, by id, read from the folder's listing. */
@@ -367,6 +381,15 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	async writeBackfill(state: BackfillState): Promise<"written" | "unchanged"> {
 		return this.put(this.backfillPath, serializeBackfill(state));
+	}
+
+	/**
+	 * Changes backfill.json from what it holds now, read fresh: another device's
+	 * pause, lease or progress written meanwhile is kept, not overwritten by a
+	 * copy read a unit ago.
+	 */
+	async updateBackfill(change: (state: BackfillState) => BackfillState): Promise<"written" | "unchanged"> {
+		return this.writeBackfill(change(await this.readBackfill()));
 	}
 
 	/** The chart indexes' metas by store (`activities`, `daily-stats`, `sleep`, `index:<kind>`): what the backfill plans walks from. */
