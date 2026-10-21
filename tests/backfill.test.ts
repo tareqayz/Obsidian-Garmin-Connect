@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+	eraOf,
 	heldElsewhere,
 	LEASE_MS,
 	nextChunk,
@@ -72,6 +73,24 @@ describe("backfill plan", () => {
 		);
 		assert.deepEqual(tasks[4], { kind: "days", from: shiftDate(TODAY, -29), to: shiftDate(TODAY, -10) });
 		assert.deepEqual(tasks[5], { kind: "details", ids: [3, 2] });
+	});
+
+	it("takes recent history first: each era's days, then its activities, the last 90 days before the year before the rest", () => {
+		const activities = [
+			{ id: 30, date: "2026-10-01", run: true, profile: "run" as const },
+			{ id: 20, date: "2026-01-01", run: true, profile: "run" as const },
+			{ id: 10, date: "2025-01-01", run: false, profile: "pool" as const },
+		];
+		const tasks = planBackfill(input({ accepted: ["days@1", ACTIVITY_DETAILS_KEY], dayDetails: "all", activityDetails: "all", activities, scan: scan("2024-06-01") }));
+		assert.deepEqual(tasks, [
+			{ kind: "days", from: shiftDate(TODAY, -90), to: shiftDate(TODAY, -1) },
+			{ kind: "details", ids: [30] },
+			{ kind: "days", from: shiftDate(TODAY, -365), to: shiftDate(TODAY, -91) },
+			{ kind: "details", ids: [20] },
+			{ kind: "days", from: "2024-06-01", to: shiftDate(TODAY, -366) },
+			{ kind: "details", ids: [10] },
+		]);
+		assert.deepEqual([eraOf(shiftDate(TODAY, -90), TODAY), eraOf(shiftDate(TODAY, -91), TODAY), eraOf(shiftDate(TODAY, -366), TODAY)], [0, 1, 2]);
 	});
 
 	it("skips a chart index whose history is complete, and walks one that a version bump reset", () => {

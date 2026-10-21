@@ -100,6 +100,8 @@ export interface PlanInput {
 export function planBackfill(input: PlanInput): Task[] {
 	const tasks: Task[] = [];
 	const current = new Set(input.accepted);
+	/** Day details and activity details by era (`ERAS`), each era's days first: recent history arrives first. */
+	const eras: Task[][] = Array.from({ length: ERAS.length + 1 }, () => []);
 
 	for (const key of chartKeys(input.groups)) {
 		if (!current.has(key)) continue;
@@ -118,7 +120,9 @@ export function planBackfill(input: PlanInput): Task[] {
 			const range = { from, to: yesterday };
 			const wanted = [...gaps(input.daySpans, range), ...(daysAt >= DAY_DETAILS_VERSION ? stale(input.daySpans, range, DAY_DETAILS_VERSION) : [])];
 			const days = withData(wanted, input.scan).filter((d) => !input.skip?.days?.has(d));
-			for (const stretch of stretchesOf(days).reverse()) tasks.push({ kind: "days", ...stretch });
+			for (const stretch of stretchesOf(days).reverse()) {
+				for (const piece of splitAtEras(stretch, input.today)) eras[eraOf(piece.to, input.today)].push({ kind: "days", ...piece });
+			}
 		}
 	}
 
@@ -133,13 +137,44 @@ export function planBackfill(input: PlanInput): Task[] {
 				const held = input.detailFiles.get(id);
 				return held === undefined || (agreedAt >= ACTIVITY_DETAILS_VERSION && held !== ACTIVITY_DETAILS_VERSION);
 			};
-			const ids = input.activities
-				.filter((a) => a.date >= from && (a.run || !runsOnly) && due(a.id) && !input.skip?.details?.has(a.id))
-				.map((a) => a.id);
-			if (ids.length) tasks.push({ kind: "details", ids });
+			const byEra = eras.map((): number[] => []);
+			for (const a of input.activities) {
+				if (a.date >= from && (a.run || !runsOnly) && due(a.id) && !input.skip?.details?.has(a.id)) byEra[eraOf(a.date, input.today)].push(a.id);
+			}
+			byEra.forEach((ids, era) => {
+				if (ids.length) eras[era].push({ kind: "details", ids });
+			});
 		}
 	}
+	for (const era of eras) tasks.push(...era);
 	return tasks;
+}
+
+/**
+ * Recent history first: the history download takes the last 90 days' days
+ * and activities, then back to a year, then the rest. Days back from today.
+ */
+export const ERAS = [90, 365] as const;
+
+/** Which era a day falls in: 0 for the last 90 days, `ERAS.length` past the last. */
+export function eraOf(date: string, today: string): number {
+	const at = ERAS.findIndex((days) => date >= shiftDate(today, -days));
+	return at < 0 ? ERAS.length : at;
+}
+
+/** A stretch of days cut where it crosses from one era into the next, newest first. */
+function splitAtEras(range: DateRange, today: string): DateRange[] {
+	const out: DateRange[] = [];
+	let to = range.to;
+	while (to >= range.from) {
+		const era = eraOf(to, today);
+		// The era's oldest day, or the stretch's start if that comes first.
+		const eraStart = era < ERAS.length ? shiftDate(today, -ERAS[era]) : range.from;
+		const from = eraStart > range.from ? eraStart : range.from;
+		out.push({ from, to });
+		to = shiftDate(from, -1);
+	}
+	return out;
 }
 
 /** The newest version of a store agreed to, if any. */

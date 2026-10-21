@@ -32,8 +32,9 @@ describe("estimates — the measured vault, from scratch", () => {
 	const got = estimate(input(MEASURED));
 
 	it("asks what the download asks: the charts, 445 days, 344 activities", () => {
-		// The list (5) and every walk; the days through yesterday, 15 each and 6 a chunk; each activity by its sport.
-		assert.deepEqual([set(got, "charts").requests, set(got, "day-details").units, set(got, "day-details").requests], [248, 445, 445 * 15 + 35 * 6]);
+		// The list (5) and every walk; the days through yesterday, 15 each and 6 a chunk (36: the chunks are
+		// cut where the last 90 days and the year before meet); each activity by its sport.
+		assert.deepEqual([set(got, "charts").requests, set(got, "day-details").units, set(got, "day-details").requests], [248, 445, 445 * 15 + 36 * 6]);
 		assert.deepEqual([set(got, "activity-details").units, set(got, "activity-details").requests], [344, 3_498]);
 	});
 
@@ -46,7 +47,7 @@ describe("estimates — the measured vault, from scratch", () => {
 	});
 
 	it("takes about an hour: one hour's 8,000 requests, then the few minutes the rest take", () => {
-		assert.equal(got.requests, 10_631);
+		assert.equal(got.requests, 10_637);
 		assert.equal(formatDuration(got.seconds), "about 1 hour");
 		assert.ok(got.seconds > 3_600 && got.seconds < 3_600 + 15 * 60, String(got.seconds));
 	});
@@ -94,7 +95,7 @@ describe("estimates — choices and what the vault holds", () => {
 		// Agreed already: nothing to add.
 		assert.equal(estimateDelta(base, [DAY_DETAILS_KEY]).requests, 0);
 		const both = estimateDelta(input(MEASURED, { accepted: [] }), [DAY_DETAILS_KEY, ACTIVITY_DETAILS_KEY]);
-		assert.equal(both.requests, 445 * 15 + 35 * 6 + 3_498);
+		assert.equal(both.requests, 445 * 15 + 36 * 6 + 3_498);
 	});
 });
 
