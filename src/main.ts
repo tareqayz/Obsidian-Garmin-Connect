@@ -14,7 +14,6 @@ import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
-import { DAY_INDEXES } from "./sync/day-indexes";
 import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { AUTO_SYNC_KEY, AutoSync, parseLocal } from "./sync/auto-sync";
@@ -150,33 +149,13 @@ export default class GarminPlugin extends Plugin {
 			name: "Sync recent days",
 			callback: () => void this.sync.syncRecent("command"),
 		});
-		this.addCommand({
-			id: "sync-today",
-			name: "Sync today",
-			callback: () => void this.sync.syncToday(),
-		});
+		// The id from when it was "Sync activity history", so a hotkey bound to it still works. The only way
+		// to list again activities past the newest few a sync sees: one edited long ago, say.
 		this.addCommand({
 			id: "sync-activity-history",
-			name: "Sync activity history",
+			name: "Refresh the activity list",
 			callback: () => void this.sync.syncActivityHistory(),
 		});
-		this.addCommand({
-			id: "sync-daily-stats-history",
-			name: "Sync step, floor and intensity history",
-			callback: () => void this.sync.syncDailyStatsHistory(),
-		});
-		this.addCommand({
-			id: "sync-sleep-history",
-			name: "Sync sleep history",
-			callback: () => void this.sync.syncSleepHistory(),
-		});
-		for (const def of DAY_INDEXES) {
-			this.addCommand({
-				id: `sync-${def.kind}-history`,
-				name: `Sync ${def.title} history`,
-				callback: () => void this.sync.syncIndexHistory(def.kind),
-			});
-		}
 		this.addCommand({
 			id: "sync-range",
 			name: "Sync a date range…",

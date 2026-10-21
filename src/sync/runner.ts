@@ -380,11 +380,6 @@ export class SyncRunner {
 		};
 	}
 
-	syncToday(log?: Log): Promise<SyncOutcome | null> {
-		const today = toIsoDate();
-		return this.run(today, today, log);
-	}
-
 	/** The history sync in progress, or null. */
 	get historyProgress(): HistoryProgress | null {
 		return this.historyState;
