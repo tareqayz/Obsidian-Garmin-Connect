@@ -11,6 +11,7 @@ import { shiftDate } from "../src/sync/day-index";
 import { DAY_INDEXES } from "../src/sync/day-indexes";
 import { fetchDailyStatsHistory, fetchSleepHistory, walkHistory } from "../src/sync/engine";
 import { estimate } from "../src/sync/estimate";
+import { MISSES_TO_LEARN } from "../src/sync/horizons";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { PACE } from "../src/sync/pace";
 import { BUDGET_KEY, SyncRunner } from "../src/sync/runner";
@@ -47,7 +48,7 @@ interface Snapshot {
 	seconds?: number;
 }
 
-async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[]; weighIns: string[]; verdicts: Record<string, unknown> }> {
+async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[]; weighIns: string[]; verdicts: Record<string, unknown>; horizon: number | null | undefined }> {
 	const clock = new VirtualClock(Date.now());
 	clock.install();
 	try {
@@ -120,8 +121,9 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		const lookups = http.asked.filter((url) => url.includes("/socialProfile")).length;
 		// The days a weigh-in was asked for: the route takes the day in its path.
 		const weighIns = http.asked.map((url) => /\/weight-service\/weight\/dayview\/(\d{4}-\d{2}-\d{2})/.exec(url)?.[1]).filter((d): d is string => !!d);
-		const verdicts = (await store.readScan())?.learned?.masks ?? {};
-		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots, weighIns, verdicts };
+		const learned = (await store.readScan())?.learned;
+		const verdicts = learned?.masks ?? {};
+		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots, weighIns, verdicts, horizon: learned?.horizon?.days };
 	} finally {
 		clock.uninstall();
 	}
@@ -158,6 +160,16 @@ describe("a simulated download against its estimate", () => {
 		assert.ok(got.weighIns.includes(shiftDate(today, -40)));
 		// The estimate reckoned the mask trusted from the start: the check is the difference.
 		assert.equal(got.requests - got.predicted.requests, got.weighIns.length - weighIns.length);
+	});
+
+	it("learns Garmin's horizon: after a few days past it come back without timelines, it stops asking them", async () => {
+		const got = await simulate({ days: 240, activities: { run: 5 }, accepted: [DAY_DETAILS_KEY], dayDetails: "all", activityDetails: "opened" });
+		// The fake keeps 140 days, as Garmin was seen to.
+		assert.equal(got.horizon, 140);
+		// The estimate reckoned with the horizon from the start: learning it costs the misses that showed it,
+		// the rest of their chunk, and one day asked again to check it.
+		const extra = got.requests - got.predicted.requests;
+		assert.ok(extra >= (MISSES_TO_LEARN + 1) * 4 && extra <= (MISSES_TO_LEARN + 13 + 1) * 4, String(extra));
 	});
 
 	it("learns the download's own pace: halfway, the time left is within 10%", async () => {

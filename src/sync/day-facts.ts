@@ -58,6 +58,12 @@ export interface Masks {
 	facts: DayFacts;
 	spans: FactSpans;
 	verdicts: MaskVerdicts;
+	/**
+	 * How many days back Garmin keeps a day's four fine-grained timelines
+	 * (`horizons.ts`): learned, null once it served one past it, undefined
+	 * until learned.
+	 */
+	horizon?: number | null;
 }
 
 /** Where every one of a route's stores has walked: the latest start and the earliest end. */

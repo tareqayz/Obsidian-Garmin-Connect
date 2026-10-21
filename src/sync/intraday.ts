@@ -272,8 +272,9 @@ export function mapSeries(payloads: IntradayPayloads): DaySeries {
 		if (points.length) out.intensity = points;
 	}
 
-	// Only beside something that is charted against it.
-	const dayStart = epochOf(payloads.floors?.startTimestampGMT ?? payloads.intensity?.startTimestampGMT);
+	// Only beside something that is charted against it. Past the horizon only
+	// the steps chart is asked, whose first bucket starts the day.
+	const dayStart = epochOf(payloads.floors?.startTimestampGMT ?? payloads.intensity?.startTimestampGMT) ?? out.steps?.[0]?.start;
 	if (dayStart !== undefined && (out.steps || out.floors || out.intensity)) out.dayStart = dayStart;
 
 	const levels: SleepLevel[] = [];

@@ -1,6 +1,9 @@
 import { buildUrl, type HttpClient, type HttpRequest, type HttpResponse } from "../../src/http";
 import type { DetailCandidate } from "../../src/sync/backfill";
 import type { DetailProfile } from "../../src/sync/cost";
+import { toIsoDate } from "../../src/garmin/endpoints";
+import { shiftDate } from "../../src/sync/day-index";
+import { ASSUMED_HORIZON_DAYS } from "../../src/sync/horizons";
 import type { VirtualClock } from "./virtual-clock";
 
 /**
@@ -8,7 +11,9 @@ import type { VirtualClock } from "./virtual-clock";
  * after `latency` ms. The account's activities are listed and counted, and
  * each one's summary says what its page goes on to ask, by its profile (a
  * track, power, a watch); every other route answers with nothing, which costs
- * the same requests and the same time as an answer would.
+ * the same requests and the same time as an answer would. Past Garmin's
+ * horizon (`ASSUMED_HORIZON_DAYS`), a day's stress, heart rate, floors and
+ * intensity answer with totals and no points, as Garmin's do.
  */
 export class FakeGarmin implements HttpClient {
 	/** Requests answered, by route, the token refresh left out. */
@@ -42,7 +47,16 @@ export class FakeGarmin implements HttpClient {
 			const start = Number(query.start ?? 0);
 			return listed.slice(start, start + Number(query.limit ?? 20)).map(listRow);
 		}
-		const summary = /\/activity-service\/activity\/(\d+)$/.exec(url.split("?")[0]!);
+		const old = (date: string | undefined) => !!date && date < shiftDate(toIsoDate(new Date(this.clock.now())), -ASSUMED_HORIZON_DAYS);
+		const path = url.split("?")[0]!;
+		const day = /\/wellness-service\/wellness\/(dailyStress|floorsChartData\/daily|daily\/im)\/(\d{4}-\d{2}-\d{2})$/.exec(path);
+		if (day && old(day[2])) {
+			if (day[1] === "dailyStress") return { calendarDate: day[2], avgStressLevel: 30, maxStressLevel: 90, stressValuesArray: [] };
+			if (day[1] === "daily/im") return { calendarDate: day[2], startDayMinutes: 40, endDayMinutes: 70, imValuesArray: null };
+			return { floorValuesArray: [] };
+		}
+		if (path.includes("/wellness-service/wellness/dailyHeartRate/") && old(query.date)) return { calendarDate: query.date, restingHeartRate: 52, maxHeartRate: 150, heartRateValues: null };
+		const summary = /\/activity-service\/activity\/(\d+)$/.exec(path);
 		if (summary) {
 			const activity = this.byId.get(Number(summary[1]));
 			return activity ? summaryOf(activity) : null;

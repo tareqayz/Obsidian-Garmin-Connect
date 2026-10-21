@@ -62,7 +62,9 @@ import {
 	type DetailCoverage,
 	type Span,
 } from "./coverage";
-import { parseScan, serializeScan, type AccountScan } from "./scan";
+import { parseScan, serializeScan, type AccountScan, type Learned } from "./scan";
+import { parseHorizon } from "./horizons";
+import { DAY_DETAILS_VERSION } from "./datasets";
 import { factSpan, factStores, type DayFacts, type FactSpans, type Masks, type MaskVerdicts } from "./day-facts";
 import type { MetricGroup } from "./metrics";
 import { parseBackfill, serializeBackfill, type BackfillState, type ChartMeta } from "./backfill";
@@ -346,13 +348,22 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	}
 
 	/** Saves the masks' verdicts in scan.json, keeping the rest of it. Nothing without a scan. */
-	async writeVerdicts(masks: MaskVerdicts): Promise<void> {
+	writeVerdicts(masks: MaskVerdicts): Promise<void> {
+		return this.writeLearned({ masks });
+	}
+
+	/** Saves the timelines' horizon in scan.json (`horizons.ts`). */
+	writeHorizon(days: number | null): Promise<void> {
+		return this.writeLearned({ horizon: { days, version: DAY_DETAILS_VERSION } });
+	}
+
+	private async writeLearned(change: Learned): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(this.scanPath);
 		if (!(file instanceof TFile)) return;
 		const text = await this.app.vault.read(file);
 		const scan = parseScan(text);
 		if (!scan) return;
-		await this.put(this.scanPath, serializeScan({ ...scan, learned: { ...scan.learned, masks } }), text);
+		await this.put(this.scanPath, serializeScan({ ...scan, learned: { ...scan.learned, ...change } }), text);
 	}
 
 	/**
@@ -368,7 +379,8 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 			facts[route] = days;
 			spans[route] = factSpan(stores, charts);
 		}
-		return { facts, spans, verdicts: scan?.learned?.masks ?? {} };
+		const horizon = parseHorizon(scan?.learned?.horizon, DAY_DETAILS_VERSION);
+		return { facts, spans, verdicts: scan?.learned?.masks ?? {}, ...(horizon !== undefined ? { horizon } : {}) };
 	}
 
 	/**

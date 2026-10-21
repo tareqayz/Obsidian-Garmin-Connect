@@ -38,6 +38,7 @@ import { failedOutcome, isOffline, outcomeOf, outcomeText, type SyncOutcome, typ
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
+import { cutOf, learn, type HorizonStreak, type TimelineVerdict } from "./horizons";
 import { auditedRoutes, MASK_STORES, PREPARED_STORES, skippedRoutes, tally, type MaskRoute, type Masks } from "./day-facts";
 import { asObserved, chunkDays, costContext, detailBatch, detailUnit, nextUnit, observe, timeFor, unitsOf, type CostContext, type Observed } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
@@ -170,6 +171,10 @@ export class SyncRunner {
 	private backfillCtx: CostContext | null = null;
 	/** What the complete indexes say about each day, and this account's verdicts: what a chunk of days leaves out (`day-facts.ts`). */
 	private backfillMasks: Masks | null = null;
+	/** The run of days whose timelines came back empty, across chunks (`horizons.ts`). */
+	private horizonStreak: HorizonStreak = { misses: 0 };
+	/** A day past the horizon asked its timelines this session, to see whether Garmin keeps them again. */
+	private horizonChecked = false;
 	/** Whether the plan may have work: the drain asks for a unit only then. */
 	private backfillPending = false;
 	/** Days and activities that failed this session, and walks that kept failing: left for the next. */
@@ -1704,6 +1709,10 @@ export class SyncRunner {
 		const masks = this.backfillMasks;
 		// The masked routes asked anyway, to check them, and what came back.
 		const heard: Array<{ route: MaskRoute; empty: boolean }> = [];
+		// What each day's four timelines said, newest first, for the horizon.
+		const timelines: Array<[string, TimelineVerdict]> = [];
+		const today = toIsoDate();
+		const cut = masks ? cutOf(masks.horizon, today) : null;
 		const report = await syncDays(days, () =>
 			syncRange(this.api, days, {
 				from: chunk.from,
@@ -1723,12 +1732,32 @@ export class SyncRunner {
 								skip: (date: string) => skippedRoutes(date, masks),
 								audit: (date: string) => auditedRoutes(date, masks),
 								heard: (route: MaskRoute, empty: boolean) => void heard.push({ route, empty }),
+								pastHorizon: (date: string) => {
+									if (cut === null || date > cut) return false;
+									// Once a session, one such day asks them all: Garmin may keep them again.
+									if (this.horizonChecked) return true;
+									this.horizonChecked = true;
+									return false;
+								},
+								heardTimelines: (date: string, verdict: TimelineVerdict) => void timelines.push([date, verdict]),
 							},
 						}
 					: {}),
 			}),
 		);
 		await this.recordDays(store, report);
+		if (masks && timelines.length) {
+			const learned = learn(masks.horizon, this.horizonStreak, timelines, today);
+			this.horizonStreak = learned.streak;
+			if (learned.horizon !== masks.horizon) {
+				masks.horizon = learned.horizon;
+				try {
+					if (learned.horizon !== undefined) await store.writeHorizon(learned.horizon);
+				} catch {
+					// Kept for this session; learned again in the next.
+				}
+			}
+		}
 		if (masks && heard.length) {
 			const verdicts = tally(masks.verdicts, heard);
 			if (JSON.stringify(verdicts) !== JSON.stringify(masks.verdicts)) {

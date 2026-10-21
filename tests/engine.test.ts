@@ -1639,4 +1639,33 @@ describe("syncRange — the history download's masks", () => {
 		// A masked day is as whole as one that asked everything.
 		assert.equal(report.days.find((d) => d.date === "2026-09-11")?.full, report.days.find((d) => d.date === "2026-09-10")?.full);
 	});
+
+	it("asks a day past the timelines' horizon for its steps chart and Body Battery's events alone, and hears the others", async () => {
+		const source = new FakeSource();
+		const target = new FakeTarget(new Set(["2026-09-10", "2026-09-11", "2026-09-12"]));
+		const heard: string[] = [];
+		const report = await syncRange(
+			source,
+			target,
+			options({
+				groups: ALL_GROUPS,
+				series: new FakeSeries(),
+				intradayDays: 3,
+				masks: {
+					skip: () => new Set(),
+					audit: () => new Set(),
+					heard: () => {},
+					pastHorizon: (date) => date === "2026-09-10",
+					heardTimelines: (date, verdict) => void heard.push(`${date} ${verdict}`),
+				},
+			}),
+		);
+		const on = (date: string) => source.calls.filter((c) => c.endsWith(`:${date}`)).map((c) => c.split(":")[0]);
+		assert.ok(on("2026-09-10").includes("stepsChart") && on("2026-09-10").includes("bodyBatteryEvents"));
+		for (const route of ["stress", "heartRate", "floorsChart", "intensityMinutesChart"]) assert.ok(!on("2026-09-10").includes(route), route);
+		assert.ok(on("2026-09-11").includes("stress"));
+		// The fake serves points: the two days that asked them say so, newest first.
+		assert.deepEqual(heard, ["2026-09-12 served", "2026-09-11 served"]);
+		assert.ok(report.days.find((d) => d.date === "2026-09-10")?.full);
+	});
 });

@@ -21,7 +21,9 @@ import {
 	type CostContext,
 	type Unit,
 } from "../src/sync/cost";
+import { shiftDate } from "../src/sync/day-index";
 import { DAY_INDEXES } from "../src/sync/day-indexes";
+import { ASSUMED_HORIZON_DAYS } from "../src/sync/horizons";
 import { ALL_GROUPS } from "../src/sync/metrics";
 import { MEASURED } from "./support/account-fixture";
 
@@ -161,7 +163,7 @@ describe("cost — the time left, from the download's own pace", () => {
 
 describe("a masked day's cost", () => {
 	it("leaves out the routes the facts say are empty, and the summary's timelines with it, unless the mask was turned off", () => {
-		const date = "2026-03-02";
+		const date = shiftDate(MEASURED.today, -10);
 		const facts = { body: new Set<string>(), summary: new Set<string>() };
 		assert.equal(requestsOn(date, ctx()), 15);
 		assert.equal(requestsOn(date, ctx({ masks: { facts, spans: {}, verdicts: {} } })), 15 - 1 - 1 - 6);
@@ -171,11 +173,23 @@ describe("a masked day's cost", () => {
 	});
 
 	it("prices a chunk by its days' own routes, and a day the summary shows empty as an empty day", () => {
-		const facts = { summary: new Set(["2026-03-02"]) };
-		const unit = dayUnit("2026-03-01", "2026-03-02", ctx({ masks: { facts, spans: {}, verdicts: {} } }));
-		const plain = dayUnit("2026-03-01", "2026-03-02", ctx());
+		const [from, to] = [shiftDate(MEASURED.today, -11), shiftDate(MEASURED.today, -10)];
+		const facts = { summary: new Set([to]) };
+		const unit = dayUnit(from, to, ctx({ masks: { facts, spans: {}, verdicts: {} } }));
+		const plain = dayUnit(from, to, ctx());
 		assert.equal(plain.requests - unit.requests, 7);
 		assert.ok(unit.bytes < plain.bytes);
+	});
+});
+
+describe("the timelines' horizon in the cost", () => {
+	it("asks two timelines on a day past it — the assumed one until learned, none once Garmin served past it", () => {
+		const recent = shiftDate(MEASURED.today, -ASSUMED_HORIZON_DAYS);
+		const old = shiftDate(MEASURED.today, -(ASSUMED_HORIZON_DAYS + 1));
+		assert.equal(requestsOn(recent, ctx()), 15);
+		assert.equal(requestsOn(old, ctx()), 11);
+		assert.equal(requestsOn(old, ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: null } })), 15);
+		assert.equal(requestsOn(shiftDate(MEASURED.today, -60), ctx({ masks: { facts: {}, spans: {}, verdicts: {}, horizon: 50 } })), 11);
 	});
 });
 

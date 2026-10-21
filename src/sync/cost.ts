@@ -2,6 +2,7 @@ import { CHANGED_IN_6, UPGRADED_VERSION } from "./activity-detail";
 import { nextChunk, RequestBudget, type BudgetOutlook, type ChartMeta, type DetailCandidate, type Task } from "./backfill";
 import { emptyRoutes, plannedSkips, type MaskRoute, type Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
+import { HORIZON_JOBS, plannedCut } from "./horizons";
 import { DAY_INDEXES } from "./day-indexes";
 import { endpointsFor, type MetricGroup } from "./metrics";
 import { HOURLY_BUDGET, LATENCY, PACE, secondsPerDay, type Latency } from "./pace";
@@ -33,7 +34,7 @@ export interface SizeModel {
 	emptyDay: number;
 	/** A day's series file with every timeline. */
 	timelines: number;
-	/** A series file past the days Garmin keeps timelines for (`TIMELINE_DAYS`): the steps, Body Battery's events and the night. */
+	/** A series file past the timelines' horizon (`horizons.ts`): the steps, Body Battery's events and the night. */
 	oldTimelines: number;
 	/** A row on the activity list. */
 	activityRow: number;
@@ -49,13 +50,6 @@ export const MEASURED_SIZES: SizeModel = {
 	activityRow: 356,
 	details: { run: 158_600, indoorRun: 102_200, ride: 200_600, gpsOther: 75_500, pool: 34_700, gym: 10_400, other: 121_400 },
 };
-
-/**
- * Days back Garmin still serves a day's stress, heart rate, floors and
- * intensity timelines: older days answer with the day's averages and an empty
- * timeline. Measured 2026-10-21 (Mar 1 and May 31 empty, Jun 1 on served).
- */
-export const TIMELINE_DAYS = 140;
 
 /**
  * Bytes a day of history adds to each chart index: its files' bytes over the
@@ -315,7 +309,10 @@ export function requestsOn(date: string, ctx: CostContext): number {
 		w.fitnessAge,
 		w.health && !skip.has("health"),
 	].filter(Boolean).length;
-	return routes + (w.intraday && !skip.has("summary") ? 6 : 0);
+	if (!w.intraday || skip.has("summary")) return routes;
+	// Past the horizon, Garmin keeps only the steps chart and Body Battery's events.
+	const cut = plannedCut(ctx.masks?.horizon, ctx.today);
+	return routes + (cut !== null && date <= cut ? 6 - HORIZON_JOBS.length : 6);
 }
 
 const NONE: ReadonlySet<MaskRoute> = new Set();
@@ -329,7 +326,8 @@ function dayBytes(date: string, ctx: CostContext): number {
 	const masked = ctx.masks ? emptyRoutes(date, ctx.masks.facts, ctx.masks.spans) : NONE;
 	const known = ctx.masks?.facts.summary !== undefined && (masked.has("summary") || ctx.masks.facts.summary.has(date));
 	const p = known ? (masked.has("summary") ? 0 : 1) : dataChance(date, ctx.scan);
-	const timelines = ctx.groups.includes("intraday") ? (date >= shiftDate(ctx.today, -TIMELINE_DAYS) ? sizes.timelines : sizes.oldTimelines) : 0;
+	const cut = plannedCut(ctx.masks?.horizon, ctx.today);
+	const timelines = ctx.groups.includes("intraday") ? (cut !== null && date <= cut ? sizes.oldTimelines : sizes.timelines) : 0;
 	return p * (sizes.dayFile + timelines) + (1 - p) * sizes.emptyDay;
 }
 

@@ -28,6 +28,7 @@ import { GarminRateLimitError } from "../garmin/errors";
 import { NewerDataError } from "./file-health";
 import { isFatal } from "./fatal";
 import { routeEmpty, type MaskRoute } from "./day-facts";
+import { timelineVerdict, type TimelineVerdict } from "./horizons";
 import { rowOf, type ActivityRow } from "./activity-index";
 import { silentLog, type Log } from "../log";
 import { rowFromSummary, rowsFromRanges, type DailyStatsBatch, type DailyStatsRow } from "./daily-stats";
@@ -486,7 +487,8 @@ export async function syncRange(
 		let pending = fetching.get(index);
 		if (!pending) {
 			const skip = opts.masks?.skip(due[index]) ?? NO_ROUTES;
-			pending = fetchDay(source, due[index], withoutRoutes({ ...wanted, intraday: withSeries && index < intradayDays }, skip), skip);
+			const old = opts.masks?.pastHorizon?.(due[index]) ?? false;
+			pending = fetchDay(source, due[index], withoutRoutes({ ...wanted, intraday: withSeries && index < intradayDays }, skip), skip, old);
 			fetching.set(index, pending);
 		}
 		return pending;
@@ -639,6 +641,13 @@ export async function syncRange(
 			if (stats) await feedDailyStats(source, stats, opts.from, opts.to, report, log, false);
 			for (const run of runs) if (!early.has(run)) await feed(run, false);
 			return stopNow(fetched.fatal);
+		}
+		if (opts.masks?.heardTimelines && fetched.intradayFetched && !fetched.pastHorizon) {
+			try {
+				opts.masks.heardTimelines(date, timelineVerdict(fetched.intraday, fetched.data.summary));
+			} catch {
+				// An answer the mappers can't read says nothing of the horizon.
+			}
 		}
 		if (opts.masks) {
 			// A masked route asked anyway, to check the mask: did it come back empty?
@@ -1410,6 +1419,8 @@ interface DayFetch {
 	intradayFetched: boolean;
 	/** The routes the masks left out: known empty, not asked. */
 	masked: ReadonlySet<MaskRoute>;
+	/** Past the horizon: the four timelines Garmin no longer keeps weren't asked. */
+	pastHorizon: boolean;
 	/** Set when the sync must abandon the whole range, not just this day. */
 	fatal?: unknown;
 }
@@ -1419,6 +1430,10 @@ export interface DayMasks {
 	skip(date: string): ReadonlySet<MaskRoute>;
 	audit(date: string): ReadonlySet<MaskRoute>;
 	heard(route: MaskRoute, empty: boolean): void;
+	/** A day past the timelines' horizon: its four fine-grained timelines aren't asked (`horizons.ts`). */
+	pastHorizon?(date: string): boolean;
+	/** What a day's four timelines said, for a day that asked them. */
+	heardTimelines?(date: string, verdict: TimelineVerdict): void;
 }
 
 const NO_ROUTES: ReadonlySet<MaskRoute> = new Set();
@@ -1446,6 +1461,7 @@ async function fetchDay(
 	date: string,
 	wanted: ReturnType<typeof endpointsFor>,
 	masked: ReadonlySet<MaskRoute> = NO_ROUTES,
+	pastHorizon = false,
 ): Promise<DayFetch> {
 	const jobs: Array<{ name: keyof DayData | IntradayJob; run: () => Promise<unknown> }> = [];
 	if (wanted.summary) jobs.push({ name: "summary", run: () => source.dailySummary(date) });
@@ -1458,11 +1474,16 @@ async function fetchDay(
 	if (wanted.fitnessAge) jobs.push({ name: "fitnessAge", run: () => source.fitnessAge(date) });
 	if (wanted.health) jobs.push({ name: "health", run: () => source.healthStatus(date) });
 	if (wanted.intraday) {
-		jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
-		jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
+		// Past the horizon Garmin answers these four with totals and no points (`horizons.ts`).
+		if (!pastHorizon) {
+			jobs.push({ name: "intraday.stress", run: () => source.stress(date) });
+			jobs.push({ name: "intraday.heartRate", run: () => source.heartRate(date) });
+		}
 		jobs.push({ name: "intraday.steps", run: () => source.stepsChart(date) });
-		jobs.push({ name: "intraday.floors", run: () => source.floorsChart(date) });
-		jobs.push({ name: "intraday.intensity", run: () => source.intensityMinutesChart(date) });
+		if (!pastHorizon) {
+			jobs.push({ name: "intraday.floors", run: () => source.floorsChart(date) });
+			jobs.push({ name: "intraday.intensity", run: () => source.intensityMinutesChart(date) });
+		}
 		jobs.push({ name: "intraday.bodyBatteryEvents", run: () => source.bodyBatteryEvents(date) });
 	}
 
@@ -1477,6 +1498,7 @@ async function fetchDay(
 		ok: new Set(),
 		intradayFetched: Boolean(wanted.intraday),
 		masked,
+		pastHorizon: pastHorizon && Boolean(wanted.intraday),
 	};
 	settled.forEach((result, i) => {
 		const name = jobs[i].name;
