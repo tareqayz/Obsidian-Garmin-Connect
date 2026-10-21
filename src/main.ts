@@ -316,7 +316,7 @@ export default class GarminPlugin extends Plugin {
 			const total = progress.done + progress.remaining;
 			const percent = total > 0 ? Math.min(99, Math.round((progress.done / total) * 100)) : 0;
 			const text =
-				progress.status === "running"
+				progress.status === "running" || progress.status === "waiting"
 					? `Garmin · history ${percent}%`
 					: progress.status === "elsewhere"
 						? `Garmin · downloading on ${progress.device ?? "another device"}`

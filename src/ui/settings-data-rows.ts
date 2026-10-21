@@ -111,7 +111,7 @@ export class SettingsDataRows {
 		const size = `${formatBytes(this.usage.total)} in ${this.plugin.data.settings.dataFolder}`;
 		const p = this.progress;
 		if (!p) return `${size}.`;
-		if (p.status === "running") return `${size} · downloading, ${this.percent}%.`;
+		if (p.status === "running" || p.status === "waiting") return `${size} · downloading, ${this.percent}%.`;
 		if (p.status === "elsewhere") return `${size} · downloading on ${p.device ?? "another device"}.`;
 		return `${size} · download paused.`;
 	}
@@ -149,7 +149,8 @@ export class SettingsDataRows {
 		if (p.status === "paused" && p.reason === "blocked") return `Garmin's bot check refused this device · trying again at ${until}`;
 		if (p.status === "paused" && p.reason === "update") return "Another device runs a newer version of the plugin. Update it here to keep downloading.";
 		if (p.status === "paused") return `Something went wrong · trying again at ${until}`;
-		if (p.status === "waiting") return `Resting under the hourly limit · resumes at ${until}`;
+		// The hourly rest is part of the download's pace, not a stop.
+		if (p.status === "waiting") return `Downloading ${what}${reached} · ${percent}% · continues at ${until}`;
 		if (p.status === "elsewhere") return `Downloading on ${p.device ?? "another device"}. This device leaves it to that one.`;
 		return `Downloading ${what}${reached} · ${percent}% · ${formatDuration(p.seconds ?? 0)} left`;
 	}
