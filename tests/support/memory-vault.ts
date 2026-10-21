@@ -1,10 +1,13 @@
 import type { App } from "obsidian";
 import { TAbstractFile, TFile, TFolder, normalizePath } from "./obsidian";
 
+/** Every write anywhere moves this on, so a file's `stat.mtime` never repeats, as a clock's wouldn't. */
+let clock = 0;
+
 /**
  * A vault in memory, for the code that reads and writes files through
  * `app.vault`: the folders and files as Obsidian's own objects, and the few
- * methods the plugin calls.
+ * methods the plugin calls. A write updates the file's `stat` as Obsidian does.
  */
 export class MemoryVault {
 	readonly root: TFolder;
@@ -43,6 +46,7 @@ export class MemoryVault {
 	async modify(file: TFile, text: string): Promise<void> {
 		this.textOf(file);
 		this.texts.set(file.path, text);
+		this.stamp(file, text);
 		this.writes.push(file.path);
 	}
 
@@ -58,6 +62,7 @@ export class MemoryVault {
 		const file = new TFile();
 		this.place(file, at);
 		this.texts.set(at, text);
+		this.stamp(file, text);
 		this.writes.push(at);
 		return file;
 	}
@@ -90,11 +95,13 @@ export class MemoryVault {
 		const existing = this.entries.get(at);
 		if (existing instanceof TFile) {
 			this.texts.set(at, text);
+			this.stamp(existing, text);
 			return;
 		}
 		const file = new TFile();
 		this.place(file, at);
 		this.texts.set(at, text);
+		this.stamp(file, text);
 	}
 
 	/** A file's text, or undefined when there is no file. */
@@ -111,6 +118,10 @@ export class MemoryVault {
 	/** This vault as `app` holds it. */
 	asApp(): App {
 		return { vault: this } as unknown as App;
+	}
+
+	private stamp(file: TFile, text: string): void {
+		file.stat = { ...file.stat, mtime: ++clock, size: text.length };
 	}
 
 	private textOf(file: TFile): string {

@@ -213,3 +213,61 @@ describe("VaultSeriesStore: what a sync reads", () => {
 	});
 });
 
+
+describe("VaultSeriesStore: a merge reads the years it changes", () => {
+	const reads = (vault: MemoryVault, from: number, folder: string) => vault.reads.slice(from).filter((p) => p.startsWith(`${DATA}/${folder}/`) && /\/\d{4}\.json$/.test(p)).map((p) => p.slice(-9, -5));
+	const yearWrites = (vault: MemoryVault, from: number) => vault.writes.slice(from).filter((p) => /\/\d{4}\.json$/.test(p));
+
+	it("a page of the activity list leaves older years alone, and still drops what Garmin deleted", async () => {
+		const { vault, store } = setup();
+		// Three years of a run a day.
+		await store.mergeActivities(activities(1_000), { complete: true, total: 1_000 });
+		// A sync's page of the newest 30, one of them deleted on Garmin since.
+		let before = vault.reads.length;
+		await store.mergeActivities(activities(31).filter((_, i) => i !== 5), { complete: false });
+		// The first time this session, the years it leaves alone are checked once; this year is read once.
+		assert.deepEqual(reads(vault, before, "activities").sort(), ["2024", "2025", "2026"]);
+		assert.equal((await store.readActivities()).rows.length, 999);
+		// The next sync's page reads this year alone, and writes it alone.
+		before = vault.reads.length;
+		const writes = vault.writes.length;
+		await store.mergeActivities(activities(31).filter((_, i) => i !== 5 && i !== 6), { complete: false });
+		assert.deepEqual(reads(vault, before, "activities"), ["2026"]);
+		assert.deepEqual(yearWrites(vault, writes), [`${DATA}/activities/2026.json`]);
+		assert.equal((await store.readActivities()).rows.length, 998);
+	});
+
+	it("a whole listing reads every year once, and rewrites what changed", async () => {
+		const { vault, store } = setup();
+		await store.mergeActivities(activities(1_000), { complete: true, total: 1_000 });
+		const before = vault.reads.length;
+		await store.mergeActivities(activities(990), { complete: true, total: 990 });
+		assert.deepEqual(reads(vault, before, "activities").sort(), ["2024", "2025", "2026"]);
+		assert.equal((await store.readActivities()).rows.length, 990);
+	});
+
+	it("a batch of days reads and writes only its own years", async () => {
+		const { vault, store } = setup();
+		const rows = (dates: string[]) => dates.map((date) => ({ date, steps: 1_000, stepGoal: 8_000 }));
+		await store.mergeDailyStats({ rows: rows(["2024-06-01", "2025-06-01", "2026-06-01"]), dates: ["2024-06-01", "2025-06-01", "2026-06-01"] });
+		await store.mergeDailyStats({ rows: rows(["2026-10-19"]), dates: ["2026-10-19"] });
+		const before = vault.reads.length;
+		const writes = vault.writes.length;
+		await store.mergeDailyStats({ rows: rows(["2026-10-20"]), dates: ["2026-10-19", "2026-10-20"] });
+		assert.deepEqual(reads(vault, before, "daily-stats"), ["2026"]);
+		assert.deepEqual(yearWrites(vault, writes), [`${DATA}/daily-stats/2026.json`]);
+		assert.deepEqual((await store.readDailyStats()).rows.map((r) => r.date), ["2024-06-01", "2025-06-01", "2026-06-01", "2026-10-20"]);
+	});
+
+	it("still sets aside a year a merge leaves alone once it no longer reads", async () => {
+		const { vault, store } = setup();
+		const rows = (dates: string[]) => dates.map((date) => ({ date, steps: 1_000 }));
+		await store.mergeDailyStats({ rows: rows(["2025-06-01", "2026-06-01"]), dates: ["2025-06-01", "2026-06-01"] }, { covered: { from: "2025-06-01", to: "2026-06-01" }, complete: true });
+		await store.mergeDailyStats({ rows: rows(["2026-10-19"]), dates: ["2026-10-19"] });
+		// A sync service's conflict leaves 2025 broken.
+		vault.seed(`${DATA}/daily-stats/2025.json`, "<<<<<<< HEAD");
+		await store.mergeDailyStats({ rows: rows(["2026-10-20"]), dates: ["2026-10-20"] });
+		assert.equal(vault.list(`${DATA}/daily-stats`).filter((name) => name.startsWith("2025.unreadable-")).length, 1);
+		assert.equal(parseDailyMeta(vault.text(`${DATA}/daily-stats/index.json`)!)?.complete, false);
+	});
+});
