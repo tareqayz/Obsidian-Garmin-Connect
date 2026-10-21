@@ -9,7 +9,6 @@ import {
 	planBackfill,
 	blockedWait,
 	rateLimitWait,
-	RequestBudget,
 	serializeBackfill,
 	stillPaused,
 	type ChartMeta,
@@ -238,91 +237,9 @@ describe("backfill.json", () => {
 	it("waits longer after each 429 in a row, up to an hour", () => {
 		assert.deepEqual([1, 2, 3, 4, 5, 9].map((n) => rateLimitWait(n) / 60_000), [5, 10, 20, 40, 60, 60]);
 	});
-});
-
-describe("hourly budget, kept across restarts", () => {
-	/** Local storage as Obsidian keeps it: a value per key, JSON round-tripped. */
-	function memoryStore(initial?: unknown) {
-		let held: unknown = initial === undefined ? null : JSON.parse(JSON.stringify(initial));
-		return {
-			load: () => held,
-			save: (entries: unknown) => {
-				held = JSON.parse(JSON.stringify(entries));
-			},
-			get held() {
-				return held;
-			},
-		};
-	}
-
-	it("picks up what the last session spent in the hour", () => {
-		const t0 = Date.parse("2026-10-14T06:00:00Z");
-		const store = memoryStore();
-		new RequestBudget(() => 100, store).add(80, t0);
-		const restarted = new RequestBudget(() => 100, store);
-		assert.equal(restarted.used(t0 + 60_000), 80);
-		assert.equal(restarted.waitFor(30, t0 + 60_000), 3_600_000 - 60_000);
-	});
-
-	it("drops what the hour no longer holds, entries from the future, and anything malformed", () => {
-		const t0 = Date.parse("2026-10-14T06:00:00Z");
-		const store = memoryStore([
-			{ at: t0 - 3_700_000, requests: 50 },
-			{ at: t0 + 3_600_000, requests: 50 },
-			{ at: "soon", requests: 50 },
-			{ at: t0, requests: -5 },
-			{ at: t0, requests: 10 },
-		]);
-		const budget = new RequestBudget(() => 100, store);
-		assert.equal(budget.used(t0 + 1_000), 10);
-		// An older build's bare list is read, and kept in today's shape.
-		assert.deepEqual(store.held, { entries: [{ at: t0, requests: 10 }] });
-	});
-
-	it("halves the hour for a day after a 429, across a restart, then gives it back", () => {
-		const t0 = Date.parse("2026-10-14T06:00:00Z");
-		const store = memoryStore();
-		const budget = new RequestBudget(() => 8_000, store);
-		budget.add(3_000, t0);
-		budget.halve(t0 + 60_000);
-		const restarted = new RequestBudget(() => 8_000, store);
-		assert.equal(restarted.limit(t0 + 120_000), 4_000);
-		assert.equal(restarted.waitFor(500, t0 + 120_000), 0);
-		// 1,500 more needs the 3,000 to leave the hour: 4,000 holds while halved.
-		assert.equal(restarted.waitFor(1_500, t0 + 120_000), 3_600_000 - 120_000);
-		// A day on, the whole hour again.
-		const dayOn = t0 + 60_000 + 24 * 3_600_000;
-		assert.equal(restarted.limit(dayOn), 8_000);
-		assert.equal(restarted.used(dayOn), 0);
-		assert.deepEqual(store.held, { entries: [] });
-	});
-
-	it("waits for the halving to end when that comes before the hour frees enough", () => {
-		const t0 = Date.parse("2026-10-14T06:00:00Z");
-		const budget = new RequestBudget(() => 8_000);
-		budget.halve(t0 - 24 * 3_600_000 + 600_000);
-		budget.add(3_900, t0);
-		// Halved until t0 + 10 min; then 8,000 holds, and 3,900 + 1,000 fits.
-		assert.equal(budget.waitFor(1_000, t0 + 60_000), 600_000 - 60_000);
-		assert.deepEqual(budget.outlook(t0 + 60_000), { entries: [{ at: t0, requests: 3_900 }], perHour: 8_000, halvedUntil: t0 + 600_000 });
-	});
 
 	it("waits half an hour after the edge's first refusal, doubling to twelve hours", () => {
 		assert.deepEqual([1, 2, 3, 4, 5, 6, 9].map((n) => blockedWait(n) / 60_000), [30, 60, 120, 240, 480, 720, 720]);
-	});
-});
-
-describe("hourly budget", () => {
-	it("lets a unit go while the hour has room, and says how long until it has", () => {
-		const budget = new RequestBudget(() => 100);
-		const t0 = Date.parse("2026-10-14T06:00:00Z");
-		budget.add(60, t0);
-		budget.add(30, t0 + 600_000);
-		assert.equal(budget.used(t0 + 700_000), 90);
-		assert.equal(budget.waitFor(10, t0 + 700_000), 0);
-		// 20 more needs the first unit's 60 to drop out of the hour.
-		assert.equal(budget.waitFor(20, t0 + 700_000), 3_600_000 - 700_000);
-		assert.equal(budget.used(t0 + 3_600_001), 30);
 	});
 });
 

@@ -14,7 +14,7 @@ import type { GarminDomain } from "./garmin/constants";
 import { ObsidianHttpClient } from "./obsidian-http";
 import { PluginData } from "./plugin-data";
 import { GarminSettingTab } from "./settings";
-import { BUDGET_KEY, SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
+import { SyncRunner, type BackfillProgress, type DeviceIdentity } from "./sync/runner";
 import { VaultSeriesStore } from "./sync/series-store";
 import { AUTO_SYNC_KEY, AutoSync, parseLocal } from "./sync/auto-sync";
 import { GARMIN_ICON } from "./ui/icon";
@@ -41,7 +41,7 @@ import type { ActivityRow } from "./sync/activity-index";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it: nothing syncs on its own sooner. */
 const STARTUP_SYNC_DELAY_MS = 5000;
-/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id, its request budget and its Garmin session. */
+/** What an uninstalled plugin leaves on this device besides the vault: the map tiles, the device's id and its Garmin session. */
 function forgetThisDevice(app: App): void {
 	try {
 		window.indexedDB.deleteDatabase(TILE_DB);
@@ -50,7 +50,7 @@ function forgetThisDevice(app: App): void {
 	}
 	app.saveLocalStorage(DEVICE_KEY, null);
 	app.saveLocalStorage(SIGN_IN_CARD_KEY, null);
-	app.saveLocalStorage(BUDGET_KEY, null);
+	app.saveLocalStorage(LEGACY_BUDGET_KEY, null);
 	app.saveLocalStorage(HAD_SESSION_KEY, null);
 	app.saveLocalStorage(AUTO_SYNC_KEY, null);
 	app.secretStorage?.setSecret(SESSION_SECRET, "");
@@ -62,6 +62,8 @@ const STARTUP_BACKFILL_DELAY_MS = 8000;
 const DEVICE_KEY = "garmin-connect-device";
 /** Set when Home's "Not signed in on this device" card was put away here: a device that only reads what another syncs. */
 const SIGN_IN_CARD_KEY = "garmin-connect-hide-sign-in";
+/** Where 1.2.0-beta.1 kept the history download's hourly budget, which is gone: cleared on load. */
+const LEGACY_BUDGET_KEY = "garmin-connect-budget";
 
 export default class GarminPlugin extends Plugin {
 	data!: PluginData;
@@ -74,6 +76,7 @@ export default class GarminPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		registerSportIcons();
+		this.app.saveLocalStorage(LEGACY_BUDGET_KEY, null);
 
 		this.tokens = new SecretTokenStore(this.app);
 		this.data = new PluginData(this, this.tokens);
@@ -310,7 +313,7 @@ export default class GarminPlugin extends Plugin {
 			const total = progress.done + progress.remaining;
 			const percent = total > 0 ? Math.min(99, Math.round((progress.done / total) * 100)) : 0;
 			const text =
-				progress.status === "running" || progress.status === "waiting"
+				progress.status === "running"
 					? `Garmin · history ${percent}%`
 					: progress.status === "elsewhere"
 						? `Garmin · downloading on ${progress.device ?? "another device"}`
@@ -371,8 +374,6 @@ export default class GarminPlugin extends Plugin {
 			masks,
 			sizes: store.sizesFor(masks, activities, today),
 			...(backfill.ranges ? { ranges: backfill.ranges } : {}),
-			budget: this.sync.budgetOutlook(),
-			now: Date.now(),
 		};
 	}
 
@@ -385,7 +386,7 @@ export default class GarminPlugin extends Plugin {
 		return input ? updateLinesOf(input, only) : [];
 	}
 
-	/** What picked update lines add together, as one download under one hourly budget. */
+	/** What picked update lines add together, as one download. */
 	async updateTotal(): Promise<UpdateTotal> {
 		const input = this.data.settings.setup ? await this.historyInput() : null;
 		return (keys) => (input && keys.length ? estimateDelta(input, keys) : { bytes: 0, seconds: 0 });

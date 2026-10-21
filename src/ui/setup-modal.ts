@@ -100,10 +100,9 @@ export class SetupModal extends Modal {
 		const held = { days, activities: [...detailFiles.values()].filter((v) => v === ACTIVITY_DETAILS_VERSION).length, bytes: store.diskUsage().total };
 		const today = toIsoDate();
 		const sizes = store.sizesFor(masks, activities, today);
-		const budget = this.plugin.sync.budgetOutlook();
 		return {
 			held,
-			// What starting would download: the plan with what the setup agrees to, from where the hour stands now.
+			// What starting would download: the plan with what the setup agrees to.
 			estimate: (choices: Choices) =>
 				estimate({
 					today,
@@ -118,8 +117,6 @@ export class SetupModal extends Modal {
 					masks,
 					sizes,
 					since: settings.setup?.completedAt.slice(0, 10) ?? today,
-					budget,
-					now: Date.now(),
 				}),
 		};
 	}

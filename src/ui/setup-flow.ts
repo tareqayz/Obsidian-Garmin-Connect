@@ -93,7 +93,7 @@ export interface UpdateLine {
 	seconds: number;
 }
 
-/** What picked lines add together: one download, so one hour's budget across them all. */
+/** What picked lines add together, as one download. */
 export type UpdateTotal = (keys: readonly string[]) => { bytes: number; seconds: number };
 
 /**

@@ -1,20 +1,19 @@
 import { CHANGED_IN_6, UPGRADED_VERSION } from "./activity-detail";
-import { nextChunk, RequestBudget, type BudgetOutlook, type ChartMeta, type DetailCandidate, type Task } from "./backfill";
+import { nextChunk, type ChartMeta, type DetailCandidate, type Task } from "./backfill";
 import { emptyRoutes, plannedSkips, type MaskRoute, type Masks } from "./day-facts";
 import { shiftDate } from "./day-index";
 import { HORIZON_JOBS, plannedCut } from "./horizons";
 import { DAY_INDEXES } from "./day-indexes";
 import { endpointsFor, type MetricGroup } from "./metrics";
-import { HOURLY_BUDGET, LATENCY, PACE, secondsPerDay, type Latency } from "./pace";
+import { LATENCY, PACE, secondsPerDay, type Latency } from "./pace";
 import { daysSince, historyStart, type AccountScan } from "./scan";
 import { segmentWindows, STATS_WINDOW_DAYS } from "./segments";
 
 /**
  * What the history download costs: the requests each piece of it sends, the
  * bytes it writes and the time it takes at the plugin's pace. One model for
- * the plan's units, the hourly budget's checks, the progress bar and every
- * estimate the setup, Settings and the update dialog show, so what they say
- * is what the download does.
+ * the plan's units, the progress bar and every estimate the setup, Settings
+ * and the update dialog show, so what they say is what the download does.
  *
  * Pure.
  */
@@ -499,27 +498,9 @@ function weeksWithData(scan: AccountScan, from: string, to: string): boolean {
 /*  Time                                                               */
 /* ------------------------------------------------------------------ */
 
-/**
- * Seconds `units` take from `now`, run one after another as the runner runs
- * them under the hourly budget: a copy of the budget's ledger waits each one
- * out until it fits, the unit runs, and its requests join the hour.
- */
-export function timeFor(units: readonly Unit[], outlook: BudgetOutlook, now: number): number {
-	if (!units.length) return 0;
-	let held: unknown = { entries: outlook.entries.map((e) => ({ ...e })), ...(outlook.halvedUntil !== undefined ? { halvedUntil: outlook.halvedUntil } : {}) };
-	const budget = new RequestBudget(() => outlook.perHour, {
-		load: () => held,
-		save: (ledger) => {
-			held = ledger;
-		},
-	});
-	let at = now;
-	for (const unit of units) {
-		at += budget.waitFor(unit.requests, at);
-		at += unit.seconds * 1000;
-		budget.add(unit.requests, at);
-	}
-	return (at - now) / 1000;
+/** Seconds `units` take, run one after another as the runner runs them. */
+export function timeFor(units: readonly Unit[]): number {
+	return units.reduce((seconds, unit) => seconds + unit.seconds, 0);
 }
 
 /**
@@ -547,11 +528,6 @@ export function asObserved(units: readonly Unit[], observed: Observed): Unit[] {
 		const seen = observed[unit.kind];
 		return seen ? { ...unit, seconds: unit.seconds * seen.time, requests: Math.round(unit.requests * seen.requests) } : unit;
 	});
-}
-
-/** A fresh hour: nothing spent yet. */
-export function freshHour(): BudgetOutlook {
-	return { entries: [], perHour: HOURLY_BUDGET };
 }
 
 export function spanDays(from: string, to: string): number {

@@ -21,18 +21,6 @@ export interface Pace {
 export const PACE: Pace = { limits: { rate: 20, burst: 27, concurrency: 27 }, parallel: 3 };
 
 /**
- * Requests an hour this device's history download stays under, with the syncs
- * and page loads counted in: under half the ~17,600 an hour measured clean
- * once on one account. Every install looks alike to Garmin, so a quota it
- * counts over hours, or a rule against the pattern, would meet every user at
- * once; the margin is for that.
- */
-export const HOURLY_BUDGET = 8_000;
-
-/** How long a 429 that reaches the history download halves the budget for. */
-export const HALVING_MS = 24 * 3_600_000;
-
-/**
  * How long Garmin takes to answer, in seconds, measured 2026-10-12 against the
  * routes a download asks (`docs/garmin-api.md`, Request pace): what a time
  * estimate adds to the pace. A running download measures its own.
@@ -54,8 +42,8 @@ export function secondsPerDay(requestsPerDay: number, latency: Latency = LATENCY
 }
 
 /**
- * A date range asking more than this goes to the history download, which
- * keeps to the hourly budget and picks up where it left off; one asking less
- * syncs at once.
+ * A date range asking more than this goes to the history download, which runs
+ * in the background and picks up where it left off; one asking less syncs at
+ * once.
  */
 export const FOREGROUND_RANGE_REQUESTS = 1_000;

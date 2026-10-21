@@ -23,7 +23,6 @@ function plugin(overrides: Record<string, unknown> = {}) {
 		},
 		sync: {
 			backfillProgress: null,
-			budgetOutlook: () => ({ entries: [{ at: Date.parse("2026-10-16T07:40:00Z"), requests: 120 }], perHour: 8_000 }),
 			lastSync: {
 				at: "2026-10-16T08:00:00.000Z",
 				from: "2026-10-15",
@@ -48,8 +47,8 @@ describe("debug info", () => {
 		const text = await debugInfo(plugin());
 		assert.match(text, /- Plugin: 1\.0\.0-beta\.1/);
 		assert.doesNotMatch(text, /Sync speed/);
-		assert.match(text, /- Pace: 20 requests\/s, 3 days at once, up to 8,000 an hour for the history download/);
-		assert.match(text, /- This hour: 120 spent\n/);
+		assert.match(text, /- Pace: 20 requests\/s, 3 days at once\n/);
+		assert.doesNotMatch(text, /This hour|an hour/);
 		assert.match(text, /- Signed in on this device: yes/);
 		assert.match(text, /- Days: 1 written, 0 unchanged, 0 skipped, 1 failed/);
 		assert.match(text, /Failed 2026-10-15: Garmin's answer for this day couldn't be read/);

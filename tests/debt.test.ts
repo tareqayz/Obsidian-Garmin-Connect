@@ -118,7 +118,7 @@ describe("what an update offers", () => {
 describe("the update lines Settings and the update dialog show", () => {
 	it("price each item in size and time, never in requests", () => {
 		const charts = complete(ALL_CHARTS.filter((s) => s !== "index:heat-acclimation"));
-		const lines = updateLinesOf({ ...input({ accepted: chartKeys(["sleep"]), charts }), now: Date.parse(`${TODAY}T12:00:00Z`) }, "all");
+		const lines = updateLinesOf(input({ accepted: chartKeys(["sleep"]), charts }), "all");
 		assert.deepEqual(lines.map((l) => [l.key, l.title]), [["index:heat-acclimation@1", "Heat acclimation history"]]);
 		assert.ok(lines[0]!.bytes > 0 && lines[0]!.seconds > 0);
 		assert.deepEqual(Object.keys(lines[0]!).sort(), ["bytes", "detail", "key", "seconds", "title"]);
