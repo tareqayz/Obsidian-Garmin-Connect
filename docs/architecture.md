@@ -9,9 +9,10 @@ the history download), `src/dashboard/` and `src/ui/` (pages and dialogs).
 
 ## Overview
 
-`GarminPlugin` (`src/main.ts`) builds three things on load:
+`GarminPlugin` (`src/main.ts`) builds four things on load:
 - a Garmin client, with the session from Obsidian's keychain;
 - a `SyncRunner`, which runs every sync, history walk and on-view load;
+- an `AutoSync`, which starts a recent sync on its own when one is due;
 - the `garmin-home` view, where every page lives.
 
 The runner's engine fetches through the client and writes plain JSON into the data folder through
@@ -22,6 +23,8 @@ that a sync didn't fetch.
 flowchart TB
   plugin["GarminPlugin (main.ts)"] --> data["PluginData: data.json"]
   plugin --> runner["SyncRunner (sync/runner.ts)"]
+  plugin --> auto["AutoSync (sync/auto-sync.ts)"]
+  auto -->|"a recent sync, when due"| runner
   plugin --> home["GarminHomeView + Svelte pages"]
   runner --> engine["engine.ts: syncRange, feedIndex, walkHistory"]
   runner --> store["VaultSeriesStore (sync/series-store.ts)"]
@@ -107,16 +110,19 @@ when adding to it.
 
 | File | Role |
 | --- | --- |
-| `runner.ts` | `SyncRunner`: turns settings into a run, runs the history walks, the scan, the backfill and on-view loads, and reports |
+| `runner.ts` | `SyncRunner`: turns settings into a run, probes before a recent sync, runs the history walks, the scan, the backfill and on-view loads, queues long date ranges, and reports |
 | `runner-lock.ts` | `RunnerLock`: one piece of work talks to Garmin at a time, by priority — pure |
 | `engine.ts` | `syncRange`, `feedIndex`, `walkHistory`, the activity and stats walks, `recentRange` — pure |
-| `metrics.ts` | `mapDay` (Garmin's payloads → a day's properties), `ALL_GROUPS`, `endpointsFor`, each group's request cost — pure |
+| `metrics.ts` | `mapDay` (Garmin's payloads → a day's properties), `ALL_GROUPS`, `endpointsFor` — pure |
 | `numbers.ts` | `num`, `isFiniteNumber`, for Garmin's nulls and stray strings — pure |
 | `intraday.ts` | `mapSeries`: intraday payloads → the day's series file — pure |
 | `intraday-registry.ts`, `intraday-extras.ts` | `defineIntraday`, `keepBlocks`, `missingKeys`; `INTRADAY_EXTRAS` — pure |
 | `account.ts` | `fetchAccount` and `account.json` — pure |
-| `sync-state.ts` | `sync-state.json`: the recent sync's mark — pure |
-| `speed.ts` | `SYNC_SPEEDS`: the pace and `parallelDays` of each **Sync speed** — pure |
+| `sync-state.ts` | `sync-state.json`: the recent sync's mark, and the keys its probe compares — pure |
+| `freshness.ts` | the probe's verdicts: `shouldSkip`, `markFor`, `wantsAccount`, `nextSyncState`, `listKey`, `fingerprintOf` — pure |
+| `auto-sync.ts` | `AutoSync`: when a sync starts on its own; the rules `autoSyncDue` and `nextLocal` are pure |
+| `sync-outcome.ts` | `SyncOutcome`: how a sync ended, in Home's line and the notices — pure |
+| `pace.ts` | `PACE`, `HOURLY_BUDGET`, `HALVING_MS`, `FOREGROUND_RANGE_REQUESTS`, `LATENCY`: how hard the plugin leans on Garmin, which isn't a setting — pure |
 | `fatal.ts` | `isFatal`: the errors that end a run — pure |
 | `progress.ts`, `segments.ts` | the sync notice's progress bar; history walks a year of windows at a time — pure |
 | `days.ts` | the day files: merging a day, a year file's text, `DayBuffer` — pure |
@@ -127,8 +133,10 @@ when adding to it.
 | `day-index.ts`, `day-indexes.ts`, `<stat>-index.ts` | `defineDayIndex`, `DAY_INDEXES` and every stat's index (see [Building pages](building-pages.md#day-indexes)) — pure |
 | `activity-detail.ts` | an activity's page file: its blocks, `loadActivity`, `ACTIVITY_DETAIL_VERSION` — pure |
 | `datasets.ts`, `coverage.ts` | `DATA_SETS`, versions, ranges, `consentKey`; `days/index.json` and `activity-details/index.json` — pure |
-| `scan.ts`, `estimate.ts` | `scanAccount` and `scan.json`; bytes, requests and time for a choice, `HOURLY_BUDGET` — pure |
-| `backfill.ts`, `debt.ts` | `planBackfill`, `backfill.json`, `RequestBudget`; `debtItems` and `pendingItems`, what an update offers — pure |
+| `scan.ts`, `estimate.ts` | `scanAccount` and `scan.json`, with what the download `learned`; `estimate` and `estimateDelta`, a choice's bytes, requests and time — pure |
+| `cost.ts` | the cost model: what each unit of the download asks, writes and takes; `MEASURED_SIZES`, `calibrate`, `ROW_BYTES`, `timeFor`, `observe` — pure |
+| `day-facts.ts`, `horizons.ts` | the masks: the routes a day is known empty for, and their verdicts; the timelines' horizon — pure |
+| `backfill.ts`, `debt.ts` | `planBackfill` and its eras, `backfill.json` and its queued ranges, `RequestBudget`; `debtItems` and `pendingItems`, what an update offers — pure |
 | `owned-paths.ts` | what **Delete synced data** removes — pure |
 
 ### `src/dashboard/` and `src/ui/`
@@ -138,6 +146,7 @@ when adding to it.
 | `dashboard/home-view.ts` | `GarminHomeView`: the Home view; reads the files and hands each page its props |
 | `dashboard/legacy-view.ts` | turns a saved tab of the retired classic dashboard into Home |
 | `dashboard/routes.ts`, `home.ts`, `glance.ts` | the page stack; Home's presets and numbers; At a Glance — pure |
+| `dashboard/rebuild-schedule.ts` | `rebuildAt`: when Home may redraw while a sync or the download writes — pure |
 | `dashboard/areas.ts` | the areas (Home, Activities, Health Stats, Performance Stats): each page's area, each area's pages, what the rail lights — pure. Drawn by `ui/svelte/home/AreaRail.svelte` (a wide pane) and `AreaTabs.svelte` (a phone) |
 | `dashboard/series.ts`, `day.ts`, `periods.ts` | day rows and date words; periods, spans and labels — pure |
 | `dashboard/stat-registry.ts`, `health-stats.ts`, `performance-stats.ts` | `StatDef`, `HEALTH_STATS`, `PERFORMANCE_STATS` — pure |
@@ -148,6 +157,7 @@ when adding to it.
 | `dashboard/<stat>-pages.ts`, `<stat>-charts.ts`, `<stat>-copy.ts` | each Health and Performance Stats page (and Sleep): its view model, chart geometry and Garmin's wording — pure |
 | `ui/*-modal.ts` | the dialogs: sign-in, setup, the update dialog, delete, "Garmin Connect was removed", diagnostics, date range, Add a Stat, Sleep History, and `SheetModal` for Garmin's bottom sheets |
 | `ui/setup-flow.ts`, `ui/delete-data.ts` | the setup's views, its recommendation (`RECOMMENDED`) and what starting the download agrees to (pure); moving the plugin's files to the trash |
+| `ui/sync-copy.ts`, `ui/coalesced.ts` | the sizes and times every sync screen shows, never a request count (pure); `Coalesced`, one Settings → History refresh at a time |
 | `ui/icon.ts`, `ui/sport-icons.ts` | the ribbon icon (Lucide `watch`); the sport figures (Tabler, MIT) |
 | `ui/map/` | Leaflet, loaded with the first map (`leaflet.ts`); OpenStreetMap tiles through `requestUrl`, cached in IndexedDB (`tiles.ts`); `tile-source.ts` (pure) |
 | `ui/svelte/` | the Svelte components: the settings panel and dialogs at the top, then `home/`, `activities/`, `activity/`, `stats/`, `sleep/`, `health/`, `performance/`, `settings/`, `setup/`, and a folder per stat page |
@@ -158,14 +168,28 @@ a workspace saved with that tab opens Home instead of a dead leaf.
 
 ## A sync, end to end
 
-**Sync recent days** (the command, the view's ↻, or **Sync on startup** five seconds after load) runs
-through `SyncRunner.syncRecent`:
-1. It reads the mark in `sync-state.json` and asks `recentRange` for the days.
-2. It makes one `lastUsedDevice()` call for the watch's last upload.
-3. It hands the range to the engine. The engine fetches the activity list and the range calls first,
-   then the days, newest first. `parallelDays` days are fetched ahead, but they are written in order.
-4. After the days, the engine feeds the daily stats, sleep and day indexes side by side.
-5. The runner flushes the day files, books the full days, fetches `account.json` and moves the mark.
+**Sync recent days** runs through `SyncRunner.syncRecent(trigger)`: from the command palette
+(`command`), Home's ↻ (`button`), the setup (`setup`) or **Sync automatically** (`auto`, see
+[When a sync starts on its own](#when-a-sync-starts-on-its-own)).
+1. **The probe.** It reads `sync-state.json`, then asks `lastUsedDevice()` and the newest
+   `PROBE_PAGE` activities together (`SyncRunner.probe`, `src/sync/freshness.ts`).
+2. **The skip.** An automatic sync stops there when `shouldSkip` finds nothing moved: the last full
+   sync was clean, today, under `MAX_QUIET_MS` ago and under the same settings (`fingerprintOf`);
+   the watch hasn't uploaded since, or its upload had `UPLOAD_SETTLE_MS` to settle before that sync;
+   and the list's top is unchanged (`listKey`). That costs two requests and writes nothing. A sync
+   someone asked for always goes on.
+3. **The range.** `recentRange(markFor(state, probe), today)` gives the days. `markFor` goes back to
+   the upload the last sync saw, or only to the last sync while the watch hasn't uploaded since.
+4. **The requests.** Everything that needs nothing local starts at once, paced by the throttle: the
+   range calls, the first `PACE.parallel` days, and the windows of the indexes that read neither the
+   summaries nor the days. `fetchAccount` goes beside them when `wantsAccount` says so, taking the
+   watch from the probe. The activity list starts from the probe's page. Only the mapping waits, for
+   the list and the range calls.
+5. **The days.** They are fetched `PACE.parallel` ahead and written in order, newest first. Then the
+   engine feeds the daily stats, sleep and day indexes side by side.
+6. **The end.** The runner flushes the day files, books the full days, merges `account.json`
+   (`mergeAccount` keeps the fields of a request that failed) and writes `sync-state.json`
+   (`nextSyncState`).
 
 ```mermaid
 sequenceDiagram
@@ -175,18 +199,18 @@ sequenceDiagram
   participant B as DayBuffer
   participant S as VaultSeriesStore
   R->>S: readSyncState
-  R->>G: lastUsedDevice
-  R->>E: from, to (recentRange), groups, parallelDays
-  E->>G: activity list, then the range calls
+  R->>G: the probe, lastUsedDevice and the newest activities
+  Note over R: an automatic sync stops here when nothing moved
+  R->>G: fetchAccount, when wantsAccount
+  R->>E: from, to (recentRange), the probe's page
+  E->>G: range calls, the first days and window-only indexes, at once
   E->>S: merge the activity list into activities/
   loop each day, newest first
-    E->>G: the day's requests
     E->>S: writeSeries, merged by keepBlocks
     E->>B: write(date, mapDay(payloads))
   end
   E->>S: daily stats, sleep and day indexes, in parallel
   R->>B: flush, one write per year file
-  R->>G: fetchAccount, about nine requests
   R->>S: days/index.json, account.json, sync-state.json
 ```
 
@@ -195,14 +219,52 @@ sequenceDiagram
   for the window, not once per day. So a sync costs roughly the per-day calls times the days, plus
   six intraday calls for each day inside Day details, plus a small constant. The figures are in
   [Garmin API](garmin-api.md#request-budget).
+- **When it fetches the account.** `wantsAccount` (`freshness.ts`) fetches it for every sync someone
+  asked for. An automatic one fetches it only when the list's top changed, the probe couldn't read
+  it, or `sync-state.json`'s `accountAt` is missing or `ACCOUNT_EVERY_MS` old. `accountAt` moves only
+  when every request of the fetch was answered, so a failed one is tried again.
 - **What stops it.** A run stopped by a fatal error (see [Errors](#errors)) leaves the mark where it
   was, so the next sync covers its oldest days again. Anything else that fails is a warning, and the
-  rest of the day is still written.
+  rest of the day is still written. A foreground run also stops after `EMPTY_DAYS_STOP` empty days in
+  a row (`src/sync/engine.ts`), which a recent sync never reaches.
 - **What it writes.** Only files whose text changes: an unchanged day leaves its year file
   untouched.
+- **Joining.** A second ask joins the recent sync in progress rather than queueing. An automatic ask
+  joins whatever runs. ↻ or the palette during an automatic check makes it a full sync; one that
+  already skipped runs again, and both callers get its outcome.
+- **How it ends.** `outcomeOf` (`src/sync/sync-outcome.ts`) turns the report into a `SyncOutcome`:
+  `up-to-date`, `synced`, `stopped` or `failed`, with a `cause` for the back-off. `SyncRunner.tell`
+  says it by trigger. From the palette: progress after `PROGRESS_NOTICE_MS`, then `outcomeText`
+  ("Garmin: 3 days updated."). From ↻: Home's line (`outcomeLine`, "Synced 2:05 PM") and a notice
+  only for a failure. From the setup or on its own: only a failure, an automatic one once a session
+  per kind and never when offline. `onOutcome` hands every outcome to Home.
+- **Home redraws once.** The runner says when a sync that writes days starts and ends (`onSyncing`,
+  `syncingSince`). Home holds its redraws meanwhile and redraws when it ends, or every
+  `REBUILD_EVERY_MS` during a long one (`rebuildAt`, `src/dashboard/rebuild-schedule.ts`).
+  `readDays()` parses a year file again only once its modified time or size changed. ↻ spins on
+  `syncingSince`, so not while a sync only probes.
 
-**Sync today** and **Sync a date range…** run the same way without the mark. A date range fetches
-the timelines of every day it covers (`allTimelines`).
+**Sync a date range…** runs through `SyncRunner.run` the same way, without the probe or the mark,
+and fetches the timelines of every day it covers (`allTimelines`). The runner can also send a long range
+to the history download instead (`rangeCost`, `queueRange`): see [Queued date ranges](#queued-date-ranges).
+
+### When a sync starts on its own
+
+`AutoSync` (`src/sync/auto-sync.ts`), built in `main.ts`, is asked (`poke`) when the layout is
+ready, when a `GarminHomeView` becomes the active leaf, when the app comes back to the front with Home
+showing (`visibilitychange` and the window's `focus`), and after a sign-in (`authChanged`). Asks
+within `COALESCE_MS` are one, and none is taken in the first `STARTUP_SYNC_DELAY_MS` after load.
+- **Allowed** while `autoSync` is on, the setup has run, the session is there, no foreground work
+  holds or waits for the runner (`foregroundBusy`), and Garmin isn't resting the download
+  (`resting`: a `rate-limit` or `blocked` pause in force).
+- **Due** (`autoSyncDue`) when the later of this device's last check and the last sync on any device
+  (`sync-state.json`'s `syncedAt`) is `AUTO_SYNC_EVERY_MS` old or from another local day. Then it
+  calls `syncRecent("auto")`.
+- **Afterwards** `nextLocal` records the check, or after a failure keeps the old one and sets
+  `retryAt` from `BACKOFF_MS`, by the outcome's `cause`. The record lives in local storage
+  (`AUTO_SYNC_KEY`, `garmin-connect-auto`), per vault and device, so a check writes nothing to the
+  vault. There is no timer: the next ask after `retryAt` tries again.
+- **Switched on** in Settings, it asks at once, since a sync may be due already.
 
 ## The request pipeline
 
@@ -266,14 +328,15 @@ day whose answers the mappers can't read fails alone and stays unfetched.
 Nothing walks history the user hasn't agreed to. What the setup offers, what the vault holds and
 what is still missing are worked out from small files in the data folder. So the history download
 (the *backfill* in code) keeps no plan of its own, and carries on after a restart, a 429 or another
-device's turn.
+device's turn. A date range too long to sync at once joins the same plan from `backfill.json`.
 
 ```mermaid
 flowchart LR
   setup["Setup: Download all history"] --> ledger[("data.accepted and data.deferred")]
   dialog["Update dialog: Download now"] --> ledger
   choice["Settings → History: a range"] --> ledger
-  ledger --> plan["planBackfill: activities, walks, days, details"]
+  ledger --> plan["planBackfill: list, walks, queued ranges, then eras"]
+  queue[("backfill.json: queued date ranges")] --> plan
   plan --> checks{"Paused, held elsewhere, or over budget?"}
   checks -->|yes| wait["Wait, then look again"]
   checks -->|no| unit["Run one unit, about 10 s"]
@@ -300,10 +363,7 @@ The setup recommends `all` for both (`RECOMMENDED` in `ui/setup-flow.ts`). The d
 `plugin-data.ts` falls back to them for a range it can't read, and a fallback must never widen a
 download already agreed to.
 
-`estimate.ts` turns a scan and a choice into bytes, requests and time per set, for the setup and
-Settings → History. Its sizes are `DAY_FILE_BYTES`, `TIMELINE_BYTES` and `DETAIL_BYTES`, measured on a
-vault of 439 days and 233 runs. The times follow the sync speed, the ten-second units
-(`CHUNK_SECONDS`) and the hourly budget.
+What a choice stores and how long it takes comes from [the cost model](#the-cost-model).
 
 ### Coverage
 
@@ -311,7 +371,9 @@ The chart indexes keep their own span in each `index.json`. The other two sets e
 beside their data (`coverage.ts`, read and written by `series-store.ts`):
 - **`days/index.json`:** spans `[from, to, version]` of days whose details were fetched whole at that
   version of Day details. A day is whole (`DayResult.full`) when every request the run's groups ask
-  of it came back, with data or without, and nothing failed to write.
+  of it came back, with data or without, and nothing failed to write. A 400 or 404 counts as Garmin's
+  "nothing here", and a route the masks or the horizon left out as answered. A 403, a server error,
+  no answer or a series file that couldn't be written leave the day short.
 - **`activity-details/index.json`:** each activity file's version, by activity id, updated by every
   write of a file.
 
@@ -344,7 +406,8 @@ A new index, or a version bump, is a key the ledger hasn't seen.
   session as set up: Day details `30d`, Activity details from `downloadRuns`, and the chart keys
   agreed to. It leaves `days@1` out, so the first update dialog offers the recent days an older
   build saved without their timelines.
-- **`onExternalSettingsChange`** takes only `setup` and `data` from another device's `data.json`.
+- **`onExternalSettingsChange`** takes only `setup`, `data` and `autoSync` from another device's
+  `data.json`, and only from a copy saved at this `SETTINGS_VERSION` (`PluginData.reloadChoices`).
 
 ### The account scan
 
@@ -352,58 +415,171 @@ A new index, or a version bump, is a key the ledger hasn't seen.
 history starts and ends, in about a request a year plus four (see
 [Garmin API](garmin-api.md#account-scan)). It writes `scan.json` even when a request stopped it
 early. The estimates read it, `planBackfill` leaves out the weeks it found empty, and every history
-walk stops past the earlier of its first day and the oldest activity (`notBefore`). The setup also
-starts the whole activity list and **Sync recent days** right after the scan.
+walk stops past the earlier of its first day and the oldest activity (`notBefore`). A new scan keeps
+what the download `learned` of the account (`VaultSeriesStore.writeScan`).
+
+Right after the scan, the setup downloads the whole activity list, then runs `prepareHistory`: it
+walks the indexes that vouch for the cheap masks (`PREPARED_STORES`), so the estimate it shows
+already leaves out the days they show empty. Then it starts **Sync recent days** while you choose.
 
 ### The backfill
 
-The runner works through `planBackfill`'s tasks in order, a unit at a time, each about ten seconds
-of work:
+The runner works through `planBackfill`'s tasks in order, a unit at a time, each about
+`UNIT_SECONDS` of work (`src/sync/cost.ts`):
 
 | Task | One unit |
 | --- | --- |
 | `activities` | the whole activity list, a request per hundred |
-| `walk` | a segment (a year of windows, `segments.ts`) of as many chart walks side by side as the speed's `parallelDays`, each merged as it lands |
-| `days` | a chunk of Day details sized to about `CHUNK_SECONDS` (`chunkDays`): each day's file and full timelines, written a year file at a time and booked in the coverage |
-| `details` | one activity's page (`loadActivityFor`), at least two seconds after the last |
+| `walk` | a segment (a year of windows, `segments.ts`) of up to `PACE.parallel` chart walks side by side, each merged as it lands |
+| `days` | a chunk of Day details sized to about `UNIT_SECONDS` (`chunkDays`): each day's file and timelines, less what the [masks](#masks) and the [horizon](#the-timelines-horizon) leave out, written a year file at a time and booked in the coverage. A queued date range is a `days` task carrying its `range` |
+| `details` | a batch of activities' pages, as many as fit in about `UNIT_SECONDS` (`detailBatch`), `PACE.parallel` side by side (`downloadDetails`): the index read once, the versions booked once |
+
+`planBackfill` (`backfill.ts`) puts them in this order:
+1. the activity list, which the walks and the activity details read;
+2. the walks;
+3. the [queued date ranges](#queued-date-ranges), oldest asked first;
+4. the eras of `ERAS`, most recent first, each era's days before its activities. A stretch of days
+   that crosses an era is cut there (`splitAtEras`).
+
+Day details end yesterday, since the routine sync keeps today. Once the last walk is done the runner
+plans again, so the chunks use the indexes it just completed.
 
 **Before each unit** the runner reads `backfill.json`, fresh rather than cached, and checks:
 1. **A pause still holds** (table below).
-2. **Another device's lease is younger than `LEASE_MS`** (ten minutes): this device looks again in
-   five.
+2. **Another device's lease is younger than `LEASE_MS`:** this device looks again in half that.
 3. **Anything is left to do.**
-4. **The unit fits the hourly budget.** `RequestBudget` keeps the last hour's requests under
-   `HOURLY_BUDGET` (`src/sync/estimate.ts`), counting every request the client made: syncs, units,
-   page loads and retries. Its hour is kept in local storage, so a restart doesn't reset it.
+4. **The unit fits the hourly budget.** `RequestBudget` (`backfill.ts`) keeps the last hour's
+   requests under `HOURLY_BUDGET` (`src/sync/pace.ts`), counting every request the client made:
+   syncs, units, page loads and retries. The unit's size comes from the cost model (`nextUnit`).
+   While it waits, the progress is `waiting`, which the pages show as downloading, with when it
+   continues.
 5. **Then** it renews its lease (at most once a minute: an id in local storage, a label such as
-   "Mac", a heartbeat) and runs the unit.
+   "Mac", a heartbeat), with the download's `progress`, and runs the unit.
+
+The budget's ledger, `{entries, halvedUntil?}`, lives in local storage (`BUDGET_KEY`,
+`garmin-connect-budget`), so a restart doesn't reset the hour. A 429 that reaches the download halves
+the budget until `halvedUntil`, `HALVING_MS` on (`RequestBudget.halve`), and `waitFor` waits for
+whichever comes first: entries leaving the hour, or the halving ending. The bare list an older build
+saved still reads; an older build reads the new shape as an empty hour.
+
+The runner changes `backfill.json` through `updateBackfill`, from what the file holds now, so a
+heartbeat never drops a pause another device just wrote. Once nothing is left, it clears the file.
 
 | Pause | Set when | Holds |
 | --- | --- | --- |
-| `user` | **Pause** | until **Resume**, on every device sharing the file |
+| `user` | **Pause** | until **Resume**, on every device sharing the file. A unit running when it is set finishes, and the download stays paused |
 | `sign-in` | the session ended | until a sign-in |
-| `rate-limit` | a 429 outlasted the client's retries | 5 minutes, doubling to an hour (`rateLimitWait`) |
+| `rate-limit` | a 429 outlasted the client's retries | 5 minutes, doubling to an hour (`rateLimitWait`); the hourly budget is halved too |
 | `blocked` | Garmin's edge refused the device | 30 minutes, doubling to 12 hours (`blockedWait`) |
 | `error` | a unit failed for another reason | ten minutes; a unit that fails three times in a row is skipped for the session (`MAX_UNIT_FAILURES`) |
 | this device only | a failed token refresh (`GarminRefreshError`) | 5 minutes doubling to an hour, without touching `backfill.json` |
 | this device only (`update`) | `NewerDataError`: another device runs a newer build | until the plugin is updated here |
 
-Days, activities and walks whose requests failed are left for the next session.
+Days, activities and walks whose requests failed are left for the next session. A 400 or 404 isn't
+a failure: see [Coverage](#coverage).
 
 The backfill starts in these cases:
-- 8 s after the layout is ready (`STARTUP_BACKFILL_DELAY_MS`);
+- `STARTUP_BACKFILL_DELAY_MS` after the layout is ready;
 - after every sync that finished;
-- when a choice changes, after a sign-in, or when another device's settings arrive.
+- when a choice changes, after a sign-in, when another device's settings arrive, or when a date range
+  is queued.
 
-`stop()` on unload ends the unit in hand at its next day or window. `onBackfill` reports a
-`BackfillProgress` to Home's pill, Settings → History and, on a computer, the status bar.
+A unit stops at its next day, window or activity when Obsidian closes (`stop()`) or when a page or
+a sync waits for the runner (`unitShouldStop`), which then goes next. A chunk cut short moves the plan
+past only the days it fetched.
+
+`onBackfill` reports a `BackfillProgress` to Home's pill, Settings → History and, on a computer, the
+status bar. Its `done` is `backfill.json`'s `progress.done`, the requests the client really sent,
+retries included, plus what this device spent since its last write; so the percentage carries over a
+restart, or to another device. Its `remaining` and `seconds` come from the cost model, adjusted by
+how this session's units really ran (`observe`).
+
+### Masks
+
+`day-facts.ts` reads the complete chart indexes for the days each route has data, so the download
+doesn't ask a route on a day it is known to be empty (`MASK_ROUTES`, `MASK_STORES`):
+- the weigh-in only on weigh-in days (`index:weight`);
+- Health Status, HRV, readiness and training status only on the days their indexes list;
+- the summary, with the day's timelines, only on days a summary-fed index lists (daily stats,
+  stress, Body Battery, heart rate, respiration, Pulse Ox).
+
+Sleep, endurance and fitness age are always asked: their answers carry values no index lists by day.
+
+- **Where it holds.** A route is masked only when every one of its indexes whose group is on is
+  complete, and only between their latest start and earliest end (`factSpan`).
+- **Earning trust.** A mask skips only after `AUDIT_DAYS` days it would have skipped came back empty
+  (`auditedRoutes`, `tally`); one day with data turns it off for the account. "Empty" means the day
+  file would keep nothing of the answer, nor the series file for the summary (`routeEmpty`). The
+  verdicts are kept in `scan.json`'s `learned.masks`.
+- **Only the download masks.** A routine sync and a date range synced at once ask everything. A
+  masked route counts as answered, so the day is still whole.
+
+### The timelines' horizon
+
+Garmin keeps a day's stress, heart-rate, floors and intensity timelines (`HORIZON_JOBS`) for about
+`ASSUMED_HORIZON_DAYS`; past that it answers with the day's totals and no points. `horizons.ts`
+learns the horizon per account, as an age in days, since Garmin's window slides with each day:
+- `MISSES_TO_LEARN` days in a row whose totals say there was something, but whose timelines came back
+  empty, set it, provided at least `MIN_HORIZON_DAYS` are kept. A day not worn neither breaks the run
+  nor extends it.
+- One timeline served past it clears it (`null`): Garmin keeps them on this account. Each session,
+  one day past it asks its timelines anyway, to see.
+- It is kept in `scan.json`'s `learned.horizon` with the `DAY_DETAILS_VERSION` it was learned at, and
+  a new version forgets it.
+
+Past the horizon a day asks only its steps chart and Body Battery's events, and still counts as
+whole. Only the download uses it. The cost model reckons with the learned horizon,
+`ASSUMED_HORIZON_DAYS` before one is learned, and none once Garmin served past it (`plannedCut`).
+
+### Queued date ranges
+
+`SyncRunner.rangeCost(from, to)` prices a range with every route asked, and says how it should run:
+at once (`SyncRunner.run`) up to `FOREGROUND_RANGE_REQUESTS`, or at any size before the setup;
+otherwise in the download:
+- `queueRange` adds it to `backfill.json`'s `ranges` (`QueuedRange`: `from`, `to`, `next`, `at`);
+- `planBackfill` takes it after the walks and ahead of every era, every day of it, with the masks,
+  the horizon and the hourly budget;
+- each chunk moves its `next`, so it resumes where it left off, on any device;
+- a finished range leaves the queue, and `removeRange` takes one out, keeping what it fetched.
+
+`rangeCost` then gives the time until it is done under the hour's budget. The estimate counts queued
+ranges in its total and time, but in no data set, so Day details' "days left" stays its own.
+
+### The cost model
+
+`cost.ts` costs the plan a unit at a time, as `runUnit` takes it, and times the units with the real
+hourly budget over a copy of its ledger (`timeFor`). The setup, Settings → History, the update
+dialog, a date range's cost, the budget's check before each unit and the download's progress all use
+it, so what they say is what the download does.
+- **Requests.** A day of Day details asks its routes and timelines, less the masks and the horizon
+  (`requestsOn`); a chunk adds the activities listed by date and the range routes once (`dayUnit`).
+  A walk asks its windows back to `notBefore`, plus the empty ones that end it, `PACE.parallel` at a
+  time and `requestsPerWindow` a window. The activity list costs its count, then a request per
+  hundred (`listRequests`). An activity's page costs what it records (`detailRequests`, by
+  `DetailProfile`).
+- **Bytes.** `MEASURED_SIZES` and `ROW_BYTES`, measured on a real vault: a day file, a series file
+  either side of the horizon, an activity row, an activity's page by profile, and a day of each chart
+  index. `calibrate` swaps in the vault's own averages where it holds enough files of a kind
+  (`CALIBRATE_MIN`): series files either side of the horizon, and activity pages by profile. They
+  come from the file list alone (`VaultSeriesStore.measuredFiles`, `sizesFor`), so nothing is read.
+- **Time.** The pace (`PACE`) and Garmin's measured latency (`LATENCY`), under the hourly budget.
+  While the download runs, `observe` folds each unit's real time and requests in: the first as it
+  came, then leaning toward the latest, within a factor of four of the model. Units cut short or
+  ended by an error don't count.
+
+`estimate()` (`estimate.ts`) builds the plan the download would run and costs it; `estimateDelta()`
+prices the update dialog's lines, and their total, from the same plan.
+`tests/simulated-download.test.ts` checks the estimate against the real runner (see
+[Testing](#testing)).
 
 ### The runner lock
 
 `RunnerLock` (`runner-lock.ts`) gives the runner to one piece of work at a time, by priority:
-1. **foreground:** a sync, a history command or the scan. It waits for the holder and goes next. A
-   second foreground request is turned away while one holds or waits, so two syncs never queue.
-   **Run diagnostics** checks that need the session are refused the same way.
+1. **foreground:** a sync, a history walk someone asked for (a page's **Sync history**, **Refresh
+   the activity list**), the setup's `prepareHistory`, or the scan. It waits for the holder and goes
+   next. A second foreground request is turned away while one holds or waits, so two syncs never
+   queue; **Sync recent days** asked again joins the run in progress instead (`syncRecent`). **Run
+   diagnostics** checks that need the session are refused the same way.
 2. **page:** an on-view load. It goes after any foreground work that is waiting.
 3. **background:** a backfill unit. It starts only when nothing waits, so it delays nothing for
    longer than the unit in hand.
@@ -428,7 +604,8 @@ while a disable or an update leaves the folder.
   row.
 - **What it clears.** `forgetThisDevice` (`main.ts`) deletes the map tiles' IndexedDB (`TILE_DB`) and
   the local-storage keys `garmin-connect-device`, `garmin-connect-hide-sign-in`,
-  `garmin-connect-budget` and `garmin-connect-had-session`, and empties the keychain secret.
+  `garmin-connect-budget`, `garmin-connect-had-session` and `garmin-connect-auto`, and empties the
+  keychain secret.
 - **The prompt.** While the data folder still holds the plugin's files, it opens "Garmin Connect was
   removed" (`removed-data-modal.ts`), which brings its own styles. A folder deleted by hand, or an
   uninstall on another device, gets no prompt.
@@ -453,12 +630,11 @@ while a disable or an update leaves the folder.
 As above, plus:
 1. A new member of `MetricGroup` and `ALL_GROUPS` (display order), and an entry in `endpointsFor()`
    so its requests are made only while the group is on. All of these are in `src/sync/metrics.ts`.
-2. Its cost for the settings tab, in the same file:
-   - `REQUESTS_PER_DAY`;
-   - or `FREE_GROUPS` when it rides along in the daily summary;
-   - `REQUESTS_PER_SYNC` for a once-a-sync group;
-   - `RANGE_GROUPS` for one range request a sync.
-3. Its row in `GROUPS` (`src/settings.ts`): a short name, what it holds in a few words, and search
+2. Its cost, which the settings tab doesn't show:
+   - a new per-day route counted in `requestsPerDay` and `requestsOn`, and a new range route in
+     `dayUnit` (all in `src/sync/cost.ts`), so the estimates and the download's chunks price it;
+   - its line in the **Cost** column of [Settings → Metrics](settings.md#metrics).
+3. Its row in `GROUPS` (`src/settings.ts`): a short name, what it holds in one sentence, and search
    aliases for what the line leaves out.
 4. Bump `SETTINGS_VERSION` (`src/settings-data.ts`) and switch the group on in
    `PluginData.migrate` (`src/plugin-data.ts`), so an existing vault gets it once while a group
@@ -486,6 +662,10 @@ doubles sit at the **day-target** seam. What is under test is the real code.
   an old session to the keychain.
 - **Data versions.** `tests/dataset-shapes.test.ts` snapshots what each store keeps beside its
   version (`tests/fixtures/dataset-shapes.json`).
+- **Estimates.** `tests/simulated-download.test.ts` runs the real runner, engine, client, throttle and
+  hourly budget against `FakeGarmin`, an `HttpClient` on a `VirtualClock`
+  (`tests/support/fake-garmin.ts`, `virtual-clock.ts`), and checks `estimate()` against the requests
+  the download sent and the time it took.
 - **The API catalogue, offline.** `tests/api-catalogue.test.ts` and its neighbours check
   `api/endpoints.json` against the probes and the recorded shapes.
 - **Release notes.** `tests/release-notes.test.ts` reads the real `CHANGELOG.md`.

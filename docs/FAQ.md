@@ -28,8 +28,9 @@ other types**, which is off by default.
 It is not official, and not affiliated with Garmin. It signs in the way Garmin's mobile app does,
 then makes ordinary reads, at a deliberately gentle pace.
 - With every metric group on, a day costs nine requests, plus six for its timelines.
-- A sync costs about 30 more.
-- Your history downloads once, in the background, under an hourly request budget.
+- A sync costs about 30 more. An automatic one that finds nothing new costs two.
+- Your history downloads once, in the background, under 8,000 requests an hour, halved for a day
+  after Garmin asks it to slow down.
 
 Garmin does limit login attempts per IP and can lock an account after repeated failures, so sign in
 deliberately and never retry in a loop. The breakdown is in
@@ -41,6 +42,12 @@ Garmin keeps revising a day after it ends: sleep is finalised late, and a watch 
 morning rewrites yesterday. So **Sync recent days** covers everything since the watch's last upload,
 at least yesterday and today, and at most 30 days. See
 [the Guide](GUIDE.md#how-sync-recent-days-picks-its-days).
+
+## Does it sync on its own?
+
+Yes, unless you turn off **Sync automatically** in Settings. It syncs when Obsidian starts and when
+you open Home, once the last sync is 15 minutes old. When nothing changed on Garmin, that costs two
+requests and writes nothing. See [Sync automatically](GUIDE.md#sync-automatically).
 
 ## Will it overwrite my daily notes?
 
@@ -74,14 +81,14 @@ Yes, and it's what the setup recommends: **Download all history** fetches every 
 activity in the background, and says how long that takes. Later, choose **All history** and **All
 activities** in **Settings → History**. Charts & trends always cover your whole history.
 
-**Sync a date range…** also fetches any stretch by hand, back as far as 2010, and shows the cost
-before you start.
+**Sync a date range…** also fetches any stretch by hand, back as far as 2010, and says how long it
+takes before you start. See [Date ranges](GUIDE.md#date-ranges).
 
 ## What is the "history isn't synced" banner?
 
-A page whose history isn't complete yet says so, with a rough request count and a **Sync history**
-button that fetches it at once. Otherwise the history download fills it in the background, once you
-have agreed to Charts & trends.
+A page whose history isn't complete yet says so, with a **Sync history** button that fetches it at
+once. Otherwise the history download fills it in the background, once you have agreed to Charts &
+trends.
 
 ## Will an update download things without asking?
 

@@ -200,8 +200,9 @@ The maintainer's working copy is the live plugin folder, `.obsidian/plugins/garm
 a real vault. That has consequences:
 - **A build replaces the live plugin's `main.js`.** Hot Reload isn't enabled, so nothing changes in
   the running app until `obsidian plugin:reload id=garmin-connect` (see
-  [obsidian-cli.md](obsidian-cli.md)). A load also runs a sync when **Sync on startup** is on. The
-  vault lives in iCloud, so the new `main.js` reaches the phone too.
+  [obsidian-cli.md](obsidian-cli.md)). A load can also start an automatic sync a few seconds later,
+  while **Sync automatically** is on. The vault lives in iCloud, so the new `main.js` reaches the
+  phone too.
 - **Parallel work goes in a `git worktree` outside iCloud,** not in a second branch checked out
   here: switching branches in place changes the source the next build uses.
 - **Secrets and personal data live beside the code.** Never commit, print or paste them:

@@ -83,16 +83,17 @@ this device's keychain, so another device signing in or out never touches it.
 ### Rate limited (429)
 
 Wait 15–30 minutes. Then:
-- **Slow down:** set **Settings → Advanced → Sync speed** to **Gentle** before a long
-  date range.
+- **Let the history download do the long stretches.** It keeps to an hourly budget, halved for a day
+  after a 429. For months of days, choose a longer Day details range rather than a long **Sync a
+  date range…**.
 - **Turn off metric groups you don't need.** That removes requests, except among `activity`,
   `heart`, `stress`, `respiration` and `spo2`, which share one daily request.
 - **Nothing recent was lost.** A sync goes newest day first, so a run cut short already covered the
   days that matter most.
 
 A 429, Garmin's bot check, or a dead session ends a sync at once, because every later request would
-fail the same way. **Stop syncing** stops a sync you started after the day it is on, keeping what came
-in.
+fail the same way. **Stop syncing** stops the sync in progress, an automatic one included, after the
+day it is on, keeping what came in.
 
 ## Syncing and the history download
 
@@ -103,12 +104,13 @@ bar. What it says, and what to do:
 
 | On Home | Why | What to do |
 | --- | --- | --- |
+| Downloading history · 42% · continues 14:05 | Not a pause: it has used the hour's budget, 8,000 requests, or 4,000 for a day after a 429, and goes on when the hour frees up | Nothing. |
 | Sign in to keep downloading | The Garmin session ended | Sign in from the pill, **Settings → History** or the **Sign in** command. It carries on by itself. |
-| Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming. **Gentle** sync speed asks less of Garmin. |
+| Garmin asked for a pause · resumes 14:05 | Garmin answered 429, past the client's own retries | Nothing. It waits 5 minutes, then 10, 20 and so on up to an hour while 429s keep coming, and keeps to half its hourly budget for the next 24 hours. |
 | Refused by Garmin's bot check · resumes 14:35 | Garmin's edge refused this device | Nothing. It waits half an hour, doubling up to twelve hours, because asking again soon keeps a block in place. Run diagnostics if it keeps happening. |
 | Update the plugin to keep downloading | Another device runs a newer version and wrote the files in its format | Update the plugin on this device. |
-| Download resting · resumes 14:05 | It spent its hourly budget, or a piece of it failed (it tries again in ten minutes), or refreshing the session failed (5 minutes, doubling to an hour). A piece that fails three times is left for the next session. | Nothing. |
-| Download paused | You paused it, on this device or another sharing the vault | **Resume** |
+| Download paused · resumes 14:05 | A piece of it failed (it tries again in ten minutes), or refreshing the session failed (5 minutes, doubling to an hour). A piece that fails three times is left for the next session. | Nothing. |
+| Download paused, with **Resume** | You paused it, on this device or another sharing the vault | **Resume** |
 | Downloading history on iPhone | Another device with this vault is downloading | Nothing. If that device stops, this one takes over once it has been quiet for ten minutes. |
 
 **Resume the history download** lifts every pause, Garmin's included.
@@ -117,11 +119,21 @@ If nothing downloads at all, there may be nothing to fetch: **Settings → Histo
 from your Day details and Activity details ranges. The download also waits for the setup to have run
 and for a session.
 
-### A date range stopped early: "nothing found for 45 days running"
+### Home says "Couldn't sync" or "Sync stopped"
 
-Working as intended. After 45 empty days in a row (**Stop after empty days**; `0` turns it off),
-**Sync a date range…** gives up and says where. It walks newest to oldest, so the empty stretch is the
-start of your Garmin history. Nothing is written for those days.
+That is how the last sync ended, an automatic one included. Its notice said why; an automatic sync
+shows each kind of failure once a session, and nothing while the device is offline.
+- **Offline, or Garmin pushed back:** the next automatic sync tries again once a wait has passed: a
+  minute when offline, five minutes after a 429, half an hour after Garmin's bot check. Or press ↻.
+- **The session ended:** sign in again. See [Signing in](#signing-in).
+- **"Sync stopped"** means it was cut short, by **Stop syncing** or by Garmin: the days it reached
+  are kept, and the next sync covers the rest.
+
+### A date range stopped early: "nothing older on Garmin"
+
+Working as intended. After 45 empty days in a row, **Sync a date range…** gives up and says so. It
+walks newest to oldest, so the empty stretch is the start of your Garmin history. Nothing is written
+for those days.
 
 ### Re-syncing keeps touching files
 
@@ -153,8 +165,9 @@ this device**, and **Not now** puts that away.
 ### Home still shows yesterday after midnight
 
 An open Home moves to the new day within a minute of midnight. If today's numbers aren't there yet,
-Home says "Today isn't synced yet" and shows the last day it has. Run **Sync recent days** (↻ at the
-top right of the page, or beside the tabs on a phone).
+Home says "Today isn't synced yet" and shows the last day it has. With **Sync automatically** on, it
+syncs the next time Home comes into view or the app comes back to the front. Or run **Sync recent
+days** (↻ at the top right of the page, or beside the tabs on a phone).
 
 ### Home's Health Status card only says "Wear your device while sleeping for about 3 weeks"
 

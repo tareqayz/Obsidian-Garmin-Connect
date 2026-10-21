@@ -3,7 +3,7 @@
 
 	/** What the history banner needs of a stat's day index. */
 	export interface StatHistory {
-		/** The index as its history command names it: "stress". */
+		/** The index as the banner names it: "stress", for "Stress history isn’t synced". */
 		title: string;
 		/** The index holds the whole history: no banner. */
 		complete: boolean;

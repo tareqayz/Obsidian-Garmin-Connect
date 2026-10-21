@@ -25,8 +25,9 @@ import { historyStart, type AccountScan } from "./scan";
  * what the vault holds (the coverage, the chart indexes' metas) and what was
  * agreed to (the consent ledger), so a backfill cut short — Obsidian closed,
  * a 429, another device — carries on where the files say it stopped.
- * `<dataFolder>/backfill.json` holds only whether it is paused and which
- * device runs it.
+ * `<dataFolder>/backfill.json` holds only whether it is paused, which device
+ * runs it, how far it has got (`progress`) and the date ranges queued for it
+ * (`ranges`).
  *
  * Pure.
  */
@@ -88,9 +89,10 @@ export interface PlanInput {
 
 /**
  * Everything left to fetch, in the order it is fetched: the activity list,
- * the chart walks, then Day details newest first, then Activity details
- * newest first — only what was agreed to. Day details end yesterday: today
- * keeps changing until it ends, and the routine sync keeps it current.
+ * the chart walks, the queued date ranges, then Day details and Activity
+ * details era by era (`ERAS`), each era's days before its activities — only
+ * what was agreed to. Day details end yesterday: today keeps changing until
+ * it ends, and the routine sync keeps it current.
  *
  * - A chart index is walked once its key at today's version is agreed to: a
  *   version bump reads as no index at all, a whole history to fetch again.

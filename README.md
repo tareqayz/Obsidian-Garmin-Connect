@@ -90,8 +90,8 @@ Enabling the plugin opens a setup over Home:
    takes. It downloads in the background, under an hourly request limit, and carries on after a
    restart. **Advanced options** lets you keep less.
 
-Then sync with Home's ↻ button, **Sync recent days**, or **Sync on startup**. The
-[Guide](docs/GUIDE.md) covers every page and command.
+After that it syncs on its own when Obsidian starts and when you open Home, and Home's ↻ button
+syncs whenever you like. The [Guide](docs/GUIDE.md) covers every page and command.
 
 ## Storage
 
@@ -108,6 +108,10 @@ on how much history you keep. A year of data may vary for individuals, but shoul
   Obsidian's keychain, never in the vault.
 - **API Calls** at `sso.garmin.com`, `diauth.garmin.com` and `connectapi.garmin.com` (or
   their `garmin.cn` counterparts), to sign in and to fetch your data.
+- **Automatic syncing.** The plugin syncs on its own when Obsidian starts and when you open Home,
+  once the last sync is 15 minutes old or from an earlier day; when nothing changed on Garmin, that
+  takes two requests. Turn off **Sync automatically** in the settings to sync only when you ask. The
+  history download you agree to in the setup also runs in the background.
 - **Activity maps** draw OpenStreetMap's map under an activity's route, from
   `tile.openstreetmap.org`. That server sees which part of the map you open, roughly where the
   activity was, and each request names this plugin. Turn **Map tiles** off in the settings, and the

@@ -9,9 +9,11 @@ the commands we use (`obsidian help` has the rest). Helpers: `scripts/dev/ev.sh`
 - Hot Reload is not enabled. `npm run build`, then `obsidian plugin:reload id=garmin-connect`
   **once**: it prints nothing — check `app.plugins.plugins['garmin-connect']` with `ev.sh`
   instead of looping on its output.
-- A plugin load runs the startup sync (~50 Garmin requests, writes the day files) when Sync on
-  startup is on — check `app.plugins.plugins['garmin-connect'].data.settings.syncOnStartup`
-  with `ev.sh`, never `data.json` — and the history download carries on in the background
+- A plugin load can start an automatic sync ~5 s later, and so can opening Home, when Sync
+  automatically is on and the last sync is 15 min old or from another day — check
+  `app.plugins.plugins['garmin-connect'].data.settings.autoSync` with `ev.sh`, never `data.json`.
+  It stops at its probe (2 Garmin requests, nothing written) when nothing changed; otherwise it's a
+  full recent sync that writes the day files. The history download carries on in the background
   for whatever was agreed to (`plugin.sync.backfillProgress`).
   Batch fixes; never reload per tweak.
 - **Stale Svelte CSS** after a reload: `ev.sh "document.querySelectorAll('style').forEach(s => s.id?.startsWith('svelte-') && s.remove())"`,
