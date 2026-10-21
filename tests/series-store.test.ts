@@ -200,3 +200,16 @@ describe("VaultSeriesStore: backfill.json and the detail coverage", () => {
 	});
 });
 
+describe("VaultSeriesStore: what a sync reads", () => {
+	it("writes a series file it just read without reading it again", async () => {
+		const vault = new MemoryVault();
+		const store = new VaultSeriesStore(vault.asApp(), "Garmin/data");
+		await store.write("2026-10-01", { date: "2026-10-01", steps: [{ start: 1, end: 2, steps: 10 }] } as never);
+		const series = await store.read("2026-10-01");
+		const reads = vault.reads.length;
+		await store.write("2026-10-01", { ...series!, steps: [{ start: 1, end: 2, steps: 11 }] } as never);
+		assert.equal(vault.reads.length, reads);
+		assert.equal(vault.writes.filter((p) => p.endsWith("2026-10-01.json")).length, 2);
+	});
+});
+

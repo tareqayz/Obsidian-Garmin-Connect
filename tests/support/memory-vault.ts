@@ -12,6 +12,8 @@ export class MemoryVault {
 	private readonly texts = new Map<string, string>();
 	/** Paths written through `modify`, `process` or `create`, oldest first. */
 	readonly writes: string[] = [];
+	/** Paths read through `read` or `cachedRead`, oldest first. */
+	readonly reads: string[] = [];
 
 	constructor() {
 		this.root = new TFolder();
@@ -29,10 +31,12 @@ export class MemoryVault {
 	}
 
 	async read(file: TFile): Promise<string> {
+		this.reads.push(file.path);
 		return this.textOf(file);
 	}
 
 	async cachedRead(file: TFile): Promise<string> {
+		this.reads.push(file.path);
 		return this.textOf(file);
 	}
 

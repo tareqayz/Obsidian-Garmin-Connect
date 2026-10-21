@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { Properties } from "../src/sync/metrics";
-import { DayBuffer, dayRowOf, isDaysFile, mergeDay, parseDays, serializeDays, type DayProperties, type DayYearStore } from "../src/sync/days";
+import { DayBuffer, dayRowOf, isDaysFile, parseDays, serializeDays, type DayProperties, type DayYearStore } from "../src/sync/days";
 
 describe("day files", () => {
 	it("round-trips a year's days", () => {
@@ -21,10 +21,6 @@ describe("day files", () => {
 		assert.deepEqual([...parseDays(text).keys()], ["2026-01-01"]);
 	});
 
-	it("merges a day over what it held, keeping keys the new write lacks", () => {
-		const days = mergeDay(new Map([["2026-10-01", { steps: 8000, vo2max: 50 }]]), "2026-10-01", { steps: 8100 });
-		assert.deepEqual(days.get("2026-10-01"), { steps: 8100, vo2max: 50 });
-	});
 
 	it("reads a malformed file as empty and drops malformed days", () => {
 		assert.equal(parseDays("not json").size, 0);
@@ -55,14 +51,19 @@ describe("day files", () => {
 	});
 });
 
-/** Year files in memory, counting writes. */
+/** Year files in memory, counting reads and writes. */
 class MemoryYears implements DayYearStore {
 	files = new Map<string, string>();
 	writes: string[] = [];
+	reads = 0;
+	/** What each write was told the file held. */
+	held: Array<string | undefined> = [];
 	async readYear(year: string): Promise<string | null> {
+		this.reads += 1;
 		return this.files.get(year) ?? null;
 	}
-	async writeYear(year: string, body: string): Promise<"written" | "unchanged"> {
+	async writeYear(year: string, body: string, held?: string): Promise<"written" | "unchanged"> {
+		this.held.push(held);
 		if (this.files.get(year) === body) return "unchanged";
 		this.files.set(year, body);
 		this.writes.push(year);
@@ -82,6 +83,28 @@ describe("day buffer", () => {
 		assert.deepEqual(years.writes, ["2025", "2026"]);
 		assert.deepEqual([...parseDays(years.files.get("2026")!).keys()], ["2026-01-01", "2026-01-02"]);
 		assert.equal(buffer.pending, 0);
+	});
+
+	it("merges a day over what it held, keeping keys the new write lacks", async () => {
+		const years = new MemoryYears();
+		years.files.set("2026", serializeDays("2026", new Map([["2026-10-01", { steps: 8000, vo2max: 50 }]])));
+		const buffer = new DayBuffer(years);
+		await buffer.write("2026-10-01", { steps: 8100 });
+		await buffer.flush();
+		assert.deepEqual(parseDays(years.files.get("2026")!).get("2026-10-01"), { steps: 8100, vo2max: 50 });
+	});
+
+	it("reads a year once while writing and once more at flush, and hands that text to the write", async () => {
+		const years = new MemoryYears();
+		const before = serializeDays("2026", new Map([["2026-10-01", { steps: 8000 }]]));
+		years.files.set("2026", before);
+		const buffer = new DayBuffer(years);
+		for (const date of ["2026-10-04", "2026-10-03", "2026-10-02"]) await buffer.write(date, { steps: 1 });
+		assert.equal(years.reads, 1);
+		await buffer.flush();
+		assert.equal(years.reads, 2);
+		assert.deepEqual(years.held, [before]);
+		assert.equal(parseDays(years.files.get("2026")!).size, 4);
 	});
 
 	it("answers unchanged for a day that already holds the values, and then writes nothing", async () => {

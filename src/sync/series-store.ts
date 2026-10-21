@@ -175,6 +175,8 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	private folder: string;
 	/** Files this store set aside rather than write over, by their old path (see `put`). */
 	private aside = new Set<string>();
+	/** Series files' text as `read` found it, until `write` puts the day back: the write then reads nothing again. */
+	private seriesTexts = new Map<string, string>();
 
 	constructor(app: App, dataFolder: string) {
 		this.app = app;
@@ -190,7 +192,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	}
 
 	async write(date: string, series: DaySeries): Promise<"written" | "unchanged"> {
-		return this.put(this.path(date), serializeSeries(date, series));
+		const path = this.path(date);
+		const held = this.seriesTexts.get(path);
+		this.seriesTexts.delete(path);
+		return this.put(path, serializeSeries(date, series), held);
 	}
 
 	get daysFolder(): string {
@@ -214,7 +219,7 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				const file = this.app.vault.getAbstractFileByPath(this.join(`${DAYS_FOLDER}/${year}.json`));
 				return file instanceof TFile ? this.app.vault.read(file) : null;
 			},
-			writeYear: (year, body) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body),
+			writeYear: (year, body, held) => this.put(this.join(`${DAYS_FOLDER}/${year}.json`), body, held),
 		});
 	}
 
@@ -239,7 +244,9 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	async read(date: string): Promise<DaySeries | null> {
 		const file = this.app.vault.getAbstractFileByPath(this.path(date));
 		if (!(file instanceof TFile)) return null;
-		return parseSeries(await this.app.vault.cachedRead(file));
+		const text = await this.app.vault.cachedRead(file);
+		this.seriesTexts.set(file.path, text);
+		return parseSeries(text);
 	}
 
 	activityDetailPath(id: number): string {
@@ -735,10 +742,15 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 	 * held (see `file-health.ts`). A file a newer build of the plugin wrote is
 	 * left alone, and the write fails.
 	 */
-	private async put(path: string, body: string): Promise<"written" | "unchanged"> {
+	/**
+	 * Writes `body` unless the file already says it. `known` is the file's text
+	 * as the caller just read it, so it isn't read twice; the write itself
+	 * still checks the file, should another device have changed it since.
+	 */
+	private async put(path: string, body: string, known?: string): Promise<"written" | "unchanged"> {
 		const existing = this.app.vault.getAbstractFileByPath(path);
 		if (existing instanceof TFile) {
-			const held = await this.app.vault.read(existing);
+			const held = known ?? (await this.app.vault.read(existing));
 			if (held === body) return "unchanged";
 			if (!isReadable(held)) {
 				await this.setAside(existing);
