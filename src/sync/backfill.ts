@@ -13,6 +13,7 @@ import {
 } from "./datasets";
 import { shiftDate } from "./day-index";
 import type { MetricGroup } from "./metrics";
+import { HALVING_MS } from "./pace";
 import { historyStart, type AccountScan } from "./scan";
 
 /**
@@ -286,54 +287,116 @@ function entriesOf(raw: unknown): BudgetEntries {
 	);
 }
 
+/** A saved ledger: today's shape, or the bare list of entries an older build kept. */
+function ledgerOf(raw: unknown): BudgetLedger {
+	if (Array.isArray(raw)) return { entries: entriesOf(raw) };
+	const saved = raw as { entries?: unknown; halvedUntil?: unknown } | null;
+	if (!saved || typeof saved !== "object") return { entries: [] };
+	const halvedUntil = typeof saved.halvedUntil === "number" && Number.isFinite(saved.halvedUntil) ? saved.halvedUntil : undefined;
+	return { entries: entriesOf(saved.entries), ...(halvedUntil !== undefined ? { halvedUntil } : {}) };
+}
+
 /* ------------------------------------------------------------------ */
 /*  The hourly budget                                                  */
 /* ------------------------------------------------------------------ */
 
+const HOUR_MS = 3_600_000;
+
 /** What the budget has spent in the last hour: `[epoch ms, requests]` pairs. */
 export type BudgetEntries = Array<{ at: number; requests: number }>;
 
-/** Where a budget keeps what it spent, so a restart doesn't hand it a fresh hour. */
-export interface BudgetStore {
-	load(): unknown;
-	save(entries: BudgetEntries): void;
+/** What a budget keeps between sessions: the hour's spending, and until when a 429 halved it. */
+export interface BudgetLedger {
+	entries: BudgetEntries;
+	/** Epoch ms. */
+	halvedUntil?: number;
 }
 
-/** Requests spent in the last hour, a unit at a time, for the budget. */
+/** Where a budget keeps its ledger, so a restart doesn't hand it a fresh hour. */
+export interface BudgetStore {
+	load(): unknown;
+	save(ledger: BudgetLedger): void;
+}
+
+/** What the hour has spent and what it allows: where an estimate of the download's time starts. */
+export interface BudgetOutlook {
+	entries: BudgetEntries;
+	perHour: number;
+	halvedUntil?: number;
+}
+
+/**
+ * Requests spent in the last hour, a unit at a time, for the budget. A 429
+ * that reaches the history download halves what the hour holds for a day
+ * (`HALVING_MS`): Garmin said the pace was too much, and coming back at it
+ * whole an hour later would say it again.
+ */
 export class RequestBudget {
 	private spent: BudgetEntries;
+	private halvedUntil: number | undefined;
 
 	constructor(
 		private readonly perHour: () => number,
 		private readonly store?: BudgetStore,
 	) {
-		this.spent = entriesOf(store?.load());
+		const ledger = ledgerOf(store?.load());
+		this.spent = ledger.entries;
+		this.halvedUntil = ledger.halvedUntil;
 	}
 
 	add(requests: number, at: number): void {
 		if (requests <= 0) return;
 		this.spent.push({ at, requests });
-		this.store?.save(this.spent);
+		this.save();
+	}
+
+	/** Garmin answered 429: half the budget for a day from `now`. */
+	halve(now: number): void {
+		this.halvedUntil = now + HALVING_MS;
+		this.save();
+	}
+
+	/** Requests the hour holds at `at`: the budget, or half of it while a halving lasts. */
+	limit(at: number): number {
+		const full = this.perHour();
+		return this.halvedUntil !== undefined && at < this.halvedUntil ? Math.floor(full / 2) : full;
 	}
 
 	/** Requests spent in the hour before `now`. */
 	used(now: number): number {
-		const kept = this.spent.filter((entry) => now - entry.at < 3_600_000 && entry.at <= now + 60_000);
-		if (kept.length !== this.spent.length) {
+		const kept = this.spent.filter((entry) => now - entry.at < HOUR_MS && entry.at <= now + 60_000);
+		const lapsed = this.halvedUntil !== undefined && this.halvedUntil <= now;
+		if (kept.length !== this.spent.length || lapsed) {
 			this.spent = kept;
-			this.store?.save(kept);
+			if (lapsed) this.halvedUntil = undefined;
+			this.save();
 		}
 		return kept.reduce((n, entry) => n + entry.requests, 0);
 	}
 
 	/** Milliseconds until a unit of `next` requests fits, 0 when it does now. */
 	waitFor(next: number, now: number): number {
-		let used = this.used(now);
-		if (used + next <= this.perHour()) return 0;
-		for (const entry of this.spent) {
-			used -= entry.requests;
-			if (used + next <= this.perHour()) return Math.max(0, entry.at + 3_600_000 - now);
-		}
+		if (this.used(now) + next <= this.limit(now)) return 0;
+		// The moments the picture changes: an entry leaving the hour, or the halving ending.
+		const moments = [...this.spent.map((entry) => entry.at + HOUR_MS), ...(this.halvedUntil !== undefined ? [this.halvedUntil] : [])]
+			.filter((at) => at > now)
+			.sort((a, b) => a - b);
+		for (const at of moments) if (this.spentAt(at) + next <= this.limit(at)) return at - now;
 		return 0;
+	}
+
+	/** The hour as it stands, for an estimate to carry on from. */
+	outlook(now: number): BudgetOutlook {
+		this.used(now);
+		return { entries: this.spent.map((entry) => ({ ...entry })), perHour: this.perHour(), ...(this.halvedUntil !== undefined ? { halvedUntil: this.halvedUntil } : {}) };
+	}
+
+	/** What the hour before `at` holds of what was spent so far. */
+	private spentAt(at: number): number {
+		return this.spent.reduce((n, entry) => (at - entry.at < HOUR_MS && entry.at <= at ? n + entry.requests : n), 0);
+	}
+
+	private save(): void {
+		this.store?.save({ entries: this.spent, ...(this.halvedUntil !== undefined ? { halvedUntil: this.halvedUntil } : {}) });
 	}
 }

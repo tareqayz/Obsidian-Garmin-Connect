@@ -237,7 +237,36 @@ describe("hourly budget, kept across restarts", () => {
 		]);
 		const budget = new RequestBudget(() => 100, store);
 		assert.equal(budget.used(t0 + 1_000), 10);
-		assert.deepEqual(store.held, [{ at: t0, requests: 10 }]);
+		// An older build's bare list is read, and kept in today's shape.
+		assert.deepEqual(store.held, { entries: [{ at: t0, requests: 10 }] });
+	});
+
+	it("halves the hour for a day after a 429, across a restart, then gives it back", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const store = memoryStore();
+		const budget = new RequestBudget(() => 8_000, store);
+		budget.add(3_000, t0);
+		budget.halve(t0 + 60_000);
+		const restarted = new RequestBudget(() => 8_000, store);
+		assert.equal(restarted.limit(t0 + 120_000), 4_000);
+		assert.equal(restarted.waitFor(500, t0 + 120_000), 0);
+		// 1,500 more needs the 3,000 to leave the hour: 4,000 holds while halved.
+		assert.equal(restarted.waitFor(1_500, t0 + 120_000), 3_600_000 - 120_000);
+		// A day on, the whole hour again.
+		const dayOn = t0 + 60_000 + 24 * 3_600_000;
+		assert.equal(restarted.limit(dayOn), 8_000);
+		assert.equal(restarted.used(dayOn), 0);
+		assert.deepEqual(store.held, { entries: [] });
+	});
+
+	it("waits for the halving to end when that comes before the hour frees enough", () => {
+		const t0 = Date.parse("2026-10-14T06:00:00Z");
+		const budget = new RequestBudget(() => 8_000);
+		budget.halve(t0 - 24 * 3_600_000 + 600_000);
+		budget.add(3_900, t0);
+		// Halved until t0 + 10 min; then 8,000 holds, and 3,900 + 1,000 fits.
+		assert.equal(budget.waitFor(1_000, t0 + 60_000), 600_000 - 60_000);
+		assert.deepEqual(budget.outlook(t0 + 60_000), { entries: [{ at: t0, requests: 3_900 }], perHour: 8_000, halvedUntil: t0 + 600_000 });
 	});
 
 	it("waits half an hour after the edge's first refusal, doubling to twelve hours", () => {

@@ -29,6 +29,9 @@ export const PACE: Pace = { limits: { rate: 20, burst: 27, concurrency: 27 }, pa
  */
 export const HOURLY_BUDGET = 8_000;
 
+/** How long a 429 that reaches the history download halves the budget for. */
+export const HALVING_MS = 24 * 3_600_000;
+
 /**
  * Measured 2026-10-12: a day's requests go out together and the day lands with
  * the slowest, about 0.85 s at Garmin's usual response times.

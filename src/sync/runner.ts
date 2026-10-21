@@ -33,7 +33,7 @@ import type { DayBuffer } from "./days";
 import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
-import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetStore, type PauseReason, type Task } from "./backfill";
+import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BudgetOutlook, type BudgetStore, type PauseReason, type Task } from "./backfill";
 import { chunkDays, DETAIL_REQUESTS, requestsPerChunk, requestsPerDay } from "./estimate";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
@@ -1054,6 +1054,11 @@ export class SyncRunner {
 	/*  The backfill                                                     */
 	/* ---------------------------------------------------------------- */
 
+	/** What the history download's hour has spent and allows, for Save debug info. */
+	budgetOutlook(): BudgetOutlook {
+		return this.budget.outlook(Date.now());
+	}
+
 	/** The backfill in progress, or null when there is none. */
 	get backfillProgress(): BackfillProgress | null {
 		return this.backfillState;
@@ -1258,6 +1263,8 @@ export class SyncRunner {
 			return;
 		}
 		if (fatal instanceof GarminRateLimitError) {
+			// Garmin said the pace was too much: half the hour for a day, as well as the pause.
+			this.budget.halve(Date.now());
 			this.rateLimits += 1;
 			const until = new Date(Date.now() + rateLimitWait(this.rateLimits)).toISOString();
 			await store.writeBackfill({ paused: { reason: "rate-limit", until } });
@@ -1728,7 +1735,7 @@ export const BUDGET_KEY = "garmin-connect-budget";
 function localBudget(app: App): BudgetStore {
 	return {
 		load: () => app.loadLocalStorage(BUDGET_KEY) as unknown,
-		save: (entries) => app.saveLocalStorage(BUDGET_KEY, entries),
+		save: (ledger) => app.saveLocalStorage(BUDGET_KEY, ledger),
 	};
 }
 
