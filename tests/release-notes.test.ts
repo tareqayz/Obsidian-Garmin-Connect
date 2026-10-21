@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { releaseNotes } from "../scripts/release/changelog";
+import { latestVersion, releaseNotes } from "../scripts/release/changelog";
 
 const CHANGELOG = `# Changelog
 
@@ -64,5 +64,15 @@ describe("releaseNotes", () => {
 			assert.doesNotMatch(notes(tag), /^\[[^\]]+\]:\s/m, `${tag} ran into the link definitions`);
 			assert.doesNotMatch(notes(tag), /\]\((?!https:\/\/)/, `${tag} has a relative link or image`);
 		}
+	});
+});
+
+describe("latestVersion", () => {
+	it("takes the first section after Unreleased", () => {
+		assert.equal(latestVersion(CHANGELOG), "1.2.0");
+	});
+
+	it("is null with no released section", () => {
+		assert.equal(latestVersion("# Changelog\n\n## [Unreleased]\n"), null);
 	});
 });

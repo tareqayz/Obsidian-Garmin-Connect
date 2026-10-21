@@ -78,7 +78,7 @@ flowchart TD
   stableNotes --> version["npm version patch, minor or major"]
   version --> push["git push origin main --follow-tags"]
   channel -->|beta| betaNotes["PR: Unreleased becomes x.y.z-beta.N"]
-  betaNotes --> tag["Tag that commit on main, push the tag"]
+  betaNotes --> tag["npm run release:beta on main"]
   push --> release["release.yml: build, check, attest"]
   tag --> release
   release -->|"tag without -"| draft["Draft release: check it, then publish"]
@@ -106,13 +106,10 @@ flowchart TD
 
 1. In a pull request, rename `## [Unreleased]` to `## [x.y.z-beta.N] — YYYY-MM-DD`, add a fresh
    `## [Unreleased]`, and update the compare links. Merge it.
-2. On the merged `main`, check the notes: `npm run --silent release:notes -- x.y.z-beta.N` should
-   print the beta's section. Check now: a beta is published as soon as its tag is pushed.
-3. Tag the merged commit and push the tag:
-   ```bash
-   git tag -a x.y.z-beta.N -m "x.y.z-beta.N"
-   git push origin x.y.z-beta.N
-   ```
+2. On the merged `main`, run `npm run release:beta`. It takes the version from the newest changelog
+   section, checks that `main` is clean and in step with `origin`, prints the notes, and asks before
+   it tags and pushes: a beta is published as soon as its tag lands. `-- --dry-run` checks only.
+   Don't use `npm version` for a beta: it would commit the beta version to `manifest.json`.
 
 The workflow stamps the version into `manifest.json` **inside the runner** and publishes a
 pre-release. The bump is never committed: Obsidian reads `manifest.json` at the head of the default
@@ -228,6 +225,7 @@ a real vault. That has consequences:
 | `svelte-check` | type-checks the Svelte components |
 | `version` | npm's version hook: `version-bump.mjs` (see [Releasing](#releasing)) |
 | `release:notes` | prints a tag's release notes from `CHANGELOG.md` |
+| `release:beta` | tags and pushes the beta that heads `CHANGELOG.md` (see [Beta](#beta-brat-testers)) |
 | `api:extract`, `api:extract:check` | regenerate the request half of `api/endpoints.json` from a `python-garminconnect` checkout, or check it hasn't drifted |
 | `api:check`, `api:record` | the live contract check, and the same folding today's shapes into `api/schema/` |
 | `api:record-file` | record shapes from saved responses, without a token |

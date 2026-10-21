@@ -13,7 +13,7 @@ if (!version) {
 // a beta release and nowhere else; the workflow stamps that in CI without committing it.
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
 	console.error(`\n✗ "${version}" is not x.y.z — Obsidian rejects anything else in manifest.json.`);
-	console.error("  For a beta, tag the commit directly instead: git tag -a 1.2.0-beta.1 -m 1.2.0-beta.1\n");
+	console.error("  For a beta, run `npm run release:beta` instead: it tags main without committing a version.\n");
 	process.exit(1);
 }
 
