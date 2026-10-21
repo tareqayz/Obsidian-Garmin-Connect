@@ -57,7 +57,7 @@ describe("the recent sync, against a simulated Garmin", () => {
 			await clock.runUntil(() => outcome !== undefined, 3_600_000);
 			return outcome!;
 		};
-		return { clock, vault, http, sync };
+		return { clock, vault, http, sync, runner };
 	}
 
 	it("stops at its probe when started on its own and nothing moved; ↻ always syncs in full", async () => {
@@ -84,10 +84,15 @@ describe("the recent sync, against a simulated Garmin", () => {
 	});
 
 	it("tells the palette's sync how it went, and stays quiet for Home's", async () => {
-		const { clock, sync } = await setup();
+		const { clock, sync, runner } = await setup();
 		try {
+			// Home hears when a sync starts and ends, to redraw once at its end.
+			const heard: boolean[] = [];
+			runner.onSyncing((startedAt) => heard.push(startedAt > 0 && runner.syncingSince === startedAt));
 			clearNotices();
 			await sync("command");
+			assert.deepEqual(heard, [true, false]);
+			assert.equal(runner.syncingSince, 0);
 			assert.ok(notices.some((n) => /^Garmin: (up to date|\d+ days? updated)/.test(n)), notices.join(" | "));
 			clearNotices();
 			await sync("button");

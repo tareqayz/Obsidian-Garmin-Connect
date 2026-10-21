@@ -223,7 +223,11 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		});
 	}
 
-	/** Every synced day, oldest first. */
+	/**
+	 * Every synced day, oldest first. A year file is parsed again only once it
+	 * changed (`parsedDays`): Home rebuilds after every sync, and a sync
+	 * rewrites this year's file at most.
+	 */
 	async readDays(): Promise<HomeDayRow[]> {
 		const folder = this.app.vault.getAbstractFileByPath(this.daysFolder);
 		const rows: HomeDayRow[] = [];
@@ -234,9 +238,13 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				this.noteCopy(child);
 				continue;
 			}
-			for (const [date, properties] of parseDays(await this.app.vault.cachedRead(child))) {
-				rows.push(dayRowOf(date, properties));
+			const stamp = `${child.stat.mtime}:${child.stat.size}`;
+			let year = parsedDays.get(child.path);
+			if (year?.stamp !== stamp) {
+				year = { stamp, rows: [...parseDays(await this.app.vault.cachedRead(child))].map(([date, properties]) => dayRowOf(date, properties)) };
+				parsedDays.set(child.path, year);
 			}
+			rows.push(...year.rows);
 		}
 		return rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	}
@@ -918,6 +926,14 @@ const WHOLE_LISTING = 0.95;
 interface HeldFiles {
 	years: string[];
 	texts: Map<string, string>;
+}
+
+/** Each day year file's days as Home reads them, with the file's modified time and size: parsed again only once it changes. */
+const parsedDays = new Map<string, { stamp: string; rows: HomeDayRow[] }>();
+
+/** Lets go of the parsed day files: no Garmin view is open to read them. */
+export function forgetParsedDays(): void {
+	parsedDays.clear();
 }
 
 /**

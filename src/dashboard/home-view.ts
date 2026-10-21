@@ -9,7 +9,8 @@ import { outcomeLine } from "../sync/sync-outcome";
 
 /** The time a sync ended, as Home's line beside ↻ says it: "2:05 PM". */
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-import { VaultSeriesStore } from "../sync/series-store";
+import { forgetParsedDays, VaultSeriesStore } from "../sync/series-store";
+import { rebuildAt } from "./rebuild-schedule";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
 import { SheetModal, type OpenSheet, type SheetBodyProps } from "../ui/sheet-modal";
@@ -67,9 +68,6 @@ interface HomeApi {
 function sameStack(a: readonly Route[], b: readonly Route[]): boolean {
 	return a.length === b.length && a.every((route, i) => routeKey(route) === routeKey(b[i]));
 }
-
-/** While a backfill writes, Home rebuilds at most this often. */
-const BACKFILL_REFRESH_MS = 30_000;
 
 /**
  * The Home screen: Garmin Connect's home, drawn from what the sync wrote, and
@@ -312,6 +310,9 @@ export class GarminHomeView extends ItemView {
 			sync.onSleepHistory((progress) => this.component?.setSleepHistory(progress)),
 			sync.onIndexHistory((kind, progress) => this.component?.setIndexHistory(kind, progress)),
 			sync.onBackfill((progress) => this.component?.setBackfill(progress)),
+			sync.onSyncing((startedAt) => {
+				if (!startedAt) this.syncEnded();
+			}),
 		);
 	}
 
@@ -353,6 +354,8 @@ export class GarminHomeView extends ItemView {
 
 	async onClose(): Promise<void> {
 		for (const off of this.unbind.splice(0)) off();
+		// The last Garmin view gone: the parsed day files go too, on a phone's memory.
+		if (!this.app.workspace.getLeavesOfType(this.getViewType()).some((leaf) => leaf.view !== this)) forgetParsedDays();
 		window.clearTimeout(this.pending);
 		for (const timer of this.bumps.values()) window.clearTimeout(timer);
 		this.bumps.clear();
@@ -479,15 +482,35 @@ export class GarminHomeView extends ItemView {
 		return def ? store.readDayIndex(def) : { rows: [], meta: null };
 	}
 
-	/** The backfill is writing: Home redraws at most every `BACKFILL_REFRESH_MS`. */
+	/** The backfill is writing: Home redraws at most every `REBUILD_EVERY_MS`. */
 	private get backfilling(): boolean {
 		return this.plugin.sync.backfillProgress?.status === "running";
+	}
+
+	/** When the next redraw may come (`rebuildAt`): once a sync, not once a day. */
+	private holdUntil(last: number): number | null {
+		return rebuildAt(last, { syncingSince: this.plugin.sync.syncingSince, backfilling: this.backfilling });
+	}
+
+	/** A sync ended: what it held back goes now. */
+	private syncEnded(): void {
+		const keys = [...this.bumps.keys()];
+		for (const key of keys) {
+			window.clearTimeout(this.bumps.get(key));
+			this.bumps.delete(key);
+			this.bump(key);
+		}
+		if (this.pending) {
+			window.clearTimeout(this.pending);
+			this.pending = 0;
+			this.scheduleRefresh();
+		}
 	}
 
 	/**
 	 * Moves one version, once a burst of file events settles: a sync writes a
 	 * year file and the meta together. While a backfill writes, at most every
-	 * `BACKFILL_REFRESH_MS`, a burst never putting it off.
+	 * `REBUILD_EVERY_MS`, and while a sync writes, once it ends (`rebuildAt`).
 	 */
 	private bump(key: string): void {
 		this.cache.delete(key);
@@ -500,9 +523,10 @@ export class GarminHomeView extends ItemView {
 			if (key === SERIES) this.component?.setSeriesVersion(version);
 			else this.component?.setIndexVersion(key, version);
 		};
-		if (this.backfilling) {
+		const hold = this.holdUntil(this.bumpedAt.get(key) ?? 0);
+		if (hold !== null) {
 			if (this.bumps.has(key)) return;
-			this.bumps.set(key, window.setTimeout(fire, Math.max(150, (this.bumpedAt.get(key) ?? 0) + BACKFILL_REFRESH_MS - Date.now())));
+			this.bumps.set(key, window.setTimeout(fire, Math.max(150, hold - Date.now())));
 			return;
 		}
 		window.clearTimeout(this.bumps.get(key));
@@ -511,9 +535,10 @@ export class GarminHomeView extends ItemView {
 
 	private scheduleRefresh(): void {
 		let wait = 150;
-		if (this.backfilling) {
+		const hold = this.holdUntil(this.refreshedAt);
+		if (hold !== null) {
 			if (this.pending) return;
-			wait = Math.max(150, this.refreshedAt + BACKFILL_REFRESH_MS - Date.now());
+			wait = Math.max(150, hold - Date.now());
 		}
 		window.clearTimeout(this.pending);
 		this.pending = window.setTimeout(() => {

@@ -6,7 +6,7 @@ import { parseMeta as parseDailyMeta } from "../src/sync/daily-stats";
 import { parseDays, serializeDays } from "../src/sync/days";
 import { NewerDataError } from "../src/sync/file-health";
 import { parseMeta as parseActivityMeta, parseYear as parseActivityYear } from "../src/sync/activity-index";
-import { seenConflictCopies, VaultSeriesStore } from "../src/sync/series-store";
+import { forgetParsedDays, seenConflictCopies, VaultSeriesStore } from "../src/sync/series-store";
 import { MemoryVault } from "./support/memory-vault";
 import { clearNotices, notices } from "./support/obsidian";
 
@@ -269,5 +269,29 @@ describe("VaultSeriesStore: a merge reads the years it changes", () => {
 		await store.mergeDailyStats({ rows: rows(["2026-10-20"]), dates: ["2026-10-20"] });
 		assert.equal(vault.list(`${DATA}/daily-stats`).filter((name) => name.startsWith("2025.unreadable-")).length, 1);
 		assert.equal(parseDailyMeta(vault.text(`${DATA}/daily-stats/index.json`)!)?.complete, false);
+	});
+});
+
+describe("VaultSeriesStore: Home's reads of the day files", () => {
+	it("parses a year file again only once it changed", async () => {
+		forgetParsedDays();
+		const { vault, store } = setup();
+		vault.seed(`${DATA}/days/2025.json`, serializeDays("2025", new Map([["2025-06-01", { steps: 1 }]])));
+		vault.seed(`${DATA}/days/2026.json`, serializeDays("2026", new Map([["2026-10-01", { steps: 2 }]])));
+		const dayReads = () => vault.reads.filter((p) => p.startsWith(`${DATA}/days/`)).length;
+
+		assert.deepEqual((await store.readDays()).map((r) => r.date), ["2025-06-01", "2026-10-01"]);
+		assert.equal(dayReads(), 2);
+		// Nothing changed: nothing read.
+		await store.readDays();
+		assert.equal(dayReads(), 2);
+		// A sync rewrote this year: that file alone is read again.
+		vault.seed(`${DATA}/days/2026.json`, serializeDays("2026", new Map([["2026-10-01", { steps: 2 }], ["2026-10-02", { steps: 3 }]])));
+		assert.deepEqual((await store.readDays()).map((r) => r.date), ["2025-06-01", "2026-10-01", "2026-10-02"]);
+		assert.equal(dayReads(), 3);
+		// Once no Garmin view is open, the parsed days go.
+		forgetParsedDays();
+		await store.readDays();
+		assert.equal(dayReads(), 5);
 	});
 });

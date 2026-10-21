@@ -426,6 +426,7 @@ export class SyncRunner {
 
 		const settings = this.settings();
 		const startedAt = Date.now();
+		this.setSyncing(startedAt);
 		// Shown only once the sync has run a moment: a quick one ends before it would appear.
 		let progress: SyncProgress = { done: 0, total: 0, date: null, eta: null };
 		let notice: Notice | null = null;
@@ -508,6 +509,7 @@ export class SyncRunner {
 			return outcome;
 		} finally {
 			this.api.onSlowDown = null;
+			this.setSyncing(0);
 			release();
 		}
 	}
@@ -537,6 +539,26 @@ export class SyncRunner {
 
 	/** The failures an automatic sync already said this session, by kind. */
 	private toldOnce = new Set<string>();
+
+	/** When the recent or range sync in progress started (epoch ms), or 0. */
+	private syncStarted = 0;
+	private syncingListeners = new Set<(startedAt: number) => void>();
+
+	/** When the sync writing days now started, or 0: Home rebuilds once it ends rather than after each day. */
+	get syncingSince(): number {
+		return this.syncStarted;
+	}
+
+	/** Called with a sync's start time as it starts, and with 0 as it ends. Returns the unsubscribe. */
+	onSyncing(listener: (startedAt: number) => void): () => void {
+		this.syncingListeners.add(listener);
+		return () => this.syncingListeners.delete(listener);
+	}
+
+	private setSyncing(startedAt: number): void {
+		this.syncStarted = startedAt;
+		for (const listener of this.syncingListeners) listener(startedAt);
+	}
 
 	/**
 	 * Fills the activity index with the whole history: about one request per
