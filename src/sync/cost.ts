@@ -449,6 +449,33 @@ export function timeFor(units: readonly Unit[], outlook: BudgetOutlook, now: num
 	return (at - now) / 1000;
 }
 
+/**
+ * How the download's own units have run against the model, by kind: the share
+ * of their predicted time they took, and of their predicted requests they
+ * asked. What the time left leans on once a few have run, since Garmin's
+ * answers and this device's own speed are only known by watching.
+ */
+export type Observed = Partial<Record<Unit["kind"], { time: number; requests: number }>>;
+
+/** Folds one unit's run into what was observed: the first as it came, then an average leaning toward the latest, within a factor of four of the model. */
+export function observe(observed: Observed, predicted: Unit, seconds: number, requests: number): Observed {
+	if (predicted.seconds <= 0 || predicted.requests <= 0) return observed;
+	const clamp = (ratio: number) => Math.min(4, Math.max(0.25, ratio));
+	const time = clamp(seconds / predicted.seconds);
+	const asked = clamp(requests / predicted.requests);
+	const before = observed[predicted.kind];
+	const blend = (old: number, now: number) => (before ? old + 0.3 * (now - old) : now);
+	return { ...observed, [predicted.kind]: { time: blend(before?.time ?? 1, time), requests: blend(before?.requests ?? 1, asked) } };
+}
+
+/** The units as the download has been running them. */
+export function asObserved(units: readonly Unit[], observed: Observed): Unit[] {
+	return units.map((unit) => {
+		const seen = observed[unit.kind];
+		return seen ? { ...unit, seconds: unit.seconds * seen.time, requests: Math.round(unit.requests * seen.requests) } : unit;
+	});
+}
+
 /** A fresh hour: nothing spent yet. */
 export function freshHour(): BudgetOutlook {
 	return { entries: [], perHour: HOURLY_BUDGET };

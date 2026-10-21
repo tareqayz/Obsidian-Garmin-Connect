@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { Task } from "../src/sync/backfill";
 import {
+	asObserved,
 	chunkDays,
 	costContext,
 	dayUnit,
@@ -11,6 +12,7 @@ import {
 	freshHour,
 	listRequests,
 	nextUnit,
+	observe,
 	requestsPerDay,
 	ROW_BYTES,
 	timeFor,
@@ -134,3 +136,25 @@ describe("cost — time under the hourly budget", () => {
 		assert.equal(timeFor(units(5, 1_000, 10), halved, now), 3_620);
 	});
 });
+
+describe("cost — the time left, from the download's own pace", () => {
+	const unit: Unit = { kind: "days", from: "2026-10-01", to: "2026-10-13", days: 13, requests: 201, bytes: 0, seconds: 10 };
+
+	it("takes the first unit's run as it came, then leans toward the latest", () => {
+		let seen = observe({}, unit, 8, 201);
+		assert.deepEqual(seen.days, { time: 0.8, requests: 1 });
+		seen = observe(seen, unit, 12, 201);
+		assert.ok(Math.abs(seen.days!.time - (0.8 + 0.3 * (1.2 - 0.8))) < 1e-9);
+		// A unit of another kind says nothing about these.
+		assert.equal(seen.details, undefined);
+	});
+
+	it("keeps a wild run within a factor of four, and reads units as they have been running", () => {
+		const seen = observe({}, unit, 100, 2_000);
+		assert.deepEqual(seen.days, { time: 4, requests: 4 });
+		const [got] = asObserved([unit], observe({}, unit, 5, 201));
+		assert.deepEqual([got!.seconds, got!.requests], [5, 201]);
+		assert.deepEqual(asObserved([unit], {}), [unit]);
+	});
+});
+

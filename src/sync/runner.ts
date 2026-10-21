@@ -35,7 +35,7 @@ import { deviceUploadOf, markOf } from "./sync-state";
 import { segmentOf, segmentWindows, STATS_WINDOW_DAYS, walkInSegments, type Segment, type SegmentOptions } from "./segments";
 import { DAY_DETAILS_VERSION, rangeStart, type ActivityDetailsRange, type DayDetailsRange } from "./datasets";
 import { blockedWait, heldElsewhere, LEASE_MS, nextChunk, planBackfill, rateLimitWait, RequestBudget, stillPaused, type BackfillState, type BudgetOutlook, type BudgetStore, type DetailCandidate, type PauseReason, type Task } from "./backfill";
-import { chunkDays, costContext, detailBatch, detailUnit, nextUnit, timeFor, unitsOf, type CostContext } from "./cost";
+import { asObserved, chunkDays, costContext, detailBatch, detailUnit, nextUnit, observe, timeFor, unitsOf, type CostContext, type Observed } from "./cost";
 import { historyStart, scanAccount, type ScanResult, type ScanStep } from "./scan";
 import { RunnerLock, type Priority, type Release } from "./runner-lock";
 
@@ -164,6 +164,10 @@ export class SyncRunner {
 	private unsaved = 0;
 	/** The user paused it: a unit in hand when they did ends on "paused", not "running". */
 	private userPaused = false;
+	/** How this session's units ran against the model, for the time left (`cost.ts`, `observe`). */
+	private observed: Observed = {};
+	/** The unit in hand stopped early for something waiting: its run says nothing about the pace. */
+	private unitCut = false;
 	/** 429s in a row, for the growing pause. */
 	private rateLimits = 0;
 	/** Refusals from Garmin's edge in a row, for their growing pause. */
@@ -1174,7 +1178,7 @@ export class SyncRunner {
 	/** About how many requests the plan has left and how long they take from now: the progress bar and its time left. */
 	private left(tasks: readonly Task[]): { remaining: number; seconds?: number } {
 		if (!this.backfillCtx) return { remaining: 0 };
-		const units = unitsOf(tasks, this.backfillCtx);
+		const units = asObserved(unitsOf(tasks, this.backfillCtx), this.observed);
 		const now = Date.now();
 		return { remaining: units.reduce((n, unit) => n + unit.requests, 0), seconds: timeFor(units, this.budget.outlook(now), now) };
 	}
@@ -1235,7 +1239,8 @@ export class SyncRunner {
 			this.setBackfill(null);
 			return;
 		}
-		const wait = this.budget.waitFor(nextUnit(this.backfillTasks, this.backfillCtx!)?.requests ?? 0, now);
+		const predicted = nextUnit(this.backfillTasks, this.backfillCtx!);
+		const wait = this.budget.waitFor(predicted?.requests ?? 0, now);
 		if (wait > 0) {
 			this.backfillLater(wait);
 			this.setBackfill({ status: "waiting", until: new Date(now + wait).toISOString(), task: task.kind, done: this.doneNow, ...this.left(this.backfillTasks) });
@@ -1256,13 +1261,16 @@ export class SyncRunner {
 
 		let fatal: unknown;
 		const started = Date.now();
+		this.unitCut = false;
 		try {
 			fatal = (await this.runUnit(task, store)).fatal;
 		} catch (err) {
 			fatal = err;
 		}
 		// What the unit really asked, retries included.
-		this.unsaved += this.api.stats.since(started).length;
+		const spent = this.api.stats.since(started).length;
+		this.unsaved += spent;
+		if (predicted && fatal === undefined && !this.unitCut) this.observed = observe(this.observed, predicted, (Date.now() - started) / 1000, spent);
 
 		if (fatal instanceof GarminAuthError) {
 			await store.updateBackfill((fresh) => ({ ...fresh, paused: { reason: "sign-in" }, progress: this.progressFrom(fresh, Date.now()) }));
@@ -1434,7 +1442,11 @@ export class SyncRunner {
 	}
 
 	/** Where a unit stops early: Obsidian closing, or something waiting for the runner, which then goes next. */
-	private readonly unitShouldStop = (): boolean => this.backfillStopped || this.othersWaiting;
+	private readonly unitShouldStop = (): boolean => {
+		const stop = this.backfillStopped || this.othersWaiting;
+		if (stop) this.unitCut = true;
+		return stop;
+	};
 
 	/**
 	 * A batch of activities' pages, `PACE.parallel` at a time, the index read

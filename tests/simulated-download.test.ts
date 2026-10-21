@@ -37,7 +37,13 @@ interface Scenario {
 	spent?: { requests: number; ago: number };
 }
 
-async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number } }> {
+interface Snapshot {
+	at: number;
+	share: number;
+	seconds?: number;
+}
+
+async function simulate(s: Scenario): Promise<{ seconds: number; requests: number; lookups: number; predicted: { seconds: number; requests: number }; end: number; snapshots: Snapshot[] }> {
 	const clock = new VirtualClock(Date.now());
 	clock.install();
 	try {
@@ -90,15 +96,17 @@ async function simulate(s: Scenario): Promise<{ seconds: number; requests: numbe
 		const started = clock.now();
 		let seen = false;
 		let done = false;
+		const snapshots: Snapshot[] = [];
 		runner.onBackfill((progress) => {
 			if (progress) seen = true;
 			else if (seen) done = true;
+			if (progress?.status === "running") snapshots.push({ at: clock.now(), share: progress.done / Math.max(1, progress.done + progress.remaining), ...(progress.seconds !== undefined ? { seconds: progress.seconds } : {}) });
 		});
 		runner.kickBackfill();
 		await clock.runUntil(() => done, 48 * 3_600_000);
 		// The account's profile is looked up once a session, not once a download: kept apart.
 		const lookups = http.asked.filter((url) => url.includes("/socialProfile")).length;
-		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests } };
+		return { seconds: (clock.now() - started) / 1000, requests: http.asked.length - lookups, lookups, predicted: { seconds: predicted.seconds, requests: predicted.requests }, end: clock.now(), snapshots };
 	} finally {
 		clock.uninstall();
 	}
@@ -114,6 +122,14 @@ describe("a simulated download against its estimate", () => {
 		assert.equal(got.requests, got.predicted.requests);
 		assert.ok(got.lookups >= 1);
 		assert.ok(within(got.seconds, got.predicted.seconds, 0.1), `${got.seconds} s against ${got.predicted.seconds} s`);
+	});
+
+	it("learns the download's own pace: halfway, the time left is within 10%", async () => {
+		// The runner reckons with Garmin's measured latency; this one answers faster.
+		const got = await simulate({ days: 200, activities: { run: 10 }, accepted: [DAY_DETAILS_KEY], dayDetails: "all", activityDetails: "opened" });
+		const halfway = got.snapshots.find((s) => s.share >= 0.5)!;
+		const left = (got.end - halfway.at) / 1000;
+		assert.ok(halfway.seconds !== undefined && within(halfway.seconds, left, 0.1), `${halfway.seconds} s said, ${left} s taken`);
 	});
 
 	it("Activity details: 120 activities of every kind, the requests exact and the time within 10%", async () => {
