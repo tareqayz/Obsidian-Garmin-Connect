@@ -6,6 +6,30 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Added
+
+- **Garmin cards in your notes.** A `garmin` code block shows Home's cards in any note, for the
+  note's day: `show: sleep, body-battery` in a daily note shows that night's sleep and that day's
+  Body Battery. Cards keep their Home size, open their page in Garmin Home when clicked, and read
+  only what the sync saved. **Insert card…** adds one. See
+  [Garmin cards in notes](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#garmin-cards-in-notes).
+- **A daily note template.** **Create daily note template** writes `Garmin daily note.md`, made of
+  Garmin cards, for the core Daily notes plugin or any other. Nothing is written until you ask.
+- **A card guide.** **Open card guide** writes `Garmin cards.md`, with every card and a live
+  example; **Rebuild card guide** refreshes it after asking.
+
+### Changed
+
+- **Steps, Floors and Intensity Minutes open on Home's day.** While today hasn't synced and Home
+  shows yesterday, their cards open yesterday's page, as the other cards do.
+
+### Fixed
+
+- **Body Battery's curve keeps its shading** when another Body Battery card is on screen.
+- **A link inside a Home card**, such as Weight's +, opens only the link.
+
 ## [1.2.1-beta.1] — 2026-10-29
 
 ### Changed
@@ -498,7 +522,7 @@ The first build published for testers.
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.1...HEAD
 [1.0.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.1...1.0.2
 [1.0.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0-beta.1...1.0.0

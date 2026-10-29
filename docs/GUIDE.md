@@ -192,7 +192,9 @@ details ranges keep filling. Only what an older version saved is offered again.
 ## Where the data goes
 
 Everything the sync writes is plain JSON in the data folder, `Garmin/data` by default (**Settings →
-History → Data folder**). It writes no notes, so your own notes are never touched.
+History → Data folder**). The sync writes no notes, so your own notes are never touched. The plugin
+writes a note only when you ask: debug info, the card guide and the daily note template (see
+[Garmin cards in notes](#garmin-cards-in-notes)).
 - Each day's numbers go into a file per year, `days/<year>.json`.
 - The pages' histories and timelines sit beside them.
 
@@ -460,6 +462,115 @@ The histories are cheap: a request covers a year, so a few requests each fetch t
 Load, Training Effect and Cycling Power Curve keep no history of their own; they read Training
 Status's, the day files and the activity list.
 
+## Garmin cards in notes
+
+Home's cards can sit in any note: a daily note, a training log, a weekly review. A `garmin` code
+block names the cards, and they draw for the note's day from what the sync has saved. They never ask
+Garmin for anything, so they work offline and in any number. Clicking one opens its page in Garmin
+Home on that day.
+
+````markdown
+```garmin
+show: sleep, body-battery
+```
+````
+
+- **Insert card…**, in the command palette, lists every card and inserts its block at the cursor.
+- **Open card guide**, also **Settings → Card guide**, writes `Garmin cards.md` beside the data
+  folder, with every card and a live example of it. **Rebuild card guide** writes it again for a
+  newer version, after asking.
+
+### The block
+
+One `key: value` a line; a line starting with `#` is a comment.
+
+| Key | Takes | Without it |
+| --- | --- | --- |
+| `show` | one or more cards, by name: `sleep`, `heart-rate`, `hrv-status` | required |
+| `date` | `2026-10-28`, `today` or `yesterday` | the note's day |
+| `size` | `small`, for the small version of a big card | each card at its Home size |
+
+Cards keep their Home size. The ones marked big below are Home's In Focus cards; the rest are At a
+Glance cards. From 640 px wide, big cards share a row two at a time and small ones four; a phone
+stacks them. Names ignore case, spaces and dashes, and a misspelt one gets a suggestion. `day` and
+`activities` go in a block of their own.
+
+### Which day a card shows
+
+The first of these that applies:
+1. the block's own `date:`;
+2. a daily note's day: its path, read with the core **Daily notes** plugin's folder and format;
+3. the note's `date` property;
+4. a `YYYY-MM-DD` in the note's name;
+5. otherwise today. It moves on at midnight, and shows the newest synced day until today has synced.
+
+A block on another day than its note's says which, above its cards. **Insert card…** adds today's
+date to a block in a note without a day of its own, so the card keeps showing the day you added it.
+
+### The cards
+
+| Card | `show:` | What it shows |
+| --- | --- | --- |
+| Whole day | `day` | Your Home for that day: In Focus, activities and At a Glance. |
+| Activities | `activities` | That day’s activities and Health Snapshots. |
+| Sleep Score (big) | `sleep` | Last night’s score, time asleep and stages. |
+| Body Battery (big) | `body-battery` | Energy charged and drained through the day. |
+| HRV Status | `hrv-status` | Overnight HRV against your baseline. |
+| Training Readiness (big) | `training-readiness` | How ready you are for a hard workout. |
+| Health Status | `health-status` | Overnight vitals against your baseline. |
+| Respiration | `respiration` | Breaths a minute, awake and asleep. |
+| Pulse Ox | `pulse-ox` | Blood oxygen, latest and averages. |
+| Steps (big) | `steps` | Steps against your goal, through the day. |
+| All Activities (big) | `activity-week` | Your activities over the past week. |
+| Intensity Minutes | `intensity-minutes` | This week’s intensity minutes against your goal. |
+| Calories Burned | `calories` | Calories burned, active and resting. |
+| Floors | `floors` | Floors climbed against your goal. |
+| Last Activity | `last-activity` | Your latest activity on or before the day. |
+| Heart Rate | `heart-rate` | Resting and current heart rate. |
+| Stress | `stress` | Average stress and how the day split. |
+| Training Status (big) | `training-status` | Your training status and load focus. |
+| Training Load | `training-load` | Acute load against your optimal range. |
+| Load Focus | `load-focus` | Four weeks of load by intensity. |
+| VO₂ Max | `vo2-max` | Your running VO₂ Max. |
+| Cycling VO₂ Max | `cycling-vo2-max` | Your cycling VO₂ Max. |
+| Endurance Score | `endurance-score` | Your endurance score and level. |
+| Hill Score | `hill-score` | Your hill score and level. |
+| Fitness Age | `fitness-age` | Your fitness age. |
+| Heat Acclimation | `heat-acclimation` | How used you are to the heat. |
+| Altitude Acclimation | `altitude-acclimation` | How used you are to altitude. |
+| Running Tolerance | `running-tolerance` | How much running load you can take this week. |
+| Running Economy | `running-economy` | Your latest running economy. |
+| Running Lactate Threshold | `lactate-threshold` | Your latest lactate threshold. |
+| Cycling FTP | `cycling-ftp` | Your latest cycling FTP. |
+| XC Skiing FTP | `xc-ski-ftp` | Your latest XC skiing FTP. |
+| Cycling Ability | `cycling-ability` | Your latest cycling ability. |
+| Weight | `weight` | Your latest weigh-in on or before the day. |
+
+The cards for FTP, running economy, lactate threshold and cycling ability hold only your latest
+value: on an earlier day they're marked **Now**.
+
+### When there are no cards
+
+A line in their place says why:
+- the setup hasn't run, or nothing is synced yet;
+- the day is still to come, or not synced yet: **Open Garmin** opens Home, which syncs;
+- the day is before your synced history: **Settings** has **History**;
+- nothing was recorded that day;
+- the block has a mistake: what it is, and on which line.
+
+### The daily note template
+
+**Create daily note template**, also **Settings → Daily note template**, writes `Garmin daily
+note.md`: into the core **Templates** plugin's folder if it has one, else beside the data folder.
+Choose it under **Settings → Daily notes → Template file location**.
+
+It holds Sleep and Body Battery, Activities, At a glance (heart rate, stress, HRV and intensity
+minutes) and an empty Notes section. It has no dates in it: a daily note's name gives the day, so it
+works with any template plugin. A note of that name already there is opened, never written over.
+
+> [!NOTE]
+> Where the plugin isn't running, as on Obsidian Publish, a card block shows as code.
+
 ## Commands
 
 All are in the command palette under **Garmin Connect:**. A page opens inside its area, so Back
@@ -483,6 +594,9 @@ history** button fetches it at once.
 | --- | --- |
 | **Set up…** | Opens the setup: sign in, scan your account, then download all of it or choose under **Advanced options**. |
 | **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
+| **Insert card…** | Picks a card and inserts its `garmin` block at the cursor; see [Garmin cards in notes](#garmin-cards-in-notes). |
+| **Open card guide** / **Rebuild card guide** | Opens `Garmin cards.md`, written the first time; Rebuild writes it again for this version, after asking. |
+| **Create daily note template** | Writes `Garmin daily note.md` once, then opens it. |
 | **Save debug info** | What a bug report needs, redacted, saved as a note in the **Log folder** and opened, to attach to an issue. No password, no request. |
 | **Stop syncing** | Stops the sync or history walk in progress, an automatic sync included, after the day it is on, keeping what came in. |
 | **Pause the history download** / **Resume the history download** | What the pause button and Settings → History do. Resume also lifts Garmin's own pauses. |

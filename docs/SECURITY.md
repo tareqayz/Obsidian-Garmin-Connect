@@ -75,6 +75,14 @@ it is deliberately left out.
 > This is health data, and it travels wherever your vault travels. Treat a vault with the data folder
 > in it the way you would treat a medical record.
 
+### Cards in notes
+
+A `garmin` code block in a note holds only the names of its cards, never your numbers. The cards
+draw from the data folder each time the note opens, and send nothing anywhere. Sharing or publishing
+the note shares the block's text alone; a PDF export or a screenshot shows the numbers as drawn. The
+plugin writes two notes of its own, `Garmin cards.md` and `Garmin daily note.md`, and only when you
+ask. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+
 ### On the device, outside the vault
 
 Besides the keychain entry, the plugin keeps a few things in the device's own storage. None of them

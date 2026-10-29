@@ -5,15 +5,18 @@ is in the [Guide](GUIDE.md); how the pages inside Home are built is in
 [Building pages](building-pages.md).
 
 **Code:** `src/main.ts` (entry), `src/garmin/` (talking to Garmin), `src/sync/` (syncing, storage,
-the history download), `src/dashboard/` and `src/ui/` (pages and dialogs).
+the history download), `src/dashboard/` and `src/ui/` (pages and dialogs), `src/embeds/` (Garmin
+cards in notes).
 
 ## Overview
 
-`GarminPlugin` (`src/main.ts`) builds four things on load:
+`GarminPlugin` (`src/main.ts`) builds five things on load:
 - a Garmin client, with the session from Obsidian's keychain;
 - a `SyncRunner`, which runs every sync, history walk and on-view load;
 - an `AutoSync`, which starts a recent sync on its own when one is due;
-- the `garmin-home` view, where every page lives.
+- the `garmin-home` view, where every page lives;
+- `CardData` and the `garmin` code block, which draw Home's cards in notes (see
+  [Cards in notes](#cards-in-notes)).
 
 The runner's engine fetches through the client and writes plain JSON into the data folder through
 `VaultSeriesStore`. The pages read only those files, and ask the runner for anything a page needs
@@ -26,6 +29,8 @@ flowchart TB
   plugin --> auto["AutoSync (sync/auto-sync.ts)"]
   auto -->|"a recent sync, when due"| runner
   plugin --> home["GarminHomeView + Svelte pages"]
+  plugin --> cards["CardData + garmin blocks in notes"]
+  cards --> store
   runner --> engine["engine.ts: syncRange, feedIndex, walkHistory"]
   runner --> store["VaultSeriesStore (sync/series-store.ts)"]
   engine --> api["GarminApi, extends GarminClient"]
@@ -147,6 +152,8 @@ when adding to it.
 | `dashboard/legacy-view.ts` | turns a saved tab of the retired classic dashboard into Home |
 | `dashboard/routes.ts`, `home.ts`, `glance.ts` | the page stack; Home's presets and numbers; At a Glance — pure |
 | `dashboard/rebuild-schedule.ts` | `rebuildAt`: when Home may redraw while a sync or the download writes — pure |
+| `dashboard/data-versions.ts` | `DataVersions`: a version per key, moved when its files change and held while a sync writes, with the reads shared while it holds; `keysOfPath`, what a path's change moves. Home and the cards in notes each keep one — pure |
+| `dashboard/card-routes.ts` | the page each Home card opens, on Home and in a note — pure |
 | `dashboard/areas.ts` | the areas (Home, Activities, Health Stats, Performance Stats): each page's area, each area's pages, what the rail lights — pure. Drawn by `ui/svelte/home/AreaRail.svelte` (a wide pane) and `AreaTabs.svelte` (a phone) |
 | `dashboard/series.ts`, `day.ts`, `periods.ts` | day rows and date words; periods, spans and labels — pure |
 | `dashboard/stat-registry.ts`, `health-stats.ts`, `performance-stats.ts` | `StatDef`, `HEALTH_STATS`, `PERFORMANCE_STATS` — pure |
@@ -580,6 +587,46 @@ prices the update dialog's lines, and their total, from the same plan.
 
 The lock passes from holder to waiter inside the release, so nothing slips in between. The drain
 (`drainIntraday`) takes a page's day, then a page's activity, then a backfill unit.
+
+## Cards in notes
+
+A `garmin` code block draws Home's cards in a note (the user's side is in the
+[Guide](GUIDE.md#garmin-cards-in-notes)). **Code:** `src/embeds/`, the Svelte in
+`src/ui/svelte/embed/`.
+
+| File | Role |
+| --- | --- |
+| `catalog.ts` | `CARDS`: every card a note can show, by its `show:` name, with its Home card (In Focus, At a Glance or both) — pure |
+| `spec.ts` | `parseCardBlock`: a block read, or what is wrong with it; `snippetFor` — pure |
+| `dates.ts` | `resolveCardDate`: which day a block shows — pure |
+| `status.ts` | what a block draws for its day: a notice instead, the line over it, its cards as rows — pure |
+| `notes-text.ts` | the daily note template's and the card guide's text — pure |
+| `card-data.ts` | `CardData`: what every block reads, once per version for all of them |
+| `card-block.ts` | `registerCardBlocks`: the code block processor, and `CardBlock`, a block on screen |
+| `core-plugins.ts` | the core Daily notes and Templates plugins' settings, read defensively; `parseDay` |
+| `notes.ts` | writing the template and the guide, only when asked |
+| `view.ts` | `CardView`, what `CardEmbed.svelte` draws — types |
+
+- **What a block reads.** Only what the sync wrote, through `CardData`: the day files, the day's
+  series file and `account.json`, and Home's model built from them (`homeModel`), once per day and
+  version. Nothing asks Garmin, and nothing starts a sync.
+- **When it reads again.** Vault events in the data folder move `CardData`'s versions
+  (`DataVersions`): the day files, `account.json`, the activity index, and the series file of a day
+  a block shows. A move waits while a sync or the download writes, as Home's do (`rebuildAt`), and
+  the end of a sync lets it go. Then every block on screen reads again, the reads shared. Midnight
+  and the app coming back to the front move live blocks on to the new day.
+- **A block's life.** The processor adds a `CardBlock` (a `MarkdownRenderChild`) to the note's
+  renderer. On load it acquires `CardData`, mounts `CardEmbed.svelte` and paints at once from a
+  day already read (`peek`), or reserves the cards' heights. It returns its first paint as a promise,
+  which PDF export waits on for up to five seconds. On unload it unmounts and releases.
+- **Memory.** `CardData` keeps its reads for 30 seconds after the last block goes, for a hover
+  preview opened again, then lets them go, and the parsed day files too unless Home is open. Home
+  closing lets those go only while no block is on screen.
+- **The plugin going.** `onunload` puts every block back to its source, as Obsidian draws a block
+  nothing handles. Turned on again with notes open, the plugin draws their reading views again.
+- **Opening a page.** A card opens its page in Garmin Home on the block's day, through the same
+  `card-routes.ts` Home uses. In Live Preview, `Tap.svelte`'s `contained` mode stops the press at
+  the card, so the cursor doesn't move into the block's source.
 
 ## Deleting and the uninstall watch
 

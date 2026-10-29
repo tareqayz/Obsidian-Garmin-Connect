@@ -51,7 +51,15 @@ requests and writes nothing. See [Sync automatically](GUIDE.md#sync-automaticall
 ## Will it overwrite my daily notes?
 
 No. The sync writes no notes at all. Everything goes into JSON files in its own data folder,
-`Garmin/data` by default.
+`Garmin/data` by default. To show your data in a daily note, add Garmin cards to it yourself: see
+[Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+
+## Can I show my Garmin data in a note?
+
+Yes: a `garmin` code block draws Home's cards for the note's day, such as `show: sleep,
+body-battery`. **Insert card…** adds one, **Open card guide** lists them all with examples, and
+**Create daily note template** writes a daily note made of them. The cards read what the sync saved
+and never ask Garmin. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
 
 ## I used an older version. Where did my day notes go?
 
@@ -71,8 +79,9 @@ Only JSON files in the data folder (`Garmin/data` by default):
 - the pages' histories and timelines;
 - a few bookkeeping files.
 
-It also writes diagnostics notes in the **Log folder**, but only when you ask it to. Every path is in
-the [Data reference](properties.md).
+It writes a note only when you ask it to: diagnostics and debug info in the **Log folder**, and
+`Garmin cards.md` and `Garmin daily note.md` from [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+Neither of the last two is ever written over unasked. Every path is in the [Data reference](properties.md).
 
 ## Can I backfill years of data?
 
@@ -146,9 +155,10 @@ keeps the session, and the next sync tries again.
 
 ## Can I query the data with Dataview or Bases?
 
-Not directly. Both query note properties, and the plugin no longer writes notes. The days are plain
-JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads JSON can use them. The
-[Data reference](properties.md) lists every key and unit.
+Not directly. Both query note properties, and the plugin writes no numbers into notes. The days are
+plain JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads JSON can use
+them. The [Data reference](properties.md) lists every key and unit. To see a day's numbers in a
+note, use [Garmin cards](GUIDE.md#garmin-cards-in-notes) instead.
 
 ## Does it work with a Garmin China account?
 

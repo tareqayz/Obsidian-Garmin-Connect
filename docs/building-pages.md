@@ -520,6 +520,34 @@ Each field is checked and repaired on its own (`allOf`), so one bad value never 
   counted live by `footerOf`. `applyDraft` makes the route and keeps the search and the sort.
 - **The page draws sixty cards,** and adds sixty more as the list scrolls.
 
+## Cards in notes
+
+Home's cards also draw in notes, through a `garmin` code block. How a block reads and refreshes is in
+[Architecture](architecture.md#cards-in-notes); what a user writes is in the
+[Guide](GUIDE.md#garmin-cards-in-notes).
+
+A Home card is embeddable once `src/embeds/catalog.ts` lists it:
+- **An At a Glance card:** `glance(id, glanceId, category, description)`. Its title and icon come
+  from `GLANCE_STATS`, and Home's own id becomes an alias.
+- **A stat with an In Focus card too:** `both(id, focusId, glanceId, …)`. It draws big, and small with
+  `size: small`.
+
+What comes with it, with no other wiring:
+- **The page it opens** is Home's, from `src/dashboard/card-routes.ts`, on the block's day.
+- **Its empty state** says the block's day: the cards take an `emptyText`, and `Glance` a `badge`
+  ("Now" on a card that holds only the latest value). A block of one empty card says so in a line
+  instead (`emptyCardNotice`).
+- **In Live Preview** a card's press stops at the card: `Tap.svelte`'s `contained` mode.
+
+The rules:
+- **The `show:` name is kebab-case and never changes once released:** notes hold it.
+- **One sentence of description**, what the card shows, at most twelve words.
+- **The tests hold the list together.** `tests/card-spec.test.ts` fails until every At a Glance card
+  is listed or excluded as a prompt-only card, and `tests/card-docs.test.ts` until the Guide's card
+  table names it.
+- **A card that needs more than Home's model** (a stat page's chart, an activity's map) needs its
+  reads in `CardData` first: today it reads the day files, the series files and `account.json` only.
+
 ## Charts and settings UI
 
 The UI is **Svelte 5**, set up as [Obsidian's guide][svelte-guide] prescribes: `esbuild-svelte` in
