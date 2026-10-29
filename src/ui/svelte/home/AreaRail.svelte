@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { DIVIDER, type Area, type AreaEntry, type AreaId, type RailFocus } from "../../../dashboard/areas";
 	import type { Route } from "../../../dashboard/routes";
+	import { tick, untrack } from "svelte";
 	import { slide } from "svelte/transition";
 	import { lucide } from "./lucide";
+	import { RAIL_MOTION, calm } from "./rail-motion";
 
 	/**
 	 * A wide pane's navigation, down its left side: Home and the three areas,
@@ -10,7 +12,8 @@
 	 * Collapsed it is a column of icons, named by Obsidian's tooltips. It stays
 	 * put while the page scrolls, edge to edge in the pane. Sync is at the top
 	 * right of each page instead. Collapsing and opening an area move, the
-	 * labels kept in place and clipped, so the icons never jump.
+	 * labels kept in place and clipped, so the icons never jump. The page beside
+	 * it takes its new width at once and slides along (`rail-motion.ts`).
 	 */
 	interface Props {
 		areas: Area[];
@@ -28,7 +31,6 @@
 
 	let { areas, items, focus, atRoot, collapsed, locked, onArea, onItem, onToggle }: Props = $props();
 
-	const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 	/** An area's pages unfold under it, as long as the rail takes to widen. */
 	const unfold = () => ({ duration: calm() ? 0 : 200 });
 
@@ -58,6 +60,30 @@
 			cancelAnimationFrame(frame);
 			resize.disconnect();
 		};
+	});
+
+	/* Collapsing or expanding, the rail's room in the layout changes at once and
+	   only its edge moves: its width and a margin that make up the difference, so
+	   the page beside it lays out once. From where it is, if it was still moving. */
+	let moving: Animation | null = null;
+	$effect.pre(() => {
+		void collapsed;
+		const rail = untrack(() => host);
+		if (!rail) return;
+		const from = rail.getBoundingClientRect().width;
+		moving?.cancel();
+		if (calm()) return;
+		void tick().then(() => {
+			const to = rail.getBoundingClientRect().width;
+			if (Math.abs(to - from) < 1) return;
+			moving = rail.animate(
+				[
+					{ width: `${from}px`, marginRight: `${to - from}px` },
+					{ width: `${to}px`, marginRight: "0px" },
+				],
+				RAIL_MOTION,
+			);
+		});
 	});
 </script>
 
@@ -131,13 +157,14 @@
 		margin: calc(-1 * var(--rail-pad-top)) 0 calc(-1 * var(--rail-pad-bottom)) calc(-1 * var(--rail-pad-left));
 		/* Its rows start where the page does, below the view's padding, so the brand lines up with the page's title. */
 		padding-top: var(--rail-pad-top);
-		/* No background of its own: the view's shows through, as it does behind the page. */
+		/* The view's own colour, so the page sliding under it as it narrows doesn't show through. */
+		background: var(--background-primary);
 		border-right: 1px solid var(--background-modifier-border);
 		color: var(--text-normal);
 		/* The labels stay in the row while it narrows: clipped, not wrapped. */
 		overflow: hidden;
+		/* RAIL_MOTION's, in rail-motion.ts, which moves its width. */
 		--rail-move: 200ms cubic-bezier(0.2, 0, 0, 1);
-		transition: width var(--rail-move);
 	}
 	.collapsed {
 		width: 56px;
@@ -343,7 +370,6 @@
 		background: var(--background-modifier-border);
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.gch-rail,
 		.rail-brand,
 		.rail-title,
 		.toggle-icon,

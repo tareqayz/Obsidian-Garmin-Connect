@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from "svelte";
+	import { tick, untrack } from "svelte";
 	import { activityIdFor, type ActivitiesData } from "../../../dashboard/activities";
 	import { areaItems, areaStack, atAreaRoot, inArea, railFocus, visibleAreas, type AreaEntry, type AreaId, type RailPref } from "../../../dashboard/areas";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
@@ -51,6 +51,7 @@
 	import StatsPage from "../stats/StatsPage.svelte";
 	import AreaHeader from "./AreaHeader.svelte";
 	import AreaRail from "./AreaRail.svelte";
+	import { calm, measureBlocks, slideBlocks } from "./rail-motion";
 	import EmptyCard from "./EmptyCard.svelte";
 	import FocusActivities from "./FocusActivities.svelte";
 	import FocusBattery from "./FocusBattery.svelte";
@@ -397,6 +398,34 @@
 		sheet = false;
 	}
 
+	/* The rail collapsing or expanding: the page takes its new width at once, so
+	   its charts and layouts settle a single time, and its blocks slide from
+	   where they were, in step with the rail's edge. */
+	let main = $state<HTMLElement | null>(null);
+	let slides: Animation[] = [];
+	/** Collapsing: the widened blocks start right of where they end, past the pane's edge. */
+	let clipped = $state(false);
+	$effect.pre(() => {
+		void railCollapsed;
+		const column = untrack(() => main);
+		if (!column || untrack(() => phone)) return;
+		const before = measureBlocks(column);
+		for (const move of slides) move.cancel();
+		slides = [];
+		clipped = false;
+		if (calm()) return;
+		const narrowing = railCollapsed;
+		void tick().then(() => {
+			slides = slideBlocks(before);
+			if (!slides.length) return;
+			const these = slides;
+			clipped = narrowing;
+			void Promise.allSettled(these.map((move) => move.finished)).then(() => {
+				if (slides === these) clipped = false;
+			});
+		});
+	});
+
 	function toggleRail() {
 		railPref = railCollapsed ? "expanded" : "collapsed";
 		onRail(railPref);
@@ -637,7 +666,7 @@
 			onToggle={toggleRail}
 		/>
 	{/if}
-	<div class="gch-main">
+	<div class="gch-main" class:clipped bind:this={main}>
 	{#key boundary}
 	<!-- One page throwing on data it didn't expect shows a card, not a blank pane; the navigation stays usable. -->
 	<svelte:boundary
@@ -909,6 +938,10 @@
 		flex: 1 1 auto;
 		min-width: 0;
 		container-type: inline-size;
+	}
+	/* Clip, not hidden: no scroller of its own, so the pages' sticky bars still stick. */
+	.gch-main.clipped {
+		overflow-x: clip;
 	}
 	.preset {
 		display: inline-flex;
