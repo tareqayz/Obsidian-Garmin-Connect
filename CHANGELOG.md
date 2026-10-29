@@ -8,8 +8,15 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Changed
+
+- **The sidebar moves smoothly.** Collapsing or expanding it with « / », or opening an area's
+  pages, now slides instead of jumping.
+
 ### Fixed
 
+- **The area tabs on a phone stay put.** On most iPhones the row was wider than the screen and
+  scrolled sideways. The tabs now close up to fit.
 - **Multisport activities have their own page.** A triathlon showed only its swim's route and none
   of its transitions. Its page now draws the whole race, each leg in its own colour, and lists every
   leg with its distance and time, transitions included. Each leg opens its own page. A multisport
