@@ -359,8 +359,8 @@ export class GarminHomeView extends ItemView {
 
 	async onClose(): Promise<void> {
 		for (const off of this.unbind.splice(0)) off();
-		// The last Garmin view gone: the parsed day files go too, on a phone's memory.
-		if (!this.app.workspace.getLeavesOfType(this.getViewType()).some((leaf) => leaf.view !== this)) forgetParsedDays();
+		// The last Garmin view gone, and no card in a note: the parsed day files go too, on a phone's memory.
+		if (!this.plugin.cards.inUse && !this.app.workspace.getLeavesOfType(this.getViewType()).some((leaf) => leaf.view !== this)) forgetParsedDays();
 		window.clearTimeout(this.pending);
 		this.data.dispose();
 		if (this.component) {
