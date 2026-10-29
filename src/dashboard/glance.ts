@@ -16,7 +16,7 @@ import {
 	weekdayLetter,
 } from "./day";
 import { economyGauge, enduranceGauge, ftpGauge, hillGauge, vo2Gauge, type Gauge, type Tone } from "./gauges";
-import type { HomeInput } from "./home";
+import type { HomeInput, HomeModel } from "./home";
 import { paceOf, paceText, paceUnit } from "./running-lactate-threshold-pages";
 import type { DayRow } from "./series";
 
@@ -798,3 +798,66 @@ export function glanceModel(input: HomeInput, row: DayRow | undefined, units: "m
 		xcSkiFtp: ftp("xcSkiing"),
 	};
 }
+
+/* ------------------------------------------------------------------ */
+/*  Empty cards                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether a card has nothing to draw for its day, so it shows its empty text
+ * instead. The prompt cards are never empty: their prompt is what they show.
+ */
+export function glanceEmpty(id: GlanceId, model: HomeModel): boolean {
+	const g = model.glance;
+	return (
+		(
+			{
+				heartRate: !g.heartRate,
+				intensity: !g.intensity,
+				calories: !g.calories,
+				stress: !g.stress,
+				steps: !model.steps,
+				bodyBattery: !model.battery,
+				sleep: !model.sleep,
+				hrv: !g.hrv,
+				cyclingAbility: !g.cyclingAbility,
+				cyclingFtp: !g.cyclingFtp,
+				endurance: !g.endurance,
+				fitnessAge: !g.fitnessAge,
+				floors: !g.floors,
+				heat: !g.heat,
+				hillScore: !g.hillScore,
+				lastActivity: !g.lastActivity,
+				loadFocus: !g.loadFocus,
+				respiration: !g.respiration,
+				runningEconomy: !g.runningEconomy,
+				lactateThreshold: !g.lactate,
+				runningTolerance: !g.tolerance,
+				trainingLoad: !g.trainingLoad,
+				readiness: !model.readiness,
+				trainingStatus: !model.trainingStatus,
+				vo2max: !g.vo2max,
+				weight: !g.weight,
+				xcSkiFtp: !g.xcSkiFtp,
+			} as Partial<Record<GlanceId, boolean>>
+		)[id] ?? false
+	);
+}
+
+/** What an empty card says when its number isn't a day's: "for today" would be wrong for these. */
+export const GLANCE_EMPTY_TEXT: Readonly<Partial<Record<GlanceId, string>>> = {
+	cyclingAbility: "No cycling ability synced yet.",
+	cyclingFtp: "No cycling FTP synced yet.",
+	runningEconomy: "No running economy synced yet.",
+	lactateThreshold: "No lactate threshold synced yet.",
+	xcSkiFtp: "No XC skiing FTP synced yet.",
+	weight: "No weigh-ins synced yet.",
+	lastActivity: "No activities synced yet.",
+	vo2max: "No VO₂ Max in the last 4 weeks.",
+};
+
+/**
+ * The cards drawn from `account.json`, which holds only the latest value: on
+ * any day they show today's, not that day's.
+ */
+export const CURRENT_ONLY: ReadonlySet<GlanceId> = new Set<GlanceId>(["cyclingAbility", "cyclingFtp", "xcSkiFtp", "runningEconomy", "lactateThreshold"]);

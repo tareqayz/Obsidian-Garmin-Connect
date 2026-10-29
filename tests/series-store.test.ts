@@ -294,6 +294,19 @@ describe("VaultSeriesStore: Home's reads of the day files", () => {
 		await store.readDays();
 		assert.equal(dayReads(), 5);
 	});
+
+	it("parses each year file once for readers asking at the same moment", async () => {
+		forgetParsedDays();
+		const { vault, store } = setup();
+		vault.seed(`${DATA}/days/2025.json`, serializeDays("2025", new Map([["2025-06-01", { steps: 1 }]])));
+		vault.seed(`${DATA}/days/2026.json`, serializeDays("2026", new Map([["2026-10-01", { steps: 2 }]])));
+		const dayReads = () => vault.reads.filter((p) => p.startsWith(`${DATA}/days/`)).length;
+
+		// A note's cards and Home, all opening before any read has finished.
+		const all = await Promise.all(Array.from({ length: 10 }, () => store.readDays()));
+		assert.equal(dayReads(), 2);
+		for (const rows of all) assert.deepEqual(rows.map((r) => r.date), ["2025-06-01", "2026-10-01"]);
+	});
 });
 
 describe("VaultSeriesStore: what the indexes say about each day", () => {

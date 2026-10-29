@@ -5,10 +5,10 @@
 	import Headline from "./Headline.svelte";
 	import Hypnogram from "./Hypnogram.svelte";
 
-	let { sleep }: { sleep: SleepView | null } = $props();
+	let { sleep, emptyText }: { sleep: SleepView | null; emptyText?: string } = $props();
 </script>
 
-<HomeCard kind="focus" title="Sleep Score" icon="moon-star" accent="var(--color-blue)" empty={!sleep}>
+<HomeCard kind="focus" title="Sleep Score" icon="moon-star" accent="var(--color-blue)" empty={!sleep} {emptyText}>
 	{#if sleep}
 		<Headline
 			value={sleep.score}

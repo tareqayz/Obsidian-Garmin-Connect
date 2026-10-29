@@ -166,6 +166,62 @@ export function todayActivity(row: DayRow | undefined): TodayItem[] {
 	return items.sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""));
 }
 
+/** A Today's Activity item as its card says it: the line on top, the round icon, the headline and the line under it. */
+export interface DayActivityRow {
+	item: TodayItem;
+	kicker: string;
+	icon: string;
+	color: string;
+	headline: string;
+	detail?: string;
+}
+
+/** The day's activities and Health Snapshots as Home's cards draw them, in the same order. */
+export function dayActivityRows(items: readonly TodayItem[]): DayActivityRow[] {
+	return items.map((item) =>
+		item.kind === "snapshot"
+			? {
+					item,
+					kicker: item.title,
+					icon: "clipboard-plus",
+					color: "var(--color-red)",
+					headline: item.hr !== undefined ? `${item.hr} bpm Avg HR` : "Health Snapshot",
+					detail: [
+						item.spo2 !== undefined ? `${item.spo2}% Avg SpO₂` : "",
+						item.respiration !== undefined ? `${Math.round(item.respiration)} brpm Avg Resp` : "",
+					]
+						.filter(Boolean)
+						.join(" • "),
+				}
+			: {
+					item,
+					kicker: item.name,
+					icon: "activity",
+					color: "var(--color-blue)",
+					headline: [item.distance, item.minutes !== undefined ? `${Math.round(item.minutes)} min` : ""].filter(Boolean).join(" · ") || item.name,
+					detail: item.calories !== undefined ? `${item.calories} kcal` : undefined,
+				},
+	);
+}
+
+/** Whether an In Focus card has nothing to draw for its day. The weekly activities card always has. */
+export function focusEmpty(id: FocusId, model: HomeModel): boolean {
+	switch (id) {
+		case "sleep":
+			return !model.sleep;
+		case "bodyBattery":
+			return !model.battery;
+		case "steps":
+			return !model.steps;
+		case "readiness":
+			return !model.readiness;
+		case "trainingStatus":
+			return !model.trainingStatus;
+		case "activities":
+			return false;
+	}
+}
+
 /* ------------------------------------------------------------------ */
 /*  Sleep Coach                                                        */
 /* ------------------------------------------------------------------ */

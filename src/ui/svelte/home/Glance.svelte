@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readinessDial, statFor, type GlanceId, type Trend } from "../../../dashboard/glance";
+	import { GLANCE_EMPTY_TEXT, glanceEmpty, readinessDial, statFor, type GlanceId, type Trend } from "../../../dashboard/glance";
 	import type { HomeModel } from "../../../dashboard/home";
 	import Arc from "./Arc.svelte";
 	import GlanceGauge from "./GlanceGauge.svelte";
@@ -19,9 +19,13 @@
 	interface Props {
 		id: GlanceId;
 		model: HomeModel;
+		/** What a day's card says with nothing for its day; Home's own line when absent. */
+		emptyText?: string;
+		/** A word beside the title: "Now" on a card that holds only the latest value. */
+		badge?: string;
 	}
 
-	let { id, model }: Props = $props();
+	let { id, model, emptyText: dayEmptyText, badge }: Props = $props();
 
 	let stat = $derived(statFor(id));
 	let g = $derived(model.glance);
@@ -68,53 +72,10 @@
 		}
 	});
 
-	let empty = $derived(
-		({
-			heartRate: !g.heartRate,
-			intensity: !g.intensity,
-			calories: !g.calories,
-			stress: !g.stress,
-			steps: !model.steps,
-			bodyBattery: !model.battery,
-			sleep: !model.sleep,
-			hrv: !g.hrv,
-			cyclingAbility: !g.cyclingAbility,
-			cyclingFtp: !g.cyclingFtp,
-			endurance: !g.endurance,
-			fitnessAge: !g.fitnessAge,
-			floors: !g.floors,
-			heat: !g.heat,
-			hillScore: !g.hillScore,
-			lastActivity: !g.lastActivity,
-			loadFocus: !g.loadFocus,
-			respiration: !g.respiration,
-			runningEconomy: !g.runningEconomy,
-			lactateThreshold: !g.lactate,
-			runningTolerance: !g.tolerance,
-			trainingLoad: !g.trainingLoad,
-			readiness: !model.readiness,
-			trainingStatus: !model.trainingStatus,
-			vo2max: !g.vo2max,
-			weight: !g.weight,
-			xcSkiFtp: !g.xcSkiFtp,
-		} as Partial<Record<GlanceId, boolean>>)[id] ?? false,
-	);
+	let empty = $derived(glanceEmpty(id, model));
 
 	/* Account-level numbers are not per day, so "for today" would be wrong. */
-	let emptyText = $derived(
-		(
-			{
-				cyclingAbility: "No cycling ability synced yet.",
-				cyclingFtp: "No cycling FTP synced yet.",
-				runningEconomy: "No running economy synced yet.",
-				lactateThreshold: "No lactate threshold synced yet.",
-				xcSkiFtp: "No XC skiing FTP synced yet.",
-				weight: "No weigh-ins synced yet.",
-				lastActivity: "No activities synced yet.",
-				vo2max: "No VO₂ Max in the last 4 weeks.",
-			} as Partial<Record<GlanceId, string>>
-		)[id],
-	);
+	let emptyText = $derived(GLANCE_EMPTY_TEXT[id] ?? dayEmptyText);
 
 	const ARROW: Record<Trend, string> = { up: "arrow-up", down: "arrow-down", flat: "arrow-right" };
 
@@ -218,6 +179,10 @@
 	</div>
 {/snippet}
 
+{#snippet now()}
+	<span class="gch-now">{badge}</span>
+{/snippet}
+
 {#snippet weighIn()}
 	<a class="add" href="{GARMIN}/weight" aria-label="Add a weigh-in in Garmin Connect" use:lucide={"circle-plus"}></a>
 {/snippet}
@@ -232,7 +197,7 @@
 		accent={toneColor(stat.tone)}
 		{empty}
 		{emptyText}
-		aside={id === "weight" ? weighIn : undefined}
+		aside={id === "weight" ? weighIn : badge ? now : undefined}
 	>
 		{#if id === "heartRate" && hr}
 			<div class="dial">
@@ -459,6 +424,16 @@
 {/if}
 
 <style>
+	/* Not ".badge": a quiet word beside the title. */
+	.gch-now {
+		display: inline-block;
+		font-size: 11px;
+		line-height: 14px;
+		padding: 1px 6px;
+		border-radius: 4px;
+		background: var(--background-modifier-border);
+		color: var(--text-muted);
+	}
 	.dial {
 		display: flex;
 		justify-content: center;

@@ -4,7 +4,7 @@
 	import HomeCard from "./HomeCard.svelte";
 	import Stat from "./Stat.svelte";
 
-	let { readiness }: { readiness: ReadinessView | null } = $props();
+	let { readiness, emptyText }: { readiness: ReadinessView | null; emptyText?: string } = $props();
 
 	// Garmin's readiness bands: poor, low, moderate, high, prime.
 	const BANDS = [
@@ -16,7 +16,7 @@
 	];
 </script>
 
-<HomeCard kind="focus" title="Training Readiness" icon="gauge" accent="var(--color-blue)" empty={!readiness}>
+<HomeCard kind="focus" title="Training Readiness" icon="gauge" accent="var(--color-blue)" empty={!readiness} {emptyText}>
 	{#if readiness}
 		<div class="top">
 			<Arc size={92} stroke={6} segments={BANDS} gap={3} marker={readiness.score} label={String(readiness.score)} />
