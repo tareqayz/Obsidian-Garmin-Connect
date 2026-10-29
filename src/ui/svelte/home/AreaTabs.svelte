@@ -6,7 +6,8 @@
 	 * A phone's navigation: the areas across the top of Home and of each area's
 	 * own page, in the rail's style, the current one on its pill. Deeper pages
 	 * keep only their back and title. A phone has no room for a bar at the
-	 * bottom: Obsidian's floating navigation sits there.
+	 * bottom: Obsidian's floating navigation sits there. The row is fixed: on a
+	 * narrow phone the tabs close up, and never scroll sideways.
 	 */
 	interface Props {
 		areas: Area[];
@@ -19,13 +20,12 @@
 	let { areas, current, locked, onArea }: Props = $props();
 </script>
 
-<!-- Scrolls sideways only if the labels outgrow a narrow pane; Obsidian's sidebar swipe must not take that. -->
-<nav class="gch-area-tabs" inert={locked} data-ignore-swipe="true">
+<nav class="gch-area-tabs" inert={locked}>
 	{#each areas as area (area.id)}
 		{@const on = area.id === current}
 		<button class="area-tab" class:current={on} aria-current={on ? "page" : undefined} onclick={() => onArea(area.id)}>
 			<span class="tab-icon" use:lucide={area.icon}></span>
-			<span>{area.short}</span>
+			<span class="tab-label">{area.short}</span>
 		</button>
 	{/each}
 </nav>
@@ -38,19 +38,16 @@
 		gap: 4px;
 		min-height: 48px;
 		padding: 0 8px;
-		overflow-x: auto;
-		scrollbar-width: none;
+		overflow: hidden;
 		border-bottom: 1px solid var(--background-modifier-border);
 		background: var(--background-primary);
-	}
-	.gch-area-tabs::-webkit-scrollbar {
-		display: none;
 	}
 	.area-tab {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		flex: none;
+		flex: 0 1 auto;
+		min-width: 0;
 		margin: 0;
 		height: auto;
 		padding: 7px 8px;
@@ -82,6 +79,24 @@
 	}
 	.tab-icon {
 		display: inline-flex;
+		flex: none;
+	}
+	/* Only on a pane narrower than any phone. */
+	.tab-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	/* The row is about 394 wide; most phones leave the page less once the view's padding is off. */
+	@container (max-width: 400px) {
+		.gch-area-tabs {
+			gap: 0;
+			padding: 0 4px;
+		}
+		.area-tab {
+			gap: 4px;
+			padding: 7px 5px;
+		}
 	}
 	.tab-icon :global(svg) {
 		width: 16px;
