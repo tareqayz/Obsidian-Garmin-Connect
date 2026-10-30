@@ -214,6 +214,36 @@ export function heartDayIn(series: DaySeries | null | undefined): HeartDay | nul
 }
 
 /**
+ * The day's samples rebuilt from the series file's own `heartRate` block,
+ * which the sync writes for every day inside Day details from the same
+ * payload as `HEART_DAY`'s. Garmin's day figures (resting, high) aren't in
+ * it; the page's figures come from the index anyway. A day `ongoing` ends at
+ * its newest sample, any other at the next midnight. Null without `dayStart`
+ * or a sample.
+ *
+ * For a card in a note, which never fetches the block its page loads on view.
+ */
+export function heartDayOfSeries(series: DaySeries | null | undefined, ongoing: boolean): HeartDay | null {
+	const start = series?.dayStart;
+	if (start === undefined || !Number.isFinite(start)) return null;
+	const samples = (series?.heartRate ?? []).filter(([t]) => t >= start);
+	const measured = samples.filter(([, v]) => v !== null && v >= 0);
+	if (!measured.length) return null;
+	const step = commonGap(samples.map(([t]) => t)) ?? SAMPLE_MS;
+	const last = measured[measured.length - 1][0];
+	const end = ongoing ? last + step : Math.max(start + DAY_MS, last + step);
+	const slots = Math.ceil(Math.min(MAX_DAY_MS, end - start) / step);
+	const values: Array<number | null> = [];
+	for (const [t, v] of measured) {
+		const i = Math.round((t - start) / step);
+		if (i < 0 || i >= slots) continue;
+		while (values.length < i) values.push(null);
+		values[i] = Math.round(v!);
+	}
+	return { start, end, step, values };
+}
+
+/**
  * The 1d timeline's payload, fetched on view: `loadIntraday(date,
  * [HEART_DAY.key])`. One request a day under the stat's own group, whatever
  * the series file already holds; it carries the samples, so the page needs

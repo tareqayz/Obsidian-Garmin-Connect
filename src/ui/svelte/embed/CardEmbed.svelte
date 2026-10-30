@@ -2,28 +2,35 @@
 	import type { TodayItem } from "../../../dashboard/home";
 	import type { Route } from "../../../dashboard/routes";
 	import type { CardView, NoticeAction } from "../../../embeds/view";
+	import type { TileSource } from "../../map/tile-source";
 	import DayActivities from "../home/DayActivities.svelte";
 	import FocusCard from "../home/FocusCard.svelte";
 	import Glance from "../home/Glance.svelte";
 	import Tap from "../home/Tap.svelte";
 	import { lucide } from "../home/lucide";
+	import ActivityCard from "./ActivityCard.svelte";
 	import CardNotice from "./CardNotice.svelte";
+	import ChartCard from "./ChartCard.svelte";
+	import ChartSmall from "./ChartSmall.svelte";
 
 	/**
 	 * A ```garmin block in a note: Home's cards for its day, as on Home and at
-	 * Home's sizes. Big cards share a row two at a time, small ones four, and
-	 * a phone stacks them; the block measures its own width (a container
-	 * query), as Home's page column does. A click opens the card's page in
-	 * Garmin Home.
+	 * Home's sizes, a stat page's charts in Home cards, or an activity with its
+	 * map. Big cards share a row two at a time, small ones four, and a phone
+	 * stacks them; a chart or an activity takes the whole width. The block
+	 * measures its own width (a container query), as Home's page column does.
+	 * A click opens the card's page in Garmin Home.
 	 */
 	interface Props {
 		initialView: CardView;
 		open: (route: Route) => void;
 		openActivity: (item: TodayItem, date: string) => void;
 		act: (kind: NoticeAction) => void;
+		/** OpenStreetMap's tiles for an activity's map, or none when the setting is off. */
+		tiles: () => TileSource | null;
 	}
 
-	let { initialView, open, openActivity, act }: Props = $props();
+	let { initialView, open, openActivity, act, tiles }: Props = $props();
 
 	// Seeded once; the block sets what follows.
 	// svelte-ignore state_referenced_locally
@@ -79,6 +86,20 @@
 							opens={(item) => (item.kind === "activity" ? () => openActivity(item, cards.date) : null)}
 						/>
 					{/if}
+				{/each}
+			</div>
+		{:else if view.state === "charts"}
+			<div class={view.size === "small" ? "glance" : "rows"}>
+				{#each view.charts as card (card.id)}
+					<Tap contained open={() => open(card.route)}>
+						{#if view.size === "small"}<ChartSmall {card} />{:else}<ChartCard {card} />{/if}
+					</Tap>
+				{/each}
+			</div>
+		{:else if view.state === "activities"}
+			<div class="rows">
+				{#each view.activities as card (card.id)}
+					<Tap contained open={() => open(card.route)}><ActivityCard {card} tiles={tiles()} /></Tap>
 				{/each}
 			</div>
 		{/if}

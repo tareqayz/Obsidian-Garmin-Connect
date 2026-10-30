@@ -181,7 +181,7 @@ export function timeHero(detail: ActivityDetail): OverviewHero | null {
  * Sports recorded without GPS, whose page never has a map: `treadmill_running`, `indoor_running`,
  * `virtual_run`. Only for a file that doesn't say (`hasPolyline`, from version 6).
  */
-const INDOOR = /treadmill|indoor|virtual/;
+export const INDOOR = /treadmill|indoor|virtual/;
 
 /** Avg Heart Rate and Avg Pace (each with its chart badge), Total Time, Total Calories: those that have a value. */
 function figures(detail: ActivityDetail, units: Units): OverviewFigure[] {

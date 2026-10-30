@@ -4,6 +4,7 @@ import { SETTLE_MS } from "../src/dashboard/data-versions";
 import { CardData, type CardHost } from "../src/embeds/card-data";
 import type { SyncRunner } from "../src/sync/runner";
 import { serializeDays } from "../src/sync/days";
+import { STRESS_INDEX } from "../src/sync/stress-index";
 import { forgetParsedDays } from "../src/sync/series-store";
 import { MemoryVault } from "./support/memory-vault";
 import { VirtualClock } from "./support/virtual-clock";
@@ -102,6 +103,39 @@ describe("CardData: what every card block reads", () => {
 		await clock.runUntil(() => false, 31_000).catch(() => undefined);
 		await cards.day("2026-10-28", false);
 		assert.equal(reads("days/2026.json"), 2);
+	});
+
+	it("reads a day index once for every chart, and again only when that index changes", async () => {
+		const { clock, vault, cards, reads } = setup();
+		cards.acquire();
+		vault.seed(`${DATA}/${STRESS_INDEX.folder}/2026.json`, STRESS_INDEX.serializeYear("2026", [{ date: "2026-10-28", level: 20 }]));
+		const [a, b] = await Promise.all([cards.index("stress"), cards.index("stress")]);
+		assert.equal(reads(`${STRESS_INDEX.folder}/2026.json`), 1);
+		assert.deepEqual(a.rows, b.rows);
+		let told = 0;
+		cards.onChange(() => told++);
+		// An index no chart reads: nothing moves.
+		cards.onFile(`${DATA}/heart-rate/2026.json`);
+		await clock.runUntil(() => false, SETTLE_MS + 500).catch(() => undefined);
+		assert.equal(told, 0);
+		cards.onFile(`${DATA}/${STRESS_INDEX.folder}/2026.json`);
+		await clock.runUntil(() => told > 0, SETTLE_MS + 1_000);
+		await cards.index("stress");
+		assert.equal(reads(`${STRESS_INDEX.folder}/2026.json`), 2);
+	});
+
+	it("reads an activity's details from the vault, again when its file changes, and never fetches", async () => {
+		const { clock, vault, cards, reads } = setup();
+		cards.acquire();
+		assert.equal(await cards.activity(42), null);
+		vault.seed(`${DATA}/activity-details/42.json`, "{}");
+		let told = 0;
+		cards.onChange(() => told++);
+		cards.onFile(`${DATA}/activity-details/42.json`);
+		await clock.runUntil(() => told > 0, SETTLE_MS + 1_000);
+		await cards.activity(42);
+		await cards.activity(42);
+		assert.equal(reads("activity-details/42.json"), 1);
 	});
 
 	it("reads everything again after a reset, and tells the blocks", async () => {

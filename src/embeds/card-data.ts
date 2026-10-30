@@ -1,12 +1,18 @@
 import type { App } from "obsidian";
 import { todayItemRoute } from "../dashboard/card-routes";
-import { ACCOUNT, ACTIVITIES, DataVersions, DAYS, keysOfPath, SERIES, seriesKey } from "../dashboard/data-versions";
+import { ACCOUNT, ACTIVITIES, ACTIVITY, activityKey, DataVersions, DAYS, keysOfPath, SERIES, seriesKey } from "../dashboard/data-versions";
 import { dayToShow, homeModel, type HomeModel, type TodayItem } from "../dashboard/home";
 import { rebuildAt } from "../dashboard/rebuild-schedule";
 import { allRoute, type Route } from "../dashboard/routes";
+import type { DayRow } from "../dashboard/series";
 import { toIsoDate } from "../garmin/endpoints";
+import type { AccountInfo } from "../sync/account";
+import type { ActivityDetail } from "../sync/activity-detail";
+import type { DayIndexData, DayRow as IndexRow } from "../sync/day-index";
+import { dayIndex } from "../sync/day-indexes";
+import type { DaySeries } from "../sync/intraday";
 import type { SyncRunner } from "../sync/runner";
-import { forgetParsedDays, VaultSeriesStore } from "../sync/series-store";
+import { forgetParsedDays, VaultSeriesStore, type ActivityIndex } from "../sync/series-store";
 import { Coalesced } from "../ui/coalesced";
 
 /** One day as a card block draws it. */
@@ -38,7 +44,9 @@ const REMEMBERED_DAYS = 12;
 /**
  * What every card block in every note reads, read once per version for all
  * of them: the day files, a day's series file and `account.json`, with Home's
- * model built once per day and version. It never asks Garmin for anything.
+ * model built once per day and version; for charts, the day indexes; for
+ * activities, the activity index and an activity's details. It never asks
+ * Garmin for anything: what isn't in the vault, a card says so.
  *
  * Files change under it as a sync writes, from this device or another. Each
  * change moves the version of what it touches, held while a sync or the
@@ -63,6 +71,9 @@ export class CardData {
 	private liveDay: string | null = null;
 	/** Days a block shows: only their series files are watched. */
 	private watched = new Set<string>();
+	/** The day indexes a chart reads, and the activities a card shows: only theirs are watched. */
+	private kinds = new Set<string>();
+	private details = new Set<number>();
 	private unbind: (() => void) | null = null;
 	private blocks = new Set<{ teardown(): void }>();
 
@@ -124,7 +135,9 @@ export class CardData {
 		for (const key of keysOfPath(this.store(), path).keys) {
 			if (key.startsWith(`${SERIES}:`)) {
 				if (this.watched.has(key.slice(SERIES.length + 1))) this.versions.bump(key);
-			} else if (key === DAYS || key === ACCOUNT || key === ACTIVITIES) this.versions.bump(key);
+			} else if (key.startsWith(`${ACTIVITY}:`)) {
+				if (this.details.has(Number(key.slice(ACTIVITY.length + 1)))) this.versions.bump(key);
+			} else if (key === DAYS || key === ACCOUNT || key === ACTIVITIES || this.kinds.has(key)) this.versions.bump(key);
 		}
 	}
 
@@ -162,7 +175,7 @@ export class CardData {
 	 * to show: the newest synced day until today has synced.
 	 */
 	async day(want: string, live: boolean): Promise<CardDay> {
-		const rows = await this.versions.cached(DAYS, () => this.store().readDays());
+		const rows = await this.days();
 		const date = live ? dayToShow(rows, toIsoDate()) : want;
 		if (live) this.liveDay = date;
 		this.watched.add(date);
@@ -201,9 +214,56 @@ export class CardData {
 		return held && held.key === this.keyOf(date) ? held.day : null;
 	}
 
+	/**
+	 * What the synced days say about a day, without Home's model: a chart or
+	 * an activity block's notices. A live block asks for today and gets
+	 * Home's day to show, as `day` does.
+	 */
+	async facts(want: string, live: boolean): Promise<{ date: string; first?: string; last?: string; hasRow: boolean }> {
+		const rows = await this.days();
+		const date = live ? dayToShow(rows, toIsoDate()) : want;
+		return { date, first: rows[0]?.date, last: rows[rows.length - 1]?.date, hasRow: rows.some((r) => r.date === date) };
+	}
+
+	/** Every synced day's properties, oldest first. */
+	days(): Promise<DayRow[]> {
+		return this.versions.cached(DAYS, () => this.store().readDays());
+	}
+
+	/** `account.json`: the latest values Garmin keeps no history of. */
+	account(): Promise<AccountInfo | null> {
+		return this.versions.cached(ACCOUNT, () => this.store().readAccount());
+	}
+
+	/**
+	 * A day index's rows, oldest first, and its meta, as a stat page reads it:
+	 * a registered one by its kind, or the sleep and daily stats indexes.
+	 */
+	index<R extends IndexRow = IndexRow>(kind: string): Promise<DayIndexData<R>> {
+		this.kinds.add(kind);
+		return this.versions.cached(kind, () => this.loadIndex(kind)) as Promise<DayIndexData<R>>;
+	}
+
+	/** A day's series file as the vault holds it: a block never fetches what it lacks. */
+	series(date: string): Promise<DaySeries | null> {
+		this.watched.add(date);
+		return this.versions.cached(seriesKey(date), () => this.store().read(date));
+	}
+
+	/** Every activity the index holds, newest first. */
+	activities(): Promise<ActivityIndex> {
+		return this.versions.cached(ACTIVITIES, () => this.store().readActivities());
+	}
+
+	/** An activity's details as the vault holds them: there once its page has opened, or the sync downloaded them. */
+	activity(id: number): Promise<ActivityDetail | null> {
+		this.details.add(id);
+		return this.versions.cached(activityKey(id), () => this.store().readActivityDetail(id));
+	}
+
 	/** The page a day's activity opens: its own, or All Activities on that day when the index doesn't hold it yet. */
 	async activityRoute(item: TodayItem, date: string): Promise<Route> {
-		const index = await this.versions.cached(ACTIVITIES, () => this.store().readActivities());
+		const index = await this.activities();
 		return todayItemRoute(item, index.rows) ?? allRoute({ from: date, to: date });
 	}
 
@@ -232,8 +292,18 @@ export class CardData {
 		this.versions.forget();
 		this.memo.clear();
 		this.watched.clear();
+		this.kinds.clear();
+		this.details.clear();
 		this.liveDay = null;
 		if (!this.host.homeOpen()) forgetParsedDays();
+	}
+
+	private loadIndex(kind: string): Promise<DayIndexData> {
+		const store = this.store();
+		if (kind === "sleep") return store.readSleep();
+		if (kind === "daily-stats") return store.readDailyStats();
+		const def = dayIndex(kind);
+		return def ? store.readDayIndex(def) : Promise.resolve({ rows: [], meta: null });
 	}
 
 	/** A store per read: a long-lived one would hold every series file it ever read. */

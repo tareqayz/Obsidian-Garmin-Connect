@@ -1,4 +1,5 @@
 import { CARDS, CATEGORIES } from "./catalog";
+import { CHARTS, rangesInWords } from "./charts";
 
 /**
  * The text of the two notes the plugin writes when asked: the daily note
@@ -35,8 +36,8 @@ export function dailyTemplate(): string {
 }
 
 /**
- * Every card, with what it shows and a live example of it. The examples carry
- * no date, so the guide shows today.
+ * Every card and chart, with what it shows and a live example of it, and the
+ * activity block. The examples carry no date, so the guide shows today.
  */
 export function cardGuide(version: string): string {
 	const out: string[] = [
@@ -68,6 +69,42 @@ export function cardGuide(version: string): string {
 			out.push("", `### ${card.title} \`show: ${card.id}\``, "", card.description, "", block(`show: ${card.id}`));
 		}
 	}
-	out.push("");
+	out.push(
+		"",
+		"## Charts",
+		"",
+		"A chart is its stat page’s own: the day’s, or the 7 days, 4 weeks or year ending on it.",
+		"",
+		"````markdown",
+		block("chart: stress", "range: 7d"),
+		"````",
+		"",
+		"- `range` takes `1d` (the default), `7d`, `4w` or `1y`, ending on the block’s day.",
+		"- Name several to stack them: `chart: sleep, stress`.",
+		"- `size: small` draws trends as small cards, four to a row.",
+		"- Respiration and Pulse Ox keep a day’s readings once you open their page on that day.",
+	);
+	for (const chart of CHARTS) {
+		out.push("", `### ${chart.title} \`chart: ${chart.id}\``, "", `${chart.description} ${rangesInWords(chart.ranges)}.`, "", block(`chart: ${chart.id}`));
+	}
+	out.push(
+		"",
+		"### Trends as small cards",
+		"",
+		block("chart: steps, heart-rate, hrv-status, weight", "range: 4w", "size: small"),
+		"",
+		"## Activities",
+		"",
+		"One activity with its route map and figures, as its Overview shows them.",
+		"",
+		"- `activity: latest`: the day’s most recent.",
+		"- `activity: all`: each of the day’s, newest first.",
+		"- `activity: 20612345678`: one activity, whatever the note’s day. **Insert card…** lists yours.",
+		"",
+		"The map comes with the activity’s page: open an activity once and its card shows it. It loads OpenStreetMap’s tiles, as the page does; with Map tiles off, the route draws alone.",
+		"",
+		block("activity: latest"),
+		"",
+	);
 	return out.join("\n");
 }

@@ -23,6 +23,14 @@ export function seriesKey(date: string): string {
 	return `${SERIES}:${date}`;
 }
 
+/** The activity details' key: any activity's. */
+export const ACTIVITY = "#activity";
+
+/** One activity's details file: `#activity:20612345678`. */
+export function activityKey(id: number): string {
+	return `${ACTIVITY}:${id}`;
+}
+
 /** How long a burst of file events gets to settle before a version moves. */
 export const SETTLE_MS = 150;
 
@@ -122,6 +130,7 @@ export interface DataPaths {
 	readonly daysFolder: string;
 	readonly accountPath: string;
 	readonly activitiesFolder: string;
+	readonly activityDetailsFolder: string;
 }
 
 /**
@@ -133,6 +142,10 @@ export interface DataPaths {
 export function keysOfPath(store: DataPaths, path: string): { keys: string[]; rebuild: boolean } {
 	const def = store.dayIndexOf(path);
 	if (def) return { keys: [def.kind], rebuild: false };
+	if (path.startsWith(`${store.activityDetailsFolder}/`)) {
+		const id = /(\d+)\.json$/.exec(path)?.[1];
+		return { keys: id ? [activityKey(Number(id))] : [], rebuild: false };
+	}
 	if (!store.owns(path)) return { keys: [], rebuild: false };
 	if (path === store.dayCoveragePath || path === store.detailCoveragePath) return { keys: [], rebuild: false };
 	if (store.isSeriesPath(path)) {

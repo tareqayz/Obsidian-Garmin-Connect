@@ -20,7 +20,7 @@ export function dayWords(date: string, today: string): string {
 }
 
 /** The day at the end of a sentence: "today", "yesterday", "on Tue, Oct 28". */
-function onDay(date: string, today: string): string {
+export function onDay(date: string, today: string): string {
 	const words = dayWords(date, today);
 	return words === "Today" ? "today" : words === "Yesterday" ? "yesterday" : `on ${words}`;
 }
@@ -55,6 +55,16 @@ export function noticeFor(date: string, today: string, facts: DayFacts): CardNot
 	if (date > facts.last) return { icon: "refresh-cw", text: `${dayWords(date, today)} isn’t synced yet.`, action: { kind: "open-garmin", label: "Open Garmin" }, namesDay: true };
 	if (facts.first && date < facts.first) return { icon: "calendar", text: `Your synced history starts ${readingDate(facts.first, today)}.`, action: { kind: "settings", label: "Settings" } };
 	if (!facts.hasRow) return { icon: "calendar", text: `Nothing recorded ${onDay(date, today)}.`, tone: "muted", namesDay: true };
+	return null;
+}
+
+/**
+ * Why a block draws no trend ending on `date`, if it doesn't: before the
+ * setup, before anything synced, a day to come, or before the history. A
+ * trend ending on a day not synced yet still draws the days that are.
+ */
+export function trendNoticeFor(date: string, today: string, facts: DayFacts): CardNotice | null {
+	if (!facts.setUp || !facts.last || date > today || (facts.first && date < facts.first)) return noticeFor(date, today, facts);
 	return null;
 }
 

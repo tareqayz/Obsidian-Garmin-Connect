@@ -1,6 +1,7 @@
 import { MarkdownView, Notice, Platform, Plugin, type App, type Modal, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import { categoryOf, detailProfileOf } from "./dashboard/activities";
 import { areaStack, inArea } from "./dashboard/areas";
+import { unitsOf } from "./dashboard/day";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
@@ -43,6 +44,8 @@ import { CardData } from "./embeds/card-data";
 import { dayOfNote } from "./embeds/core-plugins";
 import { createDailyTemplate, openCardGuide, rebuildCardGuide } from "./embeds/notes";
 import { InsertCardModal } from "./ui/insert-card-modal";
+import { openStreetMapTiles } from "./ui/map/tiles";
+import type { TileSource } from "./ui/map/tile-source";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it: nothing syncs on its own sooner. */
 const STARTUP_SYNC_DELAY_MS = 5000;
@@ -80,6 +83,7 @@ export default class GarminPlugin extends Plugin {
 	tokens!: SecretTokenStore;
 	/** What every ```garmin block in every note reads (`embeds/card-data.ts`). */
 	cards!: CardData;
+	private tileSource: TileSource | null = null;
 
 	async onload(): Promise<void> {
 		registerSportIcons();
@@ -223,7 +227,11 @@ export default class GarminPlugin extends Plugin {
 			id: "insert-card",
 			name: "Insert card…",
 			// A note without a day of its own gets today's: the card keeps showing the day it was added.
-			editorCallback: (editor, ctx) => new InsertCardModal(this.app, editor, ctx.file && dayOfNote(this.app, ctx.file) ? undefined : toIsoDate()).open(),
+			editorCallback: (editor, ctx) =>
+				new InsertCardModal(this.app, editor, ctx.file && dayOfNote(this.app, ctx.file) ? undefined : toIsoDate(), async () => {
+					const [index, days] = await Promise.all([this.cards.activities(), this.cards.days()]);
+					return { rows: index.rows, units: index.meta?.units ?? unitsOf(days) };
+				}).open(),
 		});
 		this.addCommand({
 			id: "create-daily-template",
@@ -388,6 +396,13 @@ export default class GarminPlugin extends Plugin {
 		const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
 		setting.open();
 		setting.openTabById(this.manifest.id);
+	}
+
+	/** OpenStreetMap's tiles for an activity card's map, or none when Map tiles is off. Read when a map draws. */
+	mapTiles(): TileSource | null {
+		if (!this.data.settings.mapTiles) return null;
+		this.tileSource ??= openStreetMapTiles(this.manifest.version);
+		return this.tileSource;
 	}
 
 	/** The data folder moved: the notes' cards read from the new one. */

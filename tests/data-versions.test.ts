@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { ACCOUNT, ACTIVITIES, DataVersions, DAYS, keysOfPath, SERIES, seriesKey, SETTLE_MS, type DataPaths } from "../src/dashboard/data-versions";
+import { ACCOUNT, ACTIVITIES, activityKey, DataVersions, DAYS, keysOfPath, SERIES, seriesKey, SETTLE_MS, type DataPaths } from "../src/dashboard/data-versions";
 import { VirtualClock } from "./support/virtual-clock";
 
 function setup(hold: () => number | null = () => null) {
@@ -76,6 +76,7 @@ describe("keysOfPath", () => {
 		daysFolder: `${DATA}/days`,
 		accountPath: `${DATA}/account.json`,
 		activitiesFolder: `${DATA}/activities`,
+		activityDetailsFolder: `${DATA}/activity-details`,
 	};
 
 	it("names what a path moves, and whether Home rebuilds", () => {
@@ -86,11 +87,13 @@ describe("keysOfPath", () => {
 		assert.deepEqual(keysOfPath(store, `${DATA}/sleep/2026.json`), { keys: ["sleep"], rebuild: true });
 		assert.deepEqual(keysOfPath(store, `${DATA}/daily-stats/index.json`), { keys: ["daily-stats"], rebuild: true });
 		assert.deepEqual(keysOfPath(store, `${DATA}/activities/2026.json`), { keys: [ACTIVITIES], rebuild: true });
+		// An activity's details: for a card showing that activity; Home's pages load their own.
+		assert.deepEqual(keysOfPath(store, `${DATA}/activity-details/12.json`), { keys: [activityKey(12)], rebuild: false });
 	});
 
 	it("ignores the coverage files and everything the store doesn't write", () => {
 		assert.deepEqual(keysOfPath(store, `${DATA}/days/index.json`), { keys: [], rebuild: false });
-		assert.deepEqual(keysOfPath(store, `${DATA}/activity-details/12.json`), { keys: [], rebuild: false });
+		assert.deepEqual(keysOfPath(store, `${DATA}/activity-details/index.json`), { keys: [], rebuild: false });
 		assert.deepEqual(keysOfPath(store, "Daily/2026-10-28.md"), { keys: [], rebuild: false });
 	});
 });

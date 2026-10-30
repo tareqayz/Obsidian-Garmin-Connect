@@ -280,6 +280,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${id}.json`);
 	}
 
+	get activityDetailsFolder(): string {
+		return this.join(ACTIVITY_DETAILS_FOLDER);
+	}
+
 	async readActivityDetail(id: number): Promise<ActivityDetail | null> {
 		const file = this.app.vault.getAbstractFileByPath(this.activityDetailPath(id));
 		if (!(file instanceof TFile)) return null;

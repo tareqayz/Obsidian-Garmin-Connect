@@ -13,7 +13,7 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 /** A sync's ending as the line beside ↻: "Synced 2:05 PM", "Couldn't sync". */
 const syncLine = (outcome: SyncOutcome): string => outcomeLine(outcome, (iso) => clock.format(new Date(iso)));
 import { forgetParsedDays, VaultSeriesStore } from "../sync/series-store";
-import { ACCOUNT, ACTIVITIES, DataVersions, DAYS, keysOfPath, SERIES } from "./data-versions";
+import { ACCOUNT, ACTIVITIES, ACTIVITY, DataVersions, DAYS, keysOfPath, SERIES } from "./data-versions";
 import { rebuildAt } from "./rebuild-schedule";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
@@ -296,7 +296,7 @@ export class GarminHomeView extends ItemView {
 		// cards' keys: Home reads any day's series, and rebuilds for the index.
 		const onFile = (file: TAbstractFile) => {
 			const { keys, rebuild } = keysOfPath(this.store(), file.path);
-			for (const key of keys) if (key !== ACTIVITIES && !key.startsWith(`${SERIES}:`)) this.data.bump(key);
+			for (const key of keys) if (key !== ACTIVITIES && !key.startsWith(`${SERIES}:`) && !key.startsWith(`${ACTIVITY}:`)) this.data.bump(key);
 			if (rebuild) this.scheduleRefresh();
 		};
 		this.registerEvent(this.app.vault.on("modify", onFile));

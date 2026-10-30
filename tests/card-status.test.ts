@@ -21,6 +21,7 @@ const TODAY = "2026-10-29";
 const spec = (source: string): CardSpec => {
 	const read = parseCardBlock(source);
 	if ("error" in read) assert.fail(read.error.message);
+	if (read.spec.kind !== "cards") assert.fail(`expected cards, got ${read.spec.kind}`);
 	return read.spec;
 };
 const HOME = { inFocus: ["sleep", "bodyBattery", "steps"] as const, glance: ["heartRate", "intensity", "calories", "stress", "hrv", "floors", "weight", "vo2max", "endurance"] as const };
@@ -163,6 +164,8 @@ describe("the notes the plugin writes", () => {
 		const found = blocks(guide);
 		for (const source of found) assert.ok(!("error" in parseCardBlock(source)), source);
 		for (const id of ["day", "sleep", "heart-rate", "weight", "xc-ski-ftp"]) assert.ok(found.includes(`show: ${id}\n`), id);
+		for (const id of ["sleep", "body-battery", "pulse-ox", "weight"]) assert.ok(found.includes(`chart: ${id}\n`), id);
+		assert.ok(found.includes("activity: latest\n"));
 		// The example of the block itself is shown, not drawn: its fence is longer.
 		assert.match(guide, /````markdown\n```garmin\nshow: sleep\n```\n````/);
 	});
