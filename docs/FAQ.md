@@ -57,9 +57,16 @@ No. The sync writes no notes at all. Everything goes into JSON files in its own 
 ## Can I show my Garmin data in a note?
 
 Yes: a `garmin` code block draws Home's cards for the note's day, such as `show: sleep,
-body-battery`. **Insert card…** adds one, **Open card guide** lists them all with examples, and
-**Create daily note template** writes a daily note made of them. The cards read what the sync saved
-and never ask Garmin. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+body-battery`, a stat page's chart, such as `chart: stress` with `range: 7d`, or an activity with
+its route map, such as `activity: latest`. **Insert card…** adds one, **Open card guide** lists them
+all with examples, and **Create daily note template** writes a daily note made of cards. They read
+what the sync saved and never ask Garmin. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+
+## Why does a chart or an activity in a note say to open its page?
+
+A card only draws what the vault holds. A day's Respiration and Pulse Ox readings, any day's readings
+from before **Day details**, and an activity's route map are saved when their page first opens.
+Click the card: the page opens and loads them, and the card draws them from then on.
 
 ## I used an older version. Where did my day notes go?
 

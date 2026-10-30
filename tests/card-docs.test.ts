@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CARDS } from "../src/embeds/catalog";
+import { CHARTS, rangesInWords } from "../src/embeds/charts";
 
 /** The Guide's own section on cards in notes, up to the next top-level heading. */
 function guideSection(): string {
@@ -23,5 +24,10 @@ describe("the Guide on cards in notes", () => {
 	it("marks the big cards, and only those", () => {
 		const section = guideSection();
 		for (const card of CARDS) assert.equal(section.includes(`| ${card.title} (big) |`), card.kind === "focus", card.id);
+	});
+
+	it("names every chart with its ranges", () => {
+		const section = guideSection();
+		for (const chart of CHARTS) assert.ok(section.includes(`| ${chart.title} | \`${chart.id}\` | ${rangesInWords(chart.ranges)} | ${chart.description} |`), chart.id);
 	});
 });

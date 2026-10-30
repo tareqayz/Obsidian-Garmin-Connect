@@ -522,7 +522,8 @@ Each field is checked and repaired on its own (`allOf`), so one bad value never 
 
 ## Cards in notes
 
-Home's cards also draw in notes, through a `garmin` code block. How a block reads and refreshes is in
+Home's cards, stat page charts and activities also draw in notes, through a `garmin` code block. How
+a block reads and refreshes is in
 [Architecture](architecture.md#cards-in-notes); what a user writes is in the
 [Guide](GUIDE.md#garmin-cards-in-notes).
 
@@ -545,8 +546,29 @@ The rules:
 - **The tests hold the list together.** `tests/card-spec.test.ts` fails until every At a Glance card
   is listed or excluded as a prompt-only card, and `tests/card-docs.test.ts` until the Guide's card
   table names it.
-- **A card that needs more than Home's model** (a stat page's chart, an activity's map) needs its
-  reads in `CardData` first: today it reads the day files, the series files and `account.json` only.
+
+### Making a stat's chart drawable in a note
+
+A stat page's chart draws in a note once three places know it:
+1. **`src/embeds/charts.ts`:** a `chart(id, glanceId, title, ranges, description)` line. The `chart:`
+   name is its card's `show:` name, and its ranges are its page's, read from the stat's registry
+   entry.
+2. **`src/embeds/chart-models.ts`:** a builder that reads what the page reads through `ChartInputs`
+   (`index(kind)`, `series(date)`, `days()`, `activities()`) and calls the page's own view builder.
+   It returns the view as a `ChartModel`, the card's figures and a `TrendLine` for `size: small`.
+   - A day's view keeps the real today and an offset (`offsetOfDay`).
+   - A trend's gets the block's day as its today, so the period ends there.
+   - Where the page calls `loadIntraday`, read the block from the series file instead, and say what
+     is missing with `missing()`: a card never fetches.
+3. **`src/ui/svelte/embed/ChartBody.svelte`:** a branch that draws the page's chart component,
+   inside the colours the page sets around it. Export those colours from the stat's folder (a
+   `colors.ts` string, or a wrapper component when a theme needs its own values, as Heart Rate's
+   does) so the page and the card share them. Put whatever the page draws around the chart (chips,
+   toggles, lists) outside the chart component, or behind a prop the card turns off.
+
+The rules for cards apply, and `tests/card-docs.test.ts` fails until the Guide's chart table names
+the chart. A `.canvas` element needs its own `position`: Obsidian's Canvas styles the class
+absolute.
 
 ## Charts and settings UI
 

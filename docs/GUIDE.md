@@ -464,10 +464,10 @@ Status's, the day files and the activity list.
 
 ## Garmin cards in notes
 
-Home's cards can sit in any note: a daily note, a training log, a weekly review. A `garmin` code
-block names the cards, and they draw for the note's day from what the sync has saved. They never ask
-Garmin for anything, so they work offline and in any number. Clicking one opens its page in Garmin
-Home on that day.
+Home's cards, a stat page's charts and your activities can sit in any note: a daily note, a training
+log, a weekly review. A `garmin` code block names them, and they draw for the note's day from what
+the sync has saved. They never ask Garmin for anything, so they work offline and in any number.
+Clicking one opens its page in Garmin Home on that day.
 
 ````markdown
 ```garmin
@@ -475,7 +475,8 @@ show: sleep, body-battery
 ```
 ````
 
-- **Insert card…**, in the command palette, lists every card and inserts its block at the cursor.
+- **Insert card…**, in the command palette, lists every card and chart and inserts its block at the
+  cursor. Its **Activity…** lists your activities next.
 - **Open card guide**, also **Settings → Card guide**, writes `Garmin cards.md` beside the data
   folder, with every card and a live example of it. **Rebuild card guide** writes it again for a
   newer version, after asking.
@@ -486,9 +487,12 @@ One `key: value` a line; a line starting with `#` is a comment.
 
 | Key | Takes | Without it |
 | --- | --- | --- |
-| `show` | one or more cards, by name: `sleep`, `heart-rate`, `hrv-status` | required |
+| `show` | one or more cards, by name: `sleep`, `heart-rate`, `hrv-status` | one of `show`, `chart` and `activity` |
+| `chart` | one or more charts, by name: `stress`, `sleep, steps` | |
+| `activity` | `latest`, `all`, or an activity's id | |
 | `date` | `2026-10-28`, `today` or `yesterday` | the note's day |
-| `size` | `small`, for the small version of a big card | each card at its Home size |
+| `range` | for a chart: `1d`, `7d`, `4w` or `1y`, ending on the day | `1d`, the day itself |
+| `size` | `small`: a big card's small version, or a trend as a small card | each at its full size |
 
 Cards keep their Home size. The ones marked big below are Home's In Focus cards; the rest are At a
 Glance cards. From 640 px wide, big cards share a row two at a time and small ones four; a phone
@@ -549,6 +553,51 @@ date to a block in a note without a day of its own, so the card keeps showing th
 The cards for FTP, running economy, lactate threshold and cycling ability hold only your latest
 value: on an earlier day they're marked **Now**.
 
+### Charts
+
+A chart is its stat page's own, in a card: the stat and its period, the period's figures, then the
+chart with its key. `range: 1d` draws the day; `7d`, `4w` and `1y` the period ending on it. Several
+charts in one block stack, and `size: small` draws trends as small cards, four to a row.
+
+````markdown
+```garmin
+chart: sleep, stress
+range: 7d
+```
+````
+
+| Chart | `chart:` | Ranges | What it draws |
+| --- | --- | --- | --- |
+| Sleep | `sleep` | 1d, 7d, 4w and 1y | Last night’s stages, or your sleep scores. |
+| Body Battery | `body-battery` | 1d, 7d and 4w | The day’s Body Battery, or its daily highs and lows. |
+| Stress | `stress` | 1d, 7d, 4w and 1y | The day’s stress, or its daily averages. |
+| Heart Rate | `heart-rate` | 1d, 7d, 4w and 1y | The day’s heart rate, or resting and high by day. |
+| Steps | `steps` | 1d, 7d, 4w and 1y | Steps through the day, or daily totals against your goal. |
+| Floors | `floors` | 1d, 7d, 4w and 1y | Floors through the day, or daily totals against your goal. |
+| Intensity Minutes | `intensity-minutes` | 1d, 7d, 4w and 1y | Minutes through the day, or totals against your weekly goal. |
+| HRV Status | `hrv-status` | 1d, 7d and 4w | The night’s HRV, or nightly averages against your baseline. |
+| Respiration | `respiration` | 1d, 7d and 4w | Breaths a minute through the day, or daily averages. |
+| Pulse Ox | `pulse-ox` | 1d, 7d and 4w | Blood oxygen through the day, or daily averages. |
+| Weight | `weight` | 1d, 7d, 4w and 1y | The day’s weigh-ins, or your weight over time. |
+
+A day's chart draws what the vault holds for that day. Stress, Body Battery and Heart Rate draw from
+the readings the sync keeps for the days in **Day details**. For Respiration and Pulse Ox, and for
+older days, open the stat's page on that day once: it loads the readings, and the chart draws them
+from then on.
+
+### Activities
+
+`activity:` draws one activity in a card: its name and time, its route map, and four figures, as
+its Overview has them.
+
+- `activity: latest`: the day's most recent.
+- `activity: all`: each of the day's, newest first.
+- `activity: 20612345678`: one activity, whatever the note's day. **Insert card…** lists yours.
+
+The map comes with the activity's page: an activity you've opened once (or whose details the sync
+downloaded) shows its map; until then the card shows its figures. The map loads OpenStreetMap's
+tiles as the page's does, and with **Map tiles** off the route draws alone.
+
 ### When there are no cards
 
 A line in their place says why:
@@ -557,6 +606,9 @@ A line in their place says why:
 - the day is before your synced history: **Settings** has **History**;
 - nothing was recorded that day;
 - the block has a mistake: what it is, and on which line.
+
+A chart whose day isn't in the vault yet says so in its card, and a click opens the page, which
+loads it.
 
 ### The daily note template
 
@@ -569,7 +621,7 @@ minutes) and an empty Notes section. It has no dates in it: a daily note's name 
 works with any template plugin. A note of that name already there is opened, never written over.
 
 > [!NOTE]
-> Where the plugin isn't running, as on Obsidian Publish, a card block shows as code.
+> Where the plugin isn't running, as on Obsidian Publish, a block shows as code.
 
 ## Commands
 
@@ -594,7 +646,7 @@ history** button fetches it at once.
 | --- | --- |
 | **Set up…** | Opens the setup: sign in, scan your account, then download all of it or choose under **Advanced options**. |
 | **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
-| **Insert card…** | Picks a card and inserts its `garmin` block at the cursor; see [Garmin cards in notes](#garmin-cards-in-notes). |
+| **Insert card…** | Picks a card, a chart or an activity and inserts its `garmin` block at the cursor; see [Garmin cards in notes](#garmin-cards-in-notes). |
 | **Open card guide** / **Rebuild card guide** | Opens `Garmin cards.md`, written the first time; Rebuild writes it again for this version, after asking. |
 | **Create daily note template** | Writes `Garmin daily note.md` once, then opens it. |
 | **Save debug info** | What a bug report needs, redacted, saved as a note in the **Log folder** and opened, to attach to an issue. No password, no request. |

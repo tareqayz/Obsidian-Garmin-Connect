@@ -77,11 +77,13 @@ it is deliberately left out.
 
 ### Cards in notes
 
-A `garmin` code block in a note holds only the names of its cards, never your numbers. The cards
-draw from the data folder each time the note opens, and send nothing anywhere. Sharing or publishing
-the note shares the block's text alone; a PDF export or a screenshot shows the numbers as drawn. The
-plugin writes two notes of its own, `Garmin cards.md` and `Garmin daily note.md`, and only when you
-ask. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+A `garmin` code block in a note holds only the names of its cards and charts, or an activity's id,
+never your numbers. They draw from the data folder each time the note opens, and ask Garmin for
+nothing. An activity's map loads its OpenStreetMap tiles as the activity's page does (see the table
+below); with **Map tiles** off it asks for none. Sharing or publishing the note shares the block's
+text alone; a PDF export or a screenshot shows the numbers and the map as drawn. The plugin writes two
+notes of its own, `Garmin cards.md` and `Garmin daily note.md`, and only when you ask. See [Garmin
+cards in notes](GUIDE.md#garmin-cards-in-notes).
 
 ### On the device, outside the vault
 
@@ -135,7 +137,7 @@ anyone with access to the device's Obsidian does.
 | `sso.garmin.com` | signing in | your email and password, then your MFA code if Garmin asks for one |
 | `diauth.garmin.com` | signing in, and refreshing the session | the service ticket; later the refresh token and its DI client ID |
 | `connectapi.garmin.com` | syncing, on its own or when you ask; the history download you agreed to; pages loading what they need | the bearer token, and the dates and ids being asked for |
-| `tile.openstreetmap.org` | drawing an activity's map, while **Map tiles** is on | requests for the tiles around the route (so roughly where the activity was) and a User-Agent naming this plugin |
+| `tile.openstreetmap.org` | drawing an activity's map, on its page or in a note, while **Map tiles** is on | requests for the tiles around the route (so roughly where the activity was) and a User-Agent naming this plugin |
 | `tls.peet.ws` | only when you run **Network fingerprint** in the diagnostics | a User-Agent string |
 
 **What it sends without being asked.** With **Sync automatically** on, the default, the plugin asks

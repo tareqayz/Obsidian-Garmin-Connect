@@ -15,8 +15,8 @@ cards in notes).
 - a `SyncRunner`, which runs every sync, history walk and on-view load;
 - an `AutoSync`, which starts a recent sync on its own when one is due;
 - the `garmin-home` view, where every page lives;
-- `CardData` and the `garmin` code block, which draw Home's cards in notes (see
-  [Cards in notes](#cards-in-notes)).
+- `CardData` and the `garmin` code block, which draw Home's cards, stat page charts and activities
+  in notes (see [Cards in notes](#cards-in-notes)).
 
 The runner's engine fetches through the client and writes plain JSON into the data folder through
 `VaultSeriesStore`. The pages read only those files, and ask the runner for anything a page needs
@@ -590,14 +590,17 @@ The lock passes from holder to waiter inside the release, so nothing slips in be
 
 ## Cards in notes
 
-A `garmin` code block draws Home's cards in a note (the user's side is in the
-[Guide](GUIDE.md#garmin-cards-in-notes)). **Code:** `src/embeds/`, the Svelte in
+A `garmin` code block draws Home's cards, a stat page's charts or an activity in a note (the user's
+side is in the [Guide](GUIDE.md#garmin-cards-in-notes)). **Code:** `src/embeds/`, the Svelte in
 `src/ui/svelte/embed/`.
 
 | File | Role |
 | --- | --- |
 | `catalog.ts` | `CARDS`: every card a note can show, by its `show:` name, with its Home card (In Focus, At a Glance or both) — pure |
-| `spec.ts` | `parseCardBlock`: a block read, or what is wrong with it; `snippetFor` — pure |
+| `charts.ts` | `CHARTS`: every chart a note can draw, by its `chart:` name, with its page's ranges — pure |
+| `spec.ts` | `parseCardBlock`: a block (cards, charts or an activity) read, or what is wrong with it; the picker's snippets — pure |
+| `chart-models.ts` | `buildChart`: a chart's page view, built by its page's own builder from the vault, with the card's figures, trend line and route — pure, its reads handed in |
+| `activity-cards.ts` | `pickActivities` and `activityCard`: which activities a block shows, and each one's card from its details or its index row — pure |
 | `dates.ts` | `resolveCardDate`: which day a block shows — pure |
 | `status.ts` | what a block draws for its day: a notice instead, the line over it, its cards as rows — pure |
 | `notes-text.ts` | the daily note template's and the card guide's text — pure |
@@ -609,10 +612,23 @@ A `garmin` code block draws Home's cards in a note (the user's side is in the
 
 - **What a block reads.** Only what the sync wrote, through `CardData`: the day files, the day's
   series file and `account.json`, and Home's model built from them (`homeModel`), once per day and
-  version. Nothing asks Garmin, and nothing starts a sync.
+  version; for charts, the day indexes (`index(kind)`) and the series files of the days they draw;
+  for activities, the activity index and an activity's details file (`activity(id)`). Nothing asks
+  Garmin, and nothing starts a sync.
+- **A chart is its page's.** `buildChart` calls the stat's own view builder, `stressDayView` and
+  the rest, and `ChartBody.svelte` draws the page's own chart component with the colours its page
+  sets. A day's chart keeps the real today and steps back by an offset, as the page does; a trend
+  gets the block's day as its today, so its period ends there. Where a page loads a day's readings on
+  view (`loadIntraday`), the card reads the series file as it is: Stress, Body Battery and Heart Rate
+  fall back to the plain points the sync keeps (`stressDayOfSeries`, `heartDayOfSeries`), and
+  anything else missing says to open the page, which loads it.
+- **An activity's map** is `RouteMap.svelte`, static, with the Overview's overlay and key, drawn
+  only from details already in the vault. Its tiles are the plugin's `mapTiles()`, none with **Map
+  tiles** off.
 - **When it reads again.** Vault events in the data folder move `CardData`'s versions
   (`DataVersions`): the day files, `account.json`, the activity index, and the series file of a day
-  a block shows. A move waits while a sync or the download writes, as Home's do (`rebuildAt`), and
+  a block shows, a day index a chart read, and an activity's details file a card shows
+  (`activityKey`). A move waits while a sync or the download writes, as Home's do (`rebuildAt`), and
   the end of a sync lets it go. Then every block on screen reads again, the reads shared. Midnight
   and the app coming back to the front move live blocks on to the new day.
 - **A block's life.** The processor adds a `CardBlock` (a `MarkdownRenderChild`) to the note's

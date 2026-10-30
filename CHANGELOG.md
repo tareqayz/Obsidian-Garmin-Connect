@@ -15,6 +15,13 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
   Body Battery. Cards keep their Home size, open their page in Garmin Home when clicked, and read
   only what the sync saved. **Insert card…** adds one. See
   [Garmin cards in notes](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#garmin-cards-in-notes).
+- **Charts in your notes.** `chart: stress` draws a stat page's chart in a card: the day's, or with
+  `range: 7d`, `4w` or `1y` the period ending on it. Sleep, Body Battery, Stress, Heart Rate, Steps,
+  Floors, Intensity Minutes, HRV Status, Respiration, Pulse Ox and Weight have one. `size: small`
+  draws trends as small cards, four to a row.
+- **Activities in your notes.** `activity: latest`, `all`, or an activity's id draws an activity in
+  a card with its route map and figures, for a workout journal. **Insert card…** lists your
+  activities.
 - **A daily note template.** **Create daily note template** writes `Garmin daily note.md`, made of
   Garmin cards, for the core Daily notes plugin or any other. Nothing is written until you ask.
 - **A card guide.** **Open card guide** writes `Garmin cards.md`, with every card and a live
@@ -27,6 +34,8 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ### Fixed
 
+- **Weight's chart sits under its period.** It was drawn at the top of the page, over the range
+  control.
 - **Body Battery's curve keeps its shading** when another Body Battery card is on screen.
 - **A link inside a Home card**, such as Weight's +, opens only the link.
 
