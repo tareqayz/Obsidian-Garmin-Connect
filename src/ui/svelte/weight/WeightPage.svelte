@@ -8,6 +8,7 @@
 	import StatCardList from "../health/StatCardList.svelte";
 	import StatFigures from "../health/StatFigures.svelte";
 	import StatPageShell from "../health/StatPageShell.svelte";
+	import { WEIGHT_COLORS } from "./colors";
 	import WeightChart from "./WeightChart.svelte";
 
 	/**
@@ -57,7 +58,7 @@
 	history={{ title: WEIGHT_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane, move })}
-		<div class="weight">
+		<div class="weight" style={WEIGHT_COLORS}>
 			{#if dayView}
 				<div class="day">
 					<div class="hero">
@@ -104,12 +105,6 @@
 </StatPageShell>
 
 <style>
-	/* The twin's weight/* aliases. */
-	.weight {
-		--weight-line: var(--color-blue);
-		--weight-bmi: var(--color-yellow);
-		--weight-high-low: var(--background-modifier-border-hover);
-	}
 	.hero {
 		display: flex;
 		flex-direction: column;

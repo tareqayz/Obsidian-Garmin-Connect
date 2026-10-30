@@ -8,9 +8,10 @@
 	 * The 1d Daily Timeline: the Body Battery step line over its grey area,
 	 * dotted where Garmin estimated it, the stress bars under it, the night's
 	 * lighter band and the Zz marker where it ended. Each chip hides its
-	 * series, and the key drops what is hidden, as the phone does.
+	 * series, and the key drops what is hidden, as the phone does. A card in a
+	 * note has no chips (`chips` false): it draws every series.
 	 */
-	let { timeline, pane }: { timeline: BatteryTimeline; pane: boolean } = $props();
+	let { timeline, pane, chips = true }: { timeline: BatteryTimeline; pane: boolean; chips?: boolean } = $props();
 
 	let shown = $state({ battery: true, rest: true, stress: true });
 	const CHIPS = [
@@ -47,11 +48,13 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="legend"><SleepLegend items={legend} /></div>
-		<div class="chips">
-			{#each CHIPS as chip (chip.id)}
-				<button class="chip" class:on={shown[chip.id]} aria-pressed={shown[chip.id]} onclick={() => (shown[chip.id] = !shown[chip.id])}>{chip.label}</button>
-			{/each}
-		</div>
+		{#if chips}
+			<div class="chips">
+				{#each CHIPS as chip (chip.id)}
+					<button class="chip" class:on={shown[chip.id]} aria-pressed={shown[chip.id]} onclick={() => (shown[chip.id] = !shown[chip.id])}>{chip.label}</button>
+				{/each}
+			</div>
+		{/if}
 	{/snippet}
 </StatChart>
 
