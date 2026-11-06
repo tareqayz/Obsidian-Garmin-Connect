@@ -24,10 +24,12 @@ const tag = latestVersion(changelog);
 if (!tag || !/^\d+\.\d+\.\d+-beta\.\d+$/.test(tag)) {
 	fail(`CHANGELOG.md's newest section is "${tag ?? "none"}", not x.y.z-beta.N. Rename ## [Unreleased] in a PR first (docs/CONTRIBUTING.md, "Beta").`);
 }
-if (git("branch", "--show-current") !== "main") fail("Switch to main: a beta tags the merged main.");
+// A beta tags main, or a feature branch that holds a major release while main keeps shipping fixes.
+const branch = git("branch", "--show-current");
+if (branch !== "main" && !branch.startsWith("feature/")) fail(`Switch to main or a feature/* branch: "${branch || "detached HEAD"}" can't carry a beta.`);
 if (git("status", "--porcelain")) fail("The working tree isn't clean.");
-git("fetch", "--quiet", "--tags", "origin", "main");
-if (git("rev-parse", "HEAD") !== git("rev-parse", "origin/main")) fail("main isn't in step with origin/main: pull or push first.");
+git("fetch", "--quiet", "--tags", "origin", branch);
+if (git("rev-parse", "HEAD") !== git("rev-parse", `origin/${branch}`)) fail(`${branch} isn't in step with origin/${branch}: pull or push first.`);
 if (git("tag", "--list", tag)) fail(`Tag ${tag} already exists.`);
 
 const manifestVersion = JSON.parse(readFileSync("manifest.json", "utf8")).version;
