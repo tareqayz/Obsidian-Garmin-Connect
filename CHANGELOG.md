@@ -8,6 +8,8 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [2.0.0-beta.1] — 2026-11-07
+
 ### Added
 
 - **Garmin cards in your notes.** A `garmin` code block shows Home's cards in any note, for the
@@ -531,7 +533,8 @@ The first build published for testers.
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.1...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/2.0.0-beta.1...HEAD
+[2.0.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.1...2.0.0-beta.1
 [1.0.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.1...1.0.2
 [1.0.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0-beta.1...1.0.0
