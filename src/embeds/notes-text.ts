@@ -43,7 +43,7 @@ export function cardGuide(version: string): string {
 	const out: string[] = [
 		`Written by Garmin Connect ${version}. **Rebuild card guide** refreshes it.`,
 		"",
-		"Add a Garmin card to any note with a `garmin` code block. Run **Insert card…** from the command palette, or type it:",
+		"Add a Garmin card to any note with a `garmin` code block. Run **Insert card…** from the command palette, right-click → **Insert** → **Garmin card…**, or type it:",
 		"",
 		"````markdown",
 		block("show: sleep"),

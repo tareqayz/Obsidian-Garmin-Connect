@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Platform, Plugin, type App, type Modal, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import { MarkdownView, Notice, Platform, Plugin, type App, type Editor, type Modal, type TAbstractFile, type TFile, type WorkspaceLeaf } from "obsidian";
 import { categoryOf, detailProfileOf } from "./dashboard/activities";
 import { areaStack, inArea } from "./dashboard/areas";
 import { unitsOf } from "./dashboard/day";
@@ -226,13 +226,20 @@ export default class GarminPlugin extends Plugin {
 		this.addCommand({
 			id: "insert-card",
 			name: "Insert card…",
-			// A note without a day of its own gets today's: the card keeps showing the day it was added.
-			editorCallback: (editor, ctx) =>
-				new InsertCardModal(this.app, editor, ctx.file && dayOfNote(this.app, ctx.file) ? undefined : toIsoDate(), async () => {
-					const [index, days] = await Promise.all([this.cards.activities(), this.cards.days()]);
-					return { rows: index.rows, units: index.meta?.units ?? unitsOf(days) };
-				}).open(),
+			editorCallback: (editor, ctx) => this.openCardPicker(editor, ctx.file),
 		});
+		// The same picker under the editor's right-click → Insert, beside Code block and Math block.
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu, editor, info) =>
+				menu.addItem((item) =>
+					item
+						.setSection("selection.insert.advanced")
+						.setTitle("Garmin card…")
+						.setIcon("activity")
+						.onClick(() => this.openCardPicker(editor, info.file)),
+				),
+			),
+		);
 		this.addCommand({
 			id: "create-daily-template",
 			name: "Create daily note template",
@@ -317,6 +324,14 @@ export default class GarminPlugin extends Plugin {
 	}
 
 	/** The setup and update dialogs this instance has open, closed when it unloads. */
+	/** The card picker, at the cursor. A note without a day of its own gets today's: the card keeps showing the day it was added. */
+	private openCardPicker(editor: Editor, file: TFile | null): void {
+		new InsertCardModal(this.app, editor, file && dayOfNote(this.app, file) ? undefined : toIsoDate(), async () => {
+			const [index, days] = await Promise.all([this.cards.activities(), this.cards.days()]);
+			return { rows: index.rows, units: index.meta?.units ?? unitsOf(days) };
+		}).open();
+	}
+
 	private dialogs = new Set<Modal>();
 
 	private track(dialog: Modal): void {

@@ -475,8 +475,9 @@ show: sleep, body-battery
 ```
 ````
 
-- **Insert card…**, in the command palette, lists every card and chart and inserts its block at the
-  cursor. Its **Activity…** lists your activities next.
+- **Insert card…**, in the command palette or under right-click → **Insert** → **Garmin card…**,
+  lists every card and chart and inserts its block at the cursor. Its first row, **Activity…**,
+  lists your activities next.
 - **Open card guide**, also **Settings → Card guide**, writes `Garmin cards.md` beside the data
   folder, with every card and a live example of it. **Rebuild card guide** writes it again for a
   newer version, after asking.

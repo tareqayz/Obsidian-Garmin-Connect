@@ -13,7 +13,7 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 - **Garmin cards in your notes.** A `garmin` code block shows Home's cards in any note, for the
   note's day: `show: sleep, body-battery` in a daily note shows that night's sleep and that day's
   Body Battery. Cards keep their Home size, open their page in Garmin Home when clicked, and read
-  only what the sync saved. **Insert card…** adds one. See
+  only what the sync saved. **Insert card…**, or right-click → Insert → Garmin card…, adds one. See
   [Garmin cards in notes](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#garmin-cards-in-notes).
 - **Charts in your notes.** `chart: stress` draws a stat page's chart in a card: the day's, or with
   `range: 7d`, `4w` or `1y` the period ending on it. Sleep, Body Battery, Stress, Heart Rate, Steps,

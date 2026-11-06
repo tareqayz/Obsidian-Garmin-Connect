@@ -38,7 +38,7 @@ export class InsertCardModal extends FuzzySuggestModal<Choice> {
 	}
 
 	getItems(): Choice[] {
-		return [...CARDS.map((card) => ({ kind: "card" as const, card })), ...CHARTS.map((chart) => ({ kind: "chart" as const, chart })), { kind: "activity" }];
+		return [{ kind: "activity" }, ...CARDS.map((card) => ({ kind: "card" as const, card })), ...CHARTS.map((chart) => ({ kind: "chart" as const, chart }))];
 	}
 
 	getItemText(choice: Choice): string {
