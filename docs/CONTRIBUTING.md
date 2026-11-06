@@ -116,6 +116,19 @@ pre-release. The bump is never committed: Obsidian reads `manifest.json` at the 
 branch, so a committed beta version would ship to every directory user. Testers install betas by
 adding `tareqayz/Obsidian-Garmin-Connect` in BRAT.
 
+### Beta of a major release
+
+A big release, such as 2.0.0, can run its betas from its `feature/*` branch so `main` keeps
+shipping 1.x fixes:
+
+1. Push the branch. On it, rename `## [Unreleased]` to `## [x.0.0-beta.N] — YYYY-MM-DD` and commit.
+2. On that branch, run `npm run release:beta`. It accepts `main` or any `feature/*` branch, checked
+   against its own `origin` branch.
+3. Merge `main` into the branch now and then, so the betas carry the 1.x fixes. The changelog
+   conflicts each time: keep both sets of sections, newest first.
+4. When the beta is stable, open the PR, rename the newest section to `## [x.0.0]` as in
+   [Stable](#stable-community-directory-users), squash-merge, then run `npm version major` on `main`.
+
 ### Release notes
 
 `npm run --silent release:notes -- <tag>` (`scripts/release/`) prints what a release carries. It

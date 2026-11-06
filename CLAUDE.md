@@ -51,7 +51,9 @@ Always cross-check a UI implementation in the live vault with the Obsidian CLI: 
   `git push origin main --follow-tags`. Never hand-edit `manifest.json`'s version;
   `version-bump.mjs` owns it.
 - Beta: a PR renames `## [Unreleased]` to `## [x.y.z-beta.N] — date`. On the merged `main`, run
-  `npm run release:beta`: it checks, shows the notes, and asks before it tags and pushes. **Never commit a pre-release version to
+  `npm run release:beta`: it checks, shows the notes, and asks before it tags and pushes. A major
+  release's betas can run from its `feature/*` branch instead (CONTRIBUTING, "Beta of a major
+  release"). **Never commit a pre-release version to
   `manifest.json` on `main`**: Obsidian reads that file at the head of the default branch, and would
   ship the beta to every user. CI stamps it into the release asset instead.
 - Never add `## [x.y.z]` to the changelog before tagging that stable: every later beta would publish
