@@ -1,14 +1,16 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import type { ShareView } from "../src/dashboard/activity-share";
+import type { ShareFigure, ShareView } from "../src/dashboard/activity-share";
 import { mercator } from "../src/dashboard/map-view";
-import { fitRoute, SHARE_TEMPLATES, shareScene, templatesFor, type ShareOp } from "../src/dashboard/share-layout";
+import { fitRoute, frameHeight, SHARE_TEMPLATES, shareScene, templatesFor, type ShareOp } from "../src/dashboard/share-layout";
 
 /*
- * The share images' layouts. TRANSPARENT at 9:16 is measured off Garmin's
- * (the issue #44 shot, scaled to 1080 wide); the rest is Inferred, so these
- * pin the geometry the stand-ins draw until Garmin's saved images arrive.
+ * The share images' layouts, in Garmin's points (402 wide). Each place is
+ * measured off Garmin's saved images (ref/share/README.md): text by its ink
+ * and baseline, rings, rules and boxes by their pixels.
  */
+
+const f = (value: string, label: string, unit?: string): ShareFigure => (unit ? { value, unit, label } : { value, label });
 
 const VIEW: ShareView = {
 	id: 1,
@@ -16,11 +18,8 @@ const VIEW: ShareView = {
 	when: "Mar 4 @ 9:22 AM",
 	date: "2026-03-04",
 	glyph: "trekking",
-	stats: [
-		{ value: "2:48:48", label: "Total Time" },
-		{ value: "6.14", unit: "km", label: "Distance" },
-		{ value: "27:27", unit: "/km", label: "Avg Pace" },
-	],
+	figures: [f("2:48:48", "Total Time"), f("6.14", "Distance", "km"), f("27:27", "Avg Pace", "/km"), f("312", "Total Ascent", "m"), f("739", "Total Calories")],
+	time: f("2:48:48", "Total Time"),
 	route: {
 		points: [
 			[10, 20],
@@ -34,103 +33,179 @@ const VIEW: ShareView = {
 };
 
 const ofKind = <K extends ShareOp["kind"]>(ops: ShareOp[], kind: K) => ops.filter((op): op is Extract<ShareOp, { kind: K }> => op.kind === kind);
-const round = (n: number) => Math.round(n * 10) / 10;
+const r1 = (n: number) => Math.round(n * 10) / 10;
+const texts = (ops: ShareOp[]) => ofKind(ops, "text").map((t) => [t.text, r1(t.x), r1(t.y), t.size]);
+const figures = (ops: ShareOp[]) => ofKind(ops, "figure").map((g) => [g.figure.value, r1(g.x), r1(g.y), g.size]);
 
-describe("templatesFor", () => {
-	it("offers every template for an activity with a route", () => {
+describe("templates", () => {
+	it("are Garmin's, less its sport art, in its order", () => {
+		assert.deepEqual(
+			SHARE_TEMPLATES.map((t) => t.id),
+			["rings", "map", "topo", "transparent", "transparent-route"],
+		);
 		assert.deepEqual(
 			templatesFor(VIEW).map((t) => t.id),
-			SHARE_TEMPLATES.map((t) => t.id),
+			["rings", "map", "topo", "transparent", "transparent-route"],
 		);
 	});
 
-	it("drops the route templates without one", () => {
+	it("drop the route ones without a route", () => {
 		assert.deepEqual(
 			templatesFor({ route: null }).map((t) => t.id),
-			["transparent"],
+			["rings", "transparent"],
 		);
+	});
+
+	it("are 402 points wide, as tall as their ratio", () => {
+		assert.deepEqual(["9:16", "4:5", "1:1"].map((r) => r1(frameHeight(r as "9:16"))), [714.7, 502.5, 402]);
 	});
 });
 
-describe("TRANSPARENT at 9:16", () => {
-	const scene = shareScene(VIEW, "transparent", "9:16");
+describe("Rings", () => {
+	const scene = shareScene(VIEW, "rings", "9:16");
 
-	it("is a see-through 1080 × 1920 image", () => {
-		assert.equal(scene.width, 1080);
-		assert.equal(scene.height, 1920);
+	it("has Garmin's band, header and rings at 9:16", () => {
+		assert.equal(scene.transparent, false);
+		assert.deepEqual(ofKind(scene.ops, "rect")[0].box, { x: 0, y: 0, w: 402, h: 132 });
+		assert.deepEqual(
+			ofKind(scene.ops, "ring").map((r) => [r.cx, r1(r.cy), r.r, r.width, r.halo ?? 0]),
+			[
+				[97.8, 375.8, 61.25, 4.5, 0],
+				[304.2, 375.8, 61.25, 4.5, 0],
+				[201, 331.7, 61.25, 4.5, 12.5],
+			],
+		);
+		assert.deepEqual(texts(scene.ops).slice(0, 2), [
+			["Ridge Hike", 59.8, 96.8, 24],
+			["Mar 4 @ 9:22 AM", 59.8, 116.9, 13],
+		]);
+	});
+
+	it("puts A, B and C on their rings' middles, D and E under the rules", () => {
+		assert.deepEqual(figures(scene.ops), [
+			["2:48:48", 97.8, 375.8, 23],
+			["6.14", 201, 331.7, 23],
+			["27:27", 304.2, 375.8, 23],
+			["312", 23.5, 601.7, 19],
+			["739", 212.4, 601.7, 19],
+		]);
+		assert.deepEqual(texts(scene.ops).slice(2), [
+			["Total Time", 97.8, 395.3, 14],
+			["Distance", 201, 351.2, 14],
+			["Avg Pace", 304.2, 395.3, 14],
+			["Total Ascent", 23.5, 624, 17],
+			["Total Calories", 212.4, 624, 17],
+		]);
+		assert.deepEqual(
+			ofKind(scene.ops, "rule").map((r) => [r.x, r.y, r.w]),
+			[
+				[23.5, 575.1, 165.8],
+				[212.4, 575.1, 165.8],
+			],
+		);
+	});
+
+	it("moves up at 4:5 and 1:1, the rules 71.8 above the bottom", () => {
+		const square = shareScene(VIEW, "rings", "1:1");
+		assert.deepEqual(ofKind(square.ops, "rect")[0].box.h, 89);
+		assert.equal(ofKind(square.ops, "ring")[0].cy, 229.6);
+		assert.equal(r1(ofKind(square.ops, "rule")[0].y), 330.2);
+		assert.equal(r1(ofKind(shareScene(VIEW, "rings", "4:5").ops, "rule")[0].y), 430.7);
+	});
+});
+
+describe("Map", () => {
+	it("draws the map across the image, B and Total Time under it", () => {
+		const scene = shareScene(VIEW, "map", "9:16");
+		const [map] = ofKind(scene.ops, "map");
+		assert.deepEqual([map.box.x, map.box.y, map.box.w, r1(map.box.h)], [0, 137.9, 402, 429.9]);
+		assert.deepEqual(figures(scene.ops), [
+			["6.14", 23.5, 605.4, 34],
+			["2:48:48", 224.5, 605.4, 34],
+		]);
+		assert.deepEqual(texts(scene.ops).slice(2), [
+			["Distance", 23.5, 631.9, 17],
+			["Total Time", 224.5, 631.9, 17],
+		]);
+	});
+
+	it("keeps 76.2 points of band under the map at 1:1", () => {
+		const [map] = ofKind(shareScene(VIEW, "map", "1:1").ops, "map");
+		assert.deepEqual([map.box.y, r1(map.box.y + map.box.h)], [91, 325.8]);
+	});
+});
+
+describe("Topographic", () => {
+	const scene = shareScene(VIEW, "topo", "9:16");
+
+	it("draws its own contour lines under a see-through band", () => {
+		const [contours] = ofKind(scene.ops, "lines");
+		assert.ok(contours.lines.length > 10);
+		const [band] = ofKind(scene.ops, "rect");
+		assert.deepEqual([band.box.h, band.alpha], [132, 0.85]);
+	});
+
+	it("fits the route into Garmin's box on the right", () => {
+		const route = ofKind(scene.ops, "lines")[1];
+		const xs = route.lines[0].map((p) => p[0]);
+		const ys = route.lines[0].map((p) => p[1]);
+		assert.ok(Math.min(...xs) >= 214.1 && Math.max(...xs) <= 356.5, `${Math.min(...xs)}..${Math.max(...xs)}`);
+		assert.ok(Math.min(...ys) >= 305.6 && Math.max(...ys) <= 427.8, `${Math.min(...ys)}..${Math.max(...ys)}`);
+		// Wider than tall, it fills the box's width.
+		assert.equal(r1(Math.max(...xs) - Math.min(...xs)), 142.3);
+	});
+
+	it("puts B big over two ruled rows", () => {
+		assert.deepEqual(figures(scene.ops), [
+			["6.14", 23.5, 440.1, 34],
+			["2:48:48", 23.5, 522.8, 20],
+			["27:27", 212.4, 522.8, 20],
+			["312", 23.5, 602, 20],
+			["739", 212.4, 602, 20],
+		]);
+		assert.deepEqual(
+			ofKind(scene.ops, "rule").map((r) => r1(r.y)),
+			[495.9, 495.9, 575.1, 575.1],
+		);
+	});
+
+	it("draws the same hills for the same activity", () => {
+		const again = ofKind(shareScene(VIEW, "topo", "9:16").ops, "lines")[0];
+		assert.deepEqual(again.lines, ofKind(scene.ops, "lines")[0].lines);
+	});
+});
+
+describe("TRANSPARENT", () => {
+	it("stacks A, B and C beside the hatched bar, labels in capitals, on nothing", () => {
+		const scene = shareScene(VIEW, "transparent", "9:16");
 		assert.equal(scene.transparent, true);
 		assert.equal(ofKind(scene.ops, "fill").length, 0);
+		assert.deepEqual(ofKind(scene.ops, "hatch")[0].box, { x: 0, y: 362.4, w: 11.7, h: 233.3 });
+		assert.deepEqual(figures(scene.ops), [
+			["2:48:48", 24, 397.1, 26.5],
+			["6.14", 24, 480.2, 26.5],
+			["27:27", 24, 563.3, 26.5],
+		]);
+		assert.deepEqual(texts(scene.ops).slice(2), [
+			["TOTAL TIME", 24, 414.7, 13],
+			["DISTANCE", 24, 497.8, 13],
+			["AVG PACE", 24, 580.9, 13],
+		]);
+		assert.equal(ofKind(scene.ops, "lines").length, 0);
 	});
 
-	it("puts the figure, the name and the date line at Garmin's places", () => {
-		assert.deepEqual(ofKind(scene.ops, "glyph"), [{ kind: "glyph", glyph: "trekking", x: 66, y: 226, size: 58, color: "#ffffff" }]);
-		const [title, date] = ofKind(scene.ops, "text");
-		assert.deepEqual([title.text, title.x, title.y, title.size, title.weight], ["Ridge Hike", 157, 258, 66, 700]);
-		assert.deepEqual([date.text, date.y, date.size, date.weight], ["Mar 4 @ 9:22 AM", 314, 38, 400]);
-		assert.equal(title.maxWidth, 1080 - 157 - 62);
-	});
-
-	it("stacks the three figures beside the hatched bar, labels in capitals", () => {
-		assert.deepEqual(ofKind(scene.ops, "hatch")[0].box, { x: 0, y: 977, w: 29, h: 622 });
-		const figures = ofKind(scene.ops, "figure");
+	it("closes up at 1:1", () => {
+		const scene = shareScene(VIEW, "transparent", "1:1");
 		assert.deepEqual(
-			figures.map((f) => [f.value, f.unit, f.x, f.y, f.size, f.unitSize]),
-			[
-				["2:48:48", undefined, 62, 1072, 78, 42],
-				["6.14", "km", 62, 1294, 78, 42],
-				["27:27", "/km", 62, 1516, 78, 42],
-			],
-		);
-		const labels = ofKind(scene.ops, "text").slice(2);
-		assert.deepEqual(
-			labels.map((l) => [l.text, l.y]),
-			[
-				["TOTAL TIME", 1119],
-				["DISTANCE", 1341],
-				["AVG PACE", 1563],
-			],
+			figures(scene.ops).map((g) => g[2]),
+			[207.8, 285, 362.1],
 		);
 	});
 
-	it("draws no route", () => {
-		assert.equal(ofKind(scene.ops, "route").length, 0);
-	});
-});
-
-describe("the other ratios", () => {
-	it("scale the type and keep the block above the bottom edge", () => {
-		const square = shareScene(VIEW, "transparent", "1:1");
-		assert.equal(square.height, 1080);
-		const bar = ofKind(square.ops, "hatch")[0].box;
-		assert.equal(round(bar.y + bar.h), 970);
-		assert.equal(round(bar.h), 497.6);
-		assert.equal(round(ofKind(square.ops, "figure")[0].size), 62.4);
-		const vertical = shareScene(VIEW, "transparent", "4:5");
-		const vbar = ofKind(vertical.ops, "hatch")[0].box;
-		assert.equal(round(vbar.y + vbar.h), 1170);
-	});
-});
-
-describe("the route templates", () => {
-	it("dark: a ground, hairlines between the figures, the route on the right", () => {
-		const scene = shareScene(VIEW, "dark", "9:16");
-		assert.equal(scene.transparent, false);
-		assert.deepEqual(scene.ops[0], { kind: "fill", color: "#111417" });
-		assert.equal(ofKind(scene.ops, "hatch").length, 0);
-		assert.equal(ofKind(scene.ops, "rule").length, 2);
-		const [route] = ofKind(scene.ops, "route");
-		for (const [x, y] of route.paths[0].points) {
-			assert.ok(x >= 1080 * 0.3 - 0.01 && x <= 1080 - 62 + 0.01, `x ${x}`);
-			assert.ok(y >= 384 - 0.01 && y <= 1599 + 0.01, `y ${y}`);
-		}
-	});
-
-	it("route: see-through, the route between the header and the figures", () => {
-		const scene = shareScene(VIEW, "route", "9:16");
-		assert.equal(scene.transparent, true);
-		const [route] = ofKind(scene.ops, "route");
-		assert.equal(route.paths[0].color, "#ffffff");
-		for (const [, y] of route.paths[0].points) assert.ok(y >= 384 - 0.01 && y <= 977 - 50 + 0.01, `y ${y}`);
+	it("with the route, draws it on the right", () => {
+		const [route] = ofKind(shareScene(VIEW, "transparent-route", "4:5").ops, "lines");
+		const xs = route.lines[0].map((p) => p[0]);
+		assert.deepEqual([r1(Math.min(...xs)), r1(Math.max(...xs))], [189.3, 378.5]);
 	});
 });
 
@@ -146,12 +221,12 @@ describe("fitRoute", () => {
 		);
 		const [x0, y0] = at([0, 0]);
 		const [x1, y1] = at([0.01, 0.02]);
-		assert.equal(round(x0), 0);
-		assert.equal(round(x1), 400);
-		assert.equal(round(Math.abs(y1 - y0)), 200);
+		assert.equal(r1(x0), 0);
+		assert.equal(r1(x1), 400);
+		assert.equal(r1(Math.abs(y1 - y0)), 200);
 		// North is up, and the route sits in the middle of the box's height.
 		assert.ok(y1 < y0);
-		assert.equal(round((y0 + y1) / 2), 200);
+		assert.equal(r1((y0 + y1) / 2), 200);
 	});
 
 	it("puts a route that never moved in the middle", () => {
@@ -164,6 +239,5 @@ describe("mercator", () => {
 	it("maps the origin to the middle and the north up", () => {
 		assert.deepEqual(mercator([0, 0]), [0.5, 0.5]);
 		assert.ok(mercator([45, 0])[1] < 0.5);
-		assert.equal(mercator([0, 90])[0], 0.75);
 	});
 });

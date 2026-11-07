@@ -441,7 +441,7 @@ export class GarminHomeView extends ItemView {
 		const top = this.stack[this.stack.length - 1];
 		const detail = top?.page === "activity" ? this.activities.get(top.id) : undefined;
 		if (!detail) return false;
-		if (!checking) new SheetModal(this.app, "Share Activity", ShareSheet, { detail, units: this.units, actions: this.shareActions() }).open();
+		if (!checking) new SheetModal(this.app, "Share Activity", ShareSheet, { detail, units: this.units, actions: this.shareActions(), tiles: this.tiles() }).open();
 		return true;
 	}
 

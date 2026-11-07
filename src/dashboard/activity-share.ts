@@ -9,12 +9,14 @@ import { inUnit, perHundred, swimPace, swimUnit } from "./swim-metrics";
 
 /**
  * Share Activity, as data: Garmin's phone flow turns an activity into an
- * image (its name, date and sport, three figures and, in some templates, its
+ * image (its name, date and sport, its figures and, in some templates, its
  * route) in one of three aspect ratios, for the system share sheet or a file.
  *
- * The figures are Garmin's share figures, not the Overview's: a hike shares
- * TOTAL TIME, DISTANCE and AVG PACE (the issue #44 shot of Garmin's
- * TRANSPARENT image). The other sports' three are Inferred until their shots.
+ * Each sport shares five figures, A to E, and each template places them:
+ * Rings puts A, B and C in its rings and D and E under them, Topographic B
+ * big with A and C, then D and E, TRANSPARENT A, B and C (spec:
+ * ref/share/README.md, from Garmin's saved images of a hike, a run, a ride,
+ * a pool swim and yoga; every other sport's five are Inferred).
  *
  * Pure: no Obsidian import.
  */
@@ -25,7 +27,7 @@ export interface ShareRatio {
 	id: ShareRatioId;
 	/** Garmin's list item: "Full Portrait (9:16)". */
 	label: string;
-	/** The image's size in pixels (Inferred: 1080 wide, until Garmin's saved images say). */
+	/** The image's size in pixels: Garmin's layout, drawn at 1080 wide. */
 	width: number;
 	height: number;
 }
@@ -43,8 +45,8 @@ export function ratioOf(id: ShareRatioId): ShareRatio {
 	return SHARE_RATIOS.find((r) => r.id === id) ?? SHARE_RATIOS[0];
 }
 
-/** One of the image's figures: "6.14" "km" "Distance". */
-export interface ShareStat {
+/** One of the image's figures: "6.14" "km" "Distance". A figure the activity hasn't got reads "--". */
+export interface ShareFigure {
 	value: string;
 	unit?: string;
 	label: string;
@@ -74,17 +76,58 @@ export interface ShareView {
 	/** The local start date, "2026-03-04": the file's name ends with it. */
 	date: string;
 	glyph: SportGlyph;
-	/** Three figures, or fewer when the activity has fewer. */
-	stats: ShareStat[];
+	/** The sport's five figures, A to E (`SHARE_SETS`). */
+	figures: ShareFigure[];
+	/** Total Time, which the Map template always shows beside B. */
+	time: ShareFigure;
 	/** The route, when the activity has GPS. */
 	route: ShareRoute | null;
 }
 
-/** How many figures an image shows. */
-export const SHARE_STATS = 3;
+export type ShareFigureId = "time" | "distance" | "pace" | "speed" | "hr" | "maxHr" | "ascent" | "calories" | "power" | "respiration";
 
-/** Sports Garmin paces rather than times by speed: on foot. */
-const PACED: ReadonlySet<SportGlyph> = new Set<SportGlyph>(["run", "treadmill", "trekking", "walk"]);
+/**
+ * Each sport's five, as Garmin's images have them:
+ * - on foot (hiking, walking): Total Time, Distance, Avg Pace; Total Ascent, Total Calories;
+ * - a run: Avg Heart Rate, Distance, Avg Pace; Total Time, Total Calories;
+ * - a ride: Total Time, Distance, Avg Speed; Total Ascent, Avg Power;
+ * - a swim: Total Time, Distance, Avg Pace per 100; Avg Heart Rate, Total Calories;
+ * - yoga: Avg Heart Rate, Total Time, Avg Respiration Rate; Total Poses (which the
+ *   plugin doesn't keep: Max Heart Rate, Inferred), Total Calories.
+ * The last two are Inferred: a session without a distance, and any other sport.
+ */
+export const SHARE_SETS = {
+	foot: ["time", "distance", "pace", "ascent", "calories"],
+	run: ["hr", "distance", "pace", "time", "calories"],
+	ride: ["time", "distance", "speed", "ascent", "power"],
+	swim: ["time", "distance", "pace", "hr", "calories"],
+	yoga: ["hr", "time", "respiration", "maxHr", "calories"],
+	gym: ["hr", "time", "calories", "maxHr", "respiration"],
+	other: ["time", "distance", "speed", "ascent", "calories"],
+} as const satisfies Record<string, readonly ShareFigureId[]>;
+
+export type ShareSetId = keyof typeof SHARE_SETS;
+
+/** The set an activity shares, by its sport's figure and whether it has a distance. */
+export function shareSetOf(detail: ActivityDetail): ShareSetId {
+	switch (glyphOf(detail)) {
+		case "trekking":
+		case "walk":
+			return "foot";
+		case "run":
+		case "treadmill":
+			return "run";
+		case "bike":
+			return "ride";
+		case "swimming":
+			return "swim";
+		case "yoga":
+		case "stretching":
+			return "yoga";
+		default:
+			return (numberOf(detail.summary.distance) ?? 0) > 0 ? "other" : "gym";
+	}
+}
 
 export function shareView(detail: ActivityDetail, units: Units, today?: string): ShareView {
 	return {
@@ -93,62 +136,86 @@ export function shareView(detail: ActivityDetail, units: Units, today?: string):
 		when: activityWhen(detail.start, today),
 		date: detail.start.slice(0, 10),
 		glyph: glyphOf(detail),
-		stats: shareStats(detail, units),
+		figures: SHARE_SETS[shareSetOf(detail)].map((id) => shareFigure(detail, id, units)),
+		time: shareFigure(detail, "time", units),
 		route: shareRoute(detail),
 	};
 }
 
-/**
- * The image's three figures, Total Time first:
- * - on foot (runs, walks, hikes): Distance and Avg Pace, as the hike's;
- * - a swim: Distance in the pool's unit and Avg Pace per 100 (Inferred);
- * - anything else with a distance: Distance and Avg Speed (Inferred);
- * - without a distance: Total Calories and Avg Heart Rate (Inferred).
- * A figure the activity hasn't got is skipped, and the next one in
- * Calories, Avg Heart Rate, Total Ascent fills its place.
- */
-export function shareStats(detail: ActivityDetail, units: Units): ShareStat[] {
+const LABELS: Readonly<Record<ShareFigureId, string>> = {
+	time: "Total Time",
+	distance: "Distance",
+	pace: "Avg Pace",
+	speed: "Avg Speed",
+	hr: "Avg Heart Rate",
+	maxHr: "Max Heart Rate",
+	ascent: "Total Ascent",
+	calories: "Total Calories",
+	power: "Avg Power",
+	respiration: "Avg Respiration Rate",
+};
+
+/** One figure as Garmin writes it: "6.14" "km", "27:27" "/km", "161" "bpm", "868". */
+export function shareFigure(detail: ActivityDetail, id: ShareFigureId, units: Units): ShareFigure {
+	const label = LABELS[id];
+	const found = figureValue(detail, id, units);
+	return found ? { ...found, label } : { value: "--", label };
+}
+
+function figureValue(detail: ActivityDetail, id: ShareFigureId, units: Units): Omit<ShareFigure, "label"> | undefined {
 	const v = (key: string) => numberOf(detail.summary[key]);
-	const glyph = glyphOf(detail);
-	const swim = glyph === "swimming";
-	const out: ShareStat[] = [];
-	const push = (stat: ShareStat | undefined) => {
-		if (stat && out.length < SHARE_STATS && !out.some((s) => s.label === stat.label)) out.push(stat);
-	};
-
-	const seconds = v("duration");
-	if (seconds !== undefined && seconds > 0) push({ value: duration(seconds), label: "Total Time" });
-
-	const metres = v("distance");
+	const imperial = units === "imperial";
+	const swim = glyphOf(detail) === "swimming";
 	const speed = v("averageSpeed");
-	if (metres !== undefined && metres > 0) {
-		if (swim) {
-			const unit = swimUnit(detail, units);
-			push({ value: fixed(inUnit(metres, unit), 0), unit, label: "Distance" });
-			const pace = speed !== undefined && speed > 0 ? swimPace(speed, unit) : undefined;
-			if (pace) push({ value: pace, unit: perHundred(unit), label: "Avg Pace" });
-		} else {
-			const [value, unit] = distanceParts(metres, units);
-			push({ value, unit, label: "Distance" });
-			if (PACED.has(glyph)) {
-				const pace = paceText(speed, units);
-				if (pace) push({ value: pace, unit: units === "imperial" ? "/mi" : "/km", label: "Avg Pace" });
-			} else {
-				const fast = speedOf(speed, units);
-				if (fast) push({ value: fast, unit: units === "imperial" ? "mph" : "km/h", label: "Avg Speed" });
-			}
+	switch (id) {
+		case "time": {
+			const seconds = v("duration");
+			return seconds !== undefined && seconds > 0 ? { value: duration(seconds) } : undefined;
 		}
+		case "distance": {
+			const metres = v("distance");
+			if (metres === undefined || !(metres > 0)) return undefined;
+			if (swim) {
+				const unit = swimUnit(detail, units);
+				return { value: fixed(inUnit(metres, unit), 0), unit };
+			}
+			const [value, unit] = distanceParts(metres, units);
+			return { value, unit };
+		}
+		case "pace": {
+			if (swim) {
+				const unit = swimUnit(detail, units);
+				const pace = speed !== undefined && speed > 0 ? swimPace(speed, unit) : undefined;
+				return pace ? { value: pace, unit: perHundred(unit) } : undefined;
+			}
+			const pace = paceText(speed, units);
+			return pace ? { value: pace, unit: imperial ? "/mi" : "/km" } : undefined;
+		}
+		case "speed": {
+			const fast = speedOf(speed, units);
+			return fast ? { value: fast, unit: imperial ? "mph" : "km/h" } : undefined;
+		}
+		case "hr":
+			return withUnit(whole(v("averageHR")), "bpm");
+		case "maxHr":
+			return withUnit(whole(v("maxHR")), "bpm");
+		case "ascent": {
+			const metres = v("elevationGain");
+			return metres === undefined ? undefined : { value: fixed(imperial ? metres * 3.28084 : metres, 0), unit: imperial ? "ft" : "m" };
+		}
+		case "calories": {
+			const kcal = v("calories");
+			return kcal === undefined ? undefined : { value: Math.round(kcal).toLocaleString("en-US") };
+		}
+		case "power":
+			return withUnit(whole(v("averagePower")), "W");
+		case "respiration":
+			return withUnit(whole(v("avgRespirationRate")), "brpm");
 	}
+}
 
-	const kcal = v("calories");
-	if (kcal !== undefined && kcal > 0) push({ value: Math.round(kcal).toLocaleString("en-US"), label: "Total Calories" });
-	const hr = whole(v("averageHR"));
-	if (hr !== undefined) push({ value: hr, unit: "bpm", label: "Avg Heart Rate" });
-	const ascent = v("elevationGain");
-	if (ascent !== undefined && ascent > 0) {
-		push({ value: fixed(units === "imperial" ? ascent * 3.28084 : ascent, 0), unit: units === "imperial" ? "ft" : "m", label: "Total Ascent" });
-	}
-	return out;
+function withUnit(value: string | undefined, unit: string): Omit<ShareFigure, "label"> | undefined {
+	return value === undefined ? undefined : { value, unit };
 }
 
 /**

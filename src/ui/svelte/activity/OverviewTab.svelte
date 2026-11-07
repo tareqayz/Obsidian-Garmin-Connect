@@ -53,7 +53,7 @@
 	}
 
 	function openShare() {
-		openSheet("Share Activity", ShareSheet, { detail, units, actions: share });
+		openSheet("Share Activity", ShareSheet, { detail, units, actions: share, tiles: tiles() });
 	}
 
 	/** The records row draws Lucide's trophy, as the phone does; the others their sport's figure. */

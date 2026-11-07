@@ -11,9 +11,9 @@
 	import { shareScene, templatesFor, type ShareScene } from "../../../../dashboard/share-layout";
 	import { toIsoDate } from "../../../../garmin/endpoints";
 	import type { ActivityDetail } from "../../../../sync/activity-detail";
+	import type { TileSource } from "../../../map/tile-source";
 	import type { ShareActions } from "../../../share/actions";
 	import { paintScene, renderScene } from "../../../share/draw";
-	import { loadShareFont } from "../../../share/font";
 	import { lucide } from "../../home/lucide";
 
 	/**
@@ -26,10 +26,12 @@
 		detail: ActivityDetail;
 		units: Units;
 		actions: ShareActions;
+		/** The Map template's tiles, or null when map tiles are off. */
+		tiles: TileSource | null;
 		onClose: () => void;
 	}
 
-	let { detail, units, actions }: Props = $props();
+	let { detail, units, actions, tiles }: Props = $props();
 
 	let view = $derived(shareView(detail, units, toIsoDate()));
 	let templates = $derived(templatesFor(view));
@@ -64,7 +66,7 @@
 		let stale = false;
 		// A pause while the carousel is swiped past several images.
 		const timer = window.setTimeout(() => {
-			renderScene(scene).then(
+			renderScene(scene, { tiles }).then(
 				(blob) => {
 					if (!stale) image = blob;
 				},
@@ -96,17 +98,21 @@
 		event.preventDefault();
 	}
 
-	/** Draws a preview at the canvas's own width, once the share face has loaded. */
+	/** Draws a preview at the canvas's own width; a newer scene overtakes one still drawing. */
 	function preview(node: HTMLCanvasElement, scene: ShareScene) {
-		let current = scene;
-		const paint = () => paintScene(node, current, ((node.clientWidth || 240) * (window.devicePixelRatio || 1)) / current.width);
-		void loadShareFont(node.ownerDocument).then(paint);
-		return {
-			update(next: ShareScene) {
-				current = next;
-				void loadShareFont(node.ownerDocument).then(paint);
-			},
+		let drawn = 0;
+		const paint = (next: ShareScene) => {
+			const turn = ++drawn;
+			const target = createEl("canvas");
+			void paintScene(target, next, (node.clientWidth || 240) * (window.devicePixelRatio || 1), { tiles }).then(() => {
+				if (turn !== drawn) return;
+				node.width = target.width;
+				node.height = target.height;
+				node.getContext("2d")?.drawImage(target, 0, 0);
+			});
 		};
+		paint(scene);
+		return { update: paint };
 	}
 
 	function share() {
@@ -151,7 +157,7 @@
 			<button class="clickable-icon back" aria-label="Choose an aspect ratio" onclick={() => (step = "ratio")}>
 				<span use:lucide={"chevron-left"}></span>
 			</button>
-			<span class="caption">Choose an image</span>
+			<span class="caption" id="gch-share-images">Choose an image</span>
 		</div>
 		<div
 			class="carousel"
@@ -160,7 +166,7 @@
 			onkeydown={onKey}
 			tabindex="0"
 			role="listbox"
-			aria-label="Images"
+			aria-labelledby="gch-share-images"
 			style:--share-ratio="{size.width} / {size.height}"
 			style:--share-r={size.width / size.height}
 		>
