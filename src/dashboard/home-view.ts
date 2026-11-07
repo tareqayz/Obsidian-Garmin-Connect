@@ -17,13 +17,15 @@ import { ACCOUNT, ACTIVITIES, ACTIVITY, DataVersions, DAYS, keysOfPath, SERIES }
 import { rebuildAt } from "./rebuild-schedule";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
+import { shareActions, type ShareActions } from "../ui/share/actions";
+import ShareSheet from "../ui/svelte/activity/share/ShareSheet.svelte";
 import { SheetModal, type OpenSheet, type SheetBodyProps } from "../ui/sheet-modal";
 import { openStreetMapTiles } from "../ui/map/tiles";
 import type { TileSource } from "../ui/map/tile-source";
 import type { ActivityDetail, ActivityLoad } from "../sync/activity-detail";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
-import type { ActivitiesData } from "./activities";
+import type { ActivitiesData, Units } from "./activities";
 import { areaTitle, railFocus, type RailPref } from "./areas";
 import { unitsOf } from "./day";
 import { availableStats, type GlanceId } from "./glance";
@@ -104,6 +106,9 @@ export class GarminHomeView extends ItemView {
 	private refreshedAt = 0;
 	private activities = new Map<number, ActivityDetail>();
 	private tileSource: TileSource | null = null;
+	/** The account's units, as the activity pages last read them: Share activity… draws with them. */
+	private units: Units = "metric";
+	private share: ShareActions | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GarminPlugin) {
 		super(leaf);
@@ -271,6 +276,7 @@ export class GarminHomeView extends ItemView {
 				tiles: () => this.tiles(),
 				openSheet: (<P extends SheetBodyProps>(title: string, body: Component<P>, props: Omit<P, "onClose">) =>
 					new SheetModal(this.app, title, body, props).open()) as OpenSheet,
+				share: this.shareActions(),
 			},
 		}) as HomeApi;
 
@@ -417,7 +423,26 @@ export class GarminHomeView extends ItemView {
 			units: index.meta?.units ?? unitsOf(rows),
 		};
 		if (index.meta?.total !== undefined) data.total = index.meta.total;
+		this.units = data.units;
 		return data;
+	}
+
+	private shareActions(): ShareActions {
+		if (!this.share) this.share = shareActions(this.app);
+		return this.share;
+	}
+
+	/**
+	 * Share activity…: the open activity's Share Activity sheet, as its
+	 * Overview's Share button opens it. False, and nothing opens, when the page
+	 * on top isn't an activity whose file has loaded.
+	 */
+	shareActivity(checking: boolean): boolean {
+		const top = this.stack[this.stack.length - 1];
+		const detail = top?.page === "activity" ? this.activities.get(top.id) : undefined;
+		if (!detail) return false;
+		if (!checking) new SheetModal(this.app, "Share Activity", ShareSheet, { detail, units: this.units, actions: this.shareActions() }).open();
+		return true;
 	}
 
 	/**

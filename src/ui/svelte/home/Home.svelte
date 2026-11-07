@@ -17,6 +17,7 @@
 	import type { IntradayLoad } from "../../../sync/intraday-registry";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
+	import type { ShareActions } from "../../share/actions";
 	import type { OpenSheet } from "../../sheet-modal";
 	import ActivityMapPage from "../activity/ActivityMapPage.svelte";
 	import ActivityPage from "../activity/ActivityPage.svelte";
@@ -142,6 +143,8 @@
 		tiles: () => TileSource | null;
 		/** Opens one of the activity page's sheets. */
 		openSheet: OpenSheet;
+		/** What an activity's Share does with its image. */
+		share: ShareActions;
 	}
 
 	let {
@@ -190,6 +193,7 @@
 		cachedActivity,
 		tiles,
 		openSheet,
+		share,
 	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
@@ -634,7 +638,7 @@
 	{:else if current.page === "all"}
 		<AllActivitiesPage route={current} data={activities} {today} {history} {canSync} {openSheet} onBack={back} {go} {swap} {onSyncHistory} />
 	{:else if current.page === "activity"}
-		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {go} {swap} {reach} />
+		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} {share} onBack={back} {go} {swap} {reach} />
 	{:else if current.page === "activity-map"}
 		<ActivityMapPage route={current} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {swap} />
 	{:else if current.page === "health"}

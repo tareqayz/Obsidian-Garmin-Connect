@@ -13,6 +13,7 @@
 	import OverviewStat from "./overview/OverviewStat.svelte";
 	import WeatherChip from "./overview/WeatherChip.svelte";
 	import RouteMap from "./RouteMap.svelte";
+	import ShareSheet from "./share/ShareSheet.svelte";
 	import type { ActivityTabProps } from "./types";
 
 	/**
@@ -26,11 +27,12 @@
 	 * the links and the map's overlay; Badges and sensors show only when the
 	 * activity has some.
 	 *
-	 * Read-only, as the plugin is: no rename, notes, likes, photo or share, and
-	 * Feel and Perceived Effort are shown, never edited. Only the Primary
-	 * Benefit's "?" opens a sheet.
+	 * Read-only, as the plugin is: no rename, notes, likes or photo, and Feel
+	 * and Perceived Effort are shown, never edited. The Primary Benefit's "?"
+	 * opens a sheet, and Share, under the figures where the phone has its
+	 * Photo | Share row, opens Share Activity: the activity as an image.
 	 */
-	let { detail, route, units, profile, tiles, go, swap, reach, openSheet, loading = false }: ActivityTabProps & { loading?: boolean } = $props();
+	let { detail, route, units, profile, tiles, go, swap, reach, openSheet, share, loading = false }: ActivityTabProps & { loading?: boolean } = $props();
 
 	/** This device's day: an activity from another year shows its year on the date line. */
 	const today = toIsoDate();
@@ -48,6 +50,10 @@
 	function openBenefit() {
 		const benefit = view.benefit;
 		if (benefit) openSheet(BENEFIT_SHEET_TITLE, BenefitSheet, { benefit, message: benefitMessage(detail.summary.trainingEffectLabel) });
+	}
+
+	function openShare() {
+		openSheet("Share Activity", ShareSheet, { detail, units, actions: share });
 	}
 
 	/** The records row draws Lucide's trophy, as the phone does; the others their sport's figure. */
@@ -104,6 +110,9 @@
 				{/each}
 			</div>
 		{/if}
+		<div class="share-row">
+			<button class="share-button" onclick={openShare}><span class="share-icon" use:lucide={"share"}></span>Share</button>
+		</div>
 	</section>
 
 	{#if hasEvaluation}
@@ -408,6 +417,23 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 15px 16px;
 		margin-top: 17.7px;
+	}
+
+	/* Garmin's Photo | Share row, Share alone (Inferred: its width without Photo). */
+	.share-row {
+		margin-top: 22px;
+	}
+	.share-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		height: 44px;
+		font-size: 16px;
+	}
+	.share-icon {
+		display: flex;
 	}
 
 	.links {

@@ -138,6 +138,14 @@ export default class GarminPlugin extends Plugin {
 			name: "Open activities",
 			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("activities") }),
 		});
+		this.addCommand({
+			id: "share-activity",
+			name: "Share activity…",
+			checkCallback: (checking) => {
+				const view = this.app.workspace.getActiveViewOfType(GarminHomeView);
+				return view ? view.shareActivity(checking) : false;
+			},
+		});
 		for (const stat of STAT_IDS) {
 			this.addCommand({
 				id: `open-${stat === "intensity" ? "intensity-minutes" : stat}`,
