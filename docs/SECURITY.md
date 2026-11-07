@@ -157,6 +157,10 @@ The pages load no scripts from anywhere, and no images but the map tiles. A few 
 Connect's website or a health reference; those open in your browser only when you click them. There
 is no telemetry and no analytics.
 
+**Share** draws an activity's picture on the device, from what the vault holds, with a bundled font.
+It sends nothing itself: the picture leaves only through the share sheet, to the app you pick, or
+as the file **Save** writes into the vault.
+
 ## Diagnostics logs
 
 **Run diagnostics** can save a run as a note in your vault, because a phone has no console and a note

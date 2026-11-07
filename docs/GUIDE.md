@@ -354,6 +354,18 @@ sport. A multisport is the exception: one page, with no tabs.
 - **The map:** tapped, it opens full screen and pans and zooms. Its layers button colours the route
   by another measure.
 
+**Share:** **Share**, under the Overview's figures, turns the activity into a picture to send, as the
+app's **Share Activity** does:
+1. Choose an aspect ratio: **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**.
+2. Swipe to an image. One marked **TRANSPARENT** is see-through, to lay over a photo of your own.
+3. On a phone, **Share** opens the share sheet: send it, or **Save Image** to your photos. **Save**
+   writes it into the vault's attachment folder as `<name> <date>.png`. On a computer, which has no
+   share sheet, the saved picture opens, and right-click → **Copy image** copies it.
+
+The picture is drawn on the device from what the sync saved, and goes nowhere until you send it.
+**Share activity…** opens the same sheet for the activity on screen. For a PDF, see
+[A note as a PDF](#a-note-as-a-pdf).
+
 **Costs, storage and maps:**
 - **The first time a page opens** it costs eight to eleven requests: eleven for a run or ride with
   power, eight for a pool swim or yoga. They are made between syncs, never during one.
@@ -599,6 +611,13 @@ The map comes with the activity's page: an activity you've opened once (or whose
 downloaded) shows its map; until then the card shows its figures. The map loads OpenStreetMap's
 tiles as the page's does, and with **Map tiles** off the route draws alone.
 
+### A note as a PDF
+
+Obsidian's **Export to PDF**, in a note's menu on a computer or a phone, prints Garmin cards as they
+show. An activity's map prints as a picture of the route on its map, sized to the page, and a card
+is never split across two pages. To send one activity as a PDF, put its card in a note
+(**Insert card…**, then the activity), write what you like around it, and export the note.
+
 ### When there are no cards
 
 A line in their place says why:
@@ -648,6 +667,7 @@ history** button fetches it at once.
 | **Set up…** | Opens the setup: sign in, scan your account, then download all of it or choose under **Advanced options**. |
 | **Sign in** | Signs in, asking for an MFA code if Garmin wants one. |
 | **Insert card…** | Picks a card, a chart or an activity and inserts its `garmin` block at the cursor; see [Garmin cards in notes](#garmin-cards-in-notes). |
+| **Share activity…** | Opens **Share** for the activity on screen: its picture, to send or save; see [An activity's page](#an-activitys-page). |
 | **Open card guide** / **Rebuild card guide** | Opens `Garmin cards.md`, written the first time; Rebuild writes it again for this version, after asking. |
 | **Create daily note template** | Writes `Garmin daily note.md` once, then opens it. |
 | **Save debug info** | What a bug report needs, redacted, saved as a note in the **Log folder** and opened, to attach to an issue. No password, no request. |

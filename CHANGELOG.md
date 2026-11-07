@@ -8,6 +8,21 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Added
+
+- **Share an activity.** **Share**, under an activity's figures, turns it into a picture, as
+  Garmin's app does. Pick **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**, swipe to
+  an image, and on a phone send it from the share sheet or save it to your photos. **Save** puts it
+  in your vault. **Share activity…** opens it for the activity on screen. See
+  [An activity's page](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#an-activitys-page).
+
+### Fixed
+
+- **An activity's map prints whole in a PDF.** **Export to PDF** cropped an activity card's map, and
+  on a phone could leave out its tiles. The card now prints its whole route on its map, sized to the
+  page. See
+  [A note as a PDF](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#a-note-as-a-pdf).
+
 ## [2.0.0-beta.1] — 2026-11-07
 
 ### Added

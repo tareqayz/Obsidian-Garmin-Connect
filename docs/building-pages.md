@@ -497,6 +497,28 @@ answer, not its contents, so a type Garmin adds shows up only as one the table l
   hub's page for its group where there is one (`hubOfGroup`), else All Activities filtered to the
   group.
 
+### Share
+
+**Share**, under the Overview's figures, draws the activity as Garmin's share images
+(`src/ui/svelte/activity/share/ShareSheet.svelte`; the user's side is in the
+[Guide](GUIDE.md#an-activitys-page)). **Code:** `src/dashboard/activity-share.ts`,
+`share-layout.ts`, `map-view.ts`, `src/ui/share/`.
+
+- **Data, then steps, then pixels.** `shareView` picks the title, the date line and Garmin's three
+  share figures for the sport. `shareScene` lays a template out at a ratio as drawing steps in the
+  image's own pixels, both pure and unit-tested. `draw.ts` paints the steps on a canvas.
+- **The face is bundled.** Oswald's Latin subsets (`src/ui/share/fonts/`, SIL OFL 1.1) load through
+  `FontFace` when the sheet opens, so a picture looks the same from every device and nothing is
+  fetched. esbuild's `binary` loader carries the bytes.
+- **Share needs the tap.** `navigator.share` opens the system sheet only on a tap's own turn, so
+  the sheet draws the chosen picture full size before the tap. Share shows only where
+  `navigator.canShare` takes a file (the iPhone). A desktop and Android's WebView get **Save**, which
+  writes into the attachment folder. Nothing touches the clipboard: the Community directory's
+  review counts clipboard access against a plugin.
+- **The templates.** TRANSPARENT at 9:16 is measured off Garmin's. The rest are Inferred until
+  the share spec (`ref/activity-details/share/`). Garmin's wordmark and topographic artwork stay
+  out.
+
 ### All Activities
 
 `src/dashboard/all-activities.ts` searches, sorts and filters the activity index, so the page sends
@@ -579,6 +601,8 @@ the build, with components mounted with `mount()` and torn down with `unmount()`
   bundled library would be dead weight on a phone.
   - A chart is markup. Its geometry lives in a pure `*-charts.ts` beside the view model, so it is
     unit-tested without a DOM.
+  - Pictures that leave the app are drawn on a canvas: the share images (`src/ui/share/draw.ts`)
+    and an exported note's activity maps (`src/ui/map/static-map.ts`).
   - The one exception is Leaflet, for the activity map (`src/ui/map/leaflet.ts`): panning and
     pinching a tiled map on a phone is where hand-rolled code breaks. It is bundled, evaluated only
     when the first map draws, and leaves `window.L` to whichever plugin owns it. Its stylesheet is

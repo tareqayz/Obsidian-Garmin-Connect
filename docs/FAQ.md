@@ -62,6 +62,13 @@ its route map, such as `activity: latest`. **Insert card…** adds one, **Open c
 all with examples, and **Create daily note template** writes a daily note made of cards. They read
 what the sync saved and never ask Garmin. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
 
+## Can I share an activity, or save it as a PDF?
+
+Yes. **Share**, under an activity's figures, turns it into a picture in one of three shapes. On a
+phone it opens the share sheet; **Save** writes it into your vault. For a PDF, put the activity's
+card in a note and use Obsidian's **Export to PDF**. See [An activity's
+page](GUIDE.md#an-activitys-page) and [A note as a PDF](GUIDE.md#a-note-as-a-pdf).
+
 ## Why does a chart or an activity in a note say to open its page?
 
 A card only draws what the vault holds. A day's Respiration and Pulse Ox readings, any day's readings
@@ -178,7 +185,8 @@ account has tried it yet, so a report either way helps.
 An Obsidian plugin can't load external scripts, and a bundled chart library would be dead weight on a
 phone, so the charts are hand-drawn SVG. The one drawing library is Leaflet, for the activity maps: panning
 and pinching a map on a phone is where hand-rolled code breaks. It is bundled with the plugin and
-loads only when a map is drawn.
+loads only when a map is drawn. What leaves the app as a picture, a shared activity or an exported
+note's map, is drawn on a canvas, with a font bundled for it.
 
 ## Why does an activity map talk to OpenStreetMap?
 

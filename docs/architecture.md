@@ -160,13 +160,16 @@ when adding to it.
 | `dashboard/stat-charts.ts`, `stat-dial.ts`, `stat-controls.ts`, `gauges.ts` | chart parts the stat pages share — pure |
 | `dashboard/activities.ts`, `totals-chart.ts`, `activity-types.ts`, `all-activities.ts` | the Activities pages and their totals chart, Garmin's type table, All Activities — pure |
 | `dashboard/activity-*.ts`, `cycling-activity-charts.ts`, `cycling-metrics.ts`, `swim-metrics.ts`, `sports/` | an activity's page: its sport profile, map, tabs, charts and wording — pure |
+| `dashboard/activity-share.ts`, `share-layout.ts` | Share: an activity's share figures, and each image template laid out as drawing steps — pure |
+| `dashboard/map-view.ts` | a map's view without Leaflet: Web Mercator, `fitBounds`' zoom, the tiles under a box — pure |
 | `dashboard/stats-pages.ts`, `stats-charts.ts` | Steps, Floors and Intensity Minutes — pure |
 | `dashboard/<stat>-pages.ts`, `<stat>-charts.ts`, `<stat>-copy.ts` | each Health and Performance Stats page (and Sleep): its view model, chart geometry and Garmin's wording — pure |
 | `ui/*-modal.ts` | the dialogs: sign-in, setup, the update dialog, delete, "Garmin Connect was removed", diagnostics, date range, Add a Stat, Sleep History, and `SheetModal` for Garmin's bottom sheets |
 | `ui/setup-flow.ts`, `ui/delete-data.ts` | the setup's views, its recommendation (`RECOMMENDED`) and what starting the download agrees to (pure); moving the plugin's files to the trash |
 | `ui/sync-copy.ts`, `ui/coalesced.ts` | the sizes and times every sync screen shows, never a request count (pure); `Coalesced`, one Settings → History refresh at a time |
 | `ui/icon.ts`, `ui/sport-icons.ts` | the ribbon icon (Lucide `watch`); the sport figures (Tabler, MIT) |
-| `ui/map/` | Leaflet, loaded with the first map (`leaflet.ts`); OpenStreetMap tiles through `requestUrl`, cached in IndexedDB (`tiles.ts`); `tile-source.ts` (pure) |
+| `ui/map/` | Leaflet, loaded with the first map (`leaflet.ts`); OpenStreetMap tiles through `requestUrl`, cached in IndexedDB (`tiles.ts`); `tile-source.ts` (pure); a route map as a picture, for PDF export (`static-map.ts`) |
+| `ui/share/` | Share's canvas painter (`draw.ts`), its bundled face (`font.ts`, Oswald) and what Share and Save do with the picture (`actions.ts`) |
 | `ui/svelte/` | the Svelte components: the settings panel and dialogs at the top, then `home/`, `activities/`, `activity/`, `stats/`, `sleep/`, `health/`, `performance/`, `settings/`, `setup/`, and a folder per stat page |
 
 The plugin registers two views. `garmin-home` is Home and every page opened from it.
@@ -625,6 +628,12 @@ side is in the [Guide](GUIDE.md#garmin-cards-in-notes)). **Code:** `src/embeds/`
 - **An activity's map** is `RouteMap.svelte`, static, with the Overview's overlay and key, drawn
   only from details already in the vault. Its tiles are the plugin's `mapTiles()`, none with **Map
   tiles** off.
+- **Exported to PDF, the map is a picture.** A block inside Obsidian's `.print` page
+  (`CardBlock.printing`) draws each activity card's map with `staticMapImage`
+  (`ui/map/static-map.ts`), fitted as Leaflet fits it (`map-view.ts`), before its first paint
+  settles. Export lays a note out at one width and prints it at another with no script running, so
+  a live map comes out cropped, and a phone's export copies the page's HTML, which leaves `blob:`
+  tiles behind. A JPEG data URL scales with the page and travels inside the HTML.
 - **When it reads again.** Vault events in the data folder move `CardData`'s versions
   (`DataVersions`): the day files, `account.json`, the activity index, and the series file of a day
   a block shows, a day index a chart read, and an activity's details file a card shows
