@@ -84,6 +84,13 @@ export interface ActivityCardView {
 	detail: ActivityDetail | null;
 	/** Where the map would be, until the activity's page has loaded it. */
 	mapNote?: string;
+	/**
+	 * The map as a still picture (a JPEG data URL), drawn when the note is
+	 * exported to PDF: export prints at another width than it lays out, with
+	 * no script to refit a live map, and a phone's copy of the page leaves its
+	 * tiles behind.
+	 */
+	mapImage?: string;
 	route: Route;
 }
 

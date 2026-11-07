@@ -14,7 +14,8 @@
 	 * the Overview draws it (static, its overlay and key), and four figures.
 	 * Before the activity's page has loaded the map, a line says how to get it.
 	 * A click anywhere opens the activity: the map takes no gestures, so a
-	 * finger scrolls the note past it.
+	 * finger scrolls the note past it. In a note exported to PDF the map is a
+	 * picture of itself (`card.mapImage`), which scales with the page.
 	 */
 	let { card, tiles }: { card: ActivityCardView; tiles: TileSource | null } = $props();
 
@@ -31,7 +32,13 @@
 			<span class="when">{card.when}</span>
 		</span>
 	</header>
-	{#if card.detail}
+	{#if card.mapImage}
+		<div class="map is-picture">
+			<img class="picture" src={card.mapImage} alt="" />
+			{#if legend}<div class="legend"><MapLegend {legend} /></div>{/if}
+			{#if tiles}<span class="attribution">© OpenStreetMap contributors</span>{/if}
+		</div>
+	{:else if card.detail}
 		<div class="map">
 			<RouteMap detail={card.detail} {tiles} interactive={false} laps={false} {overlay} map={profile?.map}>
 				{#if legend}<div class="legend"><MapLegend {legend} /></div>{/if}
@@ -117,6 +124,26 @@
 		position: absolute;
 		inset: 0;
 		height: auto;
+	}
+	/* The exported map: the picture sets the height, so it scales with the page instead of cropping. */
+	.map.is-picture {
+		height: auto;
+	}
+	.picture {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.attribution {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		padding: 1px 5px;
+		border-top-left-radius: 4px;
+		background: rgba(255, 255, 255, 0.8);
+		color: #333333;
+		font-size: 10px;
+		line-height: 14px;
 	}
 	.map.is-empty {
 		display: flex;

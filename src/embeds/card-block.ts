@@ -10,6 +10,9 @@ import { unitsOf } from "../dashboard/day";
 import { offsetOfDay } from "../dashboard/periods";
 import type { Route } from "../dashboard/routes";
 import { toIsoDate } from "../garmin/endpoints";
+import { overlayFor, overviewOverlay } from "../dashboard/activity-map";
+import { profileFor } from "../dashboard/activity-sports";
+import { staticMapImage } from "../ui/map/static-map";
 import { HEALTH_PAGES } from "../ui/svelte/health/pages";
 import { PERFORMANCE_PAGES } from "../ui/svelte/performance/pages";
 import CardEmbed from "../ui/svelte/embed/CardEmbed.svelte";
@@ -43,6 +46,9 @@ const BUILT: BuiltPages = { health: Object.keys(HEALTH_PAGES), performance: Obje
 
 /** How long PDF export waits for a block's first real paint. */
 const FIRST_PAINT_MS = 5000;
+
+/** An exported activity card's map: a wide card's, in CSS pixels. */
+const PRINT_MAP: [number, number] = [668, 300];
 
 /** The heights a chart's card and an activity's take while they load, so the note doesn't jump. */
 const CHART_HEIGHT = 430;
@@ -79,6 +85,8 @@ class CardBlock extends MarkdownRenderChild {
 	/** Drops a slow read that a newer one overtook. */
 	private seq = 0;
 	private live = true;
+	/** Drawn for Export to PDF (inside Obsidian's `.print` page): maps become pictures. */
+	private readonly printing: boolean;
 
 	constructor(
 		private readonly plugin: GarminPlugin,
@@ -89,6 +97,7 @@ class CardBlock extends MarkdownRenderChild {
 		super(el);
 		this.path = ctx.sourcePath;
 		this.parsed = parseCardBlock(source);
+		this.printing = el.closest(".print") !== null;
 		this.firstPaint = new Promise((done) => {
 			this.painted = done;
 			window.setTimeout(done, FIRST_PAINT_MS);
@@ -250,7 +259,32 @@ class CardBlock extends MarkdownRenderChild {
 			const text = byDay ? `No activities ${onDay(facts.date, today)}.` : "This activity isn’t in your vault.";
 			return { state: "notice", notice: { icon: "activity", text, tone: "muted", namesDay: byDay }, ...(byDay ? {} : withCaption) };
 		}
+		if (this.printing) await Promise.all(activities.map((card) => this.pictureMap(card)));
 		return { state: "activities", activities, ...withCaption };
+	}
+
+	/**
+	 * For Export to PDF: the card's map as a picture the size of a wide card's
+	 * (668 × 300), at twice the pixels for print, before the block settles.
+	 */
+	private async pictureMap(card: ActivityCardView): Promise<void> {
+		const detail = card.detail;
+		if (!detail) return;
+		const spec = profileFor(detail).map;
+		try {
+			const image = await staticMapImage({
+				detail,
+				overlay: overlayFor(detail, overviewOverlay(spec), spec),
+				spec,
+				tiles: this.plugin.mapTiles(),
+				width: PRINT_MAP[0],
+				height: PRINT_MAP[1],
+				scale: 2,
+			});
+			if (image) card.mapImage = image;
+		} catch (err) {
+			console.error("Garmin: a map couldn't be drawn for the PDF", err);
+		}
 	}
 
 	/** The block's view for its day. */
