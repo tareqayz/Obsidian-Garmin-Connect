@@ -1,6 +1,7 @@
-import { Notice, Platform, Plugin, type App, type Modal, type WorkspaceLeaf } from "obsidian";
+import { MarkdownView, Notice, Platform, Plugin, type App, type Editor, type Modal, type TAbstractFile, type TFile, type WorkspaceLeaf } from "obsidian";
 import { categoryOf, detailProfileOf } from "./dashboard/activities";
 import { areaStack, inArea } from "./dashboard/areas";
+import { unitsOf } from "./dashboard/day";
 import { pageStats } from "./dashboard/health-stats";
 import { GARMIN_HOME_VIEW, GarminHomeView } from "./dashboard/home-view";
 import { LEGACY_DASHBOARD_VIEW, LegacyDashboardView } from "./dashboard/legacy-view";
@@ -38,6 +39,13 @@ import { PACE } from "./sync/pace";
 import { updateLinesOf, type UpdateLine, type UpdateTotal } from "./ui/setup-flow";
 import { defaultData } from "./settings-data";
 import type { ActivityRow } from "./sync/activity-index";
+import { CARD_LANGUAGE, registerCardBlocks } from "./embeds/card-block";
+import { CardData } from "./embeds/card-data";
+import { dayOfNote } from "./embeds/core-plugins";
+import { createDailyTemplate, openCardGuide, rebuildCardGuide } from "./embeds/notes";
+import { InsertCardModal } from "./ui/insert-card-modal";
+import { openStreetMapTiles } from "./ui/map/tiles";
+import type { TileSource } from "./ui/map/tile-source";
 
 /** Long enough for the vault's metadata cache to be ready before a sync reads it: nothing syncs on its own sooner. */
 const STARTUP_SYNC_DELAY_MS = 5000;
@@ -73,6 +81,9 @@ export default class GarminPlugin extends Plugin {
 	autoSync!: AutoSync;
 	/** This device's Garmin session, in Obsidian's keychain rather than data.json. */
 	tokens!: SecretTokenStore;
+	/** What every ```garmin block in every note reads (`embeds/card-data.ts`). */
+	cards!: CardData;
+	private tileSource: TileSource | null = null;
 
 	async onload(): Promise<void> {
 		registerSportIcons();
@@ -88,6 +99,29 @@ export default class GarminPlugin extends Plugin {
 		this.bindStatusBar();
 
 		this.registerView(GARMIN_HOME_VIEW, (leaf: WorkspaceLeaf) => new GarminHomeView(leaf, this));
+
+		// Home's cards in notes: a ```garmin block draws them for its day.
+		this.cards = new CardData({
+			app: this.app,
+			dataFolder: () => this.data.settings.dataFolder,
+			sync: () => this.sync,
+			homeOpen: () => this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW).length > 0,
+		});
+		this.register(this.data.onHomeChanged(() => this.cards.homeChanged()));
+		registerCardBlocks(this);
+		const onFile = (file: TAbstractFile) => this.cards.onFile(file.path);
+		this.registerEvent(this.app.vault.on("create", onFile));
+		this.registerEvent(this.app.vault.on("modify", onFile));
+		this.registerEvent(this.app.vault.on("delete", onFile));
+		this.registerEvent(
+			this.app.vault.on("rename", (file, old) => {
+				this.cards.onFile(file.path);
+				this.cards.onFile(old);
+			}),
+		);
+		this.registerDomEvent(activeDocument, "visibilitychange", () => this.cards.checkDay());
+		// Turned on with notes open: their blocks were drawn as code.
+		if (this.app.workspace.layoutReady) this.redrawCardNotes();
 		this.registerView(LEGACY_DASHBOARD_VIEW, (leaf: WorkspaceLeaf) => new LegacyDashboardView(leaf));
 
 		// Home itself, even when the view sits on another page.
@@ -103,6 +137,14 @@ export default class GarminPlugin extends Plugin {
 			id: "open-activities",
 			name: "Open activities",
 			callback: () => void this.openView(GARMIN_HOME_VIEW, { stack: areaStack("activities") }),
+		});
+		this.addCommand({
+			id: "share-activity",
+			name: "Share activity…",
+			checkCallback: (checking) => {
+				const view = this.app.workspace.getActiveViewOfType(GarminHomeView);
+				return view ? view.shareActivity(checking) : false;
+			},
 		});
 		for (const stat of STAT_IDS) {
 			this.addCommand({
@@ -190,6 +232,38 @@ export default class GarminPlugin extends Plugin {
 			callback: () => void this.sync.resumeBackfill(),
 		});
 		this.addCommand({
+			id: "insert-card",
+			name: "Insert card…",
+			editorCallback: (editor, ctx) => this.openCardPicker(editor, ctx.file),
+		});
+		// The same picker under the editor's right-click → Insert, beside Code block and Math block.
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu, editor, info) =>
+				menu.addItem((item) =>
+					item
+						.setSection("selection.insert.advanced")
+						.setTitle("Garmin card…")
+						.setIcon("activity")
+						.onClick(() => this.openCardPicker(editor, info.file)),
+				),
+			),
+		);
+		this.addCommand({
+			id: "create-daily-template",
+			name: "Create daily note template",
+			callback: () => void createDailyTemplate(this),
+		});
+		this.addCommand({
+			id: "open-card-guide",
+			name: "Open card guide",
+			callback: () => void openCardGuide(this),
+		});
+		this.addCommand({
+			id: "rebuild-card-guide",
+			name: "Rebuild card guide",
+			callback: () => rebuildCardGuide(this),
+		});
+		this.addCommand({
 			id: "copy-debug-info",
 			name: "Save debug info",
 			callback: () => void this.saveDebugInfo(),
@@ -225,6 +299,8 @@ export default class GarminPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		// The notes' blocks go back to their source: nothing would redraw them.
+		this.cards.dispose();
 		this.sync.stop();
 		// A dialog this instance opened would act through it after a reload (an update): close it.
 		for (const dialog of this.dialogs) dialog.close();
@@ -256,6 +332,14 @@ export default class GarminPlugin extends Plugin {
 	}
 
 	/** The setup and update dialogs this instance has open, closed when it unloads. */
+	/** The card picker, at the cursor. A note without a day of its own gets today's: the card keeps showing the day it was added. */
+	private openCardPicker(editor: Editor, file: TFile | null): void {
+		new InsertCardModal(this.app, editor, file && dayOfNote(this.app, file) ? undefined : toIsoDate(), async () => {
+			const [index, days] = await Promise.all([this.cards.activities(), this.cards.days()]);
+			return { rows: index.rows, units: index.meta?.units ?? unitsOf(days) };
+		}).open();
+	}
+
 	private dialogs = new Set<Modal>();
 
 	private track(dialog: Modal): void {
@@ -301,11 +385,7 @@ export default class GarminPlugin extends Plugin {
 		if (!this.statusBar) {
 			this.statusBar = this.addStatusBarItem();
 			this.statusBar.addClass("gch-status", "mod-clickable");
-			this.statusBar.onclick = () => {
-				const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
-				setting.open();
-				setting.openTabById(this.manifest.id);
-			};
+			this.statusBar.onclick = () => this.openSettings();
 		}
 		const bar = this.statusBar;
 		const show = (progress: BackfillProgress | null) => {
@@ -332,6 +412,33 @@ export default class GarminPlugin extends Plugin {
 		this.statusOff?.();
 		this.statusOff = this.sync.onBackfill(show);
 		show(this.sync.backfillProgress);
+	}
+
+	/** Settings → Garmin Connect. */
+	openSettings(): void {
+		const setting = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
+		setting.open();
+		setting.openTabById(this.manifest.id);
+	}
+
+	/** OpenStreetMap's tiles for an activity card's map, or none when Map tiles is off. Read when a map draws. */
+	mapTiles(): TileSource | null {
+		if (!this.data.settings.mapTiles) return null;
+		this.tileSource ??= openStreetMapTiles(this.manifest.version);
+		return this.tileSource;
+	}
+
+	/** The data folder moved: the notes' cards read from the new one. */
+	dataFolderChanged(): void {
+		this.cards.reset();
+	}
+
+	/** Reading views of notes with a card block, drawn again: the blocks were plain code before the plugin was on. */
+	private redrawCardNotes(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+			const view = leaf.view;
+			if (view instanceof MarkdownView && view.getMode() === "preview" && view.data.includes("```" + CARD_LANGUAGE)) view.previewMode.rerender(true);
+		}
 	}
 
 	/** Asked once a session at most: what an update offers. */
@@ -444,9 +551,10 @@ export default class GarminPlugin extends Plugin {
 		this.refreshViews();
 	}
 
-	/** The setup ran, or the data choices changed: open views redraw their setup card. */
+	/** The setup ran, or the data choices changed: open views redraw their setup card, and the notes' cards read again. */
 	setupChanged(): void {
 		this.refreshViews();
+		this.cards.reset();
 		for (const listener of this.dataListeners) listener();
 	}
 
@@ -537,6 +645,7 @@ export default class GarminPlugin extends Plugin {
 		this.buildClient();
 		await this.garmin.restore();
 		this.bindStatusBar();
+		this.cards.bindRunner();
 		// Open views listen to the runner: hand them the new one.
 		for (const leaf of this.app.workspace.getLeavesOfType(GARMIN_HOME_VIEW)) {
 			const view = leaf.view;

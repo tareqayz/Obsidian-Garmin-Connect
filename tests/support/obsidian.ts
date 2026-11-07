@@ -40,6 +40,9 @@ export function normalizePath(path: string): string {
 
 export const apiVersion = "1.14.4";
 
+/** Registers an icon: the sport figures (`sport-icons.ts`); tests draw none. */
+export function addIcon(_name: string, _svg: string): void {}
+
 /** A Mac, unless a test says otherwise. */
 export const Platform = {
 	isDesktopApp: true,

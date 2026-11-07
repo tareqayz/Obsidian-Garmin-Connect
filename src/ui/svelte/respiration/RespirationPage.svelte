@@ -9,6 +9,7 @@
 	import StatFigures from "../health/StatFigures.svelte";
 	import StatPageShell from "../health/StatPageShell.svelte";
 	import StatPeriodLayout from "../health/StatPeriodLayout.svelte";
+	import { RESPIRATION_COLORS } from "./colors";
 	import DayValues from "./DayValues.svelte";
 	import RespirationAverages from "./RespirationAverages.svelte";
 	import RespirationTimeline from "./RespirationTimeline.svelte";
@@ -95,7 +96,7 @@
 	}}
 >
 	{#snippet children({ pane, move })}
-		<div class="respiration">
+		<div class="respiration" style={RESPIRATION_COLORS}>
 			{#if dayView}
 				<StatPeriodLayout>
 					{#snippet chart()}
@@ -123,20 +124,8 @@
 </StatPageShell>
 
 <style>
-	/*
-	 * The twin's respiration/* aliases. Low is text-faint and Active base-50 in
-	 * the twin; they read almost alike, so the low dot keeps text-faint and
-	 * Active (not drawn yet) would take base-50.
-	 */
 	.respiration {
 		--stat-chart-top: 27.1px;
-		--respiration-high: var(--color-blue);
-		--respiration-low: var(--text-faint);
-		--respiration-bar: var(--background-modifier-border);
-		--respiration-active: var(--color-base-50);
-		--respiration-line: var(--text-normal);
-		--respiration-sleep: var(--color-blue);
-		--respiration-awake: var(--color-cyan);
 	}
 	.chips {
 		display: flex;

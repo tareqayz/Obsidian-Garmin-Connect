@@ -497,6 +497,31 @@ answer, not its contents, so a type Garmin adds shows up only as one the table l
   hub's page for its group where there is one (`hubOfGroup`), else All Activities filtered to the
   group.
 
+### Share
+
+**Share**, under the Overview's figures, draws the activity as Garmin's share images
+(`src/ui/svelte/activity/share/ShareSheet.svelte`; the user's side is in the
+[Guide](GUIDE.md#an-activitys-page)). **Code:** `src/dashboard/activity-share.ts`,
+`share-layout.ts`, `map-view.ts`, `src/ui/share/`.
+
+- **Data, then steps, then pixels.** `shareView` picks the title, the date line and Garmin's three
+  share figures for the sport. `shareScene` lays a template out at a ratio as drawing steps in the
+  image's own pixels, both pure and unit-tested. `draw.ts` paints the steps on a canvas.
+- **The face is bundled.** Oswald's Latin subsets (`src/ui/share/fonts/`, SIL OFL 1.1) load through
+  `FontFace` when the sheet opens, so a picture looks the same from every device and nothing is
+  fetched. esbuild's `binary` loader carries the bytes.
+- **Share needs the tap.** `navigator.share` opens the system sheet only on a tap's own turn, so
+  the sheet draws the chosen picture full size before the tap. Share shows only where
+  `navigator.canShare` takes a file (the iPhone). A desktop and Android's WebView get **Save**, which
+  writes into the attachment folder. Nothing touches the clipboard: the Community directory's
+  review counts clipboard access against a plugin.
+- **The templates are Garmin's, measured.** Rings, Map, Topographic and both TRANSPARENTs, every
+  place taken off Garmin's saved images, at each ratio (the spec, `ref/share/README.md`). Each
+  sport shares five figures, A to E (`SHARE_SETS`), and each template places them its own way.
+- **What is ours.** Garmin's wordmark, its sport-art template and its artwork stay out.
+  Topographic's contour lines come from a field seeded by the activity (`share-art.ts`), and Map
+  draws OpenStreetMap through the exported note's map painter (`drawRouteMap`).
+
 ### All Activities
 
 `src/dashboard/all-activities.ts` searches, sorts and filters the activity index, so the page sends
@@ -520,6 +545,56 @@ Each field is checked and repaired on its own (`allOf`), so one bad value never 
   counted live by `footerOf`. `applyDraft` makes the route and keeps the search and the sort.
 - **The page draws sixty cards,** and adds sixty more as the list scrolls.
 
+## Cards in notes
+
+Home's cards, stat page charts and activities also draw in notes, through a `garmin` code block. How
+a block reads and refreshes is in
+[Architecture](architecture.md#cards-in-notes); what a user writes is in the
+[Guide](GUIDE.md#garmin-cards-in-notes).
+
+A Home card is embeddable once `src/embeds/catalog.ts` lists it:
+- **An At a Glance card:** `glance(id, glanceId, category, description)`. Its title and icon come
+  from `GLANCE_STATS`, and Home's own id becomes an alias.
+- **A stat with an In Focus card too:** `both(id, focusId, glanceId, …)`. It draws big, and small with
+  `size: small`.
+
+What comes with it, with no other wiring:
+- **The page it opens** is Home's, from `src/dashboard/card-routes.ts`, on the block's day.
+- **Its empty state** says the block's day: the cards take an `emptyText`, and `Glance` a `badge`
+  ("Now" on a card that holds only the latest value). A block of one empty card says so in a line
+  instead (`emptyCardNotice`).
+- **In Live Preview** a card's press stops at the card: `Tap.svelte`'s `contained` mode.
+
+The rules:
+- **The `show:` name is kebab-case and never changes once released:** notes hold it.
+- **One sentence of description**, what the card shows, at most twelve words.
+- **The tests hold the list together.** `tests/card-spec.test.ts` fails until every At a Glance card
+  is listed or excluded as a prompt-only card, and `tests/card-docs.test.ts` until the Guide's card
+  table names it.
+
+### Making a stat's chart drawable in a note
+
+A stat page's chart draws in a note once three places know it:
+1. **`src/embeds/charts.ts`:** a `chart(id, glanceId, title, ranges, description)` line. The `chart:`
+   name is its card's `show:` name, and its ranges are its page's, read from the stat's registry
+   entry.
+2. **`src/embeds/chart-models.ts`:** a builder that reads what the page reads through `ChartInputs`
+   (`index(kind)`, `series(date)`, `days()`, `activities()`) and calls the page's own view builder.
+   It returns the view as a `ChartModel`, the card's figures and a `TrendLine` for `size: small`.
+   - A day's view keeps the real today and an offset (`offsetOfDay`).
+   - A trend's gets the block's day as its today, so the period ends there.
+   - Where the page calls `loadIntraday`, read the block from the series file instead, and say what
+     is missing with `missing()`: a card never fetches.
+3. **`src/ui/svelte/embed/ChartBody.svelte`:** a branch that draws the page's chart component,
+   inside the colours the page sets around it. Export those colours from the stat's folder (a
+   `colors.ts` string, or a wrapper component when a theme needs its own values, as Heart Rate's
+   does) so the page and the card share them. Put whatever the page draws around the chart (chips,
+   toggles, lists) outside the chart component, or behind a prop the card turns off.
+
+The rules for cards apply, and `tests/card-docs.test.ts` fails until the Guide's chart table names
+the chart. A `.canvas` element needs its own `position`: Obsidian's Canvas styles the class
+absolute.
+
 ## Charts and settings UI
 
 The UI is **Svelte 5**, set up as [Obsidian's guide][svelte-guide] prescribes: `esbuild-svelte` in
@@ -529,6 +604,8 @@ the build, with components mounted with `mount()` and torn down with `unmount()`
   bundled library would be dead weight on a phone.
   - A chart is markup. Its geometry lives in a pure `*-charts.ts` beside the view model, so it is
     unit-tested without a DOM.
+  - Pictures that leave the app are drawn on a canvas: the share images (`src/ui/share/draw.ts`)
+    and an exported note's activity maps (`src/ui/map/static-map.ts`).
   - The one exception is Leaflet, for the activity map (`src/ui/map/leaflet.ts`): panning and
     pinching a tiled map on a phone is where hand-rolled code breaks. It is bundled, evaluated only
     when the first map draws, and leaves `window.L` to whichever plugin owns it. Its stylesheet is

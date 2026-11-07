@@ -14,10 +14,16 @@ import { sportPaths } from "../../../sport-icons";
 export type PinKind = "start" | "end";
 
 /** The phone's pins, sampled off `map/02-full-map.png` as the twin's Map Pin keeps them. */
-const PIN_FILL: Record<PinKind, string> = { start: "#3cb043", end: "#e0312b" };
+export const PIN_FILL: Record<PinKind, string> = { start: "#3cb043", end: "#e0312b" };
 
 /** 22 × 28: a 9.25 radius head over a tip at (11, 26.5), lines tangent to the head. */
-const DROP = "M11 26.5 L3.34 15.19 A9.25 9.25 0 1 1 18.66 15.19 Z";
+export const PIN_DROP = "M11 26.5 L3.34 15.19 A9.25 9.25 0 1 1 18.66 15.19 Z";
+
+/** The figure in the head, as a path: the ▶ and the rounded ■ (`GLYPH`, for a canvas). */
+export const PIN_GLYPH_PATH: Record<PinKind, string> = {
+	start: "M8.6 6.1 L8.6 13.9 L15.2 10 Z",
+	end: "M8.4 6.4 H13.6 A1 1 0 0 1 14.6 7.4 V12.6 A1 1 0 0 1 13.6 13.6 H8.4 A1 1 0 0 1 7.4 12.6 V7.4 A1 1 0 0 1 8.4 6.4 Z",
+};
 const GLYPH: Record<PinKind, string> = {
 	start: '<path d="M8.6 6.1 L8.6 13.9 L15.2 10 Z" fill="#fff"/>',
 	end: '<rect x="7.4" y="6.4" width="7.2" height="7.2" rx="1" fill="#fff"/>',
@@ -28,7 +34,7 @@ export const PIN_SIZE: [number, number] = [22, 28];
 export const PIN_ANCHOR: [number, number] = [11, 26.5];
 
 export function pinHtml(kind: PinKind): string {
-	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${DROP}" fill="${PIN_FILL[kind]}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${GLYPH[kind]}</svg>`;
+	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${PIN_DROP}" fill="${PIN_FILL[kind]}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${GLYPH[kind]}</svg>`;
 }
 
 /**
@@ -44,7 +50,7 @@ export function legPinHtml(glyph: SportGlyph): string {
 	const figure = paths
 		? `<g transform="translate(4.75 3.75) scale(0.521)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${paths}</g>`
 		: GLYPH.start;
-	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${DROP}" fill="${PIN_FILL.start}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${figure}</svg>`;
+	return `<svg width="22" height="28" viewBox="0 0 22 28" aria-hidden="true"><path d="${PIN_DROP}" fill="${PIN_FILL.start}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>${figure}</svg>`;
 }
 
 /** The lap marker: a 20 pt white disc, its number centred. */

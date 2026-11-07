@@ -18,6 +18,8 @@ const context = await esbuild.context({
 		}),
 	],
 	entryPoints: ["src/main.ts"],
+	// The share images' font (src/ui/share/font.ts): its bytes ride in the bundle, so nothing is fetched.
+	loader: { ".woff2": "binary" },
 	bundle: true,
 	// `browser` makes esbuild refuse to shim node builtins instead of silently
 	// bundling a polyfill that only works under Electron.

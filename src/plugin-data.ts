@@ -226,6 +226,15 @@ export class PluginData {
 	async saveHome(next: HomeState): Promise<void> {
 		this.home = next;
 		await this.flush();
+		for (const listener of this.homeListeners) listener();
+	}
+
+	private homeListeners = new Set<() => void>();
+
+	/** Home's layout saved: a note's whole-day cards follow it. Returns the unsubscribe. */
+	onHomeChanged(listener: () => void): () => void {
+		this.homeListeners.add(listener);
+		return () => this.homeListeners.delete(listener);
 	}
 
 	/** Whether this device holds a Garmin session. */

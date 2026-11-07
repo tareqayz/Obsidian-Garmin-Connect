@@ -46,6 +46,10 @@
 		margin: 0;
 		min-width: 0;
 	}
+	/* Obsidian's Canvas styles ".canvas" absolute at the top of its container; this one stays in place. */
+	.canvas {
+		position: relative;
+	}
 	svg {
 		display: block;
 		overflow: visible;

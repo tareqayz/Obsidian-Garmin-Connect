@@ -458,9 +458,9 @@ function metricId(value: unknown, category: CategoryId): MetricId {
 	return METRICS.includes(value as MetricId) && allowed.includes(value as MetricId) ? (value as MetricId) : allowed[0];
 }
 
-/** Steps, Floors or Intensity Minutes as the hub and Home open them: today. */
-export function statsRoute(stat: StatId): Route {
-	return { page: "stats", stat, range: "1d", offset: 0, totals: "monthly" };
+/** Steps, Floors or Intensity Minutes as the hub and Home open them: today, or `offset` days back. */
+export function statsRoute(stat: StatId, offset = 0): Route {
+	return { page: "stats", stat, range: "1d", offset: Math.min(0, offset), totals: "monthly" };
 }
 
 /** The Sleep page as Home and the hub open it: a night's score, `offset` days back. */

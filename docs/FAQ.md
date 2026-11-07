@@ -51,7 +51,29 @@ requests and writes nothing. See [Sync automatically](GUIDE.md#sync-automaticall
 ## Will it overwrite my daily notes?
 
 No. The sync writes no notes at all. Everything goes into JSON files in its own data folder,
-`Garmin/data` by default.
+`Garmin/data` by default. To show your data in a daily note, add Garmin cards to it yourself: see
+[Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+
+## Can I show my Garmin data in a note?
+
+Yes: a `garmin` code block draws Home's cards for the note's day, such as `show: sleep,
+body-battery`, a stat page's chart, such as `chart: stress` with `range: 7d`, or an activity with
+its route map, such as `activity: latest`. **Insert card…** adds one, **Open card guide** lists them
+all with examples, and **Create daily note template** writes a daily note made of cards. They read
+what the sync saved and never ask Garmin. See [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+
+## Can I share an activity, or save it as a PDF?
+
+Yes. **Share**, under an activity's figures, turns it into a picture in one of three shapes. On a
+phone it opens the share sheet; **Save** writes it into your vault. For a PDF, put the activity's
+card in a note and use Obsidian's **Export to PDF**. See [An activity's
+page](GUIDE.md#an-activitys-page) and [A note as a PDF](GUIDE.md#a-note-as-a-pdf).
+
+## Why does a chart or an activity in a note say to open its page?
+
+A card only draws what the vault holds. A day's Respiration and Pulse Ox readings, any day's readings
+from before **Day details**, and an activity's route map are saved when their page first opens.
+Click the card: the page opens and loads them, and the card draws them from then on.
 
 ## I used an older version. Where did my day notes go?
 
@@ -71,8 +93,9 @@ Only JSON files in the data folder (`Garmin/data` by default):
 - the pages' histories and timelines;
 - a few bookkeeping files.
 
-It also writes diagnostics notes in the **Log folder**, but only when you ask it to. Every path is in
-the [Data reference](properties.md).
+It writes a note only when you ask it to: diagnostics and debug info in the **Log folder**, and
+`Garmin cards.md` and `Garmin daily note.md` from [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes).
+Neither of the last two is ever written over unasked. Every path is in the [Data reference](properties.md).
 
 ## Can I backfill years of data?
 
@@ -146,9 +169,10 @@ keeps the session, and the next sync tries again.
 
 ## Can I query the data with Dataview or Bases?
 
-Not directly. Both query note properties, and the plugin no longer writes notes. The days are plain
-JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads JSON can use them. The
-[Data reference](properties.md) lists every key and unit.
+Not directly. Both query note properties, and the plugin writes no numbers into notes. The days are
+plain JSON in `Garmin/data/days/`, one line a day, so a script or a plugin that reads JSON can use
+them. The [Data reference](properties.md) lists every key and unit. To see a day's numbers in a
+note, use [Garmin cards](GUIDE.md#garmin-cards-in-notes) instead.
 
 ## Does it work with a Garmin China account?
 
@@ -161,7 +185,8 @@ account has tried it yet, so a report either way helps.
 An Obsidian plugin can't load external scripts, and a bundled chart library would be dead weight on a
 phone, so the charts are hand-drawn SVG. The one drawing library is Leaflet, for the activity maps: panning
 and pinching a map on a phone is where hand-rolled code breaks. It is bundled with the plugin and
-loads only when a map is drawn.
+loads only when a map is drawn. What leaves the app as a picture, a shared activity or an exported
+note's map, is drawn on a canvas, with a font bundled for it.
 
 ## Why does an activity map talk to OpenStreetMap?
 

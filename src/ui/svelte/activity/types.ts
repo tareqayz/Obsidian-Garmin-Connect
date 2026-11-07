@@ -4,6 +4,7 @@ import type { ActivityRoute, Route } from "../../../dashboard/routes";
 import type { ActivityDetail } from "../../../sync/activity-detail";
 import type { ActivityRow } from "../../../sync/activity-index";
 import type { TileSource } from "../../map/tile-source";
+import type { ShareActions } from "../../share/actions";
 import type { OpenSheet } from "../../sheet-modal";
 
 /**
@@ -26,4 +27,6 @@ export interface ActivityTabProps {
 	/** A link that may lead back down the stack (Records, the running page). */
 	reach: (route: Route) => void;
 	openSheet: OpenSheet;
+	/** What Share does with the image: the system share sheet, or a file in the vault. */
+	share: ShareActions;
 }

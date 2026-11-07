@@ -854,3 +854,32 @@ body {
 	flex-wrap: wrap;
 	gap: 8px;
 }
+
+/* ==================================================================
+   Cards in notes
+   A ```garmin block (src/embeds/) draws Home's cards in a note. The block
+   lays out by its own width, as Home's page column does, and in the app's
+   interface type rather than the note's, so the cards look as on Home.
+   ================================================================== */
+
+.gch-embed {
+	container-type: inline-size;
+	width: 100%;
+	color: var(--text-normal);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-medium);
+	line-height: var(--line-height-tight);
+}
+
+@media print {
+	.gch-embed {
+		break-inside: avoid;
+	}
+}
+
+/* Insert card…: a card's name for its block, beside its title. */
+.gch-card-suggestion .gch-card-id {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}

@@ -243,15 +243,29 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 				this.noteCopy(child);
 				continue;
 			}
-			const stamp = `${child.stat.mtime}:${child.stat.size}`;
-			let year = parsedDays.get(child.path);
-			if (year?.stamp !== stamp) {
-				year = { stamp, rows: [...parseDays(await this.app.vault.cachedRead(child))].map(([date, properties]) => dayRowOf(date, properties)) };
-				parsedDays.set(child.path, year);
-			}
-			rows.push(...year.rows);
+			rows.push(...(await this.parsedYear(child)));
 		}
 		return rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+	}
+
+	/**
+	 * A day year file's rows, parsed once per modified time and size. Readers
+	 * asking at the same moment, a note's cards and Home, share the one parse.
+	 */
+	private parsedYear(file: TFile): Promise<HomeDayRow[]> {
+		const stamp = `${file.stat.mtime}:${file.stat.size}`;
+		const held = parsedDays.get(file.path);
+		if (held?.stamp === stamp) return held.rows;
+		const year = {
+			stamp,
+			rows: this.app.vault.cachedRead(file).then((text) => [...parseDays(text)].map(([date, properties]) => dayRowOf(date, properties))),
+		};
+		parsedDays.set(file.path, year);
+		// A read that failed is tried again by the next reader.
+		year.rows.catch(() => {
+			if (parsedDays.get(file.path) === year) parsedDays.delete(file.path);
+		});
+		return year.rows;
 	}
 
 	async read(date: string): Promise<DaySeries | null> {
@@ -264,6 +278,10 @@ export class VaultSeriesStore implements SeriesTarget, ActivityDetailStore {
 
 	activityDetailPath(id: number): string {
 		return this.join(`${ACTIVITY_DETAILS_FOLDER}/${id}.json`);
+	}
+
+	get activityDetailsFolder(): string {
+		return this.join(ACTIVITY_DETAILS_FOLDER);
 	}
 
 	async readActivityDetail(id: number): Promise<ActivityDetail | null> {
@@ -1050,9 +1068,9 @@ interface HeldFiles {
 const storeDates = new Map<string, { stamp: string; dates: ReadonlySet<string> }>();
 
 /** Each day year file's days as Home reads them, with the file's modified time and size: parsed again only once it changes. */
-const parsedDays = new Map<string, { stamp: string; rows: HomeDayRow[] }>();
+const parsedDays = new Map<string, { stamp: string; rows: Promise<HomeDayRow[]> }>();
 
-/** Lets go of the parsed day files: no Garmin view is open to read them. */
+/** Lets go of the parsed day files: no Garmin view or card is open to read them. */
 export function forgetParsedDays(): void {
 	parsedDays.clear();
 }

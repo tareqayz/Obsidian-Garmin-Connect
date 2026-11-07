@@ -6,6 +6,57 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Added
+
+- **Share an activity.** **Share**, under an activity's figures, turns it into a picture, as
+  Garmin's app does. Pick **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**, swipe
+  through Rings, Map, Topographic and TRANSPARENT, and on a phone send it from the share sheet or save
+  it to your photos. **Save** puts it in your vault. **Share activity…** opens it for the activity on
+  screen. See
+  [An activity's page](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#an-activitys-page).
+
+### Fixed
+
+- **An activity's map prints whole in a PDF.** **Export to PDF** cropped an activity card's map, and
+  on a phone could leave out its tiles. The card now prints its whole route on its map, sized to the
+  page. See
+  [A note as a PDF](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#a-note-as-a-pdf).
+
+## [2.0.0-beta.1] — 2026-11-07
+
+### Added
+
+- **Garmin cards in your notes.** A `garmin` code block shows Home's cards in any note, for the
+  note's day: `show: sleep, body-battery` in a daily note shows that night's sleep and that day's
+  Body Battery. Cards keep their Home size, open their page in Garmin Home when clicked, and read
+  only what the sync saved. **Insert card…**, or right-click → Insert → Garmin card…, adds one. See
+  [Garmin cards in notes](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#garmin-cards-in-notes).
+- **Charts in your notes.** `chart: stress` draws a stat page's chart in a card: the day's, or with
+  `range: 7d`, `4w` or `1y` the period ending on it. Sleep, Body Battery, Stress, Heart Rate, Steps,
+  Floors, Intensity Minutes, HRV Status, Respiration, Pulse Ox and Weight have one. `size: small`
+  draws trends as small cards, four to a row.
+- **Activities in your notes.** `activity: latest`, `all`, or an activity's id draws an activity in
+  a card with its route map and figures, for a workout journal. **Insert card…** lists your
+  activities.
+- **A daily note template.** **Create daily note template** writes `Garmin daily note.md`, made of
+  Garmin cards, for the core Daily notes plugin or any other. Nothing is written until you ask.
+- **A card guide.** **Open card guide** writes `Garmin cards.md`, with every card and a live
+  example; **Rebuild card guide** refreshes it after asking.
+
+### Changed
+
+- **Steps, Floors and Intensity Minutes open on Home's day.** While today hasn't synced and Home
+  shows yesterday, their cards open yesterday's page, as the other cards do.
+
+### Fixed
+
+- **Weight's chart sits under its period.** It was drawn at the top of the page, over the range
+  control.
+- **Body Battery's curve keeps its shading** when another Body Battery card is on screen.
+- **A link inside a Home card**, such as Weight's +, opens only the link.
+
 ## [1.2.1-beta.1] — 2026-10-29
 
 ### Changed
@@ -498,7 +549,8 @@ The first build published for testers.
   shapes, and a workflow that opens an issue when a field the plugin reads stops arriving.
 - **Releases:** a tag-driven pipeline with stable and beta channels. MIT licence.
 
-[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/2.0.0-beta.1...HEAD
+[2.0.0-beta.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.2.1...2.0.0-beta.1
 [1.0.2]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.1...1.0.2
 [1.0.1]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/tareqayz/Obsidian-Garmin-Connect/compare/1.0.0-beta.1...1.0.0

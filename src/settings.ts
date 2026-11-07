@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, type GarminSettings } from "./settings-data";
 import { ACTIVITY_DETAILS_KEY, ACTIVITY_DETAILS_RANGES, DAY_DETAILS_KEY, DAY_DETAILS_RANGES, isActivityDetailsRange, isDayDetailsRange } from "./sync/datasets";
 import { ALL_GROUPS, type MetricGroup } from "./sync/metrics";
 import { folderProblem } from "./sync/vault-paths";
+import { createDailyTemplate, openCardGuide } from "./embeds/notes";
 import { DeleteDataModal } from "./ui/delete-data-modal";
 import { SettingsDataRows } from "./ui/settings-data-rows";
 import DataStatus from "./ui/svelte/settings/DataStatus.svelte";
@@ -146,6 +147,28 @@ export class GarminSettingTab extends PluginSettingTab {
 				],
 			},
 			{
+				// Home's cards in notes: the two notes the plugin writes only when asked.
+				type: "group",
+				items: [
+					{
+						name: "Daily note template",
+						desc: "Creates a daily note with your Garmin cards.",
+						aliases: ["template", "daily notes", "cards in notes", "embed"],
+						render: (setting) => {
+							setting.addButton((b) => b.setButtonText("Create").onClick(() => void createDailyTemplate(plugin)));
+						},
+					},
+					{
+						name: "Card guide",
+						desc: "Every card you can add to a note, with examples.",
+						aliases: ["cards in notes", "garmin code block", "embed", "insert card"],
+						render: (setting) => {
+							setting.addButton((b) => b.setButtonText("Open").onClick(() => void openCardGuide(plugin)));
+						},
+					},
+				],
+			},
+			{
 				type: "group",
 				items: [
 					{ type: "page", name: "History", desc: rows.summaryText(), items: this.historyPage(rows) },
@@ -221,7 +244,10 @@ export class GarminSettingTab extends PluginSettingTab {
 						name: "Data folder",
 						desc: "Where the JSON files go. Existing files don't move.",
 						render: (setting) =>
-							folderInput(setting, plugin, DEFAULT_SETTINGS.dataFolder, () => s.dataFolder, (next) => (s.dataFolder = next)),
+							folderInput(setting, plugin, DEFAULT_SETTINGS.dataFolder, () => s.dataFolder, (next) => {
+								s.dataFolder = next;
+								plugin.dataFolderChanged();
+							}),
 					},
 					{
 						name: "Run setup again",

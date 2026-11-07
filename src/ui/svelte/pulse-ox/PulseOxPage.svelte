@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { dayCardRoute, dayOf, type PeriodRoute } from "../../../dashboard/periods";
-	import { BAR_WIDTH, COLUMN_BOTTOM, COLUMN_TOP, POINT_R, pulseOxPlot, spo2DayPlot } from "../../../dashboard/pulse-ox-charts";
 	import { pulseOxDayView, pulseOxPeriodView, type PulseOxPageData } from "../../../dashboard/pulse-ox-pages";
 	import type { DayIndexMeta } from "../../../sync/day-index";
 	import { PULSE_OX_INDEX, SPO2_DAY, spo2DayIn, type PulseOxRow, type Spo2DayData } from "../../../sync/pulse-ox-index";
@@ -8,7 +7,9 @@
 	import StatCardList from "../health/StatCardList.svelte";
 	import StatFigures from "../health/StatFigures.svelte";
 	import StatPageShell from "../health/StatPageShell.svelte";
-	import Spo2Chart from "./Spo2Chart.svelte";
+	import { SPO2_COLORS } from "./colors";
+	import DayChart from "./DayChart.svelte";
+	import PeriodChart from "./PeriodChart.svelte";
 	import Spo2Gauge from "./Spo2Gauge.svelte";
 
 	/**
@@ -77,7 +78,7 @@
 	history={{ title: PULSE_OX_INDEX.title, complete: meta?.complete ?? false, walking: history[KIND], canSync, onSync: () => onSyncHistory(KIND) }}
 >
 	{#snippet children({ pane, move })}
-		<div class="pulse-ox">
+		<div class="pulse-ox" style={SPO2_COLORS}>
 			{#if dayView}
 				<div class="day">
 					<div class="summary">
@@ -89,25 +90,12 @@
 						{/if}
 					</div>
 					{#if dayView.state === "drawn"}
-						<div class="chart">
-							<Spo2Chart {pane} empty={false} plot={(width) => spo2DayPlot(dayView, width, pane)}>
-								{#snippet marks(p)}
-									{#each p.bars as bar}<line class="bar {bar.band}" x1={bar.x} x2={bar.x} y1={bar.top} y2={bar.bottom} stroke-width={BAR_WIDTH} />{/each}
-								{/snippet}
-							</Spo2Chart>
-						</div>
+						<div class="chart"><DayChart view={dayView} {pane} /></div>
 					{/if}
 				</div>
 			{:else if periodView}
 				<div class="overview">
-					<div class="chart">
-						<Spo2Chart {pane} empty={!periodView.points.length} plot={(width) => pulseOxPlot(periodView, width, pane)}>
-							{#snippet marks(p)}
-								{#each p.columns as x}<line class="column" x1={x} x2={x} y1={COLUMN_TOP} y2={COLUMN_BOTTOM} />{/each}
-								{#each p.points as point}<circle class="point {point.band}" cx={point.x} cy={point.y} r={POINT_R} />{/each}
-							{/snippet}
-						</Spo2Chart>
-					</div>
+					<div class="chart"><PeriodChart view={periodView} {pane} /></div>
 					<div class="figures"><StatFigures figures={periodView.figures} /></div>
 				</div>
 				<StatCardList items={periodView.days.map((d) => ({ key: d.date, title: d.weekday, detail: d.detail, value: d.value, kind: "day" as const, avg: d.avg, onclick: () => move(dayCardRoute(d.date, today)) }))}>
@@ -119,14 +107,6 @@
 </StatPageShell>
 
 <style>
-	/* The twin's spo2/* aliases: the gauge's bands and its empty grey. */
-	.pulse-ox {
-		--spo2-high: var(--color-green);
-		--spo2-mid: var(--color-yellow);
-		--spo2-low: var(--color-orange);
-		--spo2-poor: var(--color-red);
-		--spo2-none: var(--text-faint);
-	}
 	.gauge {
 		display: flex;
 		justify-content: center;
@@ -149,36 +129,6 @@
 	}
 	.overview .figures {
 		padding: 0 16px;
-	}
-	.column {
-		stroke: var(--background-modifier-border);
-		stroke-width: 1;
-	}
-	.point.high,
-	.bar.high {
-		fill: var(--spo2-high);
-		stroke: var(--spo2-high);
-	}
-	.point.mid,
-	.bar.mid {
-		fill: var(--spo2-mid);
-		stroke: var(--spo2-mid);
-	}
-	.point.low,
-	.bar.low {
-		fill: var(--spo2-low);
-		stroke: var(--spo2-low);
-	}
-	.point.poor,
-	.bar.poor {
-		fill: var(--spo2-poor);
-		stroke: var(--spo2-poor);
-	}
-	.point {
-		stroke: none;
-	}
-	.bar {
-		stroke-linecap: round;
 	}
 
 	@container (min-width: 1000px) {

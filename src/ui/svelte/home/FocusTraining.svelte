@@ -6,10 +6,10 @@
 	import { lucide } from "./lucide";
 	import { STATUS_TONE as TONE } from "./tones";
 
-	let { status }: { status: TrainingStatusView | null } = $props();
+	let { status, emptyText }: { status: TrainingStatusView | null; emptyText?: string } = $props();
 </script>
 
-<HomeCard kind="focus" title="Training Status" icon="trending-up" accent="var(--color-purple)" empty={!status}>
+<HomeCard kind="focus" title="Training Status" icon="trending-up" accent="var(--color-purple)" empty={!status} {emptyText}>
 	{#if status}
 		<div class="body">
 			<div class="main">

@@ -4,7 +4,7 @@
 	import HomeCard from "./HomeCard.svelte";
 	import Headline from "./Headline.svelte";
 
-	let { steps }: { steps: StepsView | null } = $props();
+	let { steps, emptyText }: { steps: StepsView | null; emptyText?: string } = $props();
 
 	const W = 1000;
 	const H = 100;
@@ -25,7 +25,7 @@
 	});
 </script>
 
-<HomeCard kind="focus" title="Steps" icon="footprints" accent="var(--color-blue)" empty={!steps}>
+<HomeCard kind="focus" title="Steps" icon="footprints" accent="var(--color-blue)" empty={!steps} {emptyText}>
 	{#if steps}
 		<Headline
 			value={steps.steps.toLocaleString()}

@@ -255,6 +255,37 @@ export function stressDayIn(series: DaySeries | null | undefined): StressDay | n
 	return day;
 }
 
+/**
+ * The day's readings rebuilt from the series file's own `stress` and
+ * `bodyBattery` blocks, which the sync writes for every day inside Day
+ * details: the same payload as `STRESS_DAY`'s, kept as plain points. What
+ * they drop shows: the unmeasurable and too-active readings are gaps, and
+ * no stretch is estimated. A day `ongoing` ends at its newest reading, any
+ * other at the next midnight. Null without `dayStart` or a reading.
+ *
+ * For a card in a note, which never fetches the block its page loads on view.
+ */
+export function stressDayOfSeries(series: DaySeries | null | undefined, ongoing: boolean): StressDay | null {
+	const start = series?.dayStart;
+	if (start === undefined || !Number.isFinite(start)) return null;
+	const scored = (series?.stress ?? []).filter(([t]) => t >= start);
+	const charted = (series?.bodyBattery ?? []).filter(([t]) => t >= start);
+	const times = (scored.length ? scored : charted).map(([t]) => t);
+	if (!times.length) return null;
+	const step = commonGap(times) ?? READING_MS;
+	const last = Math.max(scored[scored.length - 1]?.[0] ?? -Infinity, charted[charted.length - 1]?.[0] ?? -Infinity);
+	const end = ongoing ? last + step : Math.max(start + 24 * 3_600_000, last + step);
+	const slots = Math.ceil(Math.min(MAX_DAY_MS, end - start) / step);
+	const slotOf = (t: number) => {
+		const i = Math.round((t - start) / step);
+		return i >= 0 && i < slots ? i : -1;
+	};
+	const day: StressDay = { start, end, step, levels: onGrid(scored, slotOf) };
+	if (charted.some(([, v]) => v !== null)) day.battery = onGrid(charted, slotOf);
+	if (!day.levels.some((v) => v !== null) && !day.battery) return null;
+	return day;
+}
+
 /** The day's Body Battery curve out of `STRESS_DAY`'s block, or null when the day has none. */
 export function batteryDayIn(series: DaySeries | null | undefined): BatteryDay | null {
 	const day = stressDayIn(series);

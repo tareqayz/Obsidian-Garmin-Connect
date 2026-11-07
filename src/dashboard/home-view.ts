@@ -13,16 +13,19 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 /** A sync's ending as the line beside ↻: "Synced 2:05 PM", "Couldn't sync". */
 const syncLine = (outcome: SyncOutcome): string => outcomeLine(outcome, (iso) => clock.format(new Date(iso)));
 import { forgetParsedDays, VaultSeriesStore } from "../sync/series-store";
+import { ACCOUNT, ACTIVITIES, ACTIVITY, DataVersions, DAYS, keysOfPath, SERIES } from "./data-versions";
 import { rebuildAt } from "./rebuild-schedule";
 import { pickStat } from "../ui/add-stat-modal";
 import { SleepHistoryModal } from "../ui/sleep-history-modal";
+import { shareActions, type ShareActions } from "../ui/share/actions";
+import ShareSheet from "../ui/svelte/activity/share/ShareSheet.svelte";
 import { SheetModal, type OpenSheet, type SheetBodyProps } from "../ui/sheet-modal";
 import { openStreetMapTiles } from "../ui/map/tiles";
 import type { TileSource } from "../ui/map/tile-source";
 import type { ActivityDetail, ActivityLoad } from "../sync/activity-detail";
 import Home from "../ui/svelte/home/Home.svelte";
 import { GARMIN_ICON } from "../ui/icon";
-import type { ActivitiesData } from "./activities";
+import type { ActivitiesData, Units } from "./activities";
 import { areaTitle, railFocus, type RailPref } from "./areas";
 import { unitsOf } from "./day";
 import { availableStats, type GlanceId } from "./glance";
@@ -36,12 +39,6 @@ import type { SetupCardKind } from "../ui/setup-flow";
 
 export const GARMIN_HOME_VIEW = "garmin-home";
 
-
-/** The series files' entry among the versions: not a name an index can have. */
-const SERIES = "#series";
-/** The day files' and account.json's entries, which the stat pages watch beside the indexes'. */
-const DAYS = "#days";
-const ACCOUNT = "#account";
 
 /** Activity details kept in memory, so a page coming back draws at once: Back from the map. */
 const REMEMBERED_ACTIVITIES = 8;
@@ -97,22 +94,35 @@ export class GarminHomeView extends ItemView {
 	private stack: Route[] = [HOME];
 	/** The rail expanded or collapsed by hand; null follows the pane's width. */
 	private rail: RailPref | null = null;
-	/** By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the files settle, whenever one changes. */
-	private versions = new Map<string, number>();
-	private bumps = new Map<string, number>();
+	/**
+	 * By index kind, `SERIES`, `DAYS` and `ACCOUNT`: moved, a moment after the
+	 * files settle, whenever one changes, with what a page read for as long as
+	 * its version holds.
+	 */
+	private data: DataVersions;
 	/** Unsubscribes from the runner's progress. */
 	private unbind: Array<() => void> = [];
-	/** When each version last moved, and when Home last rebuilt: while a backfill writes, both wait their turn. */
-	private bumpedAt = new Map<string, number>();
+	/** When Home last rebuilt: while a backfill writes, it waits its turn. */
 	private refreshedAt = 0;
-	/** What a page read, by the same keys, for as long as its version holds. */
-	private cache = new Map<string, { version: number; data: Promise<unknown> }>();
 	private activities = new Map<number, ActivityDetail>();
 	private tileSource: TileSource | null = null;
+	/** The account's units, as the activity pages last read them: Share activity… draws with them. */
+	private units: Units = "metric";
+	private share: ShareActions | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GarminPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.data = new DataVersions({
+			holdUntil: (last) => this.holdUntil(last),
+			moved: (key, version) => {
+				if (key === SERIES) this.component?.setSeriesVersion(version);
+				else this.component?.setIndexVersion(key, version);
+			},
+			now: () => Date.now(),
+			setTimeout: (run, ms) => window.setTimeout(run, ms),
+			clearTimeout: (id) => window.clearTimeout(id),
+		});
 	}
 
 	getViewType(): string {
@@ -258,14 +268,15 @@ export class GarminHomeView extends ItemView {
 				onSleepHistory: (view: HistoryView) => new SleepHistoryModal(this.app, view).open(),
 				readSeries: (days: string[]) => this.readSeries(days),
 				readIndex: ((kind: string) => this.readIndex(kind)) as ReadIndex,
-				readDays: () => this.cached(DAYS, () => this.rows()),
-				readAccount: () => this.cached(ACCOUNT, () => this.store().readAccount()),
+				readDays: () => this.data.cached(DAYS, () => this.rows()),
+				readAccount: () => this.data.cached(ACCOUNT, () => this.store().readAccount()),
 				loadIntraday: (date: string, keys: readonly string[]) => this.plugin.sync.loadIntraday(date, keys),
 				loadActivity: (id: number) => this.loadActivity(id),
 				cachedActivity: (id: number) => this.activities.get(id) ?? null,
 				tiles: () => this.tiles(),
 				openSheet: (<P extends SheetBodyProps>(title: string, body: Component<P>, props: Omit<P, "onClose">) =>
 					new SheetModal(this.app, title, body, props).open()) as OpenSheet,
+				share: this.shareActions(),
 			},
 		}) as HomeApi;
 
@@ -285,24 +296,14 @@ export class GarminHomeView extends ItemView {
 			}, 60_000),
 		);
 
-		// Everything the sync writes is a JSON file under the data folder.
+		// Everything the sync writes is a JSON file under the data folder. A
+		// registered index reaches only the pages that read it; the rest also
+		// rebuilds Home. One day's series and the activity index are a note's
+		// cards' keys: Home reads any day's series, and rebuilds for the index.
 		const onFile = (file: TAbstractFile) => {
-			const store = this.store();
-			// A registered index reaches only the pages that read it.
-			const def = store.dayIndexOf(file.path);
-			if (def) {
-				this.bump(def.kind);
-				return;
-			}
-			if (!store.owns(file.path)) return;
-			// Coverage is the backfill's bookkeeping: no page reads it.
-			if (file.path === store.dayCoveragePath || file.path === store.detailCoveragePath) return;
-			if (store.isSeriesPath(file.path)) this.bump(SERIES);
-			else if (file.path.startsWith(`${store.sleepFolder}/`)) this.bump("sleep");
-			else if (file.path.startsWith(`${store.dailyStatsFolder}/`)) this.bump("daily-stats");
-			else if (file.path.startsWith(`${store.daysFolder}/`)) this.bump(DAYS);
-			else if (file.path === store.accountPath) this.bump(ACCOUNT);
-			this.scheduleRefresh();
+			const { keys, rebuild } = keysOfPath(this.store(), file.path);
+			for (const key of keys) if (key !== ACTIVITIES && !key.startsWith(`${SERIES}:`) && !key.startsWith(`${ACTIVITY}:`)) this.data.bump(key);
+			if (rebuild) this.scheduleRefresh();
 		};
 		this.registerEvent(this.app.vault.on("modify", onFile));
 		this.registerEvent(this.app.vault.on("create", onFile));
@@ -364,11 +365,10 @@ export class GarminHomeView extends ItemView {
 
 	async onClose(): Promise<void> {
 		for (const off of this.unbind.splice(0)) off();
-		// The last Garmin view gone: the parsed day files go too, on a phone's memory.
-		if (!this.app.workspace.getLeavesOfType(this.getViewType()).some((leaf) => leaf.view !== this)) forgetParsedDays();
+		// The last Garmin view gone, and no card in a note: the parsed day files go too, on a phone's memory.
+		if (!this.plugin.cards.inUse && !this.app.workspace.getLeavesOfType(this.getViewType()).some((leaf) => leaf.view !== this)) forgetParsedDays();
 		window.clearTimeout(this.pending);
-		for (const timer of this.bumps.values()) window.clearTimeout(timer);
-		this.bumps.clear();
+		this.data.dispose();
 		if (this.component) {
 			void unmount(this.component);
 			this.component = undefined;
@@ -423,7 +423,26 @@ export class GarminHomeView extends ItemView {
 			units: index.meta?.units ?? unitsOf(rows),
 		};
 		if (index.meta?.total !== undefined) data.total = index.meta.total;
+		this.units = data.units;
 		return data;
+	}
+
+	private shareActions(): ShareActions {
+		if (!this.share) this.share = shareActions(this.app);
+		return this.share;
+	}
+
+	/**
+	 * Share activity…: the open activity's Share Activity sheet, as its
+	 * Overview's Share button opens it. False, and nothing opens, when the page
+	 * on top isn't an activity whose file has loaded.
+	 */
+	shareActivity(checking: boolean): boolean {
+		const top = this.stack[this.stack.length - 1];
+		const detail = top?.page === "activity" ? this.activities.get(top.id) : undefined;
+		if (!detail) return false;
+		if (!checking) new SheetModal(this.app, "Share Activity", ShareSheet, { detail, units: this.units, actions: this.shareActions(), tiles: this.tiles() }).open();
+		return true;
 	}
 
 	/**
@@ -468,20 +487,7 @@ export class GarminHomeView extends ItemView {
 	 * sharing an index share the read.
 	 */
 	private readIndex(kind: string): Promise<DayIndexData> {
-		return this.cached(kind, () => this.loadIndex(kind));
-	}
-
-	/** A read once per version of `key`: a failed one is tried again on the next ask. */
-	private cached<T>(key: string, load: () => Promise<T>): Promise<T> {
-		const version = this.versions.get(key) ?? 0;
-		const hit = this.cache.get(key);
-		if (hit?.version === version) return hit.data as Promise<T>;
-		const data = load();
-		this.cache.set(key, { version, data });
-		data.catch(() => {
-			if (this.cache.get(key)?.data === data) this.cache.delete(key);
-		});
-		return data;
+		return this.data.cached(kind, () => this.loadIndex(kind));
 	}
 
 	private async loadIndex(kind: string): Promise<DayIndexData> {
@@ -504,43 +510,12 @@ export class GarminHomeView extends ItemView {
 
 	/** A sync ended: what it held back goes now. */
 	private syncEnded(): void {
-		const keys = [...this.bumps.keys()];
-		for (const key of keys) {
-			window.clearTimeout(this.bumps.get(key));
-			this.bumps.delete(key);
-			this.bump(key);
-		}
+		this.data.syncEnded();
 		if (this.pending) {
 			window.clearTimeout(this.pending);
 			this.pending = 0;
 			this.scheduleRefresh();
 		}
-	}
-
-	/**
-	 * Moves one version, once a burst of file events settles: a sync writes a
-	 * year file and the meta together. While a backfill writes, at most every
-	 * `REBUILD_EVERY_MS`, and while a sync writes, once it ends (`rebuildAt`).
-	 */
-	private bump(key: string): void {
-		this.cache.delete(key);
-		const fire = () => {
-			this.bumps.delete(key);
-			this.cache.delete(key);
-			this.bumpedAt.set(key, Date.now());
-			const version = (this.versions.get(key) ?? 0) + 1;
-			this.versions.set(key, version);
-			if (key === SERIES) this.component?.setSeriesVersion(version);
-			else this.component?.setIndexVersion(key, version);
-		};
-		const hold = this.holdUntil(this.bumpedAt.get(key) ?? 0);
-		if (hold !== null) {
-			if (this.bumps.has(key)) return;
-			this.bumps.set(key, window.setTimeout(fire, Math.max(150, hold - Date.now())));
-			return;
-		}
-		window.clearTimeout(this.bumps.get(key));
-		this.bumps.set(key, window.setTimeout(fire, 150));
 	}
 
 	private scheduleRefresh(): void {

@@ -5,6 +5,7 @@
 	import { ACTIVITY_TABS, type ActivityRoute, type ActivityTab, type Route } from "../../../dashboard/routes";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
+	import type { ShareActions } from "../../share/actions";
 	import type { OpenSheet } from "../../sheet-modal";
 	import PageBar from "../home/PageBar.svelte";
 	import ChartsTab from "./ChartsTab.svelte";
@@ -37,13 +38,14 @@
 		cachedActivity: (id: number) => ActivityDetail | null;
 		tiles: () => TileSource | null;
 		openSheet: OpenSheet;
+		share: ShareActions;
 		onBack: () => void;
 		go: (route: Route) => void;
 		swap: (route: Route) => void;
 		reach: (route: Route) => void;
 	}
 
-	let { route, data, loadActivity, cachedActivity, tiles, openSheet, onBack, go, swap, reach }: Props = $props();
+	let { route, data, loadActivity, cachedActivity, tiles, openSheet, share, onBack, go, swap, reach }: Props = $props();
 
 	const TAB_LABELS: Record<ActivityTab, string> = {
 		overview: "Overview",
@@ -75,7 +77,7 @@
 	let detail = $derived(load?.detail ?? null);
 	let profile = $derived(detail ? profileFor(detail) : null);
 	let tabProps = $derived<ActivityTabProps | null>(
-		detail && profile ? { detail, route, units: data.units, profile, rows: data.rows, tiles, go, swap, reach, openSheet } : null,
+		detail && profile ? { detail, route, units: data.units, profile, rows: data.rows, tiles, go, swap, reach, openSheet, share } : null,
 	);
 	let title = $derived(!detail ? "Activity" : detail.parentId ? `${sportTitle("multi_sport")} - ${sportTitle(detail.type)}` : sportTitle(detail.type));
 	/** One page, no tabs: a multisport's Overview. */

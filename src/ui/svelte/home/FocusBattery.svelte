@@ -4,7 +4,11 @@
 	import HomeCard from "./HomeCard.svelte";
 	import Headline from "./Headline.svelte";
 
-	let { battery }: { battery: BatteryView | null } = $props();
+	let { battery, emptyText }: { battery: BatteryView | null; emptyText?: string } = $props();
+
+	/** One gradient per card: a note can hold several, and url(#id) finds the first in the page. */
+	const uid = $props.id();
+	const gradient = `gch-bb-${uid}`;
 
 	const W = 1000;
 	const H = 100;
@@ -38,7 +42,7 @@
 	);
 </script>
 
-<HomeCard kind="focus" title="Body Battery" icon="battery-charging" accent="var(--color-blue)" empty={!battery}>
+<HomeCard kind="focus" title="Body Battery" icon="battery-charging" accent="var(--color-blue)" empty={!battery} {emptyText}>
 	{#if battery}
 		<Headline
 			value={battery.latest}
@@ -53,7 +57,7 @@
 			{/if}
 			<svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
 				<defs>
-					<linearGradient id="gch-bb" x1="0" x2="0" y1="0" y2="1">
+					<linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">
 						<stop offset="0" stop-color="var(--text-muted)" stop-opacity="0.9" />
 						<stop offset="1" stop-color="var(--text-muted)" stop-opacity="0.05" />
 					</linearGradient>
@@ -61,7 +65,7 @@
 				{#each bars as b}
 					<line class:rest={b.rest} class="stress" x1={b.x} x2={b.x} y1={H} y2={H - b.v * 0.9} />
 				{/each}
-				<path class="area" d={line.area} />
+				<path class="area" d={line.area} fill="url(#{gradient})" />
 				<path class="line" d={line.path} />
 			</svg>
 		</div>
@@ -95,7 +99,6 @@
 		line-height: 16px;
 	}
 	.area {
-		fill: url(#gch-bb);
 		opacity: 0.55;
 	}
 	.line {

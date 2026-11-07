@@ -10,6 +10,7 @@
 	import StatPageShell from "../health/StatPageShell.svelte";
 	import StatPeriodLayout from "../health/StatPeriodLayout.svelte";
 	import DayValues from "./DayValues.svelte";
+	import HeartRateColors from "./HeartRateColors.svelte";
 	import HeartRateCurve from "./HeartRateCurve.svelte";
 	import HeartRateReadings from "./HeartRateReadings.svelte";
 
@@ -113,48 +114,35 @@
 >
 	{#snippet children({ pane, move })}
 		<div class="heart-rate">
-			{#if dayView}
-				<StatPeriodLayout>
-					{#snippet chart()}<HeartRateCurve timeline={dayView.timeline} {pane} today={dayView.date === today} />{/snippet}
-					{#snippet figures()}<StatFigures figures={dayView.stats.map(figure)} />{/snippet}
-				</StatPeriodLayout>
-			{:else if periodView}
-				<StatPeriodLayout>
-					{#snippet chart()}<HeartRateReadings view={periodView} {pane} />{/snippet}
-					{#snippet figures()}<StatFigures figures={periodView.stats.map(figure)} />{/snippet}
-					{#snippet list()}
-						<StatCardList
-							items={cards.map((c) => ({
-								...c,
-								onclick: () => move(c.kind === "day" ? dayCardRoute(c.key, today) : weekCardRoute(hrRoute, periodView.weeks.find((w) => w.from === c.key)!.to, today)),
-							}))}
-						>
-							{#snippet visual(card)}<DayValues resting={card.resting} high={card.high} />{/snippet}
-						</StatCardList>
-					{/snippet}
-				</StatPeriodLayout>
-			{/if}
+			<HeartRateColors>
+				{#if dayView}
+					<StatPeriodLayout>
+						{#snippet chart()}<HeartRateCurve timeline={dayView.timeline} {pane} today={dayView.date === today} />{/snippet}
+						{#snippet figures()}<StatFigures figures={dayView.stats.map(figure)} />{/snippet}
+					</StatPeriodLayout>
+				{:else if periodView}
+					<StatPeriodLayout>
+						{#snippet chart()}<HeartRateReadings view={periodView} {pane} />{/snippet}
+						{#snippet figures()}<StatFigures figures={periodView.stats.map(figure)} />{/snippet}
+						{#snippet list()}
+							<StatCardList
+								items={cards.map((c) => ({
+									...c,
+									onclick: () => move(c.kind === "day" ? dayCardRoute(c.key, today) : weekCardRoute(hrRoute, periodView.weeks.find((w) => w.from === c.key)!.to, today)),
+								}))}
+							>
+								{#snippet visual(card)}<DayValues resting={card.resting} high={card.high} />{/snippet}
+							</StatCardList>
+						{/snippet}
+					</StatPeriodLayout>
+				{/if}
+			</HeartRateColors>
 		</div>
 	{/snippet}
 </StatPageShell>
 
 <style>
-	/* The twin's heart-rate/* colours (Light / Dark); the zones run slate, blue, light blue, green, orange, red. */
 	.heart-rate {
 		--stat-chart-top: 27.1px;
-		--heart-rate-resting: var(--color-blue);
-		--heart-rate-high: var(--color-red);
-		--heart-rate-resting-legend: #0a4ea8;
-		--heart-rate-zone-0: #8f9ba6;
-		--heart-rate-zone-1: var(--color-blue);
-		--heart-rate-zone-2: #4c9cf0;
-		--heart-rate-zone-3: var(--color-green);
-		--heart-rate-zone-4: var(--color-orange);
-		--heart-rate-zone-5: var(--color-red);
-	}
-	:global(.theme-dark) .heart-rate {
-		--heart-rate-resting-legend: #5c9dff;
-		--heart-rate-zone-0: #6f8594;
-		--heart-rate-zone-2: #54a9fe;
 	}
 </style>

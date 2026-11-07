@@ -33,7 +33,15 @@ two blocks:
 | Garmin account | `email` | `""` | Who is signed in on this device, with a **Sign in** or **Sign out** button. The email is saved when a sign-in succeeds. |
 | Sync automatically | `autoSync` | on | Runs **Sync recent days** on its own when Obsidian starts and when you open Home, once the last sync is 15 minutes old. A check that finds nothing new costs two requests and writes nothing. Off, a sync runs only when you ask, and the history download you agreed to carries on. When and how is in [Sync automatically](GUIDE.md#sync-automatically). |
 | Units | `units` | `auto` | `metric` writes `distance_km`, `imperial` writes `distance_mi`, and `auto` asks Garmin which system your account uses. |
-| Map tiles | `mapTiles` | on | Draws OpenStreetMap's map under an activity's route, from `tile.openstreetmap.org`, which sees the area of each activity whose map you open. Off, the route is drawn on its own and no tile is requested. |
+| Map tiles | `mapTiles` | on | Draws OpenStreetMap's map under an activity's route, on its page and in a note, from `tile.openstreetmap.org`, which sees the area of each activity whose map you open. Off, the route is drawn on its own and no tile is requested. |
+
+Then two rows for [Garmin cards in notes](GUIDE.md#garmin-cards-in-notes), which save nothing to
+`data.json`:
+
+| Setting | Key | Default | Effect |
+| --- | --- | --- | --- |
+| Daily note template | — | — | **Create** writes `Garmin daily note.md` into the core Templates plugin's folder, or beside the data folder, and opens it. A note of that name already there is opened instead. |
+| Card guide | — | — | **Open** opens `Garmin cards.md` beside the data folder, writing it the first time: every card and chart, with a live example. |
 
 Below them, three rows open the sub-pages. Their descriptions are taken when the page is drawn:
 **History** gives the data folder's size and whether the download is running, and **Metrics** how

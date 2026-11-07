@@ -28,12 +28,14 @@ Sync all your Garmin health, performance and activity data into your vault, and 
 
 - **Pages:** As of now, we have pages for home, activities, health stats and performance stats. *Most* of these have the full stats details. For anything missing that you think could be a bug or should be included, please submit a [bug report](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=bug_report.yml) or [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml).
 - **You own the data:** plain JSON files hold your synced data. This means you can look at stats even offline!
+- **Garmin cards in your notes:** a `garmin` code block shows Home's cards, a stat page's charts or an activity with its route map in any note, for that note's day: last night's sleep in your daily note, a week of stress in your weekly review, today's run in your workout journal. **Insert card…** adds one, and the plugin can write a daily note template and a guide to every card. See [Garmin cards in notes](docs/GUIDE.md#garmin-cards-in-notes).
+- **Share an activity:** **Share** turns an activity into a picture in Garmin's style, in Stories, portrait or square shape, to send from your phone or save in your vault. A note with an activity's card exports to PDF with its map. See [An activity's page](docs/GUIDE.md#an-activitys-page).
 - **Privacy and security:** we respect your privacy and security. This plugin never stores your password, instead storing your session as a `refreshToken` in Obsidian's [Secret Storage](https://docs.obsidian.md/plugins/guides/secret-storage). Learn more about how this plugin handles security [here](https://github.com/tareqayz/Obsidian-Garmin-Connect?tab=security-ov-file).
 
 ## Planned features
 - **AI Coach/advisor**: Users can opt-in and use a pre-configured or custom-configured model to analyze their data. paste a model API key or enter an Ollama base URL. 
 - **Customizable layouts & theming**: The ability to customize layouts and component styles. This plugin hasn't yet been tested with popular themes. Please feel free to contribute some design ideas in [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml) - ideally pair it with a visual.
-- **Embed data within md notes**: beautiful health UI can be directly rendered in your notes. Perfect for a workout journal.
+- **More charts in notes**: Performance Stats' trends (VO₂ Max, Training Load, Endurance Score and more), inline values and week and month notes.
 
 > [!TIP]
 > Have any ideas? Please send a [feature request](https://github.com/tareqayz/Obsidian-Garmin-Connect/issues/new?template=feature_request.yml) or learn how to [contribute](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/CONTRIBUTING.md).

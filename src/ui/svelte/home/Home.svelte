@@ -1,25 +1,13 @@
 <script lang="ts">
 	import { tick, untrack } from "svelte";
-	import { activityIdFor, type ActivitiesData } from "../../../dashboard/activities";
+	import type { ActivitiesData } from "../../../dashboard/activities";
 	import { areaItems, areaStack, atAreaRoot, inArea, railFocus, visibleAreas, type AreaEntry, type AreaId, type RailPref } from "../../../dashboard/areas";
 	import { HOME_GLANCE, type GlanceId } from "../../../dashboard/glance";
-	import { glanceStat, healthStat } from "../../../dashboard/health-stats";
+	import { focusRoute, glanceRoute, todayItemRoute } from "../../../dashboard/card-routes";
+	import { healthStat } from "../../../dashboard/health-stats";
 	import { presetFor, type FocusId, type HomeModel, type MoreId, type PresetId } from "../../../dashboard/home";
 	import { PERFORMANCE_REGISTRY } from "../../../dashboard/performance-stats";
-	import {
-		activityRoute,
-		healthStatRoute,
-		performanceTargetRoute,
-		pop,
-		push,
-		pushOrReturn,
-		replace,
-		routeKey,
-		sleepRoute,
-		statsRoute,
-		top,
-		type Route,
-	} from "../../../dashboard/routes";
+	import { pop, push, pushOrReturn, replace, routeKey, top, type Route } from "../../../dashboard/routes";
 	import type { DayRow } from "../../../dashboard/series";
 	import { latestNightOffset, type HistoryView, type SleepData } from "../../../dashboard/sleep-pages";
 	import type { StatsData } from "../../../dashboard/stats-pages";
@@ -29,6 +17,7 @@
 	import type { IntradayLoad } from "../../../sync/intraday-registry";
 	import type { ActivityDetail, ActivityLoad } from "../../../sync/activity-detail";
 	import type { TileSource } from "../../map/tile-source";
+	import type { ShareActions } from "../../share/actions";
 	import type { OpenSheet } from "../../sheet-modal";
 	import ActivityMapPage from "../activity/ActivityMapPage.svelte";
 	import ActivityPage from "../activity/ActivityPage.svelte";
@@ -53,12 +42,8 @@
 	import AreaRail from "./AreaRail.svelte";
 	import { calm, measureBlocks, slideBlocks } from "./rail-motion";
 	import EmptyCard from "./EmptyCard.svelte";
-	import FocusActivities from "./FocusActivities.svelte";
-	import FocusBattery from "./FocusBattery.svelte";
-	import FocusReadiness from "./FocusReadiness.svelte";
-	import FocusSleep from "./FocusSleep.svelte";
-	import FocusSteps from "./FocusSteps.svelte";
-	import FocusTraining from "./FocusTraining.svelte";
+	import DayActivities from "./DayActivities.svelte";
+	import FocusCard from "./FocusCard.svelte";
 	import Glance from "./Glance.svelte";
 	import HomeCard from "./HomeCard.svelte";
 	import PageBar from "./PageBar.svelte";
@@ -66,6 +51,7 @@
 	import RowCard from "./RowCard.svelte";
 	import SectionHeader from "./SectionHeader.svelte";
 	import SeeAll from "./SeeAll.svelte";
+	import Tap from "./Tap.svelte";
 	import { lucide } from "./lucide";
 	import { provideSync } from "./sync-control";
 
@@ -157,6 +143,8 @@
 		tiles: () => TileSource | null;
 		/** Opens one of the activity page's sheets. */
 		openSheet: OpenSheet;
+		/** What an activity's Share does with its image. */
+		share: ShareActions;
 	}
 
 	let {
@@ -205,6 +193,7 @@
 		cachedActivity,
 		tiles,
 		openSheet,
+		share,
 	}: Props = $props();
 
 	// Seeded once; refreshes come through the exported setters.
@@ -453,18 +442,6 @@
 		onRoute(stack);
 	}
 
-	/** A card that opens a page, by click or by Enter / Space. */
-	function opener(route: Route) {
-		return (e: KeyboardEvent | MouseEvent) => {
-			if (e instanceof KeyboardEvent) {
-				if (e.key !== "Enter" && e.key !== " ") return;
-				e.preventDefault();
-			}
-			go(route);
-		};
-	}
-	const openAll = opener({ page: "all" });
-
 	/** The night Home shows, as days back from today: its sleep cards open that night. */
 	let nightOffset = $derived(Math.min(0, Math.round((Date.parse(`${model.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)));
 
@@ -483,17 +460,6 @@
 	/** The rail's open area and lit row. */
 	let railAt = $derived(railFocus(stack));
 	let atRoot = $derived(atAreaRoot(stack));
-
-	/** At a Glance cards with a page behind them, as in the app. In Focus's readiness and training status cards too. */
-	function glancePage(id: GlanceId): Route | null {
-		if (id === "steps" || id === "floors" || id === "intensity") return statsRoute(id);
-		if (id === "sleep") return sleepRoute(nightOffset);
-		const stat = glanceStat(id, healthPages);
-		// A day's page opens on the day Home shows, as Sleep's card opens its night.
-		if (stat) return healthStatRoute(stat.id, stat.defaultRange === "1d" ? { offset: nightOffset } : {});
-		const target = PERFORMANCE_REGISTRY.glanceTarget(id, performancePages);
-		return target ? performanceTargetRoute(target, nightOffset) : null;
-	}
 
 	/*
 	 * What every stat page gets, Health Stats' and Performance Stats' alike:
@@ -615,36 +581,16 @@
 </script>
 
 {#snippet focus(id: FocusId)}
-	{#if id === "sleep"}
-		{@const open = opener(sleepRoute(nightOffset))}
-		<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusSleep sleep={model.sleep} /></div>
-	{:else if id === "bodyBattery"}<FocusBattery battery={model.battery} />
-	{:else if id === "steps"}
-		{@const open = opener(statsRoute("steps"))}
-		<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusSteps steps={model.steps} /></div>
-	{:else if id === "activities"}
-		<div class="tap" role="button" tabindex="0" onclick={openAll} onkeydown={openAll}><FocusActivities activities={model.activities} /></div>
-	{:else if id === "readiness"}
-		{@const page = glancePage("readiness")}
-		{#if page}
-			{@const open = opener(page)}
-			<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusReadiness readiness={model.readiness} /></div>
-		{:else}<FocusReadiness readiness={model.readiness} />{/if}
-	{:else if id === "trainingStatus"}
-		{@const page = glancePage("trainingStatus")}
-		{#if page}
-			{@const open = opener(page)}
-			<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><FocusTraining status={model.trainingStatus} /></div>
-		{:else}<FocusTraining status={model.trainingStatus} />{/if}
-	{/if}
+	<!-- Each card opens its page on the day Home shows, as in the app. Body Battery's opens nothing. -->
+	{@const page = focusRoute(id, nightOffset, built)}
+	{#if page}<Tap open={() => go(page)}><FocusCard {id} {model} /></Tap>{:else}<FocusCard {id} {model} />{/if}
 {/snippet}
 
 {#snippet coach()}
 	{#if model.sleepCoach}
-		{@const open = opener({ page: "sleep", range: "1d", offset: nightOffset, tab: "coach" })}
-		<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>
+		<Tap open={() => go({ page: "sleep", range: "1d", offset: nightOffset, tab: "coach" })}>
 			<RowCard kicker="Sleep Coach" icon="alarm-clock" color="var(--color-blue)" headline="{model.sleepCoach.hours} recommended" detail={model.sleepCoach.message} />
-		</div>
+		</Tap>
 	{/if}
 {/snippet}
 
@@ -692,7 +638,7 @@
 	{:else if current.page === "all"}
 		<AllActivitiesPage route={current} data={activities} {today} {history} {canSync} {openSheet} onBack={back} {go} {swap} {onSyncHistory} />
 	{:else if current.page === "activity"}
-		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {go} {swap} {reach} />
+		<ActivityPage route={current} data={activities} {loadActivity} {cachedActivity} {tiles} {openSheet} {share} onBack={back} {go} {swap} {reach} />
 	{:else if current.page === "activity-map"}
 		<ActivityMapPage route={current} {loadActivity} {cachedActivity} {tiles} {openSheet} onBack={back} {swap} />
 	{:else if current.page === "health"}
@@ -788,51 +734,20 @@
 				<div class="top-row">
 					<section>
 						<SectionHeader title="Today’s Activity" />
-						<div class="stack">
-							{#each model.today as item}
-								{#if item.kind === "snapshot"}
-									<RowCard
-										kicker={item.title}
-										icon="clipboard-plus"
-										color="var(--color-red)"
-										headline={item.hr !== undefined ? `${item.hr} bpm Avg HR` : "Health Snapshot"}
-										detail={[
-											item.spo2 !== undefined ? `${item.spo2}% Avg SpO₂` : "",
-											item.respiration !== undefined ? `${Math.round(item.respiration)} brpm Avg Resp` : "",
-										]
-											.filter(Boolean)
-											.join(" • ")}
-									/>
-								{:else}
-									{@const opens = activityIdFor(activities.rows, item.start, item.name)}
-									{#snippet card()}
-										<RowCard
-											kicker={item.name}
-											icon="activity"
-											color="var(--color-blue)"
-											headline={[item.distance, item.minutes !== undefined ? `${Math.round(item.minutes)} min` : ""].filter(Boolean).join(" · ") || item.name}
-											detail={item.calories !== undefined ? `${item.calories} kcal` : undefined}
-										/>
-									{/snippet}
-									{#if opens !== null}
-										{@const open = opener(activityRoute(opens))}
-										<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>{@render card()}</div>
-									{:else}
-										{@render card()}
-									{/if}
-								{/if}
-							{:else}
-								<HomeCard><div class="quiet">No activities or Health Snapshots yet today.</div></HomeCard>
-							{/each}
-						</div>
+						<DayActivities
+							items={model.today}
+							opens={(item) => {
+								const page = todayItemRoute(item, activities.rows);
+								return page ? () => go(page) : null;
+							}}
+						/>
 					</section>
 					{#if model.sleepCoach}
-						{@const open = opener({ page: "sleep", range: "1d", offset: nightOffset, tab: "coach" })}
 						<section class="wide-only">
 							<SectionHeader title="Sleep Coach" />
-							<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}>
+							<Tap open={() => go({ page: "sleep", range: "1d", offset: nightOffset, tab: "coach" })}>
 								<RowCard icon="alarm-clock" color="var(--color-blue)" headline="{model.sleepCoach.hours} recommended" detail={model.sleepCoach.message} />
-							</div>
+							</Tap>
 						</section>
 					{/if}
 				</div>
@@ -859,11 +774,8 @@
 					<SectionHeader title="At a Glance" action="See All" onAction={() => go({ page: "glance" })} />
 					<div class="glance">
 						{#each glanceList.slice(0, HOME_GLANCE) as id (id)}
-							{@const page = glancePage(id)}
-							{#if page}
-								{@const open = opener(page)}
-								<div class="tap" role="button" tabindex="0" onclick={open} onkeydown={open}><Glance {id} {model} /></div>
-							{:else}<Glance {id} {model} />{/if}
+							{@const page = glanceRoute(id, nightOffset, built)}
+							{#if page}<Tap open={() => go(page)}><Glance {id} {model} /></Tap>{:else}<Glance {id} {model} />{/if}
 						{:else}
 							<div class="glance-none">
 								<HomeCard><div class="quiet">No stats here yet. Choose See All, then Edit, to add some.</div></HomeCard>
@@ -1030,22 +942,6 @@
 	}
 	.slide > :global(*) {
 		flex: 1;
-	}
-	/* The All Activities card opens All Activities, the Steps, Floors and
-	   Intensity Minutes cards their pages, and the sleep cards the night's
-	   Sleep page, as they do in the app. */
-	.tap {
-		display: flex;
-		flex-direction: column;
-		cursor: pointer;
-		border-radius: var(--radius-m, 8px);
-	}
-	.tap > :global(*) {
-		flex: 1;
-	}
-	.tap:focus-visible {
-		outline: 2px solid var(--interactive-accent);
-		outline-offset: 2px;
 	}
 	.dots {
 		display: flex;
