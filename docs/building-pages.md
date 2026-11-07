@@ -515,9 +515,12 @@ answer, not its contents, so a type Garmin adds shows up only as one the table l
   `navigator.canShare` takes a file (the iPhone). A desktop and Android's WebView get **Save**, which
   writes into the attachment folder. Nothing touches the clipboard: the Community directory's
   review counts clipboard access against a plugin.
-- **The templates.** TRANSPARENT at 9:16 is measured off Garmin's. The rest are Inferred until
-  the share spec (`ref/activity-details/share/`). Garmin's wordmark and topographic artwork stay
-  out.
+- **The templates are Garmin's, measured.** Rings, Map, Topographic and both TRANSPARENTs, every
+  place taken off Garmin's saved images, at each ratio (the spec, `ref/share/README.md`). Each
+  sport shares five figures, A to E (`SHARE_SETS`), and each template places them its own way.
+- **What is ours.** Garmin's wordmark, its sport-art template and its artwork stay out.
+  Topographic's contour lines come from a field seeded by the activity (`share-art.ts`), and Map
+  draws OpenStreetMap through the exported note's map painter (`drawRouteMap`).
 
 ### All Activities
 

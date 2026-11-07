@@ -160,7 +160,7 @@ when adding to it.
 | `dashboard/stat-charts.ts`, `stat-dial.ts`, `stat-controls.ts`, `gauges.ts` | chart parts the stat pages share — pure |
 | `dashboard/activities.ts`, `totals-chart.ts`, `activity-types.ts`, `all-activities.ts` | the Activities pages and their totals chart, Garmin's type table, All Activities — pure |
 | `dashboard/activity-*.ts`, `cycling-activity-charts.ts`, `cycling-metrics.ts`, `swim-metrics.ts`, `sports/` | an activity's page: its sport profile, map, tabs, charts and wording — pure |
-| `dashboard/activity-share.ts`, `share-layout.ts` | Share: an activity's share figures, and each image template laid out as drawing steps — pure |
+| `dashboard/activity-share.ts`, `share-layout.ts`, `share-art.ts` | Share: an activity's five share figures, each image template laid out as drawing steps, and the backgrounds the plugin draws itself — pure |
 | `dashboard/map-view.ts` | a map's view without Leaflet: Web Mercator, `fitBounds`' zoom, the tiles under a box — pure |
 | `dashboard/stats-pages.ts`, `stats-charts.ts` | Steps, Floors and Intensity Minutes — pure |
 | `dashboard/<stat>-pages.ts`, `<stat>-charts.ts`, `<stat>-copy.ts` | each Health and Performance Stats page (and Sleep): its view model, chart geometry and Garmin's wording — pure |

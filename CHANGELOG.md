@@ -11,9 +11,10 @@ from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 ### Added
 
 - **Share an activity.** **Share**, under an activity's figures, turns it into a picture, as
-  Garmin's app does. Pick **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**, swipe to
-  an image, and on a phone send it from the share sheet or save it to your photos. **Save** puts it
-  in your vault. **Share activity…** opens it for the activity on screen. See
+  Garmin's app does. Pick **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**, swipe
+  through Rings, Map, Topographic and TRANSPARENT, and on a phone send it from the share sheet or save
+  it to your photos. **Save** puts it in your vault. **Share activity…** opens it for the activity on
+  screen. See
   [An activity's page](https://github.com/tareqayz/Obsidian-Garmin-Connect/blob/main/docs/GUIDE.md#an-activitys-page).
 
 ### Fixed

@@ -357,7 +357,8 @@ sport. A multisport is the exception: one page, with no tabs.
 **Share:** **Share**, under the Overview's figures, turns the activity into a picture to send, as the
 app's **Share Activity** does:
 1. Choose an aspect ratio: **Full Portrait (9:16)**, **Vertical (4:5)** or **Square (1:1)**.
-2. Swipe to an image. One marked **TRANSPARENT** is see-through, to lay over a photo of your own.
+2. Swipe to an image: Rings, Map, Topographic, and **TRANSPARENT** with and without the route,
+   see-through to lay over a photo of your own. An activity without GPS has Rings and TRANSPARENT.
 3. On a phone, **Share** opens the share sheet: send it, or **Save Image** to your photos. **Save**
    writes it into the vault's attachment folder as `<name> <date>.png`. On a computer, which has no
    share sheet, the saved picture opens, and right-click → **Copy image** copies it.
