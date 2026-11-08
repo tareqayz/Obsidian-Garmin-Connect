@@ -32,9 +32,15 @@ export function templatesFolderOf(app: App): string | null {
 	return coreOptions(app, "templates")?.folder?.trim() || null;
 }
 
+/**
+ * The part of `moment` this file calls. The Community directory's scanner has no type for `moment`
+ * (see types/scanner/moment.d.ts), so the call goes through this one.
+ */
+type StrictMoment = (text: string, format: string, strict: true) => { isValid(): boolean; format(format: string): string };
+
 /** The day `text` names in a moment format, read strictly and only if it reads back the same. */
 export function parseDay(text: string, format: string): string | null {
-	const at = moment(text, format, true);
+	const at = (moment as StrictMoment)(text, format, true);
 	return at.isValid() && at.format(format) === text ? at.format("YYYY-MM-DD") : null;
 }
 

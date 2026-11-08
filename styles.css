@@ -871,12 +871,6 @@ body {
 	line-height: var(--line-height-tight);
 }
 
-@media print {
-	.gch-embed {
-		break-inside: avoid;
-	}
-}
-
 /* Insert card…: a card's name for its block, beside its title. */
 .gch-card-suggestion .gch-card-id {
 	font-family: var(--font-monospace);

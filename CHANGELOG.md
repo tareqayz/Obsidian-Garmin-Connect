@@ -6,6 +6,13 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Fixed
+
+- **The Community directory's review is clean again.** It flagged a date check in note cards and a
+  print-only style. A card printed from a note can now split across pages.
+
 ## [2.0.0] — 2026-11-07
 
 ### Added
