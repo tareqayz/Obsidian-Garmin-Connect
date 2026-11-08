@@ -20,18 +20,23 @@ npm run lint    # the Community directory's review rules
 or electron import reaches `main.js`. That check is what backs `isDesktopOnly: false`: fix the
 import, not the check.
 
-`npm run lint` runs `eslint-plugin-obsidianmd`'s recommended rules, the ones the Community directory's
-automated review lints every release with, and CI runs it beside the build. `eslint.config.mjs`
-ignores what the directory's scanner ignores, and `src/tsconfig.json` types the plugin's code the
-way the scanner does, without Node's globals: `@types/node`, there for `scripts/` and `tests/`,
-would otherwise give every array ES2022's `.at()`, which the ES2020 lib lacks and the review reports
-as untyped. svelte-check reads the same file. Don't silence a rule with a disable comment: the
-review doesn't honour them all. Two things only the lint catches: a `<style>` or `<link>` the code
-adds to the page (CSS belongs in `styles.css`), and `any` reaching typed code.
+`npm run lint` runs the Community directory's automated review locally, and CI runs it beside the
+build. It fails on any warning, since each one costs the listing a point.
 
-The review checks `styles.css` too: no `!important`, no property set twice in one rule, and nothing
-that Obsidian's browser supports only in part. `tests/leaflet-styles.test.ts` runs the first two;
-only the review runs the third.
+- `eslint.config.mjs` is `eslint-plugin-obsidianmd`'s
+  [scanner-equivalent configuration](https://github.com/obsidianmd/eslint-plugin/blob/main/docs/configuration.md#community-plugin-scanner-configuration),
+  with its ignore list and the stricter rules the scanner adds for new plugins. When the plugin
+  updates, compare the config with that page again.
+- `src/tsconfig.json` types the plugin's code the way the scanner does. It has no Node globals:
+  `@types/node`, there for `scripts/` and `tests/`, would give every array ES2022's `.at()`. It also
+  has no `moment` types, because the scanner doesn't install `obsidian`'s own dependencies:
+  `types/scanner/moment.d.ts` stands in, so a `moment` call needs a local type (see
+  `src/embeds/core-plugins.ts`). svelte-check reads the same file.
+- `npm run lint:css` checks `styles.css` with stylelint (`stylelint.config.mjs`): no `!important`,
+  no property set twice in one rule, and no browser feature Obsidian's Chromium supports only in
+  part.
+
+Don't silence a rule with a disable comment: the review doesn't honour them all.
 
 ## Branches and commits
 
@@ -233,7 +238,8 @@ a real vault. That has consequences:
 | `dev` | esbuild in watch mode |
 | `build` | the full gate: `tsc`, `svelte-check`, `test`, the production bundle, `check` |
 | `check` | `scripts/check-mobile-safe.mjs`: fails if a node or electron require reached `main.js` |
-| `lint` | ESLint with the Community directory's rules (`eslint.config.mjs`) |
+| `lint` | the Community directory's review: ESLint (`eslint.config.mjs`), then `lint:css` |
+| `lint:css` | stylelint on `styles.css` (`stylelint.config.mjs`) |
 | `test` | bundles `tests/*.test.ts` into `tests/.build/` (cleared first) and runs Node's test runner |
 | `svelte-check` | type-checks the Svelte components |
 | `version` | npm's version hook: `version-bump.mjs` (see [Releasing](#releasing)) |
