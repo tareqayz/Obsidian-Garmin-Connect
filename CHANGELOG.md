@@ -6,7 +6,7 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
-## [Unreleased]
+## [2.0.1] — 2026-11-08
 
 ### Fixed
 
