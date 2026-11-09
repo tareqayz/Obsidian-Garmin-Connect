@@ -94,8 +94,8 @@
 				items={[
 					{ kind: "dot", label: "Deep", color: "var(--gcs-deep)" },
 					{ kind: "dot", label: "Light", color: "var(--gcs-light)" },
-					{ kind: "dot", label: "REM", color: "var(--color-pink)" },
-					{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+					{ kind: "dot", label: "REM", color: "var(--gcs-rem)" },
+					{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 				]}
 			/>
 		</div>
@@ -141,10 +141,8 @@
 </div>
 
 <style>
-	/* The sheet's body: Sleep's stage colours for its hypnogram and key; 25 under the last box, and a phone's home indicator. */
+	/* The sheet's body: 25 under the last box, and a phone's home indicator. */
 	.readiness-sheet {
-		--gcs-deep: color-mix(in srgb, var(--color-blue) 80%, #000);
-		--gcs-light: color-mix(in srgb, var(--color-blue) 60%, #fff);
 		display: flex;
 		flex-direction: column;
 		box-sizing: border-box;

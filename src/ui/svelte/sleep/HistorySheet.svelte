@@ -15,7 +15,7 @@
 	let period = $derived({ range: "7d", duration: view.bars } as unknown as SleepPeriodView);
 </script>
 
-<div class="history-sheet sleep-colors">
+<div class="history-sheet">
 	<header class="sheet-header">
 		<h2>Sleep History</h2>
 		<button class="close" aria-label="Close" onclick={onClose}>
@@ -41,10 +41,6 @@
 </div>
 
 <style>
-	.sleep-colors {
-		--gcs-deep: color-mix(in srgb, var(--color-blue) 80%, #000);
-		--gcs-light: color-mix(in srgb, var(--color-blue) 60%, #fff);
-	}
 	.history-sheet {
 		container-type: inline-size;
 		color: var(--text-normal);

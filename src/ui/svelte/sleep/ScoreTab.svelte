@@ -34,12 +34,12 @@
 			? [
 					{ kind: "dot", label: "Deep", color: "var(--gcs-deep)" },
 					{ kind: "dot", label: "Light", color: "var(--gcs-light)" },
-					{ kind: "dot", label: "REM", color: "var(--color-pink)" },
-					{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+					{ kind: "dot", label: "REM", color: "var(--gcs-rem)" },
+					{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 				]
 			: overlay.kind === "awake"
 				? [
-						{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+						{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 						{ kind: "line", label: "Restless Moments" },
 					]
 				: [{ kind: "line", label: overlay.legend }],

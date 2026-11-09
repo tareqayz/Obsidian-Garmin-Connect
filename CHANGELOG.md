@@ -6,6 +6,14 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Fixed
+
+- **Sleep stages use Garmin's colours.** Deep, light, REM and awake now match Garmin in every
+  sleep chart and key, in light and dark themes. Awake stretches in the Sleep Score card no longer
+  leave a gap beside them.
+
 ## [2.0.1] — 2026-11-08
 
 ### Fixed

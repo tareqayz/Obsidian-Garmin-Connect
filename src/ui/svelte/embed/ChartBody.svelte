@@ -38,8 +38,8 @@
 	const STAGES: LegendEntry[] = [
 		{ kind: "dot", label: "Deep", color: "var(--gcs-deep)" },
 		{ kind: "dot", label: "Light", color: "var(--gcs-light)" },
-		{ kind: "dot", label: "REM", color: "var(--color-pink)" },
-		{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+		{ kind: "dot", label: "REM", color: "var(--gcs-rem)" },
+		{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 	];
 </script>
 
@@ -97,11 +97,6 @@
 {/if}
 
 <style>
-	/* The Sleep page's stage colours (SleepPage.svelte), which its charts and key read. */
-	.sleep {
-		--gcs-deep: color-mix(in srgb, var(--color-blue) 80%, #000);
-		--gcs-light: color-mix(in srgb, var(--color-blue) 60%, #fff);
-	}
 	.legend {
 		margin-top: 8px;
 	}

@@ -74,10 +74,9 @@
 		background: var(--gcs-light);
 	}
 	.stage-rem {
-		background: var(--color-pink);
+		background: var(--gcs-rem);
 	}
 	.stage-awake {
-		background: var(--color-pink);
-		opacity: 0.7;
+		background: var(--gcs-awake);
 	}
 </style>

@@ -48,16 +48,16 @@
 	const STAGE_LEGEND: Partial<Record<SleepFactorId, LegendEntry>> = {
 		deep: { kind: "dot", label: "Deep Sleep", color: "var(--gcs-deep)" },
 		light: { kind: "dot", label: "Light Sleep", color: "var(--gcs-light)" },
-		rem: { kind: "dot", label: "REM Sleep", color: "var(--color-pink)" },
+		rem: { kind: "dot", label: "REM Sleep", color: "var(--gcs-rem)" },
 	};
 	const STAGES: LegendEntry[] = [
 		{ kind: "dot", label: "Deep", color: "var(--gcs-deep)" },
 		{ kind: "dot", label: "Light", color: "var(--gcs-light)" },
-		{ kind: "dot", label: "REM", color: "var(--color-pink)" },
-		{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+		{ kind: "dot", label: "REM", color: "var(--gcs-rem)" },
+		{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 	];
 	const AWAKE: LegendEntry[] = [
-		{ kind: "dot", label: "Awake", color: "var(--color-pink)", faded: true },
+		{ kind: "dot", label: "Awake", color: "var(--gcs-awake)" },
 		{ kind: "line", label: "Restless Moments" },
 	];
 	const STRESS: LegendEntry[] = [
@@ -70,7 +70,7 @@
 	let awakeOverlay = $derived(view?.timeline?.overlays.find((o) => o.id === "awake") ?? null);
 </script>
 
-<div class="factor-page sleep-colors">
+<div class="factor-page">
 	<PageBar title={view?.title ?? FACTOR_TITLE[route.factor]} {onBack} />
 	{#if view}
 		<div class="body">
@@ -116,10 +116,6 @@
 </div>
 
 <style>
-	.sleep-colors {
-		--gcs-deep: color-mix(in srgb, var(--color-blue) 80%, #000);
-		--gcs-light: color-mix(in srgb, var(--color-blue) 60%, #fff);
-	}
 	.body {
 		padding-bottom: 24px;
 	}
