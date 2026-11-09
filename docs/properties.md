@@ -483,7 +483,8 @@ Every timestamp is epoch milliseconds, UTC, and a key is left out when Garmin ha
 
 - **`extra`** holds what a page loaded when it opened a day the sync didn't cover:
   - Health Stats: `stressDay`, `heartDay`, `respirationDay`, `spo2Day`, `fitnessAgeDay`,
-    `snapshotList`, `snapshotDay`;
+    `snapshotList`, `snapshotDay`, and for Body Battery's marker row `naps` and `moveIq`
+    (`[{ "start": 1794146570000, "minutes": 20 }]`; a Move IQ event adds its `type`, e.g. `walking`);
   - Performance Stats: `enduranceDay`.
 - **Written by the sync itself:** `hrvDay` (the night's HRV readings) and `readinessDay` (every
   Training Readiness reading of the day). It writes them from calls it already makes, and never

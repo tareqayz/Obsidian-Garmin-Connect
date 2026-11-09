@@ -44,6 +44,12 @@ export function sportPaths(glyph: SportGlyph): string | undefined {
 	return glyph === "activity" ? undefined : TABLER[glyph];
 }
 
+/** A glyph's path data, one string a path, on the same 24-unit grid; none for Lucide's `activity`. */
+export function sportPathData(glyph: SportGlyph): string[] | undefined {
+	const paths = sportPaths(glyph);
+	return paths ? [...paths.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]) : undefined;
+}
+
 /** The Obsidian icon id for a glyph. `activity` is Lucide's own. */
 export function sportIcon(glyph: SportGlyph): string {
 	return glyph === "activity" ? "activity" : `garmin-sport-${glyph}`;

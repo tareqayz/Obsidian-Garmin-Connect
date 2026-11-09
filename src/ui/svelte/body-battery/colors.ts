@@ -8,7 +8,6 @@ export const BATTERY_COLORS = [
 	"--battery-track: var(--background-modifier-border)",
 	"--battery-bar: var(--background-modifier-border)",
 	"--battery-area: color-mix(in srgb, var(--text-faint) 45%, transparent)",
-	"--battery-sleep: color-mix(in srgb, var(--text-faint) 18%, transparent)",
 	"--battery-line: var(--text-normal)",
 	"--stress-rest: var(--color-blue)",
 	"--stress-medium: var(--color-orange)",

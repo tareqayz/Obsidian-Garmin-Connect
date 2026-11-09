@@ -1,4 +1,5 @@
-import type { BatteryPeriodView, BatteryTimeline } from "./body-battery-pages";
+import type { SportGlyph } from "./activities";
+import type { BatteryPeriodView, BatteryTimeline, TimelineMarker } from "./body-battery-pages";
 import { plotBox, r2, type ChartFrame, type PlotBox } from "./stat-charts";
 
 /**
@@ -30,11 +31,20 @@ export interface BatteryTimelinePlot extends PlotBox {
 	/** The step line: measured stretches solid, estimated ones dotted. */
 	lines: Array<{ d: string; estimated: boolean }>;
 	bars: Array<{ x: number; y: number; w: number; h: number; tone: "rest" | "stress" }>;
+	/**
+	 * Too active to measure (−2): grey blocks in a strip under the 0 line,
+	 * over the dot row, as the phone draws them. Unmeasurable runs (−1) are
+	 * left blank, which is what the key's empty ring stands for.
+	 */
 	active: Array<{ x: number; y: number; w: number; h: number }>;
-	/** The night: a lighter band from midnight to the wake time, and the Zz marker on the dot row. */
-	sleep?: { x: number; w: number };
-	marker?: { x: number; y: number };
+	/** The marker row's discs, on the dot row. */
+	markers: Array<{ kind: TimelineMarker["kind"]; x: number; y: number; glyph?: SportGlyph }>;
+	/** Whether the line has an estimated stretch: the key lists "Estimated" only then. */
+	estimated: boolean;
 }
+
+/** The strip under the 0 line: 1 pt below it, 7 pt tall. A run narrower than a point still shows as a tick. */
+const STRIP = { gap: 1, height: 7, min: 1 } as const;
 
 export function batteryTimelinePlot(t: BatteryTimeline, width: number, pane = false): BatteryTimelinePlot {
 	const f = TIMELINES[pane ? "pane" : "phone"];
@@ -43,6 +53,12 @@ export function batteryTimelinePlot(t: BatteryTimeline, width: number, pane = fa
 		labels: t.ticks.flatMap((k) => (k.label ? [{ x: k.x, text: k.label }] : [])),
 	};
 	const { box, scale } = plotBox(f, width, TICKS, axis);
+	const strip = (run: { x0: number; x1: number }) => ({
+		x: r2(scale.x(run.x0)),
+		y: r2(f.baseline + STRIP.gap),
+		w: r2(Math.max(STRIP.min, (run.x1 - run.x0) * scale.span)),
+		h: STRIP.height,
+	});
 	const areas: string[] = [];
 	const lines: BatteryTimelinePlot["lines"] = [];
 	let run: BatteryTimeline["curve"] = [];
@@ -80,12 +96,14 @@ export function batteryTimelinePlot(t: BatteryTimeline, width: number, pane = fa
 			const top = scale.y(Math.max(1, b.level));
 			return { x: r2(scale.x(b.x0)), y: r2(top), w: r2((b.x1 - b.x0) * scale.span), h: r2(f.baseline - top), tone: b.tone };
 		}),
-		active: t.active.map((a) => ({ x: r2(scale.x(a.x0)), y: f.top, w: r2((a.x1 - a.x0) * scale.span), h: r2(f.baseline - f.top) })),
+		active: t.active.map(strip),
+		markers: t.markers.map((m) => {
+			const marker: BatteryTimelinePlot["markers"][number] = { kind: m.kind, x: r2(scale.x(m.x)), y: f.dotY };
+			if (m.glyph) marker.glyph = m.glyph;
+			return marker;
+		}),
+		estimated: t.curve.some((s) => s.estimated === true),
 	};
-	if (t.wake !== undefined) {
-		plot.sleep = { x: f.left, w: r2(t.wake * scale.span) };
-		plot.marker = { x: r2(scale.x(t.wake)), y: f.dotY };
-	}
 	return plot;
 }
 

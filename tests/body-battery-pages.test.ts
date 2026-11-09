@@ -8,6 +8,7 @@ import {
 	batteryView,
 	factorsOf,
 	gaugeOf,
+	markersOf,
 	signed,
 	type BatteryData,
 	type BatteryDayView,
@@ -19,7 +20,7 @@ import {
 import { HEALTH_STATS } from "../src/dashboard/health-stats";
 import { dayCardRoute, meanOf, stepRoute, switchRange, weeksOf } from "../src/dashboard/periods";
 import type { BodyBatteryEvent } from "../src/garmin/endpoints";
-import type { BatteryRow } from "../src/sync/body-battery-index";
+import { moveIqOf, napsOf, type BatteryRow } from "../src/sync/body-battery-index";
 import { mapSeries } from "../src/sync/intraday";
 import type { StressDay } from "../src/sync/stress-index";
 
@@ -474,6 +475,59 @@ describe("1d timeline", () => {
 		assert.equal(batteryTimelineOf(null).state, "empty");
 		const onlyBattery = batteryTimelineOf({ start: Date.parse("2026-05-10T20:00:00Z"), end: Date.parse("2026-05-11T20:00:00Z"), step: STEP, levels: [], battery: [60, null, 61] });
 		assert.deepEqual([onlyBattery.state, onlyBattery.curve.map((s) => s.level), onlyBattery.bars], ["drawn", [60, 61], []]);
+	});
+});
+
+describe("1d timeline markers", () => {
+	// Nov 7 and 8, 2026 (ref/body-battery/IMG_1379–1380): Dubai, UTC+4, midnight at 20:00 UTC.
+	const NOV_7 = Date.parse("2026-11-06T20:00:00Z");
+	const NOV_8 = Date.parse("2026-11-07T20:00:00Z");
+	const at = (h: number, m: number) => (h * 3600 + m * 60) / 86400;
+	const near = (x: number, h: number, m: number) => Math.abs(x - at(h, m)) < 1 / 1440;
+
+	it("Nov 7: Zz at 3:17, the clock at 8:50, two runs and a ride, and the next night's Zz at 22:24", () => {
+		const markers = markersOf({
+			date: "2026-11-07",
+			dayStart: NOV_7,
+			night: { bed: 11832, wake: 31812 },
+			nextBed: -5747,
+			activities: [
+				{ start: "2026-11-07T16:46:08", type: "road_biking", typeId: 10, parentTypeId: 2 },
+				{ start: "2026-11-07T12:00:51", type: "running", typeId: 1 },
+				{ start: "2026-11-07T11:07:41", type: "running", typeId: 1 },
+				{ start: "2026-11-06T18:00:00", type: "running", typeId: 1 },
+			],
+		});
+		assert.deepEqual(
+			markers.map((m) => [m.kind, m.glyph]),
+			[["sleep", undefined], ["wake", undefined], ["activity", "run"], ["activity", "run"], ["activity", "bike"], ["sleep", undefined]],
+		);
+		assert.ok(near(markers[0]!.x, 3, 17) && near(markers[1]!.x, 8, 50) && near(markers[2]!.x, 11, 7) && near(markers[4]!.x, 16, 46) && near(markers[5]!.x, 22, 24));
+	});
+
+	it("Nov 8: no Zz for a night that began the evening before; the clock, a Move IQ walk and a nap", () => {
+		const naps = napsOf([{ napStartTimestampGMT: "2026-11-08T13:12:50", napEndTimestampGMT: "2026-11-08T13:32:50", napTimeSec: 1200 }]);
+		const moveIq = moveIqOf([{ startTimestampGMT: "2026-11-08T06:47:00.0", duration: 10, activityType: "walking" }]);
+		assert.deepEqual(naps, [{ start: Date.parse("2026-11-08T13:12:50Z"), minutes: 20 }]);
+		assert.deepEqual(moveIq, [{ start: Date.parse("2026-11-08T06:47:00Z"), minutes: 10, type: "walking" }]);
+		const markers = markersOf({ date: "2026-11-08", dayStart: NOV_8, night: { bed: -5747, wake: 31273 }, nextBed: 4715, naps: naps!, moveIq: moveIq! });
+		assert.deepEqual(
+			markers.map((m) => [m.kind, m.glyph]),
+			[["wake", undefined], ["moveIq", "walk"], ["sleep", undefined]],
+		);
+		assert.ok(near(markers[0]!.x, 8, 41) && near(markers[1]!.x, 10, 47) && near(markers[2]!.x, 17, 12));
+	});
+
+	it("leaves out what has no time on the day, and keeps nothing from an empty answer", () => {
+		assert.deepEqual(markersOf({ date: "2026-11-08", naps: [{ start: NOV_8 + 3600_000 }], night: null }), []);
+		assert.equal(napsOf([]), null);
+		assert.equal(moveIqOf(null), null);
+	});
+
+	it("a day's view carries them, and the key's Estimated only shows on a day with an estimated stretch", () => {
+		const view = day(-1, { readings: OCT_7, events: EVENTS["2026-10-07"], sleep: { seconds: SLEPT["2026-10-07"], wake: 24859, bed: -21941 } });
+		assert.deepEqual(view.timeline.markers.map((m) => m.kind), ["wake"]);
+		assert.equal(view.timeline.markers[0]!.x, (24859 * 1000) / (23 * 3600 * 1000));
 	});
 });
 

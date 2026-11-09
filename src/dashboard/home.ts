@@ -17,6 +17,8 @@ import {
 	unitsOf,
 	weekdayLetter,
 } from "./day";
+import { MOVE_IQ_KEY, NAPS_KEY, marksIn } from "../sync/body-battery-index";
+import { markersOf, type TimelineMarker } from "./body-battery-pages";
 import { glanceModel, type GlanceId, type GlanceModel } from "./glance";
 import type { DayRow } from "./series";
 
@@ -292,6 +294,12 @@ export interface BatteryView {
 	/** Where sleep ended and a snapshot was taken, for the chart's markers. */
 	wake?: number;
 	snapshot?: number;
+	/**
+	 * The discs on the baseline, as the phone's card draws them: Zz where the
+	 * night began (when after midnight), the alarm clock where it ended, and
+	 * the day's activities; `x` across the day, 0..1.
+	 */
+	markers: TimelineMarker[];
 }
 
 export function batteryView(input: HomeInput, row: DayRow | undefined): BatteryView | null {
@@ -299,7 +307,9 @@ export function batteryView(input: HomeInput, row: DayRow | undefined): BatteryV
 	const latest = num(row, "body_battery_latest");
 	if (latest === undefined && !s?.bodyBattery?.length) return null;
 	const from = dayStart(input.date);
+	const sleepStart = s?.sleepLevels?.length ? s.sleepLevels[0].start : undefined;
 	const sleepEnd = s?.sleepLevels?.length ? s.sleepLevels[s.sleepLevels.length - 1].end : undefined;
+	const seconds = (t: number | undefined) => (t === undefined ? undefined : (t - from) / 1000);
 	const snap = row?.snapshots?.[0]?.start;
 	return {
 		latest,
@@ -312,6 +322,14 @@ export function batteryView(input: HomeInput, row: DayRow | undefined): BatteryV
 		to: from + DAY_MS,
 		wake: sleepEnd,
 		snapshot: typeof snap === "string" ? new Date(snap).getTime() : undefined,
+		markers: markersOf({
+			date: input.date,
+			dayStart: from,
+			night: { bed: seconds(sleepStart), wake: seconds(sleepEnd) },
+			naps: marksIn(s, NAPS_KEY),
+			moveIq: marksIn(s, MOVE_IQ_KEY),
+			activities: (row?.workouts ?? []).flatMap((w) => (typeof w.start === "string" && typeof w.type === "string" ? [{ start: w.start, type: w.type }] : [])),
+		}),
 	};
 }
 

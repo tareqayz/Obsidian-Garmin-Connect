@@ -581,7 +581,7 @@
 </script>
 
 {#snippet focus(id: FocusId)}
-	<!-- Each card opens its page on the day Home shows, as in the app. Body Battery's opens nothing. -->
+	<!-- Each card opens its page on the day Home shows, as in the app. -->
 	{@const page = focusRoute(id, nightOffset, built)}
 	{#if page}<Tap open={() => go(page)}><FocusCard {id} {model} /></Tap>{:else}<FocusCard {id} {model} />{/if}
 {/snippet}

@@ -30,7 +30,7 @@ export function glanceRoute(id: GlanceId, dayOffset: number, built: BuiltPages):
 	return target ? performanceTargetRoute(target, dayOffset) : null;
 }
 
-/** An In Focus card's page. Body Battery's opens nothing, as in the app. */
+/** An In Focus card's page, on the card's day. */
 export function focusRoute(id: FocusId, dayOffset: number, built: BuiltPages): Route | null {
 	switch (id) {
 		case "sleep":
@@ -38,11 +38,10 @@ export function focusRoute(id: FocusId, dayOffset: number, built: BuiltPages): R
 		case "steps":
 		case "readiness":
 		case "trainingStatus":
+		case "bodyBattery":
 			return glanceRoute(id, dayOffset, built);
 		case "activities":
 			return { page: "all" };
-		case "bodyBattery":
-			return null;
 	}
 }
 
