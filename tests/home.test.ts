@@ -1,10 +1,11 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { addDays, clockText, hoursText, humanize } from "../src/dashboard/day";
+import { addDays, clockText, dayStart, hoursText, humanize } from "../src/dashboard/day";
 import { intensityView } from "../src/dashboard/glance";
 import {
 	PRESETS,
 	activitiesView,
+	batteryView,
 	countdown,
 	dayToShow,
 	eventsView,
@@ -253,5 +254,28 @@ describe("the whole screen", () => {
 	it("shows the newest synced day when today has not synced", () => {
 		assert.equal(dayToShow([row("2026-09-22"), row("2026-09-23")], "2026-09-24"), "2026-09-23");
 		assert.equal(dayToShow([], "2026-09-24"), "2026-09-24");
+	});
+});
+
+describe("Body Battery card", () => {
+	it("marks the night's start and end and the day's activities on its baseline", () => {
+		const date = "2026-11-07";
+		const from = dayStart(date);
+		const day: DayRow = { ...row(date, { body_battery_latest: 36 }), workouts: [{ name: "Dubai Road Cycling", type: "road_biking", start: "2026-11-07T16:46" }] };
+		const view = batteryView(
+			{ date, rows: [day], account: null, series: { bodyBattery: [[from, 30]], sleepLevels: [{ start: from + 11832_000, end: from + 20000_000, level: 1 }, { start: from + 20000_000, end: from + 31812_000, level: 2 }] } },
+			day,
+		);
+		assert.deepEqual(
+			view?.markers.map((m) => [m.kind, m.glyph, Math.round(m.x * 1440)]),
+			[["sleep", undefined, 197], ["wake", undefined, 530], ["activity", "bike", 1006]],
+		);
+	});
+
+	it("leaves out a Zz for a night that began the evening before", () => {
+		const date = "2026-11-08";
+		const from = dayStart(date);
+		const view = batteryView({ date, rows: [], account: null, series: { bodyBattery: [[from, 30]], sleepLevels: [{ start: from - 5747_000, end: from + 31273_000, level: 1 }] } }, undefined);
+		assert.deepEqual(view?.markers.map((m) => m.kind), ["wake"]);
 	});
 });

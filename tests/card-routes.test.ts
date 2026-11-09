@@ -32,8 +32,9 @@ describe("card routes: the page a card opens", () => {
 		assert.equal(glanceRoute("stress", 0, { health: [], performance: [] }), null);
 	});
 
-	it("opens the In Focus cards as Home does: Body Battery opens nothing", () => {
-		assert.equal(focusRoute("bodyBattery", 0, BUILT), null);
+	it("opens the In Focus cards as Home does: Body Battery its 1d page on the card's day", () => {
+		assert.deepEqual(focusRoute("bodyBattery", -2, BUILT), healthStatRoute("body-battery", { offset: -2 }));
+		assert.equal(focusRoute("bodyBattery", 0, { health: [], performance: [] }), null);
 		assert.deepEqual(focusRoute("activities", -5, BUILT), { page: "all" });
 		assert.deepEqual(focusRoute("steps", -1, BUILT), statsRoute("steps", -1));
 		assert.deepEqual(focusRoute("readiness", -1, BUILT), glanceRoute("readiness", -1, BUILT));

@@ -1,12 +1,15 @@
-import type { DailyStatRow, DailySummary } from "../garmin/endpoints";
+import type { DailyEvent, DailyStatRow, DailySummary, Nap } from "../garmin/endpoints";
 import { defineDayIndex, type DayRowInput } from "./day-index";
+import { epochOf, type DaySeries } from "./intraday";
+import { defineIntraday } from "./intraday-registry";
 
 /**
  * Body Battery: the day index the Body Battery pages read
  * (ref/health-stats/body-battery/README.md). Their 1d timeline reads the day's
  * curve out of `STRESS_DAY`'s block (`batteryDayIn`), and their Factors the
- * series file's own `bodyBatteryEvents`, both loadable for any day, so the
- * stat registers no intraday extra of its own.
+ * series file's own `bodyBatteryEvents`, both loadable for any day. The
+ * timeline's marker row also needs the day's naps and Move IQ events, which
+ * nothing else keeps: `NAPS_DAY` and `MOVE_IQ_DAY` load them on view.
  *
  * A row a day. A routine sync fills the run's own days from the daily summary
  * it fetches anyway, which is the only source of the newest level and the
@@ -130,3 +133,67 @@ export const BODY_BATTERY_INDEX = defineDayIndex<BatteryRow>({
 	},
 	fromSummary: (summary) => rowOfSummary(summary),
 });
+
+/* ------------------------------------------------------------------ */
+/*  The 1d timeline's markers                                          */
+/* ------------------------------------------------------------------ */
+
+/** A nap or a Move IQ event: when it began, epoch ms, and how long it ran, minutes. */
+export interface DayMark {
+	start: number;
+	minutes?: number;
+	/** Move IQ's activity type: `walking`, `running`, … */
+	type?: string;
+}
+
+export const NAPS_KEY = "naps";
+export const MOVE_IQ_KEY = "moveIq";
+
+/** The day's naps, as the phone's timeline marks them with a Zz. Null on a day without any. */
+export function napsOf(payload: readonly Nap[] | null | undefined): DayMark[] | null {
+	const out: DayMark[] = [];
+	const naps: readonly Nap[] = Array.isArray(payload) ? payload : [];
+	for (const nap of naps) {
+		const start = epochOf(nap?.napStartTimestampGMT);
+		if (start === undefined) continue;
+		const mark: DayMark = { start };
+		if (typeof nap.napTimeSec === "number" && nap.napTimeSec > 0) mark.minutes = Math.round(nap.napTimeSec / 60);
+		out.push(mark);
+	}
+	return out.length ? out.sort((a, b) => a.start - b.start) : null;
+}
+
+/** The day's Move IQ events: stretches of walking or running never recorded as an activity. Null on a day without any. */
+export function moveIqOf(payload: readonly DailyEvent[] | null | undefined): DayMark[] | null {
+	const out: DayMark[] = [];
+	const events: readonly DailyEvent[] = Array.isArray(payload) ? payload : [];
+	for (const event of events) {
+		const start = epochOf(event?.startTimestampGMT);
+		if (start === undefined) continue;
+		const mark: DayMark = { start };
+		if (typeof event.duration === "number" && event.duration > 0) mark.minutes = event.duration;
+		if (typeof event.activityType === "string" && event.activityType) mark.type = event.activityType;
+		out.push(mark);
+	}
+	return out.length ? out.sort((a, b) => a.start - b.start) : null;
+}
+
+export const NAPS_DAY = defineIntraday<Nap[], DayMark[]>({
+	key: NAPS_KEY,
+	group: "intraday",
+	fetch: (api, date) => api.naps(date),
+	map: (payload) => napsOf(payload),
+});
+
+export const MOVE_IQ_DAY = defineIntraday<DailyEvent[], DayMark[]>({
+	key: MOVE_IQ_KEY,
+	group: "intraday",
+	fetch: (api, date) => api.dailyEvents(date),
+	map: (payload) => moveIqOf(payload),
+});
+
+/** A loaded day's marks under `key`, or none. */
+export function marksIn(series: DaySeries | null | undefined, key: string): DayMark[] {
+	const raw = series?.extra?.[key];
+	return Array.isArray(raw) ? (raw as DayMark[]).filter((m) => typeof m?.start === "number") : [];
+}

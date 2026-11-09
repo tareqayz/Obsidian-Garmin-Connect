@@ -12,7 +12,7 @@ import { sleepDayView, sleepPeriodView, type SleepDayView, type SleepPeriodView 
 import { seriesDays, statsView, type StatId, type StatsView } from "../dashboard/stats-pages";
 import { stressDayView, stressPeriodView, type StressDayView, type StressPeriodView } from "../dashboard/stress-pages";
 import { massOf, massText, unitOf, weightDayView, weightPeriodView, type WeightDayView, type WeightPeriodView } from "../dashboard/weight-pages";
-import type { BatteryRow } from "../sync/body-battery-index";
+import { MOVE_IQ_KEY, NAPS_KEY, marksIn, type BatteryRow } from "../sync/body-battery-index";
 import type { DailyStatsRow } from "../sync/daily-stats";
 import type { DayIndexData, DayRow as IndexRow } from "../sync/day-index";
 import { HEART_DAY_KEY, heartDayIn, heartDayOfSeries, type HeartRateRow } from "../sync/heart-rate-index";
@@ -223,16 +223,19 @@ async function batteryChart(range: ChartRange, day: string, today: string, read:
 	const index = await read.index<BatteryRow>("body-battery");
 	const data = { rows: index.rows, complete: index.meta?.complete ?? false };
 	if (range === "1d") {
-		const [series, sleep] = await Promise.all([read.series(day), read.index<SleepRow>("sleep")]);
+		const [series, sleep, activities] = await Promise.all([read.series(day), read.index<SleepRow>("sleep"), read.activities()]);
 		const readings = stressDayIn(series) ?? stressDayOfSeries(series, day === today);
 		const night = sleep.rows.find((r) => r.date === day);
+		const next = sleep.rows.find((r) => r.date === shiftDate(day, 1));
 		const view = batteryDayView({
 			data,
 			route: dayRoute(day, today),
 			today,
 			readings: readings ?? null,
 			events: series?.bodyBatteryEvents ?? [],
-			sleep: night ? { seconds: night.seconds, wake: night.wake } : null,
+			sleep: night ? { seconds: night.seconds, wake: night.wake, bed: night.bed } : null,
+			// Naps and Move IQ are only there once the page has loaded the day.
+			marks: { nextBed: next?.bed, naps: marksIn(series, NAPS_KEY), moveIq: marksIn(series, MOVE_IQ_KEY), activities: activities.rows },
 		});
 		const tiles = view.tiles.map((t) => ({ value: t.value, label: t.label }));
 		const value = view.gauge?.value;

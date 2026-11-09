@@ -1,6 +1,8 @@
-import type { BatteryRow } from "../sync/body-battery-index";
+import type { ActivityRow } from "../sync/activity-index";
+import type { BatteryRow, DayMark } from "../sync/body-battery-index";
 import type { BodyBatteryMarker } from "../sync/intraday";
 import { STRESS_DAY_KEY, batteryDayIn, type StressDay } from "../sync/stress-index";
+import { glyphOf, type SportGlyph } from "./activities";
 import { batteryFeedback, factorHasInfo, factorLabel, type BatteryFeedback } from "./body-battery-copy";
 import {
 	canStepBack,
@@ -74,7 +76,19 @@ export interface BatteryInput {
 	 * the Sleep row's duration, and when it ended, seconds from the day's
 	 * midnight, the timeline's wake marker.
 	 */
-	sleep?: { seconds?: number; wake?: number } | null;
+	sleep?: { seconds?: number; wake?: number; bed?: number } | null;
+	/**
+	 * 1d: what the timeline's marker row marks besides that night: the next
+	 * night's bed time (seconds from the next day's midnight, negative when it
+	 * began this evening), the day's naps and Move IQ events, and the
+	 * activities recorded that day.
+	 */
+	marks?: {
+		nextBed?: number;
+		naps?: readonly DayMark[];
+		moveIq?: readonly DayMark[];
+		activities?: readonly Pick<ActivityRow, "start" | "type" | "typeId" | "parentTypeId">[];
+	};
 }
 
 export type BatteryView = BatteryDayView | BatteryPeriodView;
@@ -158,6 +172,67 @@ export interface BatteryFactor {
 export interface BatteryTimeline extends StressTimeline {
 	/** The level a step, `x0..x1` across the day; a step without a reading is left out, and the line breaks there. */
 	curve: Array<{ x0: number; x1: number; level: number; estimated?: true }>;
+	/** The marker row's discs, left to right. */
+	markers: TimelineMarker[];
+}
+
+/**
+ * A disc on the 1d timeline's dot row, as the phone draws them
+ * (ref/body-battery/IMG_1378–1380): Zz where a sleep or a nap began, the
+ * alarm clock where the night ended, a green disc with the sport's figure
+ * where a recorded activity began, a grey one where Move IQ saw one.
+ */
+export interface TimelineMarker {
+	kind: "sleep" | "wake" | "activity" | "moveIq";
+	/** Across the day, 0..1. */
+	x: number;
+	glyph?: SportGlyph;
+}
+
+export interface MarkerInput {
+	date: string;
+	/** The day's midnight, epoch ms, for the marks timed in epoch ms; without it they are left out. */
+	dayStart?: number;
+	/** The day's length, ms: 24 hours but on a day the clocks changed. */
+	length?: number;
+	/** The night that ended on the day: bed and wake, seconds from the day's midnight (bed negative before it). */
+	night?: { bed?: number; wake?: number } | null;
+	nextBed?: number;
+	naps?: readonly DayMark[];
+	moveIq?: readonly DayMark[];
+	activities?: readonly Pick<ActivityRow, "start" | "type" | "typeId" | "parentTypeId">[];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The marker row. A night that began before midnight has no Zz on the day
+ * (it is on the evening before); the next night's Zz is on the day when it
+ * began before midnight (Nov 7, 22:24). Marks outside the day are dropped.
+ */
+export function markersOf(input: MarkerInput): TimelineMarker[] {
+	const length = input.length ?? DAY_MS;
+	const out: TimelineMarker[] = [];
+	const put = (kind: TimelineMarker["kind"], x: number, glyph?: SportGlyph) => {
+		if (!Number.isFinite(x) || x < 0 || x > 1) return;
+		const marker: TimelineMarker = { kind, x };
+		if (glyph) marker.glyph = glyph;
+		out.push(marker);
+	};
+	const ofSeconds = (s: number) => (s * 1000) / length;
+	const ofEpoch = (t: number) => (input.dayStart === undefined ? NaN : (t - input.dayStart) / length);
+	const night = input.night;
+	if (night?.bed !== undefined && night.bed >= 0) put("sleep", ofSeconds(night.bed));
+	if (night?.wake !== undefined) put("wake", ofSeconds(night.wake));
+	if (input.nextBed !== undefined && input.nextBed < 0) put("sleep", (length + input.nextBed * 1000) / length);
+	for (const nap of input.naps ?? []) put("sleep", ofEpoch(nap.start));
+	for (const row of input.activities ?? []) {
+		if (typeof row.start !== "string" || !row.start.startsWith(input.date)) continue;
+		const [h, m, sec] = row.start.slice(11, 19).split(":").map(Number);
+		put("activity", ofSeconds((h ?? 0) * 3600 + (m ?? 0) * 60 + (sec || 0)), glyphOf(row));
+	}
+	for (const mark of input.moveIq ?? []) put("moveIq", ofEpoch(mark.start), glyphOf({ type: mark.type ?? "" }));
+	return out.sort((a, b) => a.x - b.x);
 }
 
 export interface BatteryDayView {
@@ -185,6 +260,13 @@ export function batteryDayView(input: BatteryInput): BatteryDayView {
 	const date = dayOf(input.route, input.today);
 	const row = byDate(input.data.rows).get(date);
 	const timeline = batteryTimelineOf(input.readings, input.sleep?.wake);
+	timeline.markers = markersOf({
+		date,
+		dayStart: input.readings?.start,
+		length: input.readings ? dayLength(input.readings) : undefined,
+		night: input.sleep,
+		...input.marks,
+	});
 	const view: BatteryDayView = {
 		range: "1d",
 		date,
@@ -250,7 +332,7 @@ export function batteryTimelineOf(readings: StressDay | null | undefined, wake?:
 		}
 	}
 	const state = readings === undefined ? "pending" : curve.length || base.state === "drawn" ? "drawn" : "empty";
-	return { ...base, state, curve };
+	return { ...base, state, curve, markers: [] };
 }
 
 /**

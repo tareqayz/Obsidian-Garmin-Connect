@@ -6,6 +6,16 @@ All notable changes, newest first. The format follows
 published release, headed by its tag. From the next release on, a GitHub release takes its notes
 from its section; see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#releasing).
 
+## [Unreleased]
+
+### Fixed
+
+- **Body Battery's charts match Garmin's.** The daily timeline marks when sleep and naps began, when
+  you woke, and each activity, including walks Move IQ picked up. Active stretches sit under the 0
+  line, the night isn't shaded, and "Estimated" shows only on days that have it.
+- **The Body Battery card on Home opens its page,** on the card's day. The card also marks sleep and
+  wake on its baseline and the latest level with a dot, as Garmin's does.
+
 ## [2.0.2] — 2026-11-09
 
 ### Fixed

@@ -290,6 +290,8 @@ The `stats/…/daily` rows are `{calendarDate, values}`, except respiration's, w
 | `healthSnapshotList(until, start = 1, limit = 20)` | `/wellnessactivity-service/activity/summary/list` | the snapshot list, newest first, paged; `start` counts from 1 |
 | `wellnessActivities(date)` | `/wellnessactivity-service/activity/summary/{date}` | a day's snapshots |
 | `healthSnapshotEpochs(uuid)` | `/wellnessactivity-service/activity/epoch/{uuid}` | a snapshot's samples, one a second: a request per snapshot |
+| `naps(date)` | `/sleep-service/sleep/naps/{date}?includeOverlaps=true` | a day's naps: the Zz discs on Body Battery's 1d timeline |
+| `dailyEvents(date)` | `/wellness-service/wellness/dailyEvents/{who}?calendarDate=` | a day's Move IQ events: the grey discs on Body Battery's 1d timeline |
 
 ## Activity details
 
@@ -382,8 +384,6 @@ check too (the **Checked** column), so a change to them is noticed.
 | `bloodPressureLast(start, end)` | `/bloodpressure-service/bloodpressure/daily/last/{start}/{end}` | yes | Always an empty list on the recording account. |
 | `heartRateZones()` | `/biometric-service/heartRateZones/` | yes | Zone floors per sport profile. |
 | `healthSnapshotDetail(date, uuid)` | `/wellnessactivity-service/activity/summary/{date}/{uuid}` | yes | 204 unless `date` is the snapshot's own. |
-| `naps(date)` | `/sleep-service/sleep/naps/{date}?includeOverlaps=true` | yes | Naps, on the web's 1d timelines. |
-| `dailyEvents(date)` | `/wellness-service/wellness/dailyEvents/{who}?calendarDate=` | yes | Move IQ events, on the timelines. |
 | `activitiesForDay(date)` | `/activitylist-service/activities/fordailysummary/{who}?calendarDate=` | yes | Activities, on the timelines. |
 | `lifestyleLog(date)` | `/lifestylelogging-service/dailyLog/{date}` | yes | Lifestyle Logging, which shows Garmin's empty state for now. |
 
