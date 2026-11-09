@@ -65,12 +65,11 @@
 	.bar.light {
 		fill: var(--gcs-light);
 	}
-	.bar.rem,
-	.bar.awake {
-		fill: var(--color-pink);
+	.bar.rem {
+		fill: var(--gcs-rem);
 	}
 	.bar.awake {
-		opacity: 0.7;
+		fill: var(--gcs-awake);
 	}
 	.look-awake .bar.deep,
 	.look-awake .bar.light,

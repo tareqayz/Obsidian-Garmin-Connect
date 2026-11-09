@@ -37,12 +37,11 @@
 	.light {
 		stroke: var(--gcs-light);
 	}
-	.rem,
-	.awake {
-		stroke: var(--color-pink);
+	.rem {
+		stroke: var(--gcs-rem);
 	}
 	.awake {
-		opacity: 0.7;
+		stroke: var(--gcs-awake);
 	}
 	.centre {
 		position: absolute;

@@ -652,6 +652,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
 	}
 /* ==== end of Leaflet ==== */
 
+/* Sleep-stage colours, Garmin's own in both themes: every hypnogram, ring and key reads them. */
+body { --gcs-deep: #3874ca; --gcs-light: #6aa7f7; --gcs-rem: #c43fbc; --gcs-awake: #e07fd0; }
+
 .gcp-modal { max-width: 46rem; }
 /* Home's Add a Stat picker: Garmin's sheet, as a narrow list. */
 .gch-add-stat { width: 420px; max-width: 100%; }

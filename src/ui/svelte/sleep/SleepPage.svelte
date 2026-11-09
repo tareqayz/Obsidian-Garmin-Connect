@@ -103,7 +103,7 @@
 	});
 </script>
 
-<div class="sleep-page sleep-colors">
+<div class="sleep-page">
 	<div class="sticky">
 		<PageBar title="Sleep" {onBack} />
 		<div class="controls">
@@ -144,10 +144,6 @@
 </div>
 
 <style>
-	.sleep-colors {
-		--gcs-deep: color-mix(in srgb, var(--color-blue) 80%, #000);
-		--gcs-light: color-mix(in srgb, var(--color-blue) 60%, #fff);
-	}
 	.sticky {
 		position: sticky;
 		top: 0;
